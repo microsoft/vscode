@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/product/node/product';
@@ -23,12 +23,13 @@ import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
+export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = this._register(new DisposableStore());
 
 	private _activeWindowId: number | undefined;
 
@@ -52,6 +53,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		urlService.registerHandler(this);
 
 		// remember last active window id
@@ -459,9 +462,5 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		}
 
 		return undefined;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

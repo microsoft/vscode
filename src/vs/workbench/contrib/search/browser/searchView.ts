@@ -694,14 +694,14 @@ export class SearchView extends ViewletPanel {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-			getActionsContext: () => e.element
+			getActions: () => actions,
+			getActionsContext: () => e.element,
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 

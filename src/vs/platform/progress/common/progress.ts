@@ -5,7 +5,7 @@
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
@@ -124,15 +124,17 @@ export interface IOperation {
 	stop(): void;
 }
 
-export class LongRunningOperation {
+export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;
-	private currentOperationDisposables: IDisposable[] = [];
+	private readonly currentOperationDisposables = this._register(new DisposableStore());
 	private currentProgressRunner: IProgressRunner;
 	private currentProgressTimeout: any;
 
 	constructor(
 		private localProgressService: ILocalProgressService
-	) { }
+	) {
+		super();
+	}
 
 	start(progressDelay: number): IOperation {
 
@@ -148,11 +150,9 @@ export class LongRunningOperation {
 			}
 		}, progressDelay);
 
-		this.currentOperationDisposables.push(
-			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
-			toDisposable(() => newOperationToken.cancel()),
-			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
-		);
+		this.currentOperationDisposables.add(toDisposable(() => clearTimeout(this.currentProgressTimeout)));
+		this.currentOperationDisposables.add(toDisposable(() => newOperationToken.cancel()));
+		this.currentOperationDisposables.add(toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined));
 
 		return {
 			id: newOperationId,
@@ -168,11 +168,7 @@ export class LongRunningOperation {
 
 	private doStop(operationId: number): void {
 		if (this.currentOperationId === operationId) {
-			this.currentOperationDisposables = dispose(this.currentOperationDisposables);
+			this.currentOperationDisposables.clear();
 		}
-	}
-
-	dispose(): void {
-		this.currentOperationDisposables = dispose(this.currentOperationDisposables);
 	}
 }

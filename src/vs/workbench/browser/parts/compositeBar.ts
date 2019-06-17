@@ -201,6 +201,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		const activity: ICompositeActivity = { badge, clazz, priority };
 		this.model.addActivity(compositeId, activity);
+
 		return toDisposable(() => this.model.removeActivity(compositeId, activity));
 	}
 

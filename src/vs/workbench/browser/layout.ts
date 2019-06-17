@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, position, size, EventHelper } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
@@ -159,7 +159,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionedToCenteredEditorLayout: false,
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
-			transitionDisposeables: [] as IDisposable[]
+			transitionDisposeables: new DisposableStore()
 		},
 
 		// TODO @misolori remove before shipping stable
@@ -582,7 +582,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
 		this.state.zenMode.active = !this.state.zenMode.active;
-		this.state.zenMode.transitionDisposeables = dispose(this.state.zenMode.transitionDisposeables);
+		this.state.zenMode.transitionDisposeables.clear();
 
 		const setLineNumbers = (lineNumbers: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => editor.updateOptions({ lineNumbers }));
 
@@ -621,11 +621,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (config.hideLineNumbers) {
 				setLineNumbers('off');
-				this.state.zenMode.transitionDisposeables.push(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
+				this.state.zenMode.transitionDisposeables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
 			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.zenMode.transitionDisposeables.push(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+				this.state.zenMode.transitionDisposeables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
 			if (config.centerLayout) {

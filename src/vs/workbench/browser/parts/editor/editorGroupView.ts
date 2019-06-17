@@ -24,7 +24,7 @@ import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { LocalProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -216,15 +216,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyServcie);
 
-		let activeEditorListener: IDisposable;
+		let activeEditorListener = new MutableDisposable();
 
 		const observeActiveEditor = () => {
-			dispose(activeEditorListener);
+			activeEditorListener.clear();
 
 			const activeEditor = this._group.activeEditor;
 			if (activeEditor) {
 				groupActiveEditorDirtyContextKey.set(activeEditor.isDirty());
-				activeEditorListener = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContextKey.set(activeEditor.isDirty()));
+				activeEditorListener.value = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContextKey.set(activeEditor.isDirty()));
 			} else {
 				groupActiveEditorDirtyContextKey.set(false);
 			}
@@ -321,13 +321,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(menu, undefined, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions, this.contextMenuService);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			onHide: () => this.focus()
+			onHide: () => {
+				this.focus();
+				dispose(actionsDisposable);
+			}
 		});
 	}
 
