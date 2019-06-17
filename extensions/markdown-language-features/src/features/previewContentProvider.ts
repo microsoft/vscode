@@ -197,17 +197,17 @@ export class MarkdownContentProvider {
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: http: https: data:; media-src vscode-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' http: https: data:; font-src vscode-resource: http: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' vscode-resource: http: https: data:; media-src 'self' vscode-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' http: https: data:; font-src 'self' vscode-resource: http: https: data:;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowInsecureLocalContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: https: data: http://localhost:* http://127.0.0.1:*; media-src vscode-resource: https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src vscode-resource: https: data: http://localhost:* http://127.0.0.1:*;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' vscode-resource: https: data: http://localhost:* http://127.0.0.1:*; media-src 'self' vscode-resource: https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src 'self' vscode-resource: https: data: http://localhost:* http://127.0.0.1:*;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
 				return '';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: https: data:; media-src vscode-resource: https: data:; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' https: data:; font-src vscode-resource: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' vscode-resource: https: data:; media-src 'self' vscode-resource: https: data:; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' https: data:; font-src 'self' vscode-resource: https: data:;">`;
 		}
 	}
 }
