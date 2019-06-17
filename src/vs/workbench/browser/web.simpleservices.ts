@@ -13,7 +13,6 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
-import { StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
@@ -21,10 +20,7 @@ import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOper
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -39,8 +35,6 @@ import { ExportData } from 'vs/base/common/performance';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
@@ -49,10 +43,6 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { State as DebugState, IDebugService, IDebugSession, IConfigurationManager, IStackFrame, IThread, IViewModel, IExpression, IFunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
-// tslint:disable-next-line: import-patterns
-import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-// tslint:disable-next-line: import-patterns
-import { TaskEvent } from 'vs/workbench/contrib/tasks/common/tasks';
 // tslint:disable-next-line: import-patterns
 import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 // tslint:disable-next-line: import-patterns
@@ -194,7 +184,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	appRoot: string;
 	userHome: string;
 	userDataPath: string;
-	appNameLong: string;
+	appNameLong: string = 'Visual Studio Code - Web';
 	appQuality?: string;
 	appSettingsHome: URI;
 	settingsResource: URI;
@@ -234,6 +224,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	disableCrashReporter: boolean;
 	driverHandle?: string;
 	driverVerbose: boolean;
+	webviewEndpoint?: string;
 }
 
 
@@ -407,38 +398,6 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 	allowedBadgeProviders: string[];
 }
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregion
-
-//#region ITaskService
-export class SimpleTaskService implements ITaskService {
-	_serviceBrand: any;
-	onDidStateChange: Event<TaskEvent> = Event.None;
-	supportsMultipleTaskExecutions: boolean;
-	configureAction: any;
-	build: any;
-	runTest: any;
-	run: any;
-	inTerminal: any;
-	isActive: any;
-	getActiveTasks: any;
-	restart: any;
-	terminate: any;
-	terminateAll: any;
-	tasks: any;
-	getWorkspaceTasks: any;
-	getTask: any;
-	getTasksForGroup: any;
-	getRecentlyUsedTasks: any;
-	createSorter: any;
-	needsFolderQualification: any;
-	canCustomize: any;
-	customize: any;
-	openConfig: any;
-	registerTaskProvider() { return Disposable.None; }
-	registerTaskSystem() { }
-	extensionCallbackTaskComplete: any;
-}
-registerSingleton(ITaskService, SimpleTaskService, true);
 //#endregion
 
 //#region ICommentService
@@ -638,23 +597,6 @@ registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
 
 //#endregion
 
-//#region Keybinding
-
-export class SimpleKeybindingService extends StandaloneKeybindingService {
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, window.document.body);
-	}
-}
-
-registerSingleton(IKeybindingService, SimpleKeybindingService);
-
-//#endregion
-
 //#region Lifecycle
 
 export class SimpleLifecycleService extends AbstractLifecycleService {
@@ -837,14 +779,6 @@ export class SimpleTelemetryService implements ITelemetryService {
 }
 
 registerSingleton(ITelemetryService, SimpleTelemetryService);
-
-//#endregion
-
-//#region Text Resource Properties
-
-export class SimpleTextResourcePropertiesService extends SimpleResourcePropertiesService { }
-
-registerSingleton(ITextResourcePropertiesService, SimpleTextResourcePropertiesService);
 
 //#endregion
 

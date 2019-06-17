@@ -30,6 +30,9 @@ class TestXterm {
 }
 
 class MockTerminalInstanceService implements ITerminalInstanceService {
+	mergeDefaultShellPathAndArgs(): void {
+		throw new Error('Method not implemented.');
+	}
 	_serviceBrand: any;
 	getXtermConstructor(): Promise<any> {
 		throw new Error('Method not implemented.');
@@ -49,8 +52,9 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getDefaultShell(p: Platform): string {
 		throw new Error('Method not implemented.');
 	}
-
-
+	getMainProcessParentEnv(): any {
+		throw new Error('Method not implemented.');
+	}
 }
 
 interface LinkFormatInfo {

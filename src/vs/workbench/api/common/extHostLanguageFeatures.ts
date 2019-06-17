@@ -10,12 +10,11 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId, CodeLensListDto, CodeActionListDto } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId, CodeLensListDto, CodeActionListDto, SignatureHelpDto, SignatureHelpContextDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -771,31 +770,32 @@ class SuggestAdapter {
 
 class SignatureHelpAdapter {
 
+	private readonly _cache = new Cache<vscode.SignatureHelp>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.SignatureHelpProvider,
-		private readonly _heap: ExtHostHeapService,
 	) { }
 
-	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined> {
+	provideSignatureHelp(resource: URI, position: IPosition, context: SignatureHelpContextDto, token: CancellationToken): Promise<SignatureHelpDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 		const vscodeContext = this.reviveContext(context);
 
 		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
-				const id = this._heap.keep(value);
-				return ObjectIdentifier.mixin(typeConvert.SignatureHelp.from(value), id);
+				const id = this._cache.add([value]);
+				return { ...typeConvert.SignatureHelp.from(value), id };
 			}
 			return undefined;
 		});
 	}
 
-	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
+	private reviveContext(context: SignatureHelpContextDto): vscode.SignatureHelpContext {
 		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
 		if (context.activeSignatureHelp) {
 			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
-			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
+			const saved = this._cache.get(context.activeSignatureHelp.id, 0);
 			if (saved) {
 				activeSignatureHelp = saved;
 				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
@@ -806,14 +806,18 @@ class SignatureHelpAdapter {
 		}
 		return { ...context, activeSignatureHelp };
 	}
+
+	releaseSignatureHelp(id: number): any {
+		this._cache.delete(id);
+	}
 }
 
 class Cache<T> {
 
-	private _data = new Map<number, T[]>();
+	private _data = new Map<number, readonly T[]>();
 	private _idPool = 1;
 
-	add(item: T[]): number {
+	add(item: readonly T[]): number {
 		const id = this._idPool++;
 		this._data.set(id, item);
 		return id;
@@ -898,7 +902,7 @@ class ColorProviderAdapter {
 	provideColors(resource: URI, token: CancellationToken): Promise<IRawColorInfo[]> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (!Array.isArray(colors)) {
+			if (!Array.isArray<vscode.ColorInformation>(colors)) {
 				return [];
 			}
 
@@ -1065,7 +1069,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
-	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, AdapterData>();
 	private readonly _logService: ILogService;
@@ -1075,7 +1078,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		uriTransformer: IURITransformer | null,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
-		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics,
 		logService: ILogService
 	) {
@@ -1083,7 +1085,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
-		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
 		this._logService = logService;
 	}
@@ -1402,13 +1403,17 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
 			: metadataOrTriggerChars;
 
-		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider, this._heapService), extension);
+		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
 		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
 
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined> {
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: SignatureHelpContextDto, token: CancellationToken): Promise<SignatureHelpDto | undefined> {
 		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token), undefined);
+	}
+
+	$releaseSignatureHelp(handle: number, id: number): void {
+		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
 	}
 
 	// --- links

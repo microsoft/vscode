@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore, anyScore } from 'vs/base/common/filters';
-import { isDisposable } from 'vs/base/common/lifecycle';
-import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
@@ -72,18 +71,6 @@ export class CompletionModel {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
 		} else if (options.snippets === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
-		}
-	}
-
-	dispose(): void {
-		const seen = new Set<CompletionList>();
-		for (const { container } of this._items) {
-			if (!seen.has(container)) {
-				seen.add(container);
-				if (isDisposable(container)) {
-					container.dispose();
-				}
-			}
 		}
 	}
 

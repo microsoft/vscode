@@ -30,6 +30,8 @@ export interface IWebviewService {
 	): Webview;
 }
 
+export const WebviewResourceScheme = 'vscode-resource';
+
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
 	readonly extension?: {

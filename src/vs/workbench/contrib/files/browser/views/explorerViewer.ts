@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -484,7 +484,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 
 			if (!target) {
-				// Droping onto the empty area. Do not accept if items dragged are already
+				// Dropping onto the empty area. Do not accept if items dragged are already
 				// children of the root unless we are copying the file
 				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
 					return false;
@@ -602,44 +602,48 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 
-	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
-		return this.fileService.resolveAll(droppedResources).then(result => {
+		const result = await this.fileService.resolveAll(droppedResources);
 
-			// Pass focus to window
-			this.windowService.focusWindow();
+		// Pass focus to window
+		this.windowService.focusWindow();
 
-			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
-			if (folders.length > 0) {
+		// Handle folders by adding to workspace if we are in workspace context
+		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
+		if (folders.length > 0) {
 
-				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmedPromise = this.dialogService.confirm({
-						message: folders.length > 1 ? localize('dropFolders', "Do you want to add the folders to the workspace?") : localize('dropFolder', "Do you want to add the folder to the workspace?"),
-						type: 'question',
-						primaryButton: folders.length > 1 ? localize('addFolders', "&&Add Folders") : localize('addFolder', "&&Add Folder")
-					});
-				}
-
-				return confirmedPromise.then(res => {
-					if (res.confirmed) {
-						return this.workspaceEditingService.addFolders(folders);
-					}
-
-					return undefined;
-				});
+			const buttons = [
+				folders.length > 1 ? localize('copyFolders', "&&Copy Folders") : localize('copyFolder', "&&Copy Folder"),
+				localize('cancel', "Cancel")
+			];
+			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
+			let message = folders.length > 1 ? localize('copyfolders', "Are you sure to want to copy folders?") : localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
+			if (folders.some(f => workspaceFolderSchemas.indexOf(f.uri.scheme) >= 0)) {
+				// We only allow to add a folder to the workspace if there is already a workspace folder with that scheme
+				buttons.unshift(folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"));
+				message = folders.length > 1 ? localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?")
+					: localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
 			}
 
-			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof ExplorerItem) {
+			const choice = await this.dialogService.show(Severity.Info, message, buttons);
+			if (choice === buttons.length - 3) {
+				return this.workspaceEditingService.addFolders(folders);
+			}
+			if (choice === buttons.length - 2) {
 				return this.addResources(target, droppedResources.map(res => res.resource));
 			}
 
 			return undefined;
-		});
+		}
+
+		// Handle dropped files (only support FileStat as target)
+		else if (target instanceof ExplorerItem) {
+			return this.addResources(target, droppedResources.map(res => res.resource));
+		}
+
+		return undefined;
 	}
 
 	private addResources(target: ExplorerItem, resources: URI[]): Promise<any> {
@@ -695,7 +699,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 								return this.fileService.copy(sourceFile, copyTarget, true).then(stat => {
 
 									// if we only add one file, just open it directly
-									if (resources.length === 1) {
+									if (resources.length === 1 && !stat.isDirectory) {
 										this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 									}
 								});

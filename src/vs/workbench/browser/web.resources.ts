@@ -5,6 +5,7 @@
 
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { getMediaMime } from 'vs/base/common/mime';
 
 export class WebResources {
 
@@ -55,17 +56,18 @@ export class WebResources {
 		while (match = this._regexp.exec(target.textContent)) {
 
 			const remoteUrl = match[2];
-			positions.push(match.index! + 'url('.length + match[1].length);
+			positions.push(match.index! + 'url('.length + (typeof match[1] === 'string' ? match[1].length : 0));
 			positions.push(remoteUrl.length);
 
 			if (this._cache.has(remoteUrl)) {
 				promises.push(Promise.resolve());
 
 			} else {
-				promises.push(this._fileService.readFile(URI.parse(remoteUrl, true)).then(file => {
-					// todo@joh hack
-					const type = /\.woff$/.test(remoteUrl) ? 'application/font-woff' : 'image/svg+xml';
-					this._cache.set(remoteUrl, URL.createObjectURL(new Blob([file.value.buffer], { type })));
+				const uri = URI.parse(remoteUrl, true);
+				promises.push(this._fileService.readFile(uri).then(file => {
+					this._cache.set(remoteUrl, URL.createObjectURL(new Blob(
+						[file.value.buffer], { type: getMediaMime(uri.path) }
+					)));
 				}));
 			}
 		}

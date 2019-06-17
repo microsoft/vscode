@@ -6,7 +6,7 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -543,20 +543,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private getContextMenuActions(event: StandardMouseEvent): IAction[] {
 		const actions: Action[] = [];
 
-		// Figure out if mouse is over an entry
-		let statusEntryUnderMouse: IStatusbarViewModelEntry | undefined = undefined;
-		for (let element: HTMLElement | null = event.target; element; element = element.parentElement) {
-			const entry = this.viewModel.findEntry(element);
-			if (entry) {
-				statusEntryUnderMouse = entry;
-				break;
-			}
-		}
-
-		if (statusEntryUnderMouse) {
-			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, this.viewModel));
-			actions.push(new Separator());
-		}
+		// Provide an action to hide the status bar at last
+		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));
+		actions.push(new Separator());
 
 		// Show an entry per known status entry
 		// Note: even though entries have an identifier, there can be multiple entries
@@ -570,9 +559,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			}
 		});
 
-		// Provide an action to hide the status bar at last
-		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));
+		// Figure out if mouse is over an entry
+		let statusEntryUnderMouse: IStatusbarViewModelEntry | undefined = undefined;
+		for (let element: HTMLElement | null = event.target; element; element = element.parentElement) {
+			const entry = this.viewModel.findEntry(element);
+			if (entry) {
+				statusEntryUnderMouse = entry;
+				break;
+			}
+		}
+
+		if (statusEntryUnderMouse) {
+			actions.push(new Separator());
+			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, this.viewModel));
+		}
 
 		return actions;
 	}
@@ -636,10 +636,10 @@ class StatusbarEntryItem extends Disposable {
 	private labelContainer: HTMLElement;
 	private label: OcticonLabel;
 
-	private foregroundListener: IDisposable | undefined;
-	private backgroundListener: IDisposable | undefined;
+	private readonly foregroundListener = this._register(new MutableDisposable());
+	private readonly backgroundListener = this._register(new MutableDisposable());
 
-	private commandListener: IDisposable | undefined;
+	private readonly commandListener = this._register(new MutableDisposable());
 
 	constructor(
 		private container: HTMLElement,
@@ -692,11 +692,10 @@ class StatusbarEntryItem extends Disposable {
 
 		// Update: Command
 		if (!this.entry || entry.command !== this.entry.command) {
-			dispose(this.commandListener);
-			this.commandListener = undefined;
+			this.commandListener.clear();
 
 			if (entry.command) {
-				this.commandListener = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {
@@ -759,11 +758,9 @@ class StatusbarEntryItem extends Disposable {
 		let colorResult: string | null = null;
 
 		if (isBackground) {
-			dispose(this.backgroundListener);
-			this.backgroundListener = undefined;
+			this.backgroundListener.clear();
 		} else {
-			dispose(this.foregroundListener);
-			this.foregroundListener = undefined;
+			this.foregroundListener.clear();
 		}
 
 		if (color) {
@@ -781,9 +778,9 @@ class StatusbarEntryItem extends Disposable {
 				});
 
 				if (isBackground) {
-					this.backgroundListener = listener;
+					this.backgroundListener.value = listener;
 				} else {
-					this.foregroundListener = listener;
+					this.foregroundListener.value = listener;
 				}
 			} else {
 				colorResult = color;

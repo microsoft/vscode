@@ -469,7 +469,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	insertSnippet(template: string, ranges: IRange[], opts: IUndoStopOptions) {
+	insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;

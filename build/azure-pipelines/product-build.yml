@@ -4,7 +4,7 @@ resources:
     image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
     endpoint: VSCodeHub
   - container: snapcraft
-    image: snapcore/snapcraft
+    image: snapcore/snapcraft:stable
 
 jobs:
 - job: Windows

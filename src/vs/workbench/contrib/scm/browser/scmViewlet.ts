@@ -25,7 +25,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionViewItem, ActionRunner } from 'vs/base/common/actions';
-import { fillInContextMenuActions, ContextAwareMenuEntryActionViewItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, ContextAwareMenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
@@ -115,7 +115,7 @@ function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar):
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		if (equals(cachedPrimary, primary, (a, b) => a.id === b.id)) {
 			return;
@@ -299,7 +299,7 @@ export class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();

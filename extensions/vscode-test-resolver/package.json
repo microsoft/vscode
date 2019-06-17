@@ -44,11 +44,6 @@
 				"command": "vscode-testresolver.newWindow"
 			},
 			{
-				"title": "New Window with Error",
-				"category": "Remote-TestResolver",
-				"command": "vscode-testresolver.newWindowWithError"
-			},
-			{
 				"title": "Show Log",
 				"category": "Remote-TestResolver",
 				"command": "vscode-testresolver.showLog"
@@ -62,11 +57,6 @@
 					"group": "9_local_testresolver@2"
 				},
 				{
-					"command": "vscode-testresolver.newWindowWithError",
-					"when": "!remoteAuthority",
-					"group": "9_local_testresolver@3"
-				},
-				{
 					"command": "vscode-testresolver.showLog",
 					"when": "remoteAuthority =~ /^test\\+.*$/",
 					"group": "1_remote_testresolver_open@3"
@@ -75,13 +65,27 @@
 					"command": "vscode-testresolver.newWindow",
 					"when": "remoteAuthority =~ /^test\\+.*$/",
 					"group": "1_remote_testresolver_open@1"
-				},
-				{
-					"command": "vscode-testresolver.newWindowWithError",
-					"when": "remoteAuthority =~ /^test\\+.*$/",
-					"group": "1_remote_testresolver_open@2"
 				}
 			]
+		},
+		"configuration": {
+			"properties": {
+				"testresolver.startupDelay": {
+					"description": "If set, the resolver will delay for the given amount of seconds. Use ths setting for testing a slow resolver",
+					"type": "number",
+					"default": 0
+				},
+				"testresolver.startupError": {
+					"description": "If set, the resolver will fail. Use ths setting for testing the failure of a resolver.",
+					"type": "boolean",
+					"default": false
+				},
+				"testresolver.pause": {
+					"description": "If set, connection is paused",
+					"type": "boolean",
+					"default": false
+				}
+			}
 		}
 	}
 

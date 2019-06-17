@@ -16,10 +16,10 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/workbench/browser/contextkeys';
+import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -110,7 +110,7 @@ export class ToggleEditorLayoutAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
 	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
-	private toDispose: IDisposable[];
+	private readonly toDispose = this._register(new DisposableStore());
 
 	constructor(
 		id: string,
@@ -119,8 +119,6 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.toDispose = [];
-
 		this.class = 'flip-editor-layout';
 		this.updateEnablement();
 
@@ -128,8 +126,8 @@ export class ToggleEditorLayoutAction extends Action {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
-		this.toDispose.push(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
 	}
 
 	private updateEnablement(): void {
@@ -141,12 +139,6 @@ export class ToggleEditorLayoutAction extends Action {
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
 		return Promise.resolve();
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }
 
@@ -275,6 +267,13 @@ export class ToggleSidebarVisibilityAction extends Action {
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	order: 1
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -448,9 +447,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	command: {
 		id: ToggleMenuBarAction.ID,
 		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
-		toggled: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
+		toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
-	when: IsMacContext.toNegated(),
+	when: IsMacNativeContext.toNegated(),
 	order: 0
 });
 

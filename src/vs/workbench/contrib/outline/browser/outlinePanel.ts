@@ -113,7 +113,7 @@ class RequestOracle {
 		);
 
 		if (this._lastState && thisState.equals(this._lastState)) {
-			// prevent unneccesary changes...
+			// prevent unnecessary changes...
 			return;
 		}
 		dispose(this._sessionDisposable);

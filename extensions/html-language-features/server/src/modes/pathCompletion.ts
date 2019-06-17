@@ -7,7 +7,7 @@ import { TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Posi
 import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { ICompletionParticipant } from 'vscode-html-languageservice';
 import { startsWith } from '../utils/strings';
 import { contains } from '../utils/arrays';

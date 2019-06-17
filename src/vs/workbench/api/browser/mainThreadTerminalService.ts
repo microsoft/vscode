@@ -41,6 +41,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
+		this._toDispose.push(terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -180,6 +181,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTitleChanged(terminalId: number, name: string): void {
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
+	}
+
+	private _onWorkspacePermissionsChanged(isAllowed: boolean): void {
+		this._proxy.$acceptWorkspacePermissionsChanged(isAllowed);
 	}
 
 	private _onTerminalRendererInput(terminalId: number, data: string): void {
