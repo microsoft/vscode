@@ -171,7 +171,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		const result = Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
-		this._onDidSplice.fire({ parentNode, insertedNodes: nodesToInsert, deletedNodes });
+		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
 		return result;
 	}
 
