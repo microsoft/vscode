@@ -11,14 +11,22 @@ $SystemExe = "$Repo\.build\win32-$Arch\system-setup\VSCodeSetup.exe"
 $UserExe = "$Repo\.build\win32-$Arch\user-setup\VSCodeSetup.exe"
 $Zip = "$Repo\.build\win32-$Arch\archive\VSCode-win32-$Arch.zip"
 $LegacyServer = "$Root\vscode-reh-win32-$Arch"
+$LegacyServerWeb = "$Root\vscode-reh-win32-$Arch-web"
 $ServerName = "vscode-server-win32-$Arch"
+$ServerNameWeb = "vscode-server-win32-$Arch-web"
 $Server = "$Root\$ServerName"
+$ServerWeb = "$Root\$ServerNameWeb"
 $ServerZip = "$Repo\.build\vscode-server-win32-$Arch.zip"
+$ServerZipWeb = "$Repo\.build\vscode-server-win32-$Arch-web.zip"
 $Build = "$Root\VSCode-win32-$Arch"
 
 # Create server archive
 exec { Rename-Item -Path $LegacyServer -NewName $ServerName }
 exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZip $Server -r }
+
+# Create server archive (web)
+exec { Rename-Item -Path $LegacyServerWeb -NewName $ServerNameWeb }
+exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZipWeb $ServerWeb -r }
 
 # get version
 $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
@@ -31,6 +39,7 @@ exec { node build/azure-pipelines/common/publish.js $Quality "$AssetPlatform-arc
 exec { node build/azure-pipelines/common/publish.js $Quality "$AssetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $Version true $SystemExe }
 exec { node build/azure-pipelines/common/publish.js $Quality "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $Version true $UserExe }
 exec { node build/azure-pipelines/common/publish.js $Quality "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $Version true $ServerZip }
+exec { node build/azure-pipelines/common/publish.js $Quality "server-$AssetPlatform-web" archive "vscode-server-win32-$Arch-web.zip" $Version true $ServerZipWeb }
 
 # publish hockeyapp symbols
 $hockeyAppId = if ("$Arch" -eq "ia32") { "$env:VSCODE_HOCKEYAPP_ID_WIN32" } else { "$env:VSCODE_HOCKEYAPP_ID_WIN64" }

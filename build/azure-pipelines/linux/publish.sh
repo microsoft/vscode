@@ -31,6 +31,19 @@ if [[ "$VSCODE_ARCH" != "ia32" ]]; then
 	node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$VERSION" true "$SERVER_TARBALL_PATH"
 fi
 
+# Publish Remote Extension Host (Web)
+if [[ "$VSCODE_ARCH" != "ia32" ]]; then
+	LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX-web"
+	SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
+	SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
+	SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+	rm -rf $ROOT/vscode-server-*.tar.*
+	(cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+
+	node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX-web" archive-unsigned "$SERVER_TARBALL_FILENAME" "$VERSION" true "$SERVER_TARBALL_PATH"
+fi
+
 # Publish hockeyapp symbols
 node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_HOCKEYAPP_TOKEN" "$VSCODE_ARCH" "$VSCODE_HOCKEYAPP_ID_LINUX64"
 

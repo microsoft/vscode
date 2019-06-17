@@ -411,7 +411,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 	['', 'min'].forEach(minified => {
 		const sourceFolderName = `out-vscode-reh${dashed(minified)}`;
-		const destinationFolderName = `vscode-reh${dashed(platform)}${dashed(arch)}`;
+		const destinationFolderName = `vscode-reh${dashed(platform)}${dashed(arch)}${dashed(process.env['VSCODE_WEB_BUILD'] ? 'web' : '')}`;
 
 		const vscodeREHTask = task.define(`vscode-reh${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			task.parallel(
