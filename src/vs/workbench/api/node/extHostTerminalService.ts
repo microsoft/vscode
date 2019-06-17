@@ -576,11 +576,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $requestWindowsShells(): Promise<IShellDefinitionDto[]> {
-		console.log('$requestWindowsShells');
 		if (!platform.isWindows) {
 			throw new Error('Can only detect Windows shells on Windows');
 		}
-		console.log('$requestWindowsShells2');
 		return detectWindowsShells();
 	}
 

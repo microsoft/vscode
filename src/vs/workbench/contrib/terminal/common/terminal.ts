@@ -302,7 +302,6 @@ export interface ITerminalNativeService {
 	getWindowsBuildNumber(): number;
 	whenFileDeleted(path: URI): Promise<void>;
 	getWslPath(path: string): Promise<string>;
-	detectWindowsShells(): Promise<IShellDefinition[]>;
 }
 
 export interface IShellDefinition {

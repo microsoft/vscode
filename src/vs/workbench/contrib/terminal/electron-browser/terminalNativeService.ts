@@ -5,10 +5,10 @@
 
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { ITerminalNativeService, LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { getWindowsBuildNumber, linuxDistro, detectWindowsShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -50,10 +50,6 @@ export class TerminalNativeService implements ITerminalNativeService {
 				}
 			}, 1000);
 		});
-	}
-
-	public detectWindowsShells(): Promise<IShellDefinition[]> {
-		return detectWindowsShells();
 	}
 
 	/**

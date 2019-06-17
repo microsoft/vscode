@@ -86,7 +86,6 @@ export function getWindowsBuildNumber(): number {
 }
 
 export async function detectWindowsShells(): Promise<IShellDefinition[]> {
-	console.log('a');
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -116,7 +115,6 @@ export async function detectWindowsShells(): Promise<IShellDefinition[]> {
 	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
 
-	console.log('$detectWindowsShells');
 	return Promise.all(promises).then(coalesce);
 }
 
