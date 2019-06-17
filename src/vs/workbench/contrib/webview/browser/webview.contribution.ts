@@ -17,8 +17,8 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/common/webview';
-import { CopyWebviewEditorCommand, CutWebviewEditorCommand, HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, PasteWebviewEditorCommand, RedoWebviewEditorCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetCommand, UndoWebviewEditorCommand } from '../browser/webviewCommands';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
+import { CopyWebviewEditorCommand, CutWebviewEditorCommand, HideWebViewEditorFindCommand, PasteWebviewEditorCommand, RedoWebviewEditorCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetCommand, UndoWebviewEditorCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewEditorInput } from '../browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
@@ -34,9 +34,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewEditorInputFactory);
 
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
-
-
-const webviewDeveloperCategory = localize('developer', "Developer");
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
@@ -126,11 +123,6 @@ export function registerWebViewCommands(editorId: string): void {
 }
 
 registerWebViewCommands(WebviewEditor.ID);
-
-actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),
-	'Open Webview Developer Tools',
-	webviewDeveloperCategory);
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
