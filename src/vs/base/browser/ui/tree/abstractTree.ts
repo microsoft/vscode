@@ -197,65 +197,10 @@ interface ITreeRendererOptions {
 	readonly indent?: number;
 }
 
-enum IndentGuide {
-	None,
-	First,
-	Middle,
-	Last
-}
-
-function getLastVisibleChild<T, TFilterData>(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
-	for (let i = 0; i < node.children.length; i++) {
-		const child = node.children[node.children.length - i - 1];
-
-		if (child.visible) {
-			return child;
-		}
-	}
-
-	return undefined;
-}
-
-function getLastVisibleDescendant<T, TFilterData>(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
-	if (node.collapsed) {
-		return node;
-	}
-
-	for (let i = 0; i < node.children.length; i++) {
-		const child = node.children[node.children.length - i - 1];
-
-		if (child.visible) {
-			return getLastVisibleDescendant(child);
-		}
-	}
-
-	return undefined;
-}
-
-function hasVisibleChildren<T, TFilterData>(node: ITreeNode<T, TFilterData>): boolean {
-	for (let i = 0; i < node.children.length; i++) {
-		if (node.children[i].visible) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 interface IRenderData<TTemplateData> {
 	templateData: ITreeListTemplateData<TTemplateData>;
 	height: number;
 }
-
-//********************************************* DEMO *************************
-enum Mode {
-	Brackets,
-	SubtreeBrackets,
-	Editor
-}
-
-const mode: Mode = Mode.Editor;
-//********************************************* DEMO *************************
 
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
@@ -373,80 +318,14 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	// TODO: only do iff indent guides are enabled
-	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
-		let parent: ITreeNode<T, TFilterData> | undefined;
-		const guides: IndentGuide[] = [];
+	private renderIndentGuides(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
+		const lines = range(1, node.depth).map(i => {
+			const x = Math.floor((node.depth - i - 1) * this.indent) + 6;
+			return `<line x1="${x}" y1="0" x2="${x}" y2="${height}" />`;
+		});
 
-		if (target && target.collapsible && !target.collapsed && hasVisibleChildren(target)) {
-			guides.push(IndentGuide.First);
-		} else {
-			guides.push(IndentGuide.None);
-		}
-
-		let node: ITreeNode<T, TFilterData> | undefined = target;
-
-		while (node) {
-			parent = node.parent;
-
-			if (!parent || !parent.parent) {
-				break;
-			}
-
-			switch (mode) {
-				case Mode.Brackets:
-					if (getLastVisibleChild(parent) === node) {
-						if (node === target) {
-							guides.push(IndentGuide.Last);
-						} else {
-							guides.push(IndentGuide.None);
-						}
-					} else {
-						guides.push(IndentGuide.Middle);
-					}
-					break;
-				case Mode.SubtreeBrackets:
-					if (getLastVisibleDescendant(parent) === target) {
-						guides.push(IndentGuide.Last);
-					} else {
-						guides.push(IndentGuide.Middle);
-					}
-					break;
-				case Mode.Editor:
-					guides.push(IndentGuide.Middle);
-					break;
-			}
-
-			node = parent;
-		}
-
-		const lines: string[] = [];
-		const halfHeight = Math.floor(height / 2);
-
-		for (let i = 0; i < guides.length; i++) {
-			const x1 = Math.floor((guides.length - i - 1) * this.indent) + (mode === Mode.Editor ? 6 : 0);
-			const x2 = x1 + this.indent - Math.min(Math.floor(this.indent * 0.5), 4);
-
-			switch (guides[i]) {
-				case IndentGuide.First:
-					if (mode === Mode.Editor) {
-						lines.push(`<line x1="${x1}" y1="${halfHeight + 2}" x2="${x1}" y2="${height}" />`);
-					} else {
-						lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1}" y2="${height}" />`);
-						lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1 + 4}" y2="${halfHeight}" />`);
-					}
-					break;
-				case IndentGuide.Middle:
-					lines.push(`<line x1="${x1}" y1="0" x2="${x1}" y2="${height}" />`);
-					break;
-				case IndentGuide.Last:
-					lines.push(`<line x1="${x1}" y1="0" x2="${x1}" y2="${halfHeight}" />`);
-					lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x2}" y2="${halfHeight}" />`);
-					break;
-			}
-		}
-
-		const width = this.indent * guides.length;
-		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${lines.join('')}</svg>`;
+		const width = this.indent * node.depth;
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${lines}</svg>`;
 
 		templateData.indent.innerHTML = svg;
 	}
