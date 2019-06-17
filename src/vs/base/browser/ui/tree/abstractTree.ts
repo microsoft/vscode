@@ -1223,7 +1223,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const content: string[] = [];
 
 		if (styles.treeIndentGuidesStroke) {
-			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line { stroke: ${styles.treeIndentGuidesStroke.transparent(0.3)}; }`);
+			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line { stroke: ${styles.treeIndentGuidesStroke.transparent(0.4)}; }`);
 			content.push(`.monaco-list${suffix} .monaco-tl-indent > svg > line.active { stroke: ${styles.treeIndentGuidesStroke}; }`);
 		}
 
