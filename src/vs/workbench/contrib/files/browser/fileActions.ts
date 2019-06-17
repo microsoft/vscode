@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
-import { extname, basename } from 'vs/base/common/path';
+import { extname, basename, join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -46,7 +46,6 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join, basename } from 'vs/base/common/path';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
