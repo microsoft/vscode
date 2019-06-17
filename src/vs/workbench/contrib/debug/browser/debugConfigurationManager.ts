@@ -21,13 +21,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { TerminalLauncher } from 'vs/workbench/contrib/debug/electron-browser/terminalSupport';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/contrib/debug/common/debugSchemas';
@@ -67,7 +66,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDebugHelperService private readonly debugHelperService: IDebugHelperService
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
@@ -114,7 +114,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		let tl: ITerminalLauncher | undefined = this.debugAdapterFactories.get(debugType);
 		if (!tl) {
 			if (!this.terminalLauncher) {
-				this.terminalLauncher = this.instantiationService.createInstance(TerminalLauncher);
+				this.terminalLauncher = this.debugHelperService.createTerminalLauncher(this.instantiationService);
 			}
 			tl = this.terminalLauncher;
 		}

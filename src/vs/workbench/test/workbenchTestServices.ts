@@ -439,6 +439,9 @@ export class TestFileDialogService implements IFileDialogService {
 	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	public pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+		return Promise.resolve(undefined);
+	}
 	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}

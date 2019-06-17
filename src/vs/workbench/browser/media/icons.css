@@ -700,8 +700,7 @@ body[data-exploration="icon-exploration"] .extensions-viewlet > .extensions .ext
 	Panels
 ****************/
 
-body[data-exploration="icon-exploration"] .monaco-workbench .hide-panel-action,
-.hc-black .monaco-workbench .hide-panel-action {
+body[data-exploration="icon-exploration"] .monaco-workbench .hide-panel-action {
 	-webkit-mask-image: url("images/panel/close-alt1.svg");
 }
 
@@ -947,7 +946,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.operato
 	background-color: var(--blue);
 }
 
-ody[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
+body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
 	-webkit-mask-image: url("images/intellisense/parameter-alt1.svg");
 }
 

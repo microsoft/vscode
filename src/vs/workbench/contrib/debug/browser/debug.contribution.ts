@@ -27,7 +27,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/contrib/debug/browser/debugEditorModelManager';
 import { StartAction, AddFunctionBreakpointAction, ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import * as service from 'vs/workbench/contrib/debug/electron-browser/debugService';
+import * as service from 'vs/workbench/contrib/debug/browser/debugService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
@@ -248,6 +248,11 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the debug console. Use 0 to compute the line height from the font size."),
 			default: 0
+		},
+		'debug.console.wordWrap': {
+			type: 'boolean',
+			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
+			default: true
 		},
 		'launch': {
 			type: 'object',

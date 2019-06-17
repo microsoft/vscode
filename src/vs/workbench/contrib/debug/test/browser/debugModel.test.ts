@@ -10,12 +10,12 @@ import { SimpleReplElement, DebugModel, Expression, RawObjectReplElement, StackF
 import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
+import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 
 function createMockSession(model: DebugModel, name = 'mockSession', parentSession?: DebugSession | undefined): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, parentSession, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, parentSession, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 }
 
 suite('Debug - Model', () => {
@@ -437,7 +437,7 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 		const repl = new ReplModel(session);
 		repl.appendToRepl('first line\n', severity.Error);
 		repl.appendToRepl('second line ', severity.Error);
