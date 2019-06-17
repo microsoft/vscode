@@ -189,7 +189,7 @@ export class FileDialogService implements IFileDialogService {
 
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
 		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
+			defaultPath: options.defaultUri && options.defaultUri.fsPath || options.defaultFileName,
 			buttonLabel: options.saveLabel,
 			filters: options.filters,
 			title: options.title
