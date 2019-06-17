@@ -208,7 +208,6 @@ export class IFrameWebview extends Disposable implements Webview {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
-
 	sendMessage(data: any): void {
 		this._send('message', data);
 	}

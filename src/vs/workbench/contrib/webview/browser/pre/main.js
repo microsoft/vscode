@@ -436,16 +436,18 @@
 						}
 					});
 
-					newFrame.contentWindow.onbeforeunload = () => {
-						if (isInDevelopmentMode) { // Allow reloads while developing a webview
-							host.postMessage('do-reload');
-							return false;
-						}
+					if (!FAKE_LOAD) {
+						newFrame.contentWindow.onbeforeunload = () => {
+							if (isInDevelopmentMode) { // Allow reloads while developing a webview
+								host.postMessage('do-reload');
+								return false;
+							}
 
-						// Block navigation when not in development mode
-						console.log('prevented webview navigation');
-						return false;
-					};
+							// Block navigation when not in development mode
+							console.log('prevented webview navigation');
+							return false;
+						};
+					}
 
 					// Bubble out link clicks
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
