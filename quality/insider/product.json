@@ -743,7 +743,6 @@
 		"techer.open-in-browser",
 		"vincaslt.highlight-matching-tag",
 		"wayou.vscode-todo-highlight",
-		"peterjausovec.vscode-docker",
-		"ms-vscode.sublime-keybindings"
+		"peterjausovec.vscode-docker"
 	]
 }
