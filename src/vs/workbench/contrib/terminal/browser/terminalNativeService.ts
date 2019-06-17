@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { ITerminalNativeService, LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
 
 export class TerminalNativeService implements ITerminalNativeService {
@@ -28,11 +28,6 @@ export class TerminalNativeService implements ITerminalNativeService {
 	}
 
 	public getWindowsBuildNumber(): number {
-		throw new Error('Not implemented');
-	}
-
-	// TODO: Remove local impl
-	public detectWindowsShells(): Promise<IShellDefinition[]> {
 		throw new Error('Not implemented');
 	}
 }
