@@ -194,9 +194,6 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // Localizations
 // import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
-// Labels
-import 'vs/workbench/contrib/label/common/label.contribution';
-
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
@@ -293,6 +290,7 @@ registerSingleton(ITaskService, TaskService, true);
 
 
 // Remote
+import 'vs/workbench/contrib/remote/common/remote.contribution';
 // import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 
 // Emmet
