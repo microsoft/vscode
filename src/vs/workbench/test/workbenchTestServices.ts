@@ -439,6 +439,9 @@ export class TestFileDialogService implements IFileDialogService {
 	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	public pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+		return Promise.resolve(undefined);
+	}
 	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -620,6 +623,10 @@ export class TestPanelService implements IPanelService {
 		return null!;
 	}
 
+	public getPanel(id: string): any {
+		return activeViewlet;
+	}
+
 	public getPanels(): any[] {
 		return [];
 	}
@@ -639,6 +646,10 @@ export class TestPanelService implements IPanelService {
 
 	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		throw new Error('Method not implemented.');
+	}
+
+	public getProgressIndicator(id: string) {
+		return null!;
 	}
 
 	public hideActivePanel(): void { }

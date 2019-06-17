@@ -44,10 +44,6 @@ import { State as DebugState, IDebugService, IDebugSession, IConfigurationManage
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
 // tslint:disable-next-line: import-patterns
-import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-// tslint:disable-next-line: import-patterns
-import { TaskEvent } from 'vs/workbench/contrib/tasks/common/tasks';
-// tslint:disable-next-line: import-patterns
 import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 // tslint:disable-next-line: import-patterns
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
@@ -228,6 +224,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	disableCrashReporter: boolean;
 	driverHandle?: string;
 	driverVerbose: boolean;
+	webviewEndpoint?: string;
 }
 
 
@@ -401,38 +398,6 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 	allowedBadgeProviders: string[];
 }
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregion
-
-//#region ITaskService
-export class SimpleTaskService implements ITaskService {
-	_serviceBrand: any;
-	onDidStateChange: Event<TaskEvent> = Event.None;
-	supportsMultipleTaskExecutions: boolean;
-	configureAction: any;
-	build: any;
-	runTest: any;
-	run: any;
-	inTerminal: any;
-	isActive: any;
-	getActiveTasks: any;
-	restart: any;
-	terminate: any;
-	terminateAll: any;
-	tasks: any;
-	getWorkspaceTasks: any;
-	getTask: any;
-	getTasksForGroup: any;
-	getRecentlyUsedTasks: any;
-	createSorter: any;
-	needsFolderQualification: any;
-	canCustomize: any;
-	customize: any;
-	openConfig: any;
-	registerTaskProvider() { return Disposable.None; }
-	registerTaskSystem() { }
-	extensionCallbackTaskComplete: any;
-}
-registerSingleton(ITaskService, SimpleTaskService, true);
 //#endregion
 
 //#region ICommentService

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -18,6 +17,7 @@ import { ILinkMatcherOptions } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -76,7 +76,6 @@ export class TerminalLinkHandler {
 
 	constructor(
 		private _xterm: any,
-		private _platform: platform.Platform | undefined,
 		private readonly _processManager: ITerminalProcessManager | undefined,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -108,7 +107,7 @@ export class TerminalLinkHandler {
 		};
 
 		this.registerWebLinkHandler();
-		if (this._platform) {
+		if (this._processManager) {
 			this.registerLocalLinkHandler();
 			this.registerGitDiffLinkHandlers();
 		}
@@ -205,7 +204,7 @@ export class TerminalLinkHandler {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
-		const baseLocalLinkClause = this._processManager.os === platform.OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
+		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 	}
@@ -250,19 +249,19 @@ export class TerminalLinkHandler {
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
 		}
-		return platform.isMacintosh ? event.metaKey : event.ctrlKey;
+		return isMacintosh ? event.metaKey : event.ctrlKey;
 	}
 
 	private _getLinkHoverString(): string {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
-			if (platform.isMacintosh) {
+			if (isMacintosh) {
 				return nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click to follow link");
 			} else {
 				return nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click to follow link");
 			}
 		}
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			return nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click to follow link");
 		}
 		return nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click to follow link");
@@ -272,7 +271,7 @@ export class TerminalLinkHandler {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
-		if (this._processManager.os === platform.OperatingSystem.Windows) {
+		if (this._processManager.os === OperatingSystem.Windows) {
 			return win32;
 		}
 		return posix;
@@ -290,7 +289,7 @@ export class TerminalLinkHandler {
 			link = this.osPath.join(this._processManager.userHome, link.substring(1));
 		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
 			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
-			if (this._processManager.os === platform.OperatingSystem.Windows) {
+			if (this._processManager.os === OperatingSystem.Windows) {
 				if (!link.match('^' + winDrivePrefix)) {
 					if (!this._processCwd) {
 						// Abort if no workspace is open
@@ -359,17 +358,18 @@ export class TerminalLinkHandler {
 	 * @param link Url link which may contain line and column number.
 	 */
 	public extractLineColumnInfo(link: string): LineColumnInfo {
+
 		const matches: string[] | null = this._localLinkRegex.exec(link);
 		const lineColumnInfo: LineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
 
-		if (!matches) {
+		if (!matches || !this._processManager) {
 			return lineColumnInfo;
 		}
 
-		const lineAndColumnMatchIndex = this._platform === platform.Platform.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
+		const lineAndColumnMatchIndex = this._processManager.os === OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
 		for (let i = 0; i < lineAndColumnClause.length; i++) {
 			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
 			const rowNumber = matches[lineMatchIndex];
