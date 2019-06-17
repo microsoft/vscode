@@ -222,6 +222,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
+	onRequestWindowsShells: Event<(shells: IShellDefinition[]) => void>;
 
 	/**
 	 * Creates a terminal.
@@ -267,6 +268,8 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
+	selectDefaultWindowsShell(): Promise<void>;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
@@ -299,7 +302,12 @@ export interface ITerminalNativeService {
 	getWindowsBuildNumber(): number;
 	whenFileDeleted(path: URI): Promise<void>;
 	getWslPath(path: string): Promise<string>;
-	selectDefaultWindowsShell(): Promise<string | undefined>;
+	detectWindowsShells(): Promise<IShellDefinition[]>;
+}
+
+export interface IShellDefinition {
+	label: string;
+	path: string;
 }
 
 export const enum Direction {
