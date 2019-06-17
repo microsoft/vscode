@@ -44,30 +44,41 @@
 
 /* Add Folder */
 .monaco-workbench .explorer-action.new-folder {
-	background: url("AddFolder.svg") center center no-repeat;
+	background: url("add-folder-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.new-folder,
+.vs-dark .monaco-workbench .explorer-action.new-folder {
+	background: url("add-folder-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.new-folder {
-	background: url("AddFolder_inverse.svg") center center no-repeat;
+	background: url("add-folder-hc.svg") center center no-repeat;
 }
 
+/* Refresh */
 .monaco-workbench .explorer-action.refresh-explorer {
-	background: url("Refresh.svg") center center no-repeat;
+	background: url("refresh-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.refresh-explorer,
+.vs-dark .monaco-workbench .explorer-action.refresh-explorer {
+	background: url("refresh-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.refresh-explorer {
-	background: url("Refresh_inverse.svg") center center no-repeat;
+	background: url("refresh-hc.svg") center center no-repeat;
 }
 
+/* Collapse all */
 .monaco-workbench .explorer-action.collapse-explorer {
-	background: url("CollapseAll.svg") center center no-repeat;
+	background: url("collapse-all-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.collapse-explorer,
+.vs-dark .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.collapse-explorer {
-	background: url("CollapseAll_inverse.svg") center center no-repeat;
+	background: url("collapse-all-hc.svg") center center no-repeat;
 }
 
 .monaco-workbench .quick-open-sidebyside-vertical {
