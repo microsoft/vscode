@@ -107,7 +107,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'relaunch': return this.service.relaunch(arg[0]);
 			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
-			case 'sendToSharedProcess': return this.service.sendToSharedProcess(arg[0], arg[1]);
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'showItemInFolder': return this.service.showItemInFolder(URI.revive(arg));

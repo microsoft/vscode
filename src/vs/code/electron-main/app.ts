@@ -17,7 +17,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchService, LaunchChannel } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -81,6 +81,9 @@ import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFacto
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { ILaunchService } from 'vs/platform/launch/common/launchService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 
 export class CodeApplication extends Disposable {
 
@@ -407,6 +410,10 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+
+		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
+
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 

@@ -5,6 +5,9 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export interface IMachineInfo {
 	os: string;
@@ -52,6 +55,23 @@ export interface WorkspaceStats {
 	fileCount: number;
 	maxFilesReached: boolean;
 	launchConfigFiles: WorkspaceStatItem[];
+}
+
+export interface PerformanceInfo {
+	processInfo?: string;
+	workspaceInfo?: string;
+}
+
+export const ID = 'diagnosticsService';
+export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
+
+export interface IDiagnosticsService {
+	_serviceBrand: any;
+
+	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
+	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
+	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
+	reportWorkspaceStats(workspace: IWorkspace): Promise<void>;
 }
 
 export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {

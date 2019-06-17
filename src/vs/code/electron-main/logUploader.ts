@@ -14,7 +14,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { ILaunchService } from 'vs/platform/launch/common/launchService';
 
 interface PostResult {
 	readonly blob_id: string;

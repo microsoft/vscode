@@ -149,7 +149,6 @@ export interface IWindowsService {
 	// Shared process
 	whenSharedProcessReady(): Promise<void>;
 	toggleSharedProcess(): Promise<void>;
-	sendToSharedProcess(channel: string, ...args: any[]): Promise<void>;
 
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;

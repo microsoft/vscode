@@ -11,7 +11,7 @@ import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowConfiguration, IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -21,6 +21,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -225,7 +226,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IDiagnosticsService private readonly diagnosticService: IDiagnosticsService
 	) {
 		this.report();
 	}
@@ -241,7 +242,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		this.reportProxyStats();
 
-		this.windowsService.sendToSharedProcess('reportWorkspaceStats', this.contextService.getWorkspace());
+		this.diagnosticService.reportWorkspaceStats(this.contextService.getWorkspace());
 	}
 
 	private static searchArray(arr: string[], regEx: RegExp): boolean | undefined {
