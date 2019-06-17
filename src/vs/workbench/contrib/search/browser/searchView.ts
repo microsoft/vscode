@@ -33,7 +33,7 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ILocalProgressService, IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -129,7 +129,6 @@ export class SearchView extends ViewletPanel {
 		options: IViewletPanelOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILocalProgressService private readonly localProgressService: ILocalProgressService,
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -518,12 +517,18 @@ export class SearchView extends ViewletPanel {
 			return;
 		}
 
-		const progressRunner = this.localProgressService.show(100);
-
 		const occurrences = this.viewModel.searchResult.count();
 		const fileCount = this.viewModel.searchResult.fileCount();
 		const replaceValue = this.searchWidget.getReplaceValue() || '';
 		const afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
+
+		let progressComplete: () => void;
+		let progressReporter: IProgress<IProgressStep>;
+		this.progressService.withProgress({ location: VIEWLET_ID, delay: 100, total: occurrences }, p => {
+			progressReporter = p;
+
+			return new Promise(resolve => progressComplete = resolve);
+		});
 
 		const confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
@@ -535,12 +540,12 @@ export class SearchView extends ViewletPanel {
 		this.dialogService.confirm(confirmation).then(res => {
 			if (res.confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
-				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
-					progressRunner.done();
+				this.viewModel.searchResult.replaceAll(progressReporter).then(() => {
+					progressComplete();
 					const messageEl = this.clearMessage();
 					dom.append(messageEl, $('p', undefined, afterReplaceAllMessage));
 				}, (error) => {
-					progressRunner.done();
+					progressComplete();
 					errors.isPromiseCanceledError(error);
 					this.notificationService.error(error);
 				});

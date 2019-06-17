@@ -74,6 +74,7 @@ export interface IProgressCompositeOptions extends IProgressOptions {
 export interface IProgressStep {
 	message?: string;
 	increment?: number;
+	total?: number;
 }
 
 export interface IProgressRunner {
@@ -81,6 +82,8 @@ export interface IProgressRunner {
 	worked(value: number): void;
 	done(): void;
 }
+
+export const emptyProgress: IProgress<IProgressStep> = { report: () => { } };
 
 export const emptyProgressRunner: IProgressRunner = Object.freeze({
 	total() { },

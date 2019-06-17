@@ -298,12 +298,17 @@ export class ProgressService extends Disposable implements IProgressService {
 				if (typeof progress.increment === 'number') {
 					progressRunner.worked(progress.increment);
 				}
+
+				if (typeof progress.total === 'number') {
+					progressRunner.total(progress.total);
+				}
 			}
 		});
 
 		if (compositeProgressService) {
 			if (typeof options.total === 'number') {
 				progressRunner = compositeProgressService.show(options.total, options.delay);
+				promise.catch(() => undefined /* ignore */).finally(() => progressRunner ? progressRunner.done() : undefined);
 			} else {
 				compositeProgressService.showWhile(promise, options.delay);
 			}
