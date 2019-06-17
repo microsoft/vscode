@@ -10,7 +10,7 @@ import { SimpleReplElement, DebugModel, Expression, RawObjectReplElement, StackF
 import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
+import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 

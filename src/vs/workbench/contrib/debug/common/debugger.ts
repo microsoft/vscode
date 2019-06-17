@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
@@ -19,12 +17,12 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IDebugUIService } from 'vs/workbench/contrib/debug/common/debugUI';
 
 export class Debugger implements IDebugger {
 
@@ -37,6 +35,7 @@ export class Debugger implements IDebugger {
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IDebugUIService private readonly debugUIService: IDebugUIService
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
@@ -193,24 +192,8 @@ export class Debugger implements IDebugger {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 			return telemetryInfo;
 		}).then(data => {
-			const client = new TelemetryClient(
-				getPathFromAmdModule(require, 'bootstrap-fork'),
-				{
-					serverName: 'Debug Telemetry',
-					timeout: 1000 * 60 * 5,
-					args: [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey],
-					env: {
-						ELECTRON_RUN_AS_NODE: 1,
-						PIPE_LOGGING: 'true',
-						AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
-					}
-				}
-			);
-
-			const channel = client.getChannel('telemetryAppender');
-			const appender = new TelemetryAppenderClient(channel);
-
-			return new TelemetryService({ appender }, this.configurationService);
+			const args = [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey];
+			return this.debugUIService.createTelemetryService(this.configurationService, args);
 		});
 	}
 

@@ -22,12 +22,11 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { TerminalLauncher } from 'vs/workbench/contrib/debug/electron-browser/terminalSupport';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/contrib/debug/common/debugSchemas';
@@ -35,6 +34,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IDebugUIService } from 'vs/workbench/contrib/debug/common/debugUI';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -67,7 +67,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDebugUIService private readonly debugUIService: IDebugUIService
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
@@ -114,7 +115,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		let tl: ITerminalLauncher | undefined = this.debugAdapterFactories.get(debugType);
 		if (!tl) {
 			if (!this.terminalLauncher) {
-				this.terminalLauncher = this.instantiationService.createInstance(TerminalLauncher);
+				this.terminalLauncher = this.debugUIService.createTerminalLauncher(this.instantiationService);
 			}
 			tl = this.terminalLauncher;
 		}
