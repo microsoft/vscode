@@ -315,10 +315,9 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 	// TODO: only do iff indent guides are enabled
 	private renderIndentGuides(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
-		const lines = range(1, node.depth).map(i => {
-			const x = Math.floor((node.depth - i - 1) * this.indent) + 6;
-			return `<line x1="${x}" y1="0" x2="${x}" y2="${height}" />`;
-		});
+		const lines = range(1, node.depth)
+			.map(i => Math.floor((node.depth - i - 1) * this.indent) + 6)
+			.map(x => `<line x1="${x}" y1="0" x2="${x}" y2="${height}" />`);
 
 		const width = this.indent * node.depth;
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${lines}</svg>`;
