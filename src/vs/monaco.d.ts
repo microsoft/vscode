@@ -4957,6 +4957,10 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
+	export interface SignatureHelpResult extends IDisposable {
+		value: SignatureHelp;
+	}
+
 	export enum SignatureHelpTriggerKind {
 		Invoke = 1,
 		TriggerCharacter = 2,
@@ -4980,7 +4984,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
 	}
 
 	/**

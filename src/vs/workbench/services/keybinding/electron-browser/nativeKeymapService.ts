@@ -14,6 +14,7 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals, IMacLinuxKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -154,6 +155,10 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
 		return KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping();
+	}
+
+	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
+		return;
 	}
 }
 

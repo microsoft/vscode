@@ -75,7 +75,7 @@ class BufferSynchronizer {
 		}
 	}
 
-	public change(filepath: string, events: vscode.TextDocumentContentChangeEvent[]) {
+	public change(filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
 		if (!events.length) {
 			return;
 		}
@@ -210,7 +210,7 @@ class SyncedBuffer {
 		this.state = BufferState.Closed;
 	}
 
-	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
+	public onContentChanged(events: readonly vscode.TextDocumentContentChangeEvent[]): void {
 		if (this.state !== BufferState.Open) {
 			console.error(`Unexpected buffer state: ${this.state}`);
 		}

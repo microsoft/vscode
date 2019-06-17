@@ -802,12 +802,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '2_configuration',
+	group: '2_keybindings',
 	command: {
 		id: OpenGlobalKeybindingsAction.ID,
 		title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts")
 	},
-	order: 4
+	order: 1
 });
 
 // Editor tool items

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" style="width: 100%; height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="Content-Security-Policy"
+		content="default-src *; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Virtual Document</title>
+</head>
+
+<body style="margin: 0; overflow: hidden; width: 100%; height: 100%">
+	<script src="main.js"></script>
+	<script>
+		(function () {
+			const id = document.location.search.match(/\bid=([\w\-]+)/)[1];
+			const handlers = {};
+
+			const postMessageToVsCode = (channel, data) => {
+				window.parent.postMessage({ target: id, channel, data }, '*');
+			};
+
+			window.addEventListener('message', (e) => {
+				if (e.data && (e.data.command === 'onmessage' || e.data.command === 'do-update-state')) {
+					// Came from inner iframe
+					postMessageToVsCode(e.data.command, e.data.data);
+					return;
+				}
+
+				const channel = e.data.channel;
+				const handler = handlers[channel];
+				if (handler) {
+					handler(e, e.data.args);
+				} else {
+					console.log('no handler for ', e);
+				}
+			});
+
+			createWebviewManager({
+				origin: document.location.href,
+				postMessage: (channel, data) => {
+					postMessageToVsCode(channel, data);
+				},
+				onMessage: (channel, handler) => {
+					handlers[channel] = handler;
+				}
+			});
+		}());
+	</script>
+</body>
+</html>

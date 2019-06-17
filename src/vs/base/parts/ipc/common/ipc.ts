@@ -246,19 +246,29 @@ function deserialize(reader: IReader): any {
 	}
 }
 
+interface PendingRequest {
+	request: IRawPromiseRequest | IRawEventListenRequest;
+	timeoutTimer: any;
+}
+
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
 
 	private channels = new Map<string, IServerChannel<TContext>>();
 	private activeRequests = new Map<number, IDisposable>();
 	private protocolListener: IDisposable | null;
 
-	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext) {
+	// Requests might come in for channels which are not yet registered.
+	// They will timeout after `timeoutDelay`.
+	private pendingRequests = new Map<string, PendingRequest[]>();
+
+	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private timeoutDelay: number = 1000) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
 		this.sendResponse({ type: ResponseType.Initialize });
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
+		this.flushPendingRequests(channelName);
 	}
 
 	private sendResponse(response: IRawResponse): void {
@@ -309,9 +319,12 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
+
 		if (!channel) {
-			throw new Error(`Unknown channel: ${request.channelName}`);
+			this.collectPendingRequest(request);
+			return;
 		}
+
 		const cancellationTokenSource = new CancellationTokenSource();
 		let promise: Promise<any>;
 
@@ -348,8 +361,10 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onEventListen(request: IRawEventListenRequest): void {
 		const channel = this.channels.get(request.channelName);
+
 		if (!channel) {
-			throw new Error(`Unknown channel: ${request.channelName}`);
+			this.collectPendingRequest(request);
+			return;
 		}
 
 		const id = request.id;
@@ -365,6 +380,46 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		if (disposable) {
 			disposable.dispose();
 			this.activeRequests.delete(request.id);
+		}
+	}
+
+	private collectPendingRequest(request: IRawPromiseRequest | IRawEventListenRequest): void {
+		let pendingRequests = this.pendingRequests.get(request.channelName);
+
+		if (!pendingRequests) {
+			pendingRequests = [];
+			this.pendingRequests.set(request.channelName, pendingRequests);
+		}
+
+		const timer = setTimeout(() => {
+			console.error(`Unknown channel: ${request.channelName}`);
+
+			if (request.type === RequestType.Promise) {
+				this.sendResponse(<IRawResponse>{
+					id: request.id,
+					data: { name: 'Unknown channel', message: `Channel name '${request.channelName}' timed out after ${this.timeoutDelay}ms`, stack: undefined },
+					type: ResponseType.PromiseError
+				});
+			}
+		}, this.timeoutDelay);
+
+		pendingRequests.push({ request, timeoutTimer: timer });
+	}
+
+	private flushPendingRequests(channelName: string): void {
+		const requests = this.pendingRequests.get(channelName);
+
+		if (requests) {
+			for (const request of requests) {
+				clearTimeout(request.timeoutTimer);
+
+				switch (request.request.type) {
+					case RequestType.Promise: this.onPromise(request.request); break;
+					case RequestType.EventListen: this.onEventListen(request.request); break;
+				}
+			}
+
+			this.pendingRequests.delete(channelName);
 		}
 	}
 
@@ -587,6 +642,7 @@ export interface ClientConnectionEvent {
 }
 
 interface Connection<TContext> extends Client<TContext> {
+	readonly channelServer: ChannelServer<TContext>;
 	readonly channelClient: ChannelClient;
 }
 
@@ -625,7 +681,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				this.channels.forEach((channel, name) => channelServer.registerChannel(name, channel));
 
-				const connection: Connection<TContext> = { channelClient, ctx };
+				const connection: Connection<TContext> = { channelServer, channelClient, ctx };
 				this._connections.add(connection);
 				this._onDidChangeConnections.fire(connection);
 
@@ -661,6 +717,10 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
+
+		this._connections.forEach(connection => {
+			connection.channelServer.registerChannel(channelName, channel);
+		});
 	}
 
 	dispose(): void {

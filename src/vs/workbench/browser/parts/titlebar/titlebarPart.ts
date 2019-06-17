@@ -15,7 +15,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -75,8 +75,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private isInactive: boolean;
 
-	private properties: ITitleProperties;
-	private activeEditorListeners: IDisposable[];
+	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false };
+	private readonly activeEditorListeners = this._register(new DisposableStore());
 
 	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
@@ -95,9 +95,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.properties = { isPure: true, isAdmin: false };
-		this.activeEditorListeners = [];
 
 		this.registerListeners();
 	}
@@ -162,8 +159,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onActiveEditorChange(): void {
 
 		// Dispose old listeners
-		dispose(this.activeEditorListeners);
-		this.activeEditorListeners = [];
+		this.activeEditorListeners.clear();
 
 		// Calculate New Window Title
 		this.titleUpdater.schedule();
@@ -171,8 +167,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof EditorInput) {
-			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
-			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
 
 		// Represented File Name

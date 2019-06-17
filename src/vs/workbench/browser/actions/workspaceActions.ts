@@ -54,6 +54,24 @@ export class OpenLocalFileAction extends Action {
 	}
 }
 
+export class SaveLocalFileAction extends Action {
+
+	static readonly ID = 'workbench.action.files.saveLocalFile';
+	static LABEL = nls.localize('saveLocalFile', "Save Local File...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IFileDialogService private readonly dialogService: IFileDialogService
+	) {
+		super(id, label);
+	}
+
+	run(event?: any, data?: ITelemetryData): Promise<any> {
+		return this.dialogService.pickFileToSave({ availableFileSystems: [Schemas.file] });
+	}
+}
+
 export class OpenFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFolder';

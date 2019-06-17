@@ -369,7 +369,7 @@ export class ElectronWindow extends Disposable {
 		const actions: Array<MenuItemAction | Separator> = [];
 
 		// Fill actions into groups respecting order
-		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
+		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

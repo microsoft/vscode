@@ -8,12 +8,12 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { Terminal as XTermTerminal } from 'xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { mergeDefaultShellPathAndArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -28,6 +28,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
 	public config: ITerminalConfiguration;
+
+	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
+	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
 		private readonly _linuxDistro: LinuxDistro,
@@ -160,6 +163,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._onWorkspacePermissionsChanged.fire(isAllowed);
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
@@ -225,11 +229,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			);
 		}
 		return !!isWorkspaceShellAllowed;
-	}
-
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride: platform.Platform = platform.platform): void {
-		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride === platform.Platform.Windows ? platform.OperatingSystem.Windows : (platformOverride === platform.Platform.Mac ? platform.OperatingSystem.Macintosh : platform.OperatingSystem.Linux));
-		mergeDefaultShellPathAndArgs(shell, (key) => this._workspaceConfigurationService.inspect(key), isWorkspaceShellAllowed, defaultShell, platformOverride);
 	}
 
 	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
