@@ -79,3 +79,8 @@
 .hc-black .monaco-tl-twistie.loading {
 	background-image: url("loading-hc.svg");
 }
+
+.monaco-list .monaco-tl-indent > svg > line {
+	stroke: transparent;
+	transition: stroke 0.15s linear;
+}
