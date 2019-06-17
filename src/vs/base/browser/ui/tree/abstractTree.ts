@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -313,16 +313,19 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 	}
 
-	// TODO: only do iff indent guides are enabled
+	// // TODO: only do iff indent guides are enabled
 	private renderIndentGuides(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
-		const lines = range(1, node.depth)
-			.map(i => Math.floor((node.depth - i - 1) * this.indent) + 6)
-			.map(x => `<line x1="${x}" y1="0" x2="${x}" y2="${height}" />`);
-
 		const width = this.indent * node.depth;
-		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${lines}</svg>`;
+		const svg = $.SVG('svg', { 'shape-rendering': 'crispEdges', width: `${width}`, height: `${height}`, viewBox: `0 0 ${width} ${height}` });
 
-		templateData.indent.innerHTML = svg;
+		for (let i = 1; i < node.depth; i++) {
+			const x = Math.floor((node.depth - i - 1) * this.indent) + 6;
+			const line = $.SVG('line', { x1: x, y1: 0, x2: x, y2: height });
+			svg.appendChild(line);
+		}
+
+		clearNode(templateData.indent);
+		templateData.indent.appendChild(svg);
 	}
 
 	dispose(): void {
@@ -1221,7 +1224,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		if (styles.treeIndentGuidesStroke) {
 			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line { stroke: ${styles.treeIndentGuidesStroke.transparent(0.3)}; }`);
-			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line.active { stroke: ${styles.treeIndentGuidesStroke}; }`);
+			content.push(`.monaco-list${suffix} .monaco-tl-indent > svg > line.active { stroke: ${styles.treeIndentGuidesStroke}; }`);
 		}
 
 		const newStyles = content.join('\n');
