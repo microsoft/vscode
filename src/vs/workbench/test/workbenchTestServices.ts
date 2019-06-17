@@ -620,6 +620,10 @@ export class TestPanelService implements IPanelService {
 		return null!;
 	}
 
+	public getPanel(id: string): any {
+		return activeViewlet;
+	}
+
 	public getPanels(): any[] {
 		return [];
 	}
@@ -639,6 +643,10 @@ export class TestPanelService implements IPanelService {
 
 	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		throw new Error('Method not implemented.');
+	}
+
+	public getProgressIndicator(id: string) {
+		return null!;
 	}
 
 	public hideActivePanel(): void { }

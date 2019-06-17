@@ -24,6 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class ProgressService implements IProgressService, IDisposable {
 
@@ -35,6 +36,7 @@ export class ProgressService implements IProgressService, IDisposable {
 	constructor(
 		@IActivityService private readonly _activityBar: IActivityService,
 		@IViewletService private readonly _viewletService: IViewletService,
+		@IPanelService private readonly _panelService: IPanelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -49,9 +51,12 @@ export class ProgressService implements IProgressService, IDisposable {
 	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
 		const { location } = options;
 		if (typeof location === 'string') {
-			const viewlet = this._viewletService.getViewlet(location);
-			if (viewlet) {
+			if (this._viewletService.getProgressIndicator(location)) {
 				return this._withViewletProgress(location, task, { ...options, location });
+			}
+
+			if (this._panelService.getProgressIndicator(location)) {
+				return this._withPanelProgress(location, task, { ...options, location });
 			}
 
 			return Promise.reject(new Error(`Bad progress location: ${location}`));
@@ -277,6 +282,18 @@ export class ProgressService implements IProgressService, IDisposable {
 			clearTimeout(delayHandle);
 			dispose(activityProgress);
 		});
+
+		return promise;
+	}
+
+	private _withPanelProgress<P extends Promise<R>, R = unknown>(panelid: string, task: (progress: IProgress<{ message?: string }>) => P, options: IProgressCompositeOptions): P {
+		const promise = task(emptyProgress);
+
+		// show in panel
+		const panelProgress = this._panelService.getProgressIndicator(panelid);
+		if (panelProgress) {
+			panelProgress.showWhile(promise, options.delay);
+		}
 
 		return promise;
 	}
