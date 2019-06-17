@@ -653,7 +653,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } });
 
-		return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
+		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri));
 	}
 
 	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
