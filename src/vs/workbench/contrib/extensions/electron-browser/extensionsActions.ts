@@ -1070,7 +1070,7 @@ export class CheckForUpdatesAction extends Action {
 	private checkUpdatesAndNotify(): void {
 		const outdated = this.extensionsWorkbenchService.outdated;
 		if (!outdated.length) {
-			this.notificationService.info(localize('noUpdatesAvailable', "All Extensions are up to date."));
+			this.notificationService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 			return;
 		}
 

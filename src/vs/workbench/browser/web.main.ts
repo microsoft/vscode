@@ -34,10 +34,15 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { joinPath } from 'vs/base/common/resources';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 
 interface IWindowConfiguration {
-	userDataUri: URI;
 	remoteAuthority: string;
+
+	userDataUri: URI;
+
+	webviewEndpoint?: string;
+
 	folderUri?: URI;
 	workspaceUri?: URI;
 }
@@ -46,7 +51,10 @@ class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
 
-	constructor(private readonly configuration: IWindowConfiguration) {
+	constructor(
+		private readonly domElement: HTMLElement,
+		private readonly configuration: IWindowConfiguration
+	) {
 		super();
 	}
 
@@ -58,7 +66,7 @@ class CodeRendererMain extends Disposable {
 
 		// Create Workbench
 		this.workbench = new Workbench(
-			document.body,
+			this.domElement,
 			services.serviceCollection,
 			services.logService
 		);
@@ -148,6 +156,7 @@ class CodeRendererMain extends Disposable {
 			port: null,
 			break: false
 		};
+		environmentService.webviewEndpoint = this.configuration.webviewEndpoint;
 
 		return environmentService;
 	}
@@ -183,30 +192,16 @@ class CodeRendererMain extends Disposable {
 	}
 }
 
-export interface IWindowConfigurationContents {
-	userDataPath: string;
-	settingsPath: string;
-	keybindingsPath: string;
-	folderPath?: string;
-	workspacePath?: string;
-}
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+	const renderer = new CodeRendererMain(
+		domElement,
+		{
+			userDataUri: URI.revive(options.userDataUri),
+			remoteAuthority: options.remoteAuthority,
+			webviewEndpoint: options.webviewEndpoint,
+			folderUri: options.folderUri ? URI.revive(options.folderUri) : undefined,
+			workspaceUri: options.workspaceUri ? URI.revive(options.workspaceUri) : undefined,
+		});
 
-export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
-	const windowConfiguration: IWindowConfiguration = {
-		userDataUri: toResource(windowConfigurationContents.userDataPath),
-		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
-		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
-		remoteAuthority: document.location.host
-	};
-
-	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
-}
-
-function toResource(path: string): URI {
-	return URI.from({
-		scheme: Schemas.vscodeRemote,
-		authority: document.location.host,
-		path
-	});
 }

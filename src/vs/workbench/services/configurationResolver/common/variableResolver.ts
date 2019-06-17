@@ -35,7 +35,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		private _context: IVariableResolveContext,
 		private _envVariables: IProcessEnvironment
 	) {
-		if (isWindows) {
+		if (isWindows && _envVariables) {
 			this._envVariables = Object.create(null);
 			Object.keys(_envVariables).forEach(key => {
 				this._envVariables[key.toLowerCase()] = _envVariables[key];

@@ -30,6 +30,9 @@ class TestXterm {
 }
 
 class MockTerminalInstanceService implements ITerminalInstanceService {
+	mergeDefaultShellPathAndArgs(): void {
+		throw new Error('Method not implemented.');
+	}
 	_serviceBrand: any;
 	getXtermConstructor(): Promise<any> {
 		throw new Error('Method not implemented.');

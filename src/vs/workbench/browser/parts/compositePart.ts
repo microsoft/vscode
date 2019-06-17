@@ -6,7 +6,7 @@
 import 'vs/css!./media/compositepart';
 import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
@@ -68,7 +68,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private titleLabel: ICompositeTitleLabel;
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
-	private telemetryActionsListener: IDisposable | null;
+	private readonly telemetryActionsListener = this._register(new MutableDisposable());
 	private currentCompositeOpenToken: string;
 
 	constructor(
@@ -249,13 +249,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 		actionsBinding();
 
-		if (this.telemetryActionsListener) {
-			this.telemetryActionsListener.dispose();
-			this.telemetryActionsListener = null;
-		}
-
 		// Action Run Handling
-		this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun(e => {
+		this.telemetryActionsListener.value = this.toolBar.actionRunner.onDidRun(e => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {

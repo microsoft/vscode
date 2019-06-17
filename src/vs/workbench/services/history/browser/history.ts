@@ -13,7 +13,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -108,8 +108,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor?: IEditorIdentifier;
 
-	private readonly editorHistoryListeners: Map<EditorInput, IDisposable[]> = new Map();
-	private readonly editorStackListeners: Map<EditorInput, IDisposable[]> = new Map();
+	private readonly editorHistoryListeners: Map<EditorInput, DisposableStore> = new Map();
+	private readonly editorStackListeners: Map<EditorInput, DisposableStore> = new Map();
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -475,19 +475,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, IDisposable[]>): void {
+	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
 		const toDispose = Event.once(editor.onDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
 		if (!disposables) {
-			disposables = [];
+			disposables = new DisposableStore();
 			mapEditorToDispose.set(editor, disposables);
 		}
 
-		disposables.push(toDispose);
+		disposables.add(toDispose);
 	}
 
-	private clearOnEditorDispose(editor: IEditorInput | IResourceInput | FileChangesEvent, mapEditorToDispose: Map<EditorInput, IDisposable[]>): void {
+	private clearOnEditorDispose(editor: IEditorInput | IResourceInput | FileChangesEvent, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
 		if (editor instanceof EditorInput) {
 			const disposables = mapEditorToDispose.get(editor);
 			if (disposables) {

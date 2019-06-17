@@ -117,7 +117,7 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/browser/browserKeymapService';
+import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
 import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
@@ -194,6 +194,9 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // Localizations
 // import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
+// Labels
+import 'vs/workbench/contrib/label/common/label.contribution';
+
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
@@ -247,13 +250,12 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
-// import 'vs/workbench/contrib/webview/browser/webview.contribution';
-// import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
+import 'vs/workbench/contrib/webview/browser/webview.contribution';
 
 import { IWebviewService } from 'vs/workbench/contrib/webview/common/webview';
-import { NullWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
 import { IWebviewEditorService, WebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-registerSingleton(IWebviewService, NullWebviewService, true);
+registerSingleton(IWebviewService, WebviewService, true);
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 // Extensions Management
@@ -282,7 +284,11 @@ registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 // import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
 
 // Tasks
-// import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
+import 'vs/workbench/contrib/tasks/browser/task.contribution';
+import { TaskService } from 'vs/workbench/contrib/tasks/browser/taskService';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+registerSingleton(ITaskService, TaskService, true);
+
 
 // Remote
 // import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';

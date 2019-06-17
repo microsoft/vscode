@@ -34,6 +34,20 @@
 	--yellow: #fc0;
 }
 
+:root .hc-black {
+	--blue: #75beff;
+	--gray: #FFF;
+	--grayLight: #FFF;
+	--green: #89d185;
+	--greenLight: #9cce9c;
+	--orange: #e8ab53;
+	--orangeLight: #ff8e00;
+	--purple: #b180d7;
+	--red: #f48771;
+	--redLight: #e51400;
+	--yellow: #fc0;
+}
+
 
 /****************
 	Base
