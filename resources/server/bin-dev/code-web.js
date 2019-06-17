@@ -11,9 +11,13 @@ const fs = require('fs');
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 
 let PORT = 8000;
+let BROWSER = undefined;
 process.argv.forEach((arg, idx) => {
 	if (arg.indexOf('--port') !== -1 && process.argv.length >= idx + 1) {
 		PORT = process.argv[idx + 1];
+	}
+	if (arg.indexOf('--browser') !== -1 && process.argv.length >= idx + 1) {
+		BROWSER = process.argv[idx + 1];
 	}
 });
 
@@ -45,6 +49,26 @@ if (SELFHOST) {
 	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
 }
 
+function getApp(requestedBrowser) {
+	if (typeof requestedBrowser !== 'string') {
+		return undefined;
+	}
+
+	switch (requestedBrowser.toLowerCase()) {
+		case 'chrome':
+			return ({
+				'win32': 'chrome',
+				'darwin': '/Applications/Google Chrome.app',
+				'linux':'google-chrome'
+			})[process.platform];
+
+		case 'safari':
+			return ({
+				'darwin': '/Applications/Safari.app',
+			})[process.platform];
+	}
+}
+
 // Start Server
 let serverArgs = process.argv.slice(2);
 const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, serverArgs, { shell: true }) : cp.execFile(executable, serverArgs);
@@ -64,7 +88,7 @@ proc.stdout.on("data", data => {
 
 			console.log(`Opening ${url} in your browser...`);
 
-			opn(url).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
+			opn(url, { app: getApp(BROWSER) }).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
 		}, 100);
 	}
 });
