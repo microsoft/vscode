@@ -114,12 +114,6 @@ export class SharedProcess implements ISharedProcess {
 		this.barrier.open();
 	}
 
-	send(channel: string, ...args: any[]): void {
-		if (this.window) {
-			this.window.webContents.send(channel, ...args);
-		}
-	}
-
 	async whenReady(): Promise<void> {
 		await this.barrier.wait();
 		await this._whenReady;
