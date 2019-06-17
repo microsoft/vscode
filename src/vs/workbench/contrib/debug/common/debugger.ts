@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -22,7 +22,6 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IDebugUIService } from 'vs/workbench/contrib/debug/common/debugUI';
 
 export class Debugger implements IDebugger {
 
@@ -35,7 +34,7 @@ export class Debugger implements IDebugger {
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDebugUIService private readonly debugUIService: IDebugUIService
+		@IDebugHelperService private readonly debugHelperService: IDebugHelperService
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
@@ -193,7 +192,7 @@ export class Debugger implements IDebugger {
 			return telemetryInfo;
 		}).then(data => {
 			const args = [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey];
-			return this.debugUIService.createTelemetryService(this.configurationService, args);
+			return this.debugHelperService.createTelemetryService(this.configurationService, args);
 		});
 	}
 

@@ -9,16 +9,15 @@ import * as cp from 'child_process';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalLauncher } from 'vs/workbench/contrib/debug/node/terminalSupport';
-import { ITerminalLauncher } from 'vs/workbench/contrib/debug/common/debug';
+import { ITerminalLauncher, IDebugHelperService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debug';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugUIService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debugUI';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class NodeDebugUIService implements IDebugUIService {
+export class NodeDebugHelperService implements IDebugHelperService {
 	_serviceBrand: any;
 
 	constructor(
@@ -129,4 +128,4 @@ export class NodeDebugUIService implements IDebugUIService {
 	}
 }
 
-registerSingleton(IDebugUIService, NodeDebugUIService);
+registerSingleton(IDebugHelperService, NodeDebugHelperService);
