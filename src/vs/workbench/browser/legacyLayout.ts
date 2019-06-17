@@ -19,7 +19,7 @@ import { Part } from 'vs/workbench/browser/part';
 
 const TITLE_BAR_HEIGHT = isMacintosh && !isWeb ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
-const ACTIVITY_BAR_WIDTH = 50;
+const ACTIVITY_BAR_WIDTH = 48;
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
