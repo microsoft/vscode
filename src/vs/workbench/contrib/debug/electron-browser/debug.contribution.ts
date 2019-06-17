@@ -249,6 +249,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the debug console. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
+		'debug.console.wordWrap': {
+			type: 'boolean',
+			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
+			default: true
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
