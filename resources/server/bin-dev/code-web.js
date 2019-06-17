@@ -23,15 +23,15 @@ if (SELFHOST) {
 
 	const executables = {
 		'win32': {
-			folder: 'vscode-server-win32-x64',
+			folder: 'vscode-server-win32-x64-web',
 			command: 'server.cmd'
 		},
 		'darwin': {
-			folder: 'vscode-server-darwin',
+			folder: 'vscode-server-darwin-web',
 			command: 'server.sh'
 		},
 		'linux': {
-			folder: 'vscode-server-linux-x64',
+			folder: 'vscode-server-linux-x64-web',
 			command: 'server.sh'
 		}
 	};
