@@ -381,23 +381,13 @@
 						newFrame.contentDocument.write('<!DOCTYPE html>');
 						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 						newFrame.contentDocument.close();
+						hookupOnLoadHandlers(newFrame);
 					}
 					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 					if (contentDocument) {
 						applyStyles(contentDocument, contentDocument.body);
 					}
 				});
-
-				newFrame.contentWindow.onbeforeunload = () => {
-					if (isInDevelopmentMode) { // Allow reloads while developing a webview
-						host.postMessage('do-reload');
-						return false;
-					}
-
-					// Block navigation when not in development mode
-					console.log('prevented webview navigation');
-					return false;
-				};
 
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
@@ -429,24 +419,41 @@
 					}
 				};
 
-				clearTimeout(loadTimeout);
-				loadTimeout = undefined;
-				loadTimeout = setTimeout(() => {
+				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
-					onLoad(newFrame.contentDocument, newFrame.contentWindow);
-				}, 200);
-
-				newFrame.contentWindow.addEventListener('load', function (e) {
-					if (loadTimeout) {
+					loadTimeout = setTimeout(() => {
 						clearTimeout(loadTimeout);
 						loadTimeout = undefined;
-						onLoad(e.target, this);
-					}
-				});
+						onLoad(newFrame.contentDocument, newFrame.contentWindow);
+					}, 200);
 
-				// Bubble out link clicks
-				newFrame.contentWindow.addEventListener('click', handleInnerClick);
+					newFrame.contentWindow.addEventListener('load', function (e) {
+						if (loadTimeout) {
+							clearTimeout(loadTimeout);
+							loadTimeout = undefined;
+							onLoad(e.target, this);
+						}
+					});
+
+					newFrame.contentWindow.onbeforeunload = () => {
+						if (isInDevelopmentMode) { // Allow reloads while developing a webview
+							host.postMessage('do-reload');
+							return false;
+						}
+
+						// Block navigation when not in development mode
+						console.log('prevented webview navigation');
+						return false;
+					};
+
+					// Bubble out link clicks
+					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+				}
+
+				if (!FAKE_LOAD) {
+					hookupOnLoadHandlers(newFrame);
+				}
 
 				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
