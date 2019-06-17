@@ -6,7 +6,7 @@
 import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -152,7 +152,7 @@ function deleteFiles(textFileService: ITextFileService, dialogService: IDialogSe
 
 	// Handle dirty
 	let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
-	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
+	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource)));
 	if (dirty.length) {
 		let message: string;
 		if (distinctElements.length > 1) {
@@ -1031,7 +1031,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 		// Check if target is ancestor of pasted folder
 		Promise.all(toPaste.map(fileToPaste => {
 
-			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste, !isLinux /* ignorecase */)) {
+			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
 

@@ -436,7 +436,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
+		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 
 		await this.revertAll(dirtyFiles, { soft: true });
 
@@ -467,7 +467,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}
 
 		// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
-		const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
+		const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source));
 		const dirtyTargetModelUris: URI[] = [];
 		if (dirtySourceModels.length) {
 			await Promise.all(dirtySourceModels.map(async sourceModel => {
@@ -475,7 +475,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				let targetModelResource: URI;
 
 				// If the source is the actual model, just use target as new resource
-				if (isEqual(sourceModelResource, source, !platform.isLinux /* ignorecase */)) {
+				if (isEqual(sourceModelResource, source)) {
 					targetModelResource = target;
 				}
 
