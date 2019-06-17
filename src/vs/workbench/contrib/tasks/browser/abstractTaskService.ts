@@ -493,11 +493,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public tasks(filter?: TaskFilter): Promise<Task[]> {
-		let range = filter && filter.version ? filter.version : undefined;
-		// let engine = this.executionEngine;
+	protected abstract versionAndEngineCompatible(filter?: TaskFilter): boolean;
 
-		if (range /*&& ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Terminal) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Process))*/) {
+	public tasks(filter?: TaskFilter): Promise<Task[]> {
+		if (!this.versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
 		return this.getGroupedTasks().then((map) => {

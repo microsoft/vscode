@@ -9,6 +9,7 @@ import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ExecutionEngine, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { AbstractTaskService, WorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { TaskFilter } from 'vs/workbench/contrib/tasks/common/taskService';
 
 export class TaskService extends AbstractTaskService {
 	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');
@@ -44,4 +45,7 @@ export class TaskService extends AbstractTaskService {
 		throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 	}
 
+	protected versionAndEngineCompatible(filter?: TaskFilter): boolean {
+		return this.executionEngine === ExecutionEngine.Terminal;
+	}
 }

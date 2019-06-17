@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
+import * as semver from 'semver';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -19,6 +20,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, AllowAutomaticTaskRunning, DisallowAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { TaskFilter } from 'vs/workbench/contrib/tasks/common/taskService';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -126,6 +128,13 @@ export class TaskService extends AbstractTaskService {
 				return { workspaceFolder, config: value.config!, hasErrors };
 			});
 		}
+	}
+
+	protected versionAndEngineCompatible(filter?: TaskFilter): boolean {
+		let range = filter && filter.version ? filter.version : undefined;
+		let engine = this.executionEngine;
+
+		return (range === undefined) || ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Terminal) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Process));
 	}
 
 	private printStderr(stderr: string[]): boolean {
