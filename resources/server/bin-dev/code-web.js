@@ -9,6 +9,12 @@ const path = require('path');
 const fs = require('fs');
 
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
+const HAS_FOLDER = process.argv.indexOf('--folder') !== -1;
+
+if (!HAS_FOLDER) {
+	console.log(`Using ${process.cwd()} as workspace. Use --folder <path> to specifcy a different workspace location.`);
+	process.argv.push('--folder', process.cwd());
+}
 
 let PORT = 8000;
 let BROWSER = undefined;
@@ -16,6 +22,7 @@ process.argv.forEach((arg, idx) => {
 	if (arg.indexOf('--port') !== -1 && process.argv.length >= idx + 1) {
 		PORT = process.argv[idx + 1];
 	}
+
 	if (arg.indexOf('--browser') !== -1 && process.argv.length >= idx + 1) {
 		BROWSER = process.argv[idx + 1];
 	}
@@ -59,7 +66,7 @@ function getApp(requestedBrowser) {
 			return ({
 				'win32': 'chrome',
 				'darwin': '/Applications/Google Chrome.app',
-				'linux':'google-chrome'
+				'linux': 'google-chrome'
 			})[process.platform];
 
 		case 'safari':
