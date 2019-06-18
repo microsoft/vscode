@@ -222,7 +222,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	onRequestWindowsShells: Event<(shells: IShellDefinition[]) => void>;
+	onRequestAvailableShells: Event<(shells: IShellDefinition[]) => void>;
 
 	/**
 	 * Creates a terminal.

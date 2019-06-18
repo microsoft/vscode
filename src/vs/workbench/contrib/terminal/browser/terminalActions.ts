@@ -35,7 +35,6 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -743,8 +742,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
@@ -756,11 +754,8 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	private _updateItems(): void {
 		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
-		let enableSelectDefaultShell = this.workbenchEnvironmentService.configuration.remoteAuthority ? false : isWindows;
-		if (enableSelectDefaultShell) {
-			items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
-			items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
-		}
+		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
+		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
 		this.setOptions(items, this.terminalService.activeTabIndex);
 	}
 }

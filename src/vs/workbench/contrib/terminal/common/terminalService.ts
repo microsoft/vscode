@@ -65,8 +65,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	protected readonly _onRequestWindowsShells = new Emitter<(shells: IShellDefinition[]) => void>();
-	public get onRequestWindowsShells(): Event<(shells: IShellDefinition[]) => void> { return this._onRequestWindowsShells.event; }
+	protected readonly _onRequestAvailableShells = new Emitter<(shells: IShellDefinition[]) => void>();
+	public get onRequestAvailableShells(): Event<(shells: IShellDefinition[]) => void> { return this._onRequestAvailableShells.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -553,6 +553,6 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _detectWindowsShells(): Promise<IShellDefinition[]> {
-		return new Promise(r => this._onRequestWindowsShells.fire(r));
+		return new Promise(r => this._onRequestAvailableShells.fire(r));
 	}
 }

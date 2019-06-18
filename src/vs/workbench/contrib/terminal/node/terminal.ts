@@ -9,7 +9,7 @@ import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists, stat } from 'vs/base/node/pfs';
 import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
 import { coalesce } from 'vs/base/common/arrays';
-import { normalize } from 'vs/base/common/path';
+import { normalize, basename } from 'vs/base/common/path';
 
 export function getDefaultShell(p: platform.Platform): string {
 	if (p === platform.Platform.Windows) {
@@ -85,7 +85,11 @@ export function getWindowsBuildNumber(): number {
 	return buildNumber;
 }
 
-export async function detectWindowsShells(): Promise<IShellDefinition[]> {
+export function detectAvailableShells(): Promise<IShellDefinition[]> {
+	return platform.isWindows ? detectAvailableWindowsShells() : detectAvailableUnixShells();
+}
+
+async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -118,6 +122,16 @@ export async function detectWindowsShells(): Promise<IShellDefinition[]> {
 	return Promise.all(promises).then(coalesce);
 }
 
+async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {
+	const contents = await readFile('/etc/shells', 'utf8');
+	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+	return shells.map(e => {
+		return {
+			label: basename(e),
+			path: e
+		};
+	});
+}
 
 function validateShellPaths(label: string, potentialPaths: string[]): Promise<IShellDefinition | undefined> {
 	if (potentialPaths.length === 0) {
