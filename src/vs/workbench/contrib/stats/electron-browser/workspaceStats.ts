@@ -21,7 +21,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -226,7 +226,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IDiagnosticsService private readonly diagnosticService: IDiagnosticsService
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) {
 		this.report();
 	}
@@ -242,7 +242,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		this.reportProxyStats();
 
-		this.diagnosticService.reportWorkspaceStats(this.contextService.getWorkspace());
+		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
+		diagnosticsChannel.call('reportWorkspaceStats', this.contextService.getWorkspace());
 	}
 
 	private static searchArray(arr: string[], regEx: RegExp): boolean | undefined {

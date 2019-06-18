@@ -93,7 +93,6 @@ import { ConfigurationResolverService } from 'vs/workbench/services/configuratio
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/electron-browser/diagnosticsService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -165,7 +164,6 @@ registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
-registerSingleton(IDiagnosticsService, DiagnosticsService, true);
 
 //#endregion
 
@@ -217,7 +215,7 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // Stats
-import 'vs/workbench/contrib/stats/node/stats.contribution';
+import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
@@ -339,6 +337,5 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 //#endregion

@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -33,6 +34,8 @@ export interface ProcessInfo {
 export class DiagnosticsService implements IDiagnosticsService {
 
 	_serviceBrand: any;
+
+	constructor(@ITelemetryService private readonly telemetryService: ITelemetryService) { }
 
 	private formatMachineInfo(info: IMachineInfo): string {
 		const output: string[] = [];
@@ -327,11 +330,11 @@ export class DiagnosticsService implements IDiagnosticsService {
 							"launchConfigs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
-					// telemetryService.publicLog('workspace.metadata', {
-					// 	fileTypes: stats.fileTypes,
-					// 	configTypes: stats.configFiles,
-					// 	launchConfigs: stats.launchConfigFiles
-					// });
+					this.telemetryService.publicLog('workspace.metadata', {
+						fileTypes: stats.fileTypes,
+						configTypes: stats.configFiles,
+						launchConfigs: stats.launchConfigFiles
+					});
 				}).catch(_ => {
 					// Report nothing if collecting metadata fails.
 				});
