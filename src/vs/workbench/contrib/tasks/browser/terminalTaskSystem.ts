@@ -797,15 +797,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let commandLine = this.buildShellCommandLine(platform, shellLaunchConfig.executable!, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
-				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-				// safe to assume that this was used by accident as Sysnative does not
-				// exist and will break the terminal in non-WoW64 environments.
-				if (!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
-					const sysnativePath = path.join(process.env.windir!, 'Sysnative').toLowerCase();
-					if (shellLaunchConfig.executable!.toLowerCase().indexOf(sysnativePath) === 0) {
-						shellLaunchConfig.executable = path.join(process.env.windir!, 'System32', shellLaunchConfig.executable!.substr(sysnativePath.length));
-					}
-				}
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(process.cwd())))) {
