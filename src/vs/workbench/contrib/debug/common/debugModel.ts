@@ -314,7 +314,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 export class StackFrame implements IStackFrame {
 
-	private scopes: Promise<Scope[]> | null;
+	private scopes: Promise<Scope[]> | undefined;
 
 	constructor(
 		public thread: IThread,
@@ -324,9 +324,7 @@ export class StackFrame implements IStackFrame {
 		public presentationHint: string | undefined,
 		public range: IRange,
 		private index: number
-	) {
-		this.scopes = null;
-	}
+	) { }
 
 	getId(): string {
 		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
@@ -380,6 +378,10 @@ export class StackFrame implements IStackFrame {
 
 	restart(): Promise<void> {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
+	}
+
+	forgetScopes(): void {
+		this.scopes = undefined;
 	}
 
 	toString(): string {
