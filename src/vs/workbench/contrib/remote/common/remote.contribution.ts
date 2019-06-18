@@ -11,6 +11,8 @@ import { isWeb, OperatingSystem } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -39,6 +41,19 @@ export class LabelContribution implements IWorkbenchContribution {
 	}
 }
 
+class RemoteChannelsContribution implements IWorkbenchContribution {
+
+	constructor(
+		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
-
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
