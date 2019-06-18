@@ -71,13 +71,11 @@ export class SaveLocalFileAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): Promise<any> {
+	async run(event?: any, data?: ITelemetryData): Promise<any> {
 		let resource: URI | undefined = toResource(this.editorService.activeEditor);
 		const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
 		if (resource) {
 			return this.textFileService.saveAs(resource, undefined, options);
-		} else {
-			return Promise.resolve();
 		}
 	}
 }

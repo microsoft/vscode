@@ -660,7 +660,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems: availableFileSystems,
+			availableFileSystems,
 		};
 
 		// Filters are only enabled on Windows where they work properly
