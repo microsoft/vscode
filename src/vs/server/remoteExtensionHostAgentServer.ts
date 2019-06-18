@@ -2,31 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import * as net from 'net';
-import * as http from 'http';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as http from 'http';
+import * as net from 'net';
 import * as os from 'os';
+import * as path from 'path';
 import * as url from 'url';
 import * as util from 'util';
-import * as fs from 'fs';
-import * as path from 'path';
-import { RemoteExtensionManagementServer, ManagementConnection } from 'vs/server/remoteExtensionManagement';
-import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
-import { ConnectionType, HandshakeMessage, SignRequest, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
-import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { getMediaMime } from 'vs/base/common/mime';
+import { isLinux } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
+import { generateUuid } from 'vs/base/common/uuid';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import product from 'vs/platform/product/node/product';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getMediaMime } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
-import { isLinux } from 'vs/base/common/platform';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ConnectionType, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
+import { ManagementConnection, RemoteExtensionManagementServer } from 'vs/server/remoteExtensionManagement';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
@@ -41,11 +41,15 @@ const textMmimeType = {
 
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 
+const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
+
 export class RemoteExtensionHostAgentServer extends Disposable {
 
 	private _remoteExtensionManagementServer: RemoteExtensionManagementServer;
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
+
+	private shutdownTimer: NodeJS.Timer | undefined;
 
 	constructor(
 		private readonly _environmentService: EnvironmentService
@@ -131,6 +135,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			if (req.url === '/version') {
 				res.writeHead(200, { 'Content-Type': 'text/html' });
 				return res.end(product.commit || '');
+			}
+
+			// Delay shutdown
+			if (req.url === '/delay-shutdown') {
+				this.delayShutdown();
+
+				res.writeHead(200);
+				return res.end('OK');
 			}
 
 			// Workbench
@@ -243,6 +255,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const address = server.address();
 			console.log(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
 		});
+
+		this._register({ dispose: () => server.close() });
 	}
 
 	// Eventually cleanup
@@ -444,6 +458,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 									this._extHostConnections[reconnectionToken] = con;
 									con.onClose(() => {
 										delete this._extHostConnections[reconnectionToken];
+										this.onDidCloseExtHostConnection();
 									});
 									con.start(startParams);
 								}
@@ -511,5 +526,58 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		startParams.port = undefined;
 		startParams.break = undefined;
 		return Promise.resolve(startParams);
+	}
+
+	private async onDidCloseExtHostConnection(): Promise<void> {
+		if (!this._environmentService.args['enable-remote-auto-shutdown']) {
+			return;
+		}
+
+		this.cancelShutdown();
+
+		const hasActiveExtHosts = !!Object.keys(this._extHostConnections).length;
+		if (!hasActiveExtHosts) {
+			console.log('Last EH closed, waiting before shutting down');
+			this.waitThenShutdown();
+		}
+	}
+
+	private waitThenShutdown(): void {
+		if (!this._environmentService.args['enable-remote-auto-shutdown']) {
+			return;
+		}
+
+		this.shutdownTimer = setTimeout(() => {
+			this.shutdownTimer = undefined;
+
+			const hasActiveExtHosts = !!Object.keys(this._extHostConnections).length;
+			if (hasActiveExtHosts) {
+				console.log('New EH opened, aborting shutdown');
+				return;
+			} else {
+				console.log('Last EH closed, shutting down');
+				this.dispose();
+				process.exit(0);
+			}
+		}, SHUTDOWN_TIMEOUT);
+	}
+
+	/**
+	 * If the server is in a shutdown timeout, cancel it and start over
+	 */
+	private delayShutdown(): void {
+		if (this.shutdownTimer) {
+			console.log('Got delay-shutdown request while in shutdown timeout, delaying');
+			this.cancelShutdown();
+			this.waitThenShutdown();
+		}
+	}
+
+	private cancelShutdown(): void {
+		if (this.shutdownTimer) {
+			console.log('Cancelling previous shutdown timeout');
+			clearTimeout(this.shutdownTimer);
+			this.shutdownTimer = undefined;
+		}
 	}
 }
