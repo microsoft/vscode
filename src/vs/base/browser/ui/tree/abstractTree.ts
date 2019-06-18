@@ -381,7 +381,13 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const disposableStore = new DisposableStore();
 		const width = this.indent * target.depth;
-		const svg = $.SVG('svg', { 'shape-rendering': 'crispEdges', width: `${width}`, height: `${height}`, viewBox: `0 0 ${width} ${height}` });
+		const svg = $.SVG('svg', {
+			'shape-rendering': 'crispEdges',
+			preserveAspectRatio: 'none',
+			width: `${width}`,
+			height: `${height}`,
+			viewBox: `0 0 ${width} ${height}`
+		});
 
 		let node = target;
 		let i = 1;

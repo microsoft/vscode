@@ -81,6 +81,10 @@
 	background-image: url("loading-hc.svg");
 }
 
+.monaco-list .monaco-tl-indent > svg {
+	height: 100%;
+}
+
 .monaco-list .monaco-tl-indent > svg > line {
 	stroke: transparent;
 	transition: stroke 0.1s linear;
