@@ -1062,7 +1062,7 @@ configurationRegistry.registerConfiguration({
 		[treeRenderIndentGuidesKey]: {
 			type: 'string',
 			enum: ['none', 'onHover', 'always'],
-			default: 'none',
+			default: 'onHover',
 			description: localize('render tree indent guides', "Controls whether the tree should render indent guides.")
 		},
 		[keyboardNavigationSettingKey]: {
