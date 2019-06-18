@@ -12,12 +12,13 @@ import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 export const IViewletService = createDecorator<IViewletService>('viewletService');
 
 export interface IViewletService {
+
 	_serviceBrand: ServiceIdentifier<any>;
 
-	onDidViewletRegister: Event<ViewletDescriptor>;
-	onDidViewletDeregister: Event<ViewletDescriptor>;
-	onDidViewletOpen: Event<IViewlet>;
-	onDidViewletClose: Event<IViewlet>;
+	readonly onDidViewletRegister: Event<ViewletDescriptor>;
+	readonly onDidViewletDeregister: Event<ViewletDescriptor>;
+	readonly onDidViewletOpen: Event<IViewlet>;
+	readonly onDidViewletClose: Event<IViewlet>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.

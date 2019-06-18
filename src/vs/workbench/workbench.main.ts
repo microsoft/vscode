@@ -231,11 +231,12 @@ import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
-import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
+import 'vs/workbench/contrib/debug/browser/debug.contribution';
 import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/node/debugHelperService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
@@ -269,7 +270,10 @@ import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
 
 // Tasks
-import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
+import 'vs/workbench/contrib/tasks/browser/task.contribution';
+import { TaskService } from 'vs/workbench/contrib/tasks/electron-browser/taskService';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+registerSingleton(ITaskService, TaskService, true);
 
 // Remote
 import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -100,14 +100,13 @@ export class CustomTreeViewPanel extends ViewletPanel {
 	}
 }
 
-class TitleMenus implements IDisposable {
+class TitleMenus extends Disposable {
 
-	private disposables: IDisposable[] = [];
-	private titleDisposable: IDisposable = Disposable.None;
 	private titleActions: IAction[] = [];
+	private readonly titleActionsDisposable = this._register(new MutableDisposable());
 	private titleSecondaryActions: IAction[] = [];
 
-	private _onDidChangeTitle = new Emitter<void>();
+	private _onDidChangeTitle = this._register(new Emitter<void>());
 	get onDidChangeTitle(): Event<void> { return this._onDidChangeTitle.event; }
 
 	constructor(
@@ -115,32 +114,26 @@ class TitleMenus implements IDisposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
-		if (this.titleDisposable) {
-			this.titleDisposable.dispose();
-			this.titleDisposable = Disposable.None;
-		}
+		super();
 
-		const _contextKeyService = this.contextKeyService.createScoped();
-		_contextKeyService.createKey('view', id);
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
+		scopedContextKeyService.createKey('view', id);
 
-		const titleMenu = this.menuService.createMenu(MenuId.ViewTitle, _contextKeyService);
+		const titleMenu = this._register(this.menuService.createMenu(MenuId.ViewTitle, scopedContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
-			createAndFillInActionBarActions(titleMenu, undefined, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, { primary: this.titleActions, secondary: this.titleSecondaryActions });
 			this._onDidChangeTitle.fire();
 		};
 
-		const listener = titleMenu.onDidChange(updateActions);
+		this._register(titleMenu.onDidChange(updateActions));
 		updateActions();
 
-		this.titleDisposable = toDisposable(() => {
-			listener.dispose();
-			titleMenu.dispose();
-			_contextKeyService.dispose();
+		this._register(toDisposable(() => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
-		});
+		}));
 	}
 
 	getTitleActions(): IAction[] {
@@ -149,10 +142,6 @@ class TitleMenus implements IDisposable {
 
 	getTitleSecondaryActions(): IAction[] {
 		return this.titleSecondaryActions;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
 

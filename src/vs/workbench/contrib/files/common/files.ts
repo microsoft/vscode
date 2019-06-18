@@ -9,7 +9,7 @@ import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResou
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -133,15 +133,17 @@ export const SortOrderConfiguration = {
 
 export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
 
-export class TextFileContentProvider implements ITextModelContentProvider {
-	private fileWatcherDisposable: IDisposable | undefined;
+export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
+	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService
-	) { }
+	) {
+		super();
+	}
 
 	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
 		await editorService.openEditor({
@@ -167,18 +169,15 @@ export class TextFileContentProvider implements ITextModelContentProvider {
 		const codeEditorModel = await this.resolveEditorModel(resource);
 
 		// Make sure to keep contents up to date when it changes
-		if (!this.fileWatcherDisposable) {
-			this.fileWatcherDisposable = this.fileService.onFileChanges(changes => {
+		if (!this.fileWatcherDisposable.value) {
+			this.fileWatcherDisposable.value = this.fileService.onFileChanges(changes => {
 				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
 					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 				}
 			});
 
 			if (codeEditorModel) {
-				once(codeEditorModel.onWillDispose)(() => {
-					dispose(this.fileWatcherDisposable);
-					this.fileWatcherDisposable = undefined;
-				});
+				once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear());
 			}
 		}
 
@@ -209,11 +208,6 @@ export class TextFileContentProvider implements ITextModelContentProvider {
 		}
 
 		return codeEditorModel;
-	}
-
-	dispose(): void {
-		dispose(this.fileWatcherDisposable);
-		this.fileWatcherDisposable = undefined;
 	}
 }
 

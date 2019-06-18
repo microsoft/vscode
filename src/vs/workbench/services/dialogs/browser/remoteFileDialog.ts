@@ -23,7 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction, SaveLocalFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
@@ -211,7 +211,12 @@ export class RemoteFileDialog {
 			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
-				const action = this.allowFileSelection ? (this.allowFolderSelection ? OpenLocalFileFolderAction : OpenLocalFileAction) : OpenLocalFolderAction;
+				let action;
+				if (isSave) {
+					action = SaveLocalFileAction;
+				} else {
+					action = this.allowFileSelection ? (this.allowFolderSelection ? OpenLocalFileFolderAction : OpenLocalFileAction) : OpenLocalFolderAction;
+				}
 				const keybinding = this.keybindingService.lookupKeybinding(action.ID);
 				if (keybinding) {
 					const label = keybinding.getLabel();
@@ -251,7 +256,10 @@ export class RemoteFileDialog {
 				}
 				this.options.defaultUri = undefined;
 				this.filePickBox.hide();
-				if (this.requiresTrailing) {
+				if (isSave) {
+					// Remove defaultUri and filters to get a consistant experience with the keybinding.
+					this.options.defaultUri = undefined;
+					this.options.filters = undefined;
 					return this.fileDialogService.showSaveDialog(this.options).then(result => {
 						doResolve(this, result);
 					});

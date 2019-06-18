@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding, ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';

@@ -99,7 +99,6 @@
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
 	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   preProcessHtml?: (text: string) => void,
 	 *   focusIframeOnCreate?: boolean
 	 * }} HostCommunications
 	 */
@@ -124,8 +123,6 @@
 			navigator.serviceWorker.register('service-worker.js');
 
 			navigator.serviceWorker.ready.then(registration => {
-				registration.active.postMessage('ping');
-
 				host.onMessage('loaded-resource', event => {
 					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
 				});
@@ -233,6 +230,9 @@
 		};
 
 		document.addEventListener('DOMContentLoaded', () => {
+			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
+			const ID = idMatch ? idMatch[1] : undefined;
+
 			if (!document.body) {
 				return;
 			}
@@ -263,7 +263,7 @@
 			host.onMessage('content', (_event, data) => {
 				const options = data.options;
 
-				const text = host.preProcessHtml ? host.preProcessHtml(data.contents) : data.contents;
+				const text = data.contents;
 				const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 				newDocument.querySelectorAll('a').forEach(a => {
@@ -364,7 +364,7 @@
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
 					// into it to get around this.
-					newFrame.src = '/fake.html';
+					newFrame.src = `/fake.html?id=${ID}`;
 				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -382,23 +382,13 @@
 						newFrame.contentDocument.write('<!DOCTYPE html>');
 						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 						newFrame.contentDocument.close();
+						hookupOnLoadHandlers(newFrame);
 					}
 					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 					if (contentDocument) {
 						applyStyles(contentDocument, contentDocument.body);
 					}
 				});
-
-				newFrame.contentWindow.onbeforeunload = () => {
-					if (isInDevelopmentMode) { // Allow reloads while developing a webview
-						host.postMessage('do-reload');
-						return false;
-					}
-
-					// Block navigation when not in development mode
-					console.log('prevented webview navigation');
-					return false;
-				};
 
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
@@ -430,24 +420,43 @@
 					}
 				};
 
-				clearTimeout(loadTimeout);
-				loadTimeout = undefined;
-				loadTimeout = setTimeout(() => {
+				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
-					onLoad(newFrame.contentDocument, newFrame.contentWindow);
-				}, 200);
-
-				newFrame.contentWindow.addEventListener('load', function (e) {
-					if (loadTimeout) {
+					loadTimeout = setTimeout(() => {
 						clearTimeout(loadTimeout);
 						loadTimeout = undefined;
-						onLoad(e.target, this);
-					}
-				});
+						onLoad(newFrame.contentDocument, newFrame.contentWindow);
+					}, 200);
 
-				// Bubble out link clicks
-				newFrame.contentWindow.addEventListener('click', handleInnerClick);
+					newFrame.contentWindow.addEventListener('load', function (e) {
+						if (loadTimeout) {
+							clearTimeout(loadTimeout);
+							loadTimeout = undefined;
+							onLoad(e.target, this);
+						}
+					});
+
+					if (!FAKE_LOAD) {
+						newFrame.contentWindow.onbeforeunload = () => {
+							if (isInDevelopmentMode) { // Allow reloads while developing a webview
+								host.postMessage('do-reload');
+								return false;
+							}
+
+							// Block navigation when not in development mode
+							console.log('prevented webview navigation');
+							return false;
+						};
+					}
+
+					// Bubble out link clicks
+					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+				}
+
+				if (!FAKE_LOAD) {
+					hookupOnLoadHandlers(newFrame);
+				}
 
 				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden

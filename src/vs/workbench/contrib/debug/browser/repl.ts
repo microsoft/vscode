@@ -375,6 +375,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
+		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
@@ -386,11 +387,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
-				horizontalScrolling: false,
+				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: true
+				supportDynamicHeights: wordWrap
 			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
-
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(this.tree.onMouseClick(() => {
@@ -742,8 +742,13 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		const countNumberOfLines = (str: string) => Math.max(1, (str.match(/\r\n|\n/g) || []).length);
 
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
-		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const fontSize = config.console.fontSize;
 		const rowHeight = Math.ceil(1.4 * fontSize);
+		const wordWrap = config.console.wordWrap;
+		if (!wordWrap) {
+			return element instanceof Expression ? 2 * rowHeight : rowHeight;
+		}
 
 		// In order to keep scroll position we need to give a good approximation to the tree
 		// For every 150 characters increase the number of lines needed

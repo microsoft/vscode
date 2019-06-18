@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
@@ -34,21 +34,27 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { joinPath } from 'vs/base/common/resources';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 
 interface IWindowConfiguration {
 	remoteAuthority: string;
 
 	userDataUri: URI;
+
+	webviewEndpoint?: string;
+
 	folderUri?: URI;
 	workspaceUri?: URI;
-	webviewEndpoint?: string;
 }
 
 class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
 
-	constructor(private readonly configuration: IWindowConfiguration) {
+	constructor(
+		private readonly domElement: HTMLElement,
+		private readonly configuration: IWindowConfiguration
+	) {
 		super();
 	}
 
@@ -60,7 +66,7 @@ class CodeRendererMain extends Disposable {
 
 		// Create Workbench
 		this.workbench = new Workbench(
-			document.body,
+			this.domElement,
 			services.serviceCollection,
 			services.logService
 		);
@@ -186,23 +192,16 @@ class CodeRendererMain extends Disposable {
 	}
 }
 
-export interface IWindowConfigurationContents {
-	authority: string;
-	userDataUri: UriComponents;
-	folderUri?: UriComponents;
-	workspaceUri?: UriComponents;
-	webviewEndpoint?: string;
-}
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+	const renderer = new CodeRendererMain(
+		domElement,
+		{
+			userDataUri: URI.revive(options.userDataUri),
+			remoteAuthority: options.remoteAuthority,
+			webviewEndpoint: options.webviewEndpoint,
+			folderUri: options.folderUri ? URI.revive(options.folderUri) : undefined,
+			workspaceUri: options.workspaceUri ? URI.revive(options.workspaceUri) : undefined,
+		});
 
-export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
-	const windowConfiguration: IWindowConfiguration = {
-		userDataUri: URI.revive(windowConfigurationContents.userDataUri),
-		remoteAuthority: windowConfigurationContents.authority,
-		folderUri: windowConfigurationContents.folderUri ? URI.revive(windowConfigurationContents.folderUri) : undefined,
-		workspaceUri: windowConfigurationContents.workspaceUri ? URI.revive(windowConfigurationContents.workspaceUri) : undefined,
-		webviewEndpoint: windowConfigurationContents.webviewEndpoint
-	};
-
-	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
 }

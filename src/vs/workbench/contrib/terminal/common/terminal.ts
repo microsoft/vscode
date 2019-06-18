@@ -723,7 +723,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
-	emitPid(pid: number): void;
+	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;

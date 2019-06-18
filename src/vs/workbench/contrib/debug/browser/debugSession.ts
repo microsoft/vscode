@@ -12,12 +12,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/electron-browser/rawDebugSession';
-import product from 'vs/platform/product/node/product';
+import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
+import { IProductService } from 'vs/platform/product/common/product';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -30,7 +30,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -66,9 +65,10 @@ export class DebugSession implements IDebugSession {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ISignService private readonly signService: ISignService
+		@ISignService private readonly signService: ISignService,
+		@IProductService private readonly productService: IProductService,
+		@IDebugHelperService private readonly debugUIService: IDebugHelperService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -169,7 +169,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.environmentService, this.signService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.signService, this.debugUIService);
 
 				return this.raw!.start().then(() => {
 
@@ -177,7 +177,7 @@ export class DebugSession implements IDebugSession {
 
 					return this.raw!.initialize({
 						clientID: 'vscode',
-						clientName: product.nameLong,
+						clientName: this.productService.nameLong,
 						adapterID: this.configuration.type,
 						pathFormat: 'path',
 						linesStartAt1: true,
