@@ -26,7 +26,7 @@ import { IPCServer, ClientConnectionEvent, StaticRouter, IMessagePassingProtocol
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { FollowerLogService, LogLevelSetterChannelClient } from 'vs/platform/log/node/logIpc';
+import { FollowerLogService, LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
