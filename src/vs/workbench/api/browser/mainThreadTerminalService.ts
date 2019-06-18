@@ -42,7 +42,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 		this._toDispose.push(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
-		this._toDispose.push(_terminalService.onRequestWindowsShells(r => this._onRequestDetectWindowsShell(r)));
+		this._toDispose.push(_terminalService.onRequestAvailableShells(r => this._onRequestAvailableShells(r)));
 
 		// Set initial ext host state
 		this._terminalService.terminalInstances.forEach(t => {
@@ -277,7 +277,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcesses[terminalId].emitLatency(sum / COUNT);
 	}
 
-	private _onRequestDetectWindowsShell(resolve: (shells: IShellDefinition[]) => void): void {
-		this._proxy.$requestWindowsShells().then(shells => resolve(shells));
+	private _onRequestAvailableShells(resolve: (shells: IShellDefinition[]) => void): void {
+		this._proxy.$requestAvailableShells().then(shells => resolve(shells));
 	}
 }
