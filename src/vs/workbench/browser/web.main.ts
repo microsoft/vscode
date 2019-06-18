@@ -97,10 +97,11 @@ class CodeRendererMain extends Disposable {
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
-		// Sign
+		// Signing
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
+		// Remote Agent
 		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
@@ -112,6 +113,7 @@ class CodeRendererMain extends Disposable {
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
@@ -165,15 +167,7 @@ class CodeRendererMain extends Disposable {
 }
 
 export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new CodeRendererMain(
-		domElement,
-		{
-			userDataUri: URI.revive(options.userDataUri),
-			remoteAuthority: options.remoteAuthority,
-			webviewEndpoint: options.webviewEndpoint,
-			folderUri: options.folderUri ? URI.revive(options.folderUri) : undefined,
-			workspaceUri: options.workspaceUri ? URI.revive(options.workspaceUri) : undefined,
-		});
+	const renderer = new CodeRendererMain(domElement, options);
 
 	return renderer.open();
 }
