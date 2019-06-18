@@ -969,21 +969,12 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	toggleFullScreen(target: HTMLElement): Promise<void> {
-		// Edge 14 supports full screen mode by adding webkit prefixed APIs, hens we use webkit*.
-		if ((<any>document).fullscreen !== undefined) {
-			// Safari uses webkit prefixes
-			if (!(<any>document).fullscreen) {
-				(<any>target).requestFullscreen();
-				browser.setFullscreen(true);
-			} else {
-				(<any>document).exitFullscreen();
-				browser.setFullscreen(false);
-			}
+	toggleFullScreen(target?: HTMLElement): Promise<void> {
+		if (!target) {
 			return Promise.resolve();
 		}
 
-		// Both Edge 14 and Safari are using webkit prefix
+		// Chromium, Safari and Edge 14 are all using webkit prefix.
 		if ((<any>document).webkitIsFullScreen !== undefined) {
 			if (!(<any>document).webkitIsFullScreen) {
 				(<any>target).webkitRequestFullscreen();
