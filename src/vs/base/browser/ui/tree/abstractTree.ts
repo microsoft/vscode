@@ -264,19 +264,21 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 			this.indent = clamp(options.indent, 0, 40);
 		}
 
-		const renderIndentGuides = !!options.renderIndentGuides;
+		if (typeof options.renderIndentGuides !== 'undefined') {
+			const renderIndentGuides = !!options.renderIndentGuides;
 
-		if (renderIndentGuides !== this._renderIndentGuides) {
-			this._renderIndentGuides = renderIndentGuides;
+			if (renderIndentGuides !== this._renderIndentGuides) {
+				this._renderIndentGuides = renderIndentGuides;
 
-			if (renderIndentGuides) {
-				const disposables = new DisposableStore();
-				this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposables);
-				this.indentGuidesDisposable = disposables;
+				if (renderIndentGuides) {
+					const disposables = new DisposableStore();
+					this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposables);
+					this.indentGuidesDisposable = disposables;
 
-				this._onDidChangeActiveNodes(this.activeNodes.elements);
-			} else {
-				this.indentGuidesDisposable.dispose();
+					this._onDidChangeActiveNodes(this.activeNodes.elements);
+				} else {
+					this.indentGuidesDisposable.dispose();
+				}
 			}
 		}
 	}
