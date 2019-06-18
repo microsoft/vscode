@@ -358,6 +358,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 	private onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
 		const set = new Set<ITreeNode<T, TFilterData>>();
+
 		nodes.forEach(node => {
 			if (node.parent) {
 				set.add(node.parent);
@@ -1148,7 +1149,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.focus = new Trait(_options.identityProvider);
 		this.selection = new Trait(_options.identityProvider);
-		onDidChangeActiveNodes.input = Event.map(Event.any(this.focus.onDidChange, this.selection.onDidChange), () => [...this.focus.getNodes(), ...this.selection.getNodes()]);
 		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(this.view, _options);
@@ -1158,6 +1158,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.focus.onDidModelSplice(e);
 			this.selection.onDidModelSplice(e);
 		}, null, this.disposables);
+
+		onDidChangeActiveNodes.input = Event.map(Event.any<any>(this.focus.onDidChange, this.selection.onDidChange, this.model.onDidSplice), () => [...this.focus.getNodes(), ...this.selection.getNodes()]);
 
 		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
