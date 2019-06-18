@@ -24,6 +24,6 @@
 	require(['vs/workbench/workbench.web.api'], function () {
 		// @ts-ignore
 		// eslint-disable-next-line no-undef
-		monaco.workbench.create(document.body, self.WINDOW_CONFIGURATION);
+		monaco.workbench.create(document.body, self.WORKBENCH_WEB_CONFIGURATION);
 	});
 })();

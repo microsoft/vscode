@@ -15,27 +15,23 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 // tslint:disable-next-line: import-patterns no-standalone-editor
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IWindowConfiguration, IPath, IPathsToWaitFor, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { ExportData } from 'vs/base/common/performance';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
@@ -168,65 +164,6 @@ export class SimpleDownloadService implements IDownloadService {
 }
 
 registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
-
-//#region Environment
-
-export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
-	configuration: IWindowConfiguration = new SimpleWindowConfiguration();
-	untitledWorkspacesHome: URI;
-	extensionTestsLocationURI?: URI;
-	_serviceBrand: any;
-	args: any;
-	execPath: string;
-	cliPath: string;
-	appRoot: string;
-	userHome: string;
-	userDataPath: string;
-	appNameLong: string = 'Visual Studio Code - Web';
-	appQuality?: string;
-	appSettingsHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
-	machineSettingsHome: URI;
-	machineSettingsResource: URI;
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-	backupHome: string;
-	backupWorkspacesPath: string;
-	workspacesHome: string;
-	isExtensionDevelopment: boolean;
-	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-	logExtensionHostCommunication: boolean;
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
-	log?: string;
-	logsPath: string;
-	verbose: boolean;
-	skipGettingStarted: boolean;
-	skipReleaseNotes: boolean;
-	skipAddToRecentlyOpened: boolean;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
-	nodeCachedDataDir?: string;
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
-	driverHandle?: string;
-	driverVerbose: boolean;
-	webviewEndpoint?: string;
-}
-
 
 //#endregion
 
@@ -803,47 +740,6 @@ registerSingleton(IURLService, SimpleURLService);
 //#endregion
 
 //#region Window
-
-export class SimpleWindowConfiguration implements IWindowConfiguration {
-	_: any[];
-	machineId: string;
-	windowId: number;
-	logLevel: LogLevel;
-
-	mainPid: number;
-
-	appRoot: string;
-	execPath: string;
-	isInitialStartup?: boolean;
-
-	userEnv: IProcessEnvironment;
-	nodeCachedDataDir?: string;
-
-	backupPath?: string;
-
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-
-	remoteAuthority: string = document.location.host;
-
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	maximized?: boolean;
-	highContrast?: boolean;
-	frameless?: boolean;
-	accessibilitySupport?: boolean;
-	partsSplashPath?: string;
-
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
-	perfEntries: ExportData;
-
-	filesToOpenOrCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
-	termProgram?: string;
-}
 
 export class SimpleWindowService implements IWindowService {
 

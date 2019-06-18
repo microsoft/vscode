@@ -8,7 +8,8 @@ import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/brow
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleLogService, SimpleProductService, SimpleWorkbenchEnvironmentService } from 'vs/workbench/browser/web.simpleservices';
+import { SimpleLogService, SimpleProductService } from 'vs/workbench/browser/web.simpleservices';
+import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -33,19 +34,7 @@ import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
-import { joinPath } from 'vs/base/common/resources';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
-
-interface IWindowConfiguration {
-	remoteAuthority: string;
-
-	userDataUri: URI;
-
-	webviewEndpoint?: string;
-
-	folderUri?: URI;
-	workspaceUri?: URI;
-}
 
 class CodeRendererMain extends Disposable {
 
@@ -53,7 +42,7 @@ class CodeRendererMain extends Disposable {
 
 	constructor(
 		private readonly domElement: HTMLElement,
-		private readonly configuration: IWindowConfiguration
+		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
 	}
@@ -97,7 +86,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const environmentService = this.createEnvironmentService();
+		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -144,23 +133,6 @@ class CodeRendererMain extends Disposable {
 		return { serviceCollection, logService };
 	}
 
-	private createEnvironmentService(): IWorkbenchEnvironmentService {
-		const environmentService = new SimpleWorkbenchEnvironmentService();
-		environmentService.appRoot = '/web/';
-		environmentService.args = { _: [] };
-		environmentService.appSettingsHome = joinPath(this.configuration.userDataUri, 'User');
-		environmentService.settingsResource = joinPath(environmentService.appSettingsHome, 'settings.json');
-		environmentService.keybindingsResource = joinPath(environmentService.appSettingsHome, 'keybindings.json');
-		environmentService.logsPath = '/web/logs';
-		environmentService.debugExtensionHost = {
-			port: null,
-			break: false
-		};
-		environmentService.webviewEndpoint = this.configuration.webviewEndpoint;
-
-		return environmentService;
-	}
-
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
 		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
 
@@ -180,12 +152,12 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspaceUri) {
-			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
+			return { id: hash(URI.revive(this.configuration.workspaceUri).toString()).toString(16), configPath: URI.revive(this.configuration.workspaceUri) };
 		}
 
 		// Single-folder workspace
 		if (this.configuration.folderUri) {
-			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
+			return { id: hash(URI.revive(this.configuration.folderUri).toString()).toString(16), folder: URI.revive(this.configuration.folderUri) };
 		}
 
 		return { id: 'empty-window' };
