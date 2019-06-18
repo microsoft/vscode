@@ -81,22 +81,30 @@
 	background: url("collapse-all-hc.svg") center center no-repeat;
 }
 
+/* Split editor vertical */
 .monaco-workbench .quick-open-sidebyside-vertical {
-	background-image: url("split-editor-vertical.svg");
+	background-image: url("split-editor-vertical-light.svg");
 }
 
-.vs-dark .monaco-workbench .quick-open-sidebyside-vertical,
+.vs-dark .monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url("split-editor-vertical-dark.svg");
+}
+
 .hc-black .monaco-workbench .quick-open-sidebyside-vertical {
-	background-image: url("split-editor-vertical-inverse.svg");
+	background-image: url("split-editor-vertical-hc.svg");
 }
 
+/* Split editor horizontal */
 .monaco-workbench .quick-open-sidebyside-horizontal {
-	background-image: url("split-editor-horizontal.svg");
+	background-image: url("split-editor-horizontal-light.svg");
 }
 
-.vs-dark .monaco-workbench .quick-open-sidebyside-horizontal,
+.vs-dark .monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url("split-editor-horizontal-dark.svg");
+}
+
 .hc-black .monaco-workbench .quick-open-sidebyside-horizontal {
-	background-image: url("split-editor-horizontal-inverse.svg");
+	background-image: url("split-editor-horizontal-hc.svg");
 }
 
 .monaco-workbench .file-editor-action.action-open-preview {
