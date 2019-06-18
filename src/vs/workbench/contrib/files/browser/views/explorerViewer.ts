@@ -218,22 +218,20 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
-		inputBox.focus();
+		setTimeout(() => inputBox.focus(), 100);
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean, finishEditing: boolean) => {
+		const done = once(async (success: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			container.removeChild(label.element);
-			if (finishEditing) {
-				// Timeout: once done rendering only then re-render #70902
-				setTimeout(() => editableData.onFinish(value, success), 0);
-			}
+			// Timeout: once done rendering only then re-render #70902
+			setTimeout(() => editableData.onFinish(value, success), 0);
 		});
 
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			done(inputBox.isInputValid(), true);
+			done(inputBox.isInputValid());
 		});
 
 		const toDispose = [
@@ -241,10 +239,10 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true, true);
+						done(true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
+					done(false);
 				}
 			}),
 			blurDisposable,
@@ -254,7 +252,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 
 		return toDisposable(() => {
 			blurDisposable.dispose();
-			done(false, false);
+			done(false);
 		});
 	}
 
