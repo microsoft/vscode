@@ -111,20 +111,14 @@ class CodeMain {
 
 					throw error;
 				}
-			});
-
-			// Startup
-			await instantiationService.invokeFunction(async accessor => {
-				const environmentService = accessor.get(IEnvironmentService);
+				// Startup
 				const logService = accessor.get(ILogService);
 				const lifecycleService = accessor.get(ILifecycleService);
-				const configurationService = accessor.get(IConfigurationService);
-
+				
 				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleService, instantiationService, true);
-
+				
 				bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
 				once(lifecycleService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
-
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
