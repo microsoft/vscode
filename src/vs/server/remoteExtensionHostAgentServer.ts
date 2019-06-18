@@ -170,13 +170,20 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						? webviewServerAddress
 						: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port;
 
+					function escapeAttribute(value: string): string {
+						return value.replace(/"/g, '&quot;');
+					}
+
 					const data = _data.toString()
-						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('\'{{USER_DATA}}\'', JSON.stringify(transformer.transformOutgoing(URI.file(this._environmentService.userDataPath))))
-						.replace('\'{{FOLDER}}\'', folder ? JSON.stringify(transformer.transformOutgoing(URI.file(folder))) : 'undefined')
-						.replace('\'{{WORKSPACE}}\'', workspace ? JSON.stringify(transformer.transformOutgoing(URI.file(workspace))) : 'undefined')
-						.replace('{{AUTHORITY}}', authority)
-						.replace('{{WEBVIEW_ENDPOINT}}', `http://${webviewEndpoint}`);
+						.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
+							connectionAuthToken: CONNECTION_AUTH_TOKEN,
+							folderUri: folder ? transformer.transformOutgoing(URI.file(folder)) : undefined,
+							workspaceUri: workspace ? transformer.transformOutgoing(URI.file(workspace)) : undefined,
+							userDataUri: transformer.transformOutgoing(URI.file(this._environmentService.userDataPath)),
+							remoteAuthority: authority,
+							webviewEndpoint: `http://${webviewEndpoint}`,
+						})));
+
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
 				} else {

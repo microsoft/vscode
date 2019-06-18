@@ -6,6 +6,8 @@
 
 		<!-- Disable pinch zooming -->
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONGIGURATION}}">
 	</head>
 	<body class="vs-dark" aria-label="">
 	</body>
@@ -15,14 +17,7 @@
 
 	<!-- Window Configuration from Server -->
 	<script>
-		self.WORKBENCH_WEB_CONFIGURATION = {
-			connectionAuthToken: '{{CONNECTION_AUTH_TOKEN}}',
-			folderUri: '{{FOLDER}}',
-			workspaceUri: '{{WORKSPACE}}',
-			userDataUri: '{{USER_DATA}}',
-			remoteAuthority: '{{AUTHORITY}}',
-			webviewEndpoint: '{{WEBVIEW_ENDPOINT}}'
-		}
+		self.WORKBENCH_WEB_CONFIGURATION = JSON.parse(document.getElementById('vscode-workbench-web-configuration').getAttribute('data-settings'));
 	</script>
 
 	<!-- Startup via workbench.js -->
