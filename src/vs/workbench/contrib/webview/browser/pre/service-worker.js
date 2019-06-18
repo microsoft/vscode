@@ -8,7 +8,10 @@
 const resourceRoot = '/vscode-resource';
 
 /**
- * @typedef {{resolve: () => void, promise: Promise<Response> }} ResourcePathEntry
+ * @typedef {{
+ *     resolve: () => void,
+ *     promise: Promise<Response>
+ * }} ResourcePathEntry
  */
 
 /**
@@ -105,15 +108,12 @@ self.addEventListener('fetch', (event) => {
 		const webviewId = getWebviewIdForClient(client);
 		const resourcePath = requestUrl.pathname.replace(resourceRoot, '');
 
+		const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+
+		// Check if we've already resolved this request
 		const existing = resourceRequestManager.get(webviewId, resourcePath);
 		if (existing) {
 			return existing.promise.then(r => r.clone());
-		}
-
-		const allClients = await self.clients.matchAll({ includeUncontrolled: true });
-		if (resourceRequestManager.has(webviewId, resourcePath)) {
-			// Someone else added it in the meantime
-			return resourceRequestManager.get(resourceRequestManager).promise.then(r => r.clone());
 		}
 
 		// Find parent iframe
