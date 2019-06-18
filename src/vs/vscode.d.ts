@@ -3545,6 +3545,15 @@ declare module 'vscode' {
 		target?: Uri;
 
 		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
+		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
+		 * user settings, and localization.
+		 */
+		tooltip?: string;
+
+		/**
 		 * Creates a new document link.
 		 *
 		 * @param range The range the document link applies to. Must not be empty.
