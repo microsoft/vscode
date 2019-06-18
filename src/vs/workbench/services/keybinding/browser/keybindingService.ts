@@ -279,6 +279,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
+				if (this._assertBrowserConflicts(keybinding, item.command)) {
+					continue;
+				}
+
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
@@ -306,6 +310,69 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		return result;
+	}
+
+	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
+		if (browser.isFullscreen() && (<any>navigator).keyboard) {
+			return false;
+		}
+
+		for (let part of kb.parts) {
+			if (!part.metaKey && !part.altKey && !part.ctrlKey && !part.shiftKey) {
+				continue;
+			}
+
+			const modifiersMask = KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift;
+
+			let partModifiersMask = 0;
+			if (part.metaKey) {
+				partModifiersMask |= KeyMod.CtrlCmd;
+			}
+
+			if (part.shiftKey) {
+				partModifiersMask |= KeyMod.Shift;
+			}
+
+			if (part.altKey) {
+				partModifiersMask |= KeyMod.Alt;
+			}
+
+			if (part.ctrlKey && OS === OperatingSystem.Macintosh) {
+				partModifiersMask |= KeyMod.WinCtrl;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_W) {
+				console.warn('Ctrl/Cmd+W keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_N) {
+				console.warn('Ctrl/Cmd+N keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_T) {
+				console.warn('Ctrl/Cmd+T keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === (KeyMod.CtrlCmd | KeyMod.Alt) && (part.keyCode === KeyCode.LeftArrow || part.keyCode === KeyCode.RightArrow)) {
+				console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode >= KeyCode.KEY_0 && part.keyCode <= KeyCode.KEY_9) {
+				console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
