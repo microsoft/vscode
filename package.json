@@ -108,7 +108,7 @@
     "gulp-vinyl-zip": "^2.1.2",
     "http-server": "^0.11.1",
     "husky": "^0.13.1",
-    "innosetup-compiler": "^5.5.60",
+    "innosetup": "5.6.1",
     "is": "^3.1.0",
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
