@@ -64,7 +64,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -82,7 +82,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -177,7 +177,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export class TestTextFileService extends BrowserTextFileService {
+export class TestTextFileService extends NodeTextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
 	private promptPath: URI;
@@ -311,7 +311,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IThemeService, new TestThemeService());
-	instantiationService.stub(ILogService, new TestLogService());
+	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = new TestEditorService();
@@ -320,19 +320,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IViewletService, new TestViewletService());
 
 	return instantiationService;
-}
-
-export class TestLogService implements ILogService {
-	_serviceBrand: any; onDidChangeLogLevel: Event<LogLevel>;
-	getLevel(): LogLevel { return LogLevel.Info; }
-	setLevel(_level: LogLevel): void { }
-	trace(_message: string, ..._args: any[]): void { }
-	debug(_message: string, ..._args: any[]): void { }
-	info(_message: string, ..._args: any[]): void { }
-	warn(_message: string, ..._args: any[]): void { }
-	error(_message: string | Error, ..._args: any[]): void { }
-	critical(_message: string | Error, ..._args: any[]): void { }
-	dispose(): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {

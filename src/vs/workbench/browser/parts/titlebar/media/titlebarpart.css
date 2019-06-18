@@ -25,7 +25,6 @@
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	z-index: -1;
 	-webkit-app-region: drag;
 }
 
@@ -49,6 +48,11 @@
 	line-height: 30px;
 	justify-content: left;
 	overflow: visible;
+}
+
+.monaco-workbench.windows .part.titlebar .menubar,
+.monaco-workbench.linux .part.titlebar .menubar {
+	z-index: 1;
 }
 
 .monaco-workbench.web .part.titlebar > .window-title,

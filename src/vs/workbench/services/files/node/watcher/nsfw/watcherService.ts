@@ -5,11 +5,10 @@
 
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import { WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { IWatchError, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher extends Disposable {
@@ -22,7 +21,7 @@ export class FileWatcher extends Disposable {
 	constructor(
 		private folders: IWatcherRequest[],
 		private onFileChanges: (changes: IDiskFileChange[]) => void,
-		private errorLogger: (msg: string) => void,
+		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 	) {
 		super();
@@ -42,7 +41,7 @@ export class FileWatcher extends Disposable {
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
 					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: this.verboseLogging
+					VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
 		));
@@ -52,11 +51,11 @@ export class FileWatcher extends Disposable {
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.errorLogger('[File Watcher (nsfw)] terminated unexpectedly and is restarted again...');
+					this.error('terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
 					this.startWatching();
 				} else {
-					this.errorLogger('[File Watcher (nsfw)] failed to start after retrying for some time, giving up. Please report this as a bug report!');
+					this.error('failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
 		}));
@@ -65,17 +64,26 @@ export class FileWatcher extends Disposable {
 		const channel = getNextTickChannel(client.getChannel('watcher'));
 		this.service = new WatcherChannelClient(channel);
 
-		const options = { verboseLogging: this.verboseLogging };
-		const onWatchEvent = Event.filter(this.service.watch(options), () => !this.isDisposed);
+		this.service.setVerboseLogging(this.verboseLogging);
 
-		const onError = Event.filter<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
-		this._register(onError(err => this.errorLogger(`[File Watcher (nsfw)] ${err.message}`)));
+		const options = {};
+		this._register(this.service.watch(options)(e => !this.isDisposed && this.onFileChanges(e)));
 
-		const onFileChanges = Event.filter<any, IDiskFileChange[]>(onWatchEvent, (e): e is IDiskFileChange[] => Array.isArray(e) && e.length > 0);
-		this._register(onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.service.onLogMessage(m => this.onLogMessage(m)));
 
 		// Start watching
 		this.setFolders(this.folders);
+	}
+
+	setVerboseLogging(verboseLogging: boolean): void {
+		this.verboseLogging = verboseLogging;
+		if (!this.isDisposed) {
+			this.service.setVerboseLogging(verboseLogging);
+		}
+	}
+
+	error(message: string) {
+		this.onLogMessage({ type: 'error', message: `[File Watcher (nsfw)] ${message}` });
 	}
 
 	setFolders(folders: IWatcherRequest[]): void {

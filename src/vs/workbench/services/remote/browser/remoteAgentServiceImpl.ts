@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
@@ -16,14 +16,14 @@ export class RemoteAgentService extends AbstractRemoteAgentService {
 	private readonly _connection: IRemoteAgentConnection | null = null;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService
 	) {
 		super(environmentService);
-		const authority = document.location.host;
-		this._connection = this._register(new RemoteAgentConnection(authority, productService.commit, browserWebSocketFactory, environmentService, remoteAuthorityResolverService, signService));
+
+		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, browserWebSocketFactory, environmentService, remoteAuthorityResolverService, signService));
 	}
 
 	getConnection(): IRemoteAgentConnection | null {

@@ -301,6 +301,7 @@ export interface IStackFrame extends ITreeElement {
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	getSpecificSourceName(): string;
+	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;

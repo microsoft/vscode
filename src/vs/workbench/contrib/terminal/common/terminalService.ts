@@ -258,7 +258,7 @@ export abstract class TerminalService implements ITerminalService {
 		return tab.activeInstance;
 	}
 
-	public getInstanceFromId(terminalId: number): ITerminalInstance {
+	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
 			if (terminalInstance.id === terminalId) {
@@ -268,7 +268,11 @@ export abstract class TerminalService implements ITerminalService {
 		if (bgIndex !== -1) {
 			return this._backgroundedTerminalInstances[bgIndex];
 		}
-		return this.terminalInstances[this._getIndexFromId(terminalId)];
+		try {
+			return this.terminalInstances[this._getIndexFromId(terminalId)];
+		} catch {
+			return undefined;
+		}
 	}
 
 	public getInstanceFromIndex(terminalIndex: number): ITerminalInstance {

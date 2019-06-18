@@ -43,6 +43,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -172,6 +173,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private outputChannelId: string,
 		private fileService: IFileService,
 		private terminalInstanceService: ITerminalInstanceService,
+		private remoteAgentService: IRemoteAgentService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -506,13 +508,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): Promise<ITaskSummary> {
+	private async executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let executedCommand: string | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
+		let terminalPromise: Promise<void> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
-			promise = new Promise<ITaskSummary>((resolve, reject) => {
+			terminalPromise = new Promise<void>(async (resolveTerminal) => {
+				[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
+				resolveTerminal();
+			});
+			promise = new Promise<ITaskSummary>(async (resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
 				let toDispose: IDisposable[] | undefined = [];
@@ -541,7 +548,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}));
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> | undefined = undefined;
-				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
+				await terminalPromise;
 				if (error || !terminal) {
 					return;
 				}
@@ -615,8 +622,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		} else {
-			promise = new Promise<ITaskSummary>((resolve, reject) => {
-				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
+			terminalPromise = new Promise<void>(async (resolveTerminal) => {
+				[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
+				resolveTerminal();
+			});
+			promise = new Promise<ITaskSummary>(async (resolve, reject) => {
+				await terminalPromise;
 				if (!terminal || error) {
 					return;
 				}
@@ -687,6 +698,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		}
+		await terminalPromise;
 		if (error) {
 			return Promise.reject(new Error((<TaskError>error).message));
 		}
@@ -770,7 +782,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return defaultShell;
 	}
 
-	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
+	private async getUserHome(): Promise<URI> {
+		const env = await this.remoteAgentService.getEnvironment();
+		if (env) {
+			return env.userHome;
+		}
+		return URI.from({ scheme: Schemas.file, path: this.environmentService.userHome });
+	}
+
+	private async createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.currentTask.workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
@@ -797,18 +817,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let commandLine = this.buildShellCommandLine(platform, shellLaunchConfig.executable!, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
-				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-				// safe to assume that this was used by accident as Sysnative does not
-				// exist and will break the terminal in non-WoW64 environments.
-				if (!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
-					const sysnativePath = path.join(process.env.windir!, 'Sysnative').toLowerCase();
-					if (shellLaunchConfig.executable!.toLowerCase().indexOf(sysnativePath) === 0) {
-						shellLaunchConfig.executable = path.join(process.env.windir!, 'System32', shellLaunchConfig.executable!.substr(sysnativePath.length));
-					}
-				}
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
-				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(process.cwd())))) {
+				// If we don't have a cwd, then the terminal uses the home dir.
+				const userHome = await this.getUserHome();
+				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
 					return undefined;
 				}
 				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
@@ -903,7 +916,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return shellLaunchConfig;
 	}
 
-	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance | undefined, string | undefined, TaskError | undefined] {
+	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
 
@@ -940,7 +953,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			args = resolvedResult.args;
 			commandExecutable = CommandString.value(command);
 
-			this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
+			this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : await this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
 			if (this.currentTask.shellLaunchConfig === undefined) {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
@@ -1031,7 +1044,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: ShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {
 		let basename = path.parse(shellExecutable).name.toLowerCase();
-		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
+		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions, platform);
 
 		function needsQuotes(value: string): boolean {
 			if (value.length >= 2) {
@@ -1131,11 +1144,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return commandLine;
 	}
 
-	private getQuotingOptions(shellBasename: string, shellOptions: ShellConfiguration | undefined): ShellQuotingOptions {
+	private getQuotingOptions(shellBasename: string, shellOptions: ShellConfiguration | undefined, platform: Platform.Platform): ShellQuotingOptions {
 		if (shellOptions && shellOptions.quoting) {
 			return shellOptions.quoting;
 		}
-		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[process.platform];
+		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[platform];
 	}
 
 	private collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {

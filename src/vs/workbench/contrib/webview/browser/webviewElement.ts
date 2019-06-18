@@ -45,6 +45,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		if (typeof environmentService.webviewEndpoint !== 'string') {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		}
+
 		this.content = {
 			html: '',
 			options: contentOptions,
@@ -56,7 +60,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts');
 		this.element.sandbox.add('allow-same-origin');
-		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`); // TODO: get this from env service
+		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -152,11 +156,15 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	public set html(value: string) {
 		this.content = {
-			html: value,
+			html: this.preprocessHtml(value),
 			options: this.content.options,
 			state: this.content.state,
 		};
 		this.doUpdateContent();
+	}
+
+	private preprocessHtml(value: string): string {
+		return value.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/vscode-resource$1');
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -164,7 +172,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			return;
 		}
 		this.content = {
-			html: html,
+			html: this.preprocessHtml(html),
 			options: options,
 			state: this.content.state,
 		};
@@ -204,11 +212,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
-
 	sendMessage(data: any): void {
 		this._send('message', data);
 	}
-
 
 	layout(): void {
 		// noop
@@ -217,6 +223,7 @@ export class IFrameWebview extends Disposable implements Webview {
 	focus(): void {
 		this.element.focus();
 	}
+
 	dispose(): void {
 		if (this.element) {
 			if (this.element.parentElement) {
