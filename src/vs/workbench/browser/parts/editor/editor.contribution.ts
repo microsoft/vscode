@@ -529,16 +529,16 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-big-inverse-alt.svg',
-		iconLight: 'close-big-alt.svg'
+		iconDark: 'close-dark.svg',
+		iconLight: 'close-light.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: 'closeall-editors-inverse.svg',
-		iconLight: 'closeall-editors.svg'
+		iconDark: 'close-all-dark.svg',
+		iconLight: 'close-all-light.svg'
 	}
 );
 
@@ -546,16 +546,16 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dirty-inverse-alt.svg',
-		iconLight: 'close-dirty-alt.svg'
+		iconDark: 'close-dark.svg',
+		iconLight: 'close-light.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: 'closeall-editors-inverse.svg',
-		iconLight: 'closeall-editors.svg'
+		iconDark: 'close-all-dark.svg',
+		iconLight: 'close-all-light.svg'
 	}
 );
 
