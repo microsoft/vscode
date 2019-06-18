@@ -7,6 +7,7 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
 }
 
 .monaco-tl-indent {

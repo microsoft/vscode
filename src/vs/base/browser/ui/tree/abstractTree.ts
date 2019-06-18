@@ -380,7 +380,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		while (node.parent && node.parent.parent) {
 			const parent = node.parent;
-			const x = Math.floor((target.depth - i - 1) * this.indent) + 6;
+			const x = Math.floor((target.depth - i - 1) * this.indent) + 2;
 			const line = $.SVG<SVGLineElement>('line', { x1: x, y1: 0, x2: x, y2: height });
 
 			if (this.activeParentNodes.has(parent)) {
@@ -397,7 +397,11 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 
 		clearNode(templateData.indent);
-		templateData.indent.appendChild(svg);
+
+		if (svg.firstChild) {
+			templateData.indent.appendChild(svg);
+		}
+
 		templateData.indentGuidesDisposable = disposableStore;
 	}
 
