@@ -238,7 +238,7 @@ export interface IWindowService {
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	focusWindow(): Promise<void>;

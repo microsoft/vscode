@@ -13,7 +13,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenNewsletterSignupUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
 import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ReloadWindowAction, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ReloadWindowAction, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction, OpenLocalFileAction, OpenLocalFolderAction, OpenLocalFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -21,7 +21,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteFileDialogContext, IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
+import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
@@ -79,7 +79,6 @@ import product from 'vs/platform/product/node/product';
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', viewCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT], linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT] } }), 'View: Zoom Out', viewCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0 }), 'View: Reset Zoom', viewCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
 	})();
 
 	// Actions: Window
@@ -341,17 +340,6 @@ import product from 'vs/platform/product/node/product';
 		},
 		order: 1,
 		when: IsMacContext.toNegated()
-	});
-
-	// Appereance menu
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '1_toggle_view',
-		command: {
-			id: ToggleFullScreenAction.ID,
-			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-			toggled: IsFullscreenContext
-		},
-		order: 1
 	});
 
 	// Zoom

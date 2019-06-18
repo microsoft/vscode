@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -45,6 +46,7 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
+import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -236,6 +238,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
 		});
+
+		this._register(browser.onDidChangeFullscreen(() => {
+			const keyboard = (<INavigatorWithKeyboard>navigator).keyboard;
+
+			if (!keyboard) {
+				return;
+			}
+
+			if (browser.isFullscreen()) {
+				keyboard.lock();
+			} else {
+				keyboard.unlock();
+			}
+
+			// update resolver which will bring back all unbound keyboard shortcuts
+			this._cachedResolver = null;
+			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
+		}));
 	}
 
 	public _dumpDebugInfo(): string {

@@ -20,6 +20,7 @@ import 'vs/workbench/electron-browser/main';
 //#region --- workbench actions
 
 import 'vs/workbench/browser/actions/layoutActions';
+import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';

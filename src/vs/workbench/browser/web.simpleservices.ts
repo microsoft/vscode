@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import * as browser from 'vs/base/browser/browser';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -968,7 +969,32 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	toggleFullScreen(): Promise<void> {
+	toggleFullScreen(target: HTMLElement): Promise<void> {
+		// Edge 14 supports full screen mode by adding webkit prefixed APIs, hens we use webkit*.
+		if ((<any>document).fullscreen !== undefined) {
+			// Safari uses webkit prefixes
+			if (!(<any>document).fullscreen) {
+				(<any>target).requestFullscreen();
+				browser.setFullscreen(true);
+			} else {
+				(<any>document).exitFullscreen();
+				browser.setFullscreen(false);
+			}
+			return Promise.resolve();
+		}
+
+		// Both Edge 14 and Safari are using webkit prefix
+		if ((<any>document).webkitIsFullScreen !== undefined) {
+			if (!(<any>document).webkitIsFullScreen) {
+				(<any>target).webkitRequestFullscreen();
+				browser.setFullscreen(true);
+			} else {
+				(<any>document).webkitExitFullscreen();
+				browser.setFullscreen(false);
+			}
+			return Promise.resolve();
+		}
+
 		return Promise.resolve();
 	}
 
