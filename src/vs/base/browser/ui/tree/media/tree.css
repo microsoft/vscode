@@ -82,5 +82,5 @@
 
 .monaco-list .monaco-tl-indent > svg > line {
 	stroke: transparent;
-	transition: stroke 0.15s linear;
+	transition: stroke 0.1s linear;
 }

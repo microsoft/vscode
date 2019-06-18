@@ -38,12 +38,12 @@ export function isInDOM(node: Node | null): boolean {
 }
 
 interface IDomClassList {
-	hasClass(node: HTMLElement, className: string): boolean;
-	addClass(node: HTMLElement, className: string): void;
-	addClasses(node: HTMLElement, ...classNames: string[]): void;
-	removeClass(node: HTMLElement, className: string): void;
-	removeClasses(node: HTMLElement, ...classNames: string[]): void;
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
+	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
+	addClass(node: HTMLElement | SVGElement, className: string): void;
+	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	removeClass(node: HTMLElement | SVGElement, className: string): void;
+	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
 const _manualClassList = new class implements IDomClassList {
@@ -191,12 +191,12 @@ const _nativeClassList = new class implements IDomClassList {
 // In IE11 there is only partial support for `classList` which makes us keep our
 // custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
 const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
-export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
-export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
-export const addClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
-export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
-export const removeClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
-export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
 
@@ -992,7 +992,7 @@ export enum Namespace {
 	SVG = 'http://www.w3.org/2000/svg'
 }
 
-function _$<T extends HTMLElement>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -1047,7 +1047,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 	return _$(Namespace.HTML, description, attrs, ...children);
 }
 
-$.SVG = (description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>) => {
+$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
 	return _$(Namespace.SVG, description, attrs, ...children);
 };
 

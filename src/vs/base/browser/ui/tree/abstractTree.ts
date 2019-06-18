@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/tree';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode } from 'vs/base/browser/dom';
@@ -25,6 +25,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { SetMap } from 'vs/base/common/collections';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -190,6 +191,7 @@ interface ITreeListTemplateData<T> {
 	readonly container: HTMLElement;
 	readonly indent: HTMLElement;
 	readonly twistie: HTMLElement;
+	indentGuidesDisposable: IDisposable;
 	readonly templateData: T;
 }
 
@@ -210,11 +212,14 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
+	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, SVGLineElement>();
+	private activeParentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
+		onDidChangeActiveNodes: Event<ITreeNode<T, TFilterData>[]>,
 		options: ITreeRendererOptions = {}
 	) {
 		this.templateId = renderer.templateId;
@@ -225,6 +230,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		if (renderer.onDidChangeTwistieState) {
 			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
 		}
+
+		onDidChangeActiveNodes(this.onDidChangeActiveNodes, this, this.disposables);
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
@@ -240,7 +247,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { container, indent, twistie, templateData };
+		return { container, indent, twistie, indentGuidesDisposable: Disposable.None, templateData };
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
@@ -263,6 +270,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		templateData.indentGuidesDisposable.dispose();
+
 		if (this.renderer.disposeElement) {
 			this.renderer.disposeElement(node, index, templateData.templateData, height);
 		}
@@ -314,18 +323,60 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	// // TODO: only do iff indent guides are enabled
-	private renderIndentGuides(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
-		const width = this.indent * node.depth;
+	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
+		templateData.indentGuidesDisposable.dispose();
+
+		const disposableStore = new DisposableStore();
+		const width = this.indent * target.depth;
 		const svg = $.SVG('svg', { 'shape-rendering': 'crispEdges', width: `${width}`, height: `${height}`, viewBox: `0 0 ${width} ${height}` });
 
-		for (let i = 1; i < node.depth; i++) {
-			const x = Math.floor((node.depth - i - 1) * this.indent) + 6;
-			const line = $.SVG('line', { x1: x, y1: 0, x2: x, y2: height });
+		let node = target;
+		let i = 1;
+
+		while (node.parent && node.parent.parent) {
+			const parent = node.parent;
+			const x = Math.floor((target.depth - i - 1) * this.indent) + 6;
+			const line = $.SVG<SVGLineElement>('line', { x1: x, y1: 0, x2: x, y2: height });
+
+			if (this.activeParentNodes.has(parent)) {
+				addClass(line, 'active');
+			}
+
 			svg.appendChild(line);
+
+			this.renderedIndentGuides.add(parent, line);
+			disposableStore.add(toDisposable(() => this.renderedIndentGuides.delete(parent, line)));
+
+			node = parent;
+			i++;
 		}
 
 		clearNode(templateData.indent);
 		templateData.indent.appendChild(svg);
+		templateData.indentGuidesDisposable = disposableStore;
+	}
+
+	private onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
+		const set = new Set<ITreeNode<T, TFilterData>>();
+		nodes.forEach(node => {
+			if (node.parent) {
+				set.add(node.parent);
+			}
+		});
+
+		this.activeParentNodes.forEach(node => {
+			if (!set.has(node)) {
+				this.renderedIndentGuides.forEach(node, line => removeClass(line, 'active'));
+			}
+		});
+
+		set.forEach(node => {
+			if (!this.activeParentNodes.has(node)) {
+				this.renderedIndentGuides.forEach(node, line => addClass(line, 'active'));
+			}
+		});
+
+		this.activeParentNodes = set;
 	}
 
 	dispose(): void {
@@ -845,6 +896,10 @@ class Trait<T> {
 		return [...this.elements];
 	}
 
+	getNodes(): readonly ITreeNode<T, any>[] {
+		return this.nodes;
+	}
+
 	has(node: ITreeNode<T, any>): boolean {
 		return this.nodeSet.has(node);
 	}
@@ -1079,7 +1134,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, _options));
+		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, onDidChangeActiveNodes.event, _options));
 		this.disposables.push(...this.renderers);
 
 		let filter: TypeFilter<T> | undefined;
@@ -1092,6 +1148,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.focus = new Trait(_options.identityProvider);
 		this.selection = new Trait(_options.identityProvider);
+		onDidChangeActiveNodes.input = Event.map(Event.any(this.focus.onDidChange, this.selection.onDidChange), () => [...this.focus.getNodes(), ...this.selection.getNodes()]);
 		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(this.view, _options);
