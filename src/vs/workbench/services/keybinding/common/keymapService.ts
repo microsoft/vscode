@@ -94,6 +94,7 @@ export interface IKeymapService {
 	onDidChangeKeyboardMapper: Event<void>;
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
+	getAllKeyboardLayouts(): IKeyboardLayoutInfo[];
 	getRawKeyboardMapping(): IKeyboardMapping | null;
 	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
 }

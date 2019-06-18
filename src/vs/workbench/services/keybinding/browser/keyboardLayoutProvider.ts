@@ -72,6 +72,12 @@ export class KeyboardLayoutInfo {
 		this.value = deserializeMapping(keyboardMapping);
 	}
 
+	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IKeyboardMapping): KeyboardLayoutInfo {
+		let keyboardLayoutInfo = new KeyboardLayoutInfo(layout, [], {});
+		keyboardLayoutInfo.value = value;
+		return keyboardLayoutInfo;
+	}
+
 	fuzzyEqual(other: IKeyboardMapping): boolean {
 		for (let key in other) {
 			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
@@ -270,7 +276,7 @@ export class KeyboardLayoutProvider {
 		return null;
 	}
 
-	getKeyboardLayouts(): KeyboardLayoutInfo[] {
-		return this._layoutInfos.slice(0);
+	getKeyboardLayouts(): IKeyboardLayoutInfo[] {
+		return this._layoutInfos.map(info => info.layout);
 	}
 }

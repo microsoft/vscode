@@ -197,6 +197,7 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);

@@ -57,6 +57,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 	public abstract _dumpDebugInfo(): string;
+	public abstract _dumpDebugInfoJSON(): string;
 
 	public getDefaultKeybindingsContent(): string {
 		return '';

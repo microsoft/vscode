@@ -193,6 +193,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	appSettingsHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 	settingsSearchBuildId?: number;

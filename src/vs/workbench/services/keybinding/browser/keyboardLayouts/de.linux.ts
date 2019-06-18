@@ -6,7 +6,7 @@
 import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
 
 KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ model: 'pc104', layout: 'de,fr,es,us', variant: ',,,', options: '', rules: 'base' },
+	{ model: 'pc104', layout: 'de', variant: '', options: '', rules: 'base' },
 	[],
 	{
 		Sleep: [],

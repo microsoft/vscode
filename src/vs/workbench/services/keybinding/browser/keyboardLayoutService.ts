@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
@@ -16,7 +17,17 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeyCodeUtils, KeyCode } from 'vs/base/common/keyCodes';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyboardLayoutProvider } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { URI } from 'vs/base/common/uri';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { dirname, isEqual } from 'vs/base/common/resources';
+import { parse } from 'vs/base/common/json';
+import * as objects from 'vs/base/common/objects';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class BrowserKeyboardMapperFactory {
 	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
@@ -94,6 +105,10 @@ export class BrowserKeyboardMapperFactory {
 			return null;
 		}
 		return this._layoutInfo;
+	}
+
+	public getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
+		return KeyboardLayoutProvider.INSTANCE.getKeyboardLayouts();
 	}
 
 	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
@@ -291,18 +306,156 @@ export const US_SCANCODE_MAP: { [str: string]: KeyCode; } = {};
 	define('Slash', KeyCode.US_SLASH);
 })();
 
+class UserKeyboardLayout extends Disposable {
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private fileWatcherDisposable: IDisposable = Disposable.None;
+	private directoryWatcherDisposable: IDisposable = Disposable.None;
+
+	private _keyboardLayout: KeyboardLayoutInfo | null ;
+	get keyboardLayout(): KeyboardLayoutInfo | null { return this._keyboardLayout; }
+
+	constructor(
+		private readonly keyboardLayoutResource: URI,
+		private readonly fileService: IFileService
+	) {
+		super();
+
+		this._keyboardLayout = null;
+
+		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
+			if (changed) {
+				this._onDidChange.fire();
+			}
+		}), 50));
+
+		this._register(toDisposable(() => {
+			this.stopWatchingResource();
+			this.stopWatchingDirectory();
+		}));
+	}
+
+	private async reload(): Promise<boolean> {
+		const existing = this._keyboardLayout;
+		try {
+			const content = await this.fileService.readFile(this.keyboardLayoutResource);
+			const value = parse(content.value.toString());
+			const layoutInfo = value.layout;
+			const mappings = value.rawMapping;
+			this._keyboardLayout = KeyboardLayoutInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings);
+		} catch(e) {
+			this._keyboardLayout = null;
+		}
+
+		return existing ? !objects.equals(existing, this._keyboardLayout) : true;
+	}
+
+	private watchResource(): void {
+		this.fileWatcherDisposable = this.fileService.watch(this.keyboardLayoutResource);
+	}
+
+	private watchDirectory(): void {
+		const directory = dirname(this.keyboardLayoutResource);
+		this.directoryWatcherDisposable = this.fileService.watch(directory);
+	}
+
+	private stopWatchingResource(): void {
+		this.fileWatcherDisposable.dispose();
+		this.fileWatcherDisposable = Disposable.None;
+	}
+
+	private stopWatchingDirectory(): void {
+		this.directoryWatcherDisposable.dispose();
+		this.directoryWatcherDisposable = Disposable.None;
+	}
+
+	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
+		const events = event.changes;
+
+		let affectedByChanges = false;
+
+		// Find changes that affect the resource
+		for (const event of events) {
+			affectedByChanges = isEqual(this.keyboardLayoutResource, event.resource);
+			if (affectedByChanges) {
+				if (event.type === FileChangeType.ADDED) {
+					this.onResourceExists(true);
+				} else if (event.type === FileChangeType.DELETED) {
+					this.onResourceExists(false);
+				}
+				break;
+			}
+		}
+
+		if (affectedByChanges) {
+			this.reloadConfigurationScheduler.schedule();
+		}
+	}
+
+	private onResourceExists(exists: boolean): void {
+		if (exists) {
+			this.stopWatchingDirectory();
+			this.watchResource();
+		} else {
+			this.stopWatchingResource();
+			this.watchDirectory();
+		}
+	}
+}
+
 class BrowserKeymapService extends Disposable implements IKeymapService {
 	public _serviceBrand: any;
 
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
-	constructor() {
+	private _userKeyboardLayout: UserKeyboardLayout;
+
+	private readonly layoutChangeListener = this._register(new MutableDisposable());
+
+	constructor(
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
+	) {
 		super();
 
-		this._register(BrowserKeyboardMapperFactory.INSTANCE.onDidChangeKeyboardMapper(() => {
-			this._onDidChangeKeyboardMapper.fire();
+		this._userKeyboardLayout = new UserKeyboardLayout(environmentService.keyboardLayoutResource, fileService);
+		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
+		const layout = keyboardConfig.layout;
+
+		if (layout === 'autodetect') {
+			this.registerKeyboardListener();
+		} else {
+			// set keyboard layout
+		}
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.indexOf('keyboard.layout') >= 0) {
+				const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
+				const layout = keyboardConfig.layout;
+
+				if (layout === 'autodetect') {
+					this.registerKeyboardListener();
+					// trigger an update
+					console.log('auto');
+				} else {
+					this.layoutChangeListener.clear();
+					// set current layout
+					console.log(layout);
+				}
+			}
 		}));
+	}
+
+	registerKeyboardListener() {
+		this.layoutChangeListener.clear();
+		this.layoutChangeListener.value = BrowserKeyboardMapperFactory.INSTANCE.onDidChangeKeyboardMapper(() => {
+			this._onDidChangeKeyboardMapper.fire();
+		});
 	}
 
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
@@ -311,6 +464,13 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 
 	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
 		return BrowserKeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+	}
+
+	public getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
+		if (this._userKeyboardLayout.keyboardLayout) {
+			return [this._userKeyboardLayout.keyboardLayout.layout, ...BrowserKeyboardMapperFactory.INSTANCE.getAllKeyboardLayouts()];
+		}
+		return BrowserKeyboardMapperFactory.INSTANCE.getAllKeyboardLayouts();
 	}
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
@@ -323,3 +483,22 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 }
 
 registerSingleton(IKeymapService, BrowserKeymapService, true);
+
+// Configuration
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
+const keyboardConfiguration: IConfigurationNode = {
+	'id': 'keyboard',
+	'order': 15,
+	'type': 'object',
+	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+	'overridable': true,
+	'properties': {
+		'keyboard.layout': {
+			'type': 'string',
+			'default': 'autodetect',
+			'description': nls.localize('keyboard.layout.config', "Control the keyboard layout used in web.")
+		}
+	}
+};
+
+configurationRegistry.registerConfiguration(keyboardConfiguration);

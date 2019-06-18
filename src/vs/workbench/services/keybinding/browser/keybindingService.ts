@@ -45,6 +45,7 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -146,6 +147,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _keyboardMapper: IKeyboardMapper;
 	private _cachedResolver: KeybindingResolver | null;
 	private userKeybindings: UserKeybindings;
+	private _statusBarDisposable: IDisposable = Disposable.None;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -157,7 +159,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IWindowService private readonly windowService: IWindowService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IKeymapService private readonly keymapService: IKeymapService
+		@IKeymapService private readonly keymapService: IKeymapService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService);
 
@@ -243,6 +246,14 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
 		const rawMapping = JSON.stringify(this.keymapService.getRawKeyboardMapping(), null, '\t');
 		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
+	}
+
+	public _dumpDebugInfoJSON(): string {
+		const info = {
+			layout: this.keymapService.getCurrentKeyboardLayout(),
+			rawMapping: this.keymapService.getRawKeyboardMapping()
+		};
+		return JSON.stringify(info, null, '\t');
 	}
 
 	public customKeybindingsCount(): number {
