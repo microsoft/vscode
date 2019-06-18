@@ -166,9 +166,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const workspace = this._environmentService.args['workspace'];
 
 					const webviewServerAddress = webviewServer.address();
-					const webviewEndpoint = typeof webviewServerAddress === 'string'
+					const webviewEndpoint = 'http://' + (typeof webviewServerAddress === 'string'
 						? webviewServerAddress
-						: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port;
+						: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port);
 
 					function escapeAttribute(value: string): string {
 						return value.replace(/"/g, '&quot;');
@@ -181,8 +181,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							workspaceUri: workspace ? transformer.transformOutgoing(URI.file(workspace)) : undefined,
 							userDataUri: transformer.transformOutgoing(URI.file(this._environmentService.userDataPath)),
 							remoteAuthority: authority,
-							webviewEndpoint: `http://${webviewEndpoint}`,
-						})));
+							webviewEndpoint: webviewEndpoint,
+						})))
+						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint);
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
