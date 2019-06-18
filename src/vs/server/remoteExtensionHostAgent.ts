@@ -47,7 +47,6 @@ args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER,
 
 const environmentService = new EnvironmentService(args, process.execPath);
 const logService: ILogService = new SpdLogService(RemoteExtensionLogFileName, environmentService.logsPath, getLogLevel(environmentService));
-logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 
 function eventuallyExit(code: number): void {
 	setTimeout(() => process.exit(code), 0);
@@ -73,6 +72,7 @@ if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
 `;
 	logService.info(license);
 	console.log(license);
+	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	const server = new RemoteExtensionHostAgentServer(environmentService, logService);
 	server.start(PORT);
 	process.on('exit', () => {
