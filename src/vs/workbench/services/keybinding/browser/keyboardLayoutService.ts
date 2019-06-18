@@ -209,25 +209,29 @@ export class BrowserKeyboardMapperFactory {
 
 	async getBrowserKeyMap() {
 		if ((navigator as any).keyboard) {
-			return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
-				let ret: IKeyboardMapping = {};
-				for (let key of e) {
-					ret[key[0]] = {
-						'value': key[1],
-						'withShift': '',
-						'withAltGr': '',
-						'withShiftAltGr': ''
-					};
-				}
+			try {
+				return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
+					let ret: IKeyboardMapping = {};
+					for (let key of e) {
+						ret[key[0]] = {
+							'value': key[1],
+							'withShift': '',
+							'withAltGr': '',
+							'withShiftAltGr': ''
+						};
+					}
 
-				const matchedKeyboardLayout = KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret);
+					const matchedKeyboardLayout = KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret);
 
-				if (matchedKeyboardLayout) {
-					return matchedKeyboardLayout.value;
-				}
+					if (matchedKeyboardLayout) {
+						return matchedKeyboardLayout.value;
+					}
 
-				return {};
-			});
+					return {};
+				});
+			} catch {
+				// getLayoutMap can throw if invoked from a nested browsing context
+			}
 		}
 
 		return {};

@@ -69,8 +69,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 // import { IRequestService } from 'vs/platform/request/node/request';
 // import { RequestService } from 'vs/platform/request/electron-browser/requestService';
-// import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-// import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 // import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 // import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 // import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
@@ -153,7 +153,7 @@ registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 // registerSingleton(IRequestService, RequestService, true);
-// registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
 // registerSingleton(IProductService, ProductService, true);
@@ -239,7 +239,6 @@ import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 import 'vs/workbench/contrib/debug/browser/debugHelperService';
 
-
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
@@ -288,7 +287,6 @@ import 'vs/workbench/contrib/tasks/browser/task.contribution';
 import { TaskService } from 'vs/workbench/contrib/tasks/browser/taskService';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 registerSingleton(ITaskService, TaskService, true);
-
 
 // Remote
 import 'vs/workbench/contrib/remote/common/remote.contribution';

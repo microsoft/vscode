@@ -129,7 +129,7 @@ export function registerCommands(): void {
 							id = pick._id;
 						}
 
-						return await stackFrame.thread.session.goto(stackFrame.thread.threadId, id);
+						return await stackFrame.thread.session.goto(stackFrame.thread.threadId, id).catch(e => notificationService.warn(e));
 					}
 				}
 			}

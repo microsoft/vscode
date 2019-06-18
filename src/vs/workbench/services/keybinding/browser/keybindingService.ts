@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { OS, OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -333,6 +333,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
+		if (!isWeb) {
+			return false;
+		}
+
 		if (browser.isFullscreen() && (<any>navigator).keyboard) {
 			return false;
 		}

@@ -22,10 +22,6 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 	return main(domElement, options);
 }
 
-const api: any = self;
-
-api.monaco = {
-	workbench: {
-		create
-	}
+export {
+	create
 };

@@ -98,7 +98,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
-		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
+		this.scheme = this.getScheme(options.availableFileSystems);
 		this.userHome = await this.getUserHome();
 		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
@@ -109,7 +109,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
+		this.scheme = this.getScheme(options.availableFileSystems);
 		this.userHome = await this.getUserHome();
 		this.requiresTrailing = true;
 		const newOptions = await this.getOptions(options, true);
@@ -128,9 +128,13 @@ export class RemoteFileDialog {
 	}
 
 	private getOptions(options: ISaveDialogOptions | IOpenDialogOptions, isSave: boolean = false): IOpenDialogOptions | undefined {
-		let defaultUri = options.defaultUri;
-		const filename = (defaultUri && isSave && (resources.dirname(defaultUri).path === '/')) ? resources.basename(defaultUri) : undefined;
-		if (!defaultUri || filename) {
+		let defaultUri: URI | undefined = undefined;
+		let filename: string | undefined = undefined;
+		if (options.defaultUri) {
+			defaultUri = (this.scheme === options.defaultUri.scheme) ? options.defaultUri : undefined;
+			filename = isSave ? resources.basename(options.defaultUri) : undefined;
+		}
+		if (!defaultUri) {
 			defaultUri = this.userHome;
 			if (filename) {
 				defaultUri = resources.joinPath(defaultUri, filename);
@@ -150,8 +154,8 @@ export class RemoteFileDialog {
 		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
-	private getScheme(defaultUri: URI | undefined, available: string[] | undefined): string {
-		return defaultUri ? defaultUri.scheme : (available ? available[0] : Schemas.file);
+	private getScheme(available: string[] | undefined): string {
+		return available ? available[0] : Schemas.file;
 	}
 
 	private async getRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
@@ -254,12 +258,8 @@ export class RemoteFileDialog {
 				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 					this.options.availableFileSystems.shift();
 				}
-				this.options.defaultUri = undefined;
 				this.filePickBox.hide();
 				if (isSave) {
-					// Remove defaultUri and filters to get a consistant experience with the keybinding.
-					this.options.defaultUri = undefined;
-					this.options.filters = undefined;
 					return this.fileDialogService.showSaveDialog(this.options).then(result => {
 						doResolve(this, result);
 					});

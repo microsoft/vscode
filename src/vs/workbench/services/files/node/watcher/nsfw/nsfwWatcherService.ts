@@ -7,9 +7,9 @@ import * as glob from 'vs/base/common/glob';
 import * as extpath from 'vs/base/common/extpath';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import * as nsfw from 'vscode-nsfw';
-import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { IWatcherService, IWatcherRequest, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -39,11 +39,13 @@ export class NsfwWatcherService implements IWatcherService {
 	private _verboseLogging: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<IDiskFileChange[] | IWatchError>();
+	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	watch(options: IWatcherOptions): Event<IDiskFileChange[] | IWatchError> {
-		this._verboseLogging = options.verboseLogging;
+	private _onLogMessage = new Emitter<ILogMessage>();
+	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
+
+	watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
 		return this.onWatchEvent;
 	}
 
@@ -66,7 +68,7 @@ export class NsfwWatcherService implements IWatcherService {
 			// See https://github.com/Microsoft/vscode/issues/7950
 			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
 				this.enospcErrorLogged = true;
-				this._onWatchEvent.fire({ message: 'Inotify limit reached (ENOSPC)' });
+				this.error('Inotify limit reached (ENOSPC)');
 			}
 		});
 
@@ -91,7 +93,7 @@ export class NsfwWatcherService implements IWatcherService {
 					realBasePathLength = realBasePath.length;
 					realBasePathDiffers = true;
 
-					console.warn(`Watcher basePath does not match version on disk and will be corrected (original: ${request.path}, real: ${realBasePath})`);
+					this.warn(`Watcher basePath does not match version on disk and will be corrected (original: ${request.path}, real: ${realBasePath})`);
 				}
 			} catch (error) {
 				// ignore
@@ -103,7 +105,7 @@ export class NsfwWatcherService implements IWatcherService {
 				// Logging
 				if (this._verboseLogging) {
 					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
-					console.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
+					this.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
 				// Convert nsfw event to IRawFileChange and add to queue
@@ -114,13 +116,13 @@ export class NsfwWatcherService implements IWatcherService {
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
 					} else if (this._verboseLogging) {
-						console.log(' >> ignored', absolutePath);
+						this.log(` >> ignored ${absolutePath}`);
 					}
 					absolutePath = path.join(e.directory, e.newFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this._verboseLogging) {
-						console.log(' >> ignored', absolutePath);
+						this.log(` >> ignored ${absolutePath}`);
 					}
 				} else {
 					absolutePath = path.join(e.directory, e.file || '');
@@ -130,7 +132,7 @@ export class NsfwWatcherService implements IWatcherService {
 							path: absolutePath
 						});
 					} else if (this._verboseLogging) {
-						console.log(' >> ignored', absolutePath);
+						this.log(` >> ignored ${absolutePath}`);
 					}
 				}
 			}
@@ -160,7 +162,7 @@ export class NsfwWatcherService implements IWatcherService {
 				// Logging
 				if (this._verboseLogging) {
 					res.forEach(r => {
-						console.log(` >> normalized ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
+						this.log(` >> normalized ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 					});
 				}
 
@@ -190,7 +192,7 @@ export class NsfwWatcherService implements IWatcherService {
 
 		// Logging
 		if (this._verboseLogging) {
-			console.log(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
+			this.log(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
 		}
 
 		// Stop watching some roots
@@ -239,5 +241,17 @@ export class NsfwWatcherService implements IWatcherService {
 
 	private _isPathIgnored(absolutePath: string, ignored: glob.ParsedPattern[]): boolean {
 		return ignored && ignored.some(i => i(absolutePath));
+	}
+
+	private log(message: string) {
+		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (nswf)] ` + message });
+	}
+
+	private warn(message: string) {
+		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (nswf)] ` + message });
+	}
+
+	private error(message: string) {
+		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (nswf)] ` + message });
 	}
 }

@@ -137,9 +137,12 @@ suite.skip('Chockidar watching', () => {
 		service.watch(opts)(e => {
 			if (Array.isArray(e)) {
 				result.push(...e);
-			} else {
-				console.log('set error', e.message);
-				error = e.message;
+			}
+		});
+		service.onLogMessage(msg => {
+			if (msg.type === 'error') {
+				console.log('set error', msg.message);
+				error = msg.message;
 			}
 		});
 	});
