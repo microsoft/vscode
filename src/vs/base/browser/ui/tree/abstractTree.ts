@@ -197,11 +197,34 @@ interface ITreeListTemplateData<T> {
 
 interface ITreeRendererOptions {
 	readonly indent?: number;
+	readonly renderIndentGuides?: boolean;
 }
 
 interface IRenderData<TTemplateData> {
 	templateData: ITreeListTemplateData<TTemplateData>;
 	height: number;
+}
+
+interface Collection<T> {
+	readonly elements: T[];
+	readonly onDidChange: Event<T[]>;
+}
+
+class EventCollection<T> implements Collection<T> {
+
+	private disposables = new DisposableStore();
+
+	get elements(): T[] {
+		return this._elements;
+	}
+
+	constructor(readonly onDidChange: Event<T[]>, private _elements: T[] = []) {
+		onDidChange(e => this._elements = e, null, this.disposables);
+	}
+
+	dispose() {
+		this.disposables.dispose();
+	}
 }
 
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
@@ -212,14 +235,18 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
+
+	private _renderIndentGuides = false;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, SVGLineElement>();
 	private activeParentNodes = new Set<ITreeNode<T, TFilterData>>();
+	private indentGuidesDisposable: IDisposable = Disposable.None;
+
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
-		onDidChangeActiveNodes: Event<ITreeNode<T, TFilterData>[]>,
+		private activeNodes: Collection<ITreeNode<T, TFilterData>>,
 		options: ITreeRendererOptions = {}
 	) {
 		this.templateId = renderer.templateId;
@@ -230,13 +257,27 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		if (renderer.onDidChangeTwistieState) {
 			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
 		}
-
-		onDidChangeActiveNodes(this.onDidChangeActiveNodes, this, this.disposables);
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
 		if (typeof options.indent !== 'undefined') {
 			this.indent = clamp(options.indent, 0, 40);
+		}
+
+		const renderIndentGuides = !!options.renderIndentGuides;
+
+		if (renderIndentGuides !== this._renderIndentGuides) {
+			this._renderIndentGuides = renderIndentGuides;
+
+			if (renderIndentGuides) {
+				const disposables = new DisposableStore();
+				this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposables);
+				this.indentGuidesDisposable = disposables;
+
+				this._onDidChangeActiveNodes(this.activeNodes.elements);
+			} else {
+				this.indentGuidesDisposable.dispose();
+			}
 		}
 	}
 
@@ -322,8 +363,12 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 	}
 
-	// // TODO: only do iff indent guides are enabled
 	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
+		if (!this._renderIndentGuides) {
+			clearNode(templateData.indent);
+			return;
+		}
+
 		templateData.indentGuidesDisposable.dispose();
 
 		const disposableStore = new DisposableStore();
@@ -356,7 +401,11 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		templateData.indentGuidesDisposable = disposableStore;
 	}
 
-	private onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
+	private _onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
+		if (!this._renderIndentGuides) {
+			return;
+		}
+
 		const set = new Set<ITreeNode<T, TFilterData>>();
 
 		nodes.forEach(node => {
@@ -383,6 +432,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	dispose(): void {
 		this.renderedNodes.clear();
 		this.renderedElements.clear();
+		this.indentGuidesDisposable.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -1136,7 +1186,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, onDidChangeActiveNodes.event, _options));
+		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
+		this.disposables.push(activeNodes);
+
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, activeNodes, _options));
 		this.disposables.push(...this.renderers);
 
 		let filter: TypeFilter<T> | undefined;
