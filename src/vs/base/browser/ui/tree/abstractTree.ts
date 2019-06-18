@@ -195,9 +195,15 @@ interface ITreeListTemplateData<T> {
 	readonly templateData: T;
 }
 
+export enum RenderIndentGuides {
+	None = 'none',
+	OnHover = 'onHover',
+	Always = 'always'
+}
+
 interface ITreeRendererOptions {
 	readonly indent?: number;
-	readonly renderIndentGuides?: boolean;
+	readonly renderIndentGuides?: RenderIndentGuides;
 }
 
 interface IRenderData<TTemplateData> {
@@ -236,7 +242,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
 
-	private _renderIndentGuides = false;
+	private _renderIndentGuides: RenderIndentGuides = RenderIndentGuides.None;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, SVGLineElement>();
 	private activeParentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
@@ -265,7 +271,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 
 		if (typeof options.renderIndentGuides !== 'undefined') {
-			const renderIndentGuides = !!options.renderIndentGuides;
+			const renderIndentGuides = options.renderIndentGuides;
 
 			if (renderIndentGuides !== this._renderIndentGuides) {
 				this._renderIndentGuides = renderIndentGuides;
@@ -366,7 +372,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
-		if (!this._renderIndentGuides) {
+		if (this._renderIndentGuides === RenderIndentGuides.None) {
 			clearNode(templateData.indent);
 			return;
 		}
@@ -408,7 +414,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	private _onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
-		if (!this._renderIndentGuides) {
+		if (this._renderIndentGuides === RenderIndentGuides.None) {
 			return;
 		}
 
@@ -1237,6 +1243,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
+		toggleClass(this.getHTMLElement(), 'always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
@@ -1256,6 +1263,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		this._onDidUpdateOptions.fire(this._options);
+
+		toggleClass(this.getHTMLElement(), 'always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
@@ -1341,7 +1350,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const content: string[] = [];
 
 		if (styles.treeIndentGuidesStroke) {
-			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line { stroke: ${styles.treeIndentGuidesStroke.transparent(0.4)}; }`);
+			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line, .monaco-list${suffix}.always .monaco-tl-indent > svg > line  { stroke: ${styles.treeIndentGuidesStroke.transparent(0.4)}; }`);
 			content.push(`.monaco-list${suffix} .monaco-tl-indent > svg > line.active { stroke: ${styles.treeIndentGuidesStroke}; }`);
 		}
 

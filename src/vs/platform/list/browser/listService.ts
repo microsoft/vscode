@@ -29,7 +29,7 @@ import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTr
 import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
-import { IKeyboardNavigationEventFilter, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
@@ -898,7 +898,7 @@ function workbenchTreeDataPreamble<T, TFilterData>(
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...workbenchListOptions,
 			indent: configurationService.getValue<number>(treeIndentKey),
-			renderIndentGuides: configurationService.getValue<boolean>(treeRenderIndentGuidesKey),
+			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
 			automaticKeyboardNavigation: getAutomaticKeyboardNavigation(),
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
@@ -980,7 +980,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					tree.updateOptions({ indent });
 				}
 				if (e.affectsConfiguration(treeRenderIndentGuidesKey)) {
-					const renderIndentGuides = configurationService.getValue<boolean>(treeRenderIndentGuidesKey);
+					const renderIndentGuides = configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
 					tree.updateOptions({ renderIndentGuides });
 				}
 				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
@@ -1060,9 +1060,10 @@ configurationRegistry.registerConfiguration({
 			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
 		[treeRenderIndentGuidesKey]: {
-			type: 'boolean',
-			default: false,
-			'description': localize('render tree indent guides', "Controls whether the tree should render indent guides.")
+			type: 'string',
+			enum: ['none', 'onHover', 'always'],
+			default: 'none',
+			description: localize('render tree indent guides', "Controls whether the tree should render indent guides.")
 		},
 		[keyboardNavigationSettingKey]: {
 			'type': 'string',
