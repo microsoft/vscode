@@ -11,6 +11,9 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { RemoteExtensionManagementCli } from 'vs/server/remoteExtensionManagement';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { RemoteExtensionHostAgentServer } from 'vs/server/remoteExtensionHostAgentServer';
+import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
+import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 const args = minimist(process.argv.slice(2), {
 	string: [
@@ -41,23 +44,24 @@ args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER,
 		}
 	} catch (err) { console.error(err); }
 });
-console.log(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 
 const environmentService = new EnvironmentService(args, process.execPath);
+const logService: ILogService = new SpdLogService(RemoteExtensionLogFileName, environmentService.logsPath, getLogLevel(environmentService));
+logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 
 function eventuallyExit(code: number): void {
 	setTimeout(() => process.exit(code), 0);
 }
 
 if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
-	RemoteExtensionManagementCli.instantiate(environmentService).run(args)
+	RemoteExtensionManagementCli.instantiate(environmentService, logService).run(args)
 		.then(() => eventuallyExit(0))
 		.then(null, err => {
-			console.error(err.message || err.stack || err);
+			logService.error(err.message || err.stack || err);
 			eventuallyExit(1);
 		});
 } else {
-	console.log(`
+	const license = `
 
 *
 * Visual Studio Code Server
@@ -66,8 +70,10 @@ if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
 * as described in the license https://aka.ms/vscode-remote/license
 *
 
-`);
-	const server = new RemoteExtensionHostAgentServer(environmentService);
+`;
+	logService.info(license);
+	console.log(license);
+	const server = new RemoteExtensionHostAgentServer(environmentService, logService);
 	server.start(PORT);
 	process.on('exit', () => {
 		server.dispose();

@@ -14,7 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtHostReadyMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
@@ -29,7 +29,7 @@ export class ExtensionHostConnection {
 	private _initialDataChunk: VSBuffer | null;
 	private _skipWebSocketFrames: boolean;
 
-	constructor(private readonly _environmentService: EnvironmentService, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer) {
+	constructor(private readonly _environmentService: EnvironmentService, private readonly _logService: ILogService, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer) {
 		this._disposed = false;
 		this._extensionHostProcess = null;
 		const { skipWebSocketFrames, socket } = this._getUnderlyingSocket(_socket);
@@ -100,8 +100,7 @@ export class ExtensionHostConnection {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=0.0.0.0:${startParams.port}`];
 			}
 
-			// TODO@Rob/Alex, we can't get a real log service here because the loglevel is sent over the management connection
-			const userShellEnv = await getShellEnvironment(new StubLogService(), this._environmentService);
+			const userShellEnv = await getShellEnvironment(this._logService, this._environmentService);
 			const processEnv = process.env;
 			const binFolder = this._environmentService.isBuilt ? join(this._environmentService.appRoot, 'bin') : join(this._environmentService.appRoot, 'resources', 'server', 'bin-dev');
 			let PATH = userShellEnv['PATH'] || processEnv['PATH'];
@@ -186,28 +185,4 @@ export class ExtensionHostConnection {
 			}
 		}
 	}
-}
-
-class StubLogService implements ILogService {
-	_serviceBrand: any;
-
-	onDidChangeLogLevel: Event<LogLevel>;
-
-	getLevel(): LogLevel { return LogLevel.Off; }
-
-	setLevel(level: LogLevel): void { }
-
-	trace(message: string, ...args: any[]): void { }
-
-	debug(message: string, ...args: any[]): void { }
-
-	info(message: string, ...args: any[]): void { }
-
-	warn(message: string, ...args: any[]): void { }
-
-	error(message: string | Error, ...args: any[]): void { }
-
-	critical(message: string | Error, ...args: any[]): void { }
-
-	dispose(): void { }
 }

@@ -5,7 +5,7 @@
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { PersistentProtocol, ProtocolConstants, ISocket } from 'vs/base/parts/ipc/common/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, LogLevel, getLogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,8 +27,6 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { FollowerLogService, LogLevelSetterChannelClient } from 'vs/platform/log/node/logIpc';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -130,15 +128,16 @@ export class RemoteExtensionManagementServer extends Disposable {
 	public readonly socketServer: SocketServer<RemoteAgentConnectionContext>;
 	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
 
-	public static create(_environmentService: IEnvironmentService): Promise<RemoteExtensionManagementServer> {
-		const server = new RemoteExtensionManagementServer(_environmentService);
+	public static create(_environmentService: IEnvironmentService, logService: ILogService): Promise<RemoteExtensionManagementServer> {
+		const server = new RemoteExtensionManagementServer(_environmentService, logService);
 		return server._createServices(server.socketServer).then(() => {
 			return server;
 		});
 	}
 
 	private constructor(
-		private readonly _environmentService: IEnvironmentService
+		private readonly _environmentService: IEnvironmentService,
+		private readonly _logService: ILogService
 	) {
 		super();
 		this.socketServer = new SocketServer<RemoteAgentConnectionContext>();
@@ -151,7 +150,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 		// TODO: @Sandy @Joao need dynamic context based router
 		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
 		const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', router));
-		const logService = new FollowerLogService(logLevelClient, new SpdLogService(RemoteExtensionLogFileName, this._environmentService.logsPath, LogLevel.Info));
+		const logService = new FollowerLogService(logLevelClient, this._logService);
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, logService);
@@ -233,11 +232,10 @@ export class RemoteExtensionManagementCli {
 			|| !!argv['locate-extension'];
 	}
 
-	static instantiate(environmentService: EnvironmentService): RemoteExtensionManagementCli {
+	static instantiate(environmentService: EnvironmentService, logService: ILogService): RemoteExtensionManagementCli {
 		const services = new ServiceCollection();
 
 		services.set(IEnvironmentService, environmentService);
-		const logService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 		services.set(ILogService, logService);
 		const instantiationService: IInstantiationService = new InstantiationService(services);
 

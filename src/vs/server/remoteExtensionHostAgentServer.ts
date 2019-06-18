@@ -28,6 +28,7 @@ import { ConnectionType, HandshakeMessage, IRemoteExtensionHostStartParams, ITun
 import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
 import { ManagementConnection, RemoteExtensionManagementServer } from 'vs/server/remoteExtensionManagement';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
 
@@ -52,7 +53,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private shutdownTimer: NodeJS.Timer | undefined;
 
 	constructor(
-		private readonly _environmentService: EnvironmentService
+		private readonly _environmentService: EnvironmentService,
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._extHostConnections = Object.create(null);
@@ -61,23 +63,24 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 	public async start(port: number) {
 		// Wait for the extension management server to be set up, cache the result so it can be accessed sync while handling requests
-		const server = await RemoteExtensionManagementServer.create(this._environmentService);
+		const server = await RemoteExtensionManagementServer.create(this._environmentService, this._logService);
 		this._remoteExtensionManagementServer = this._register(server);
 		return this._start(port);
 	}
 
 	private async _start(port: number) {
 		const ifaces = os.networkInterfaces();
-
+		const logService = this._logService;
 		Object.keys(ifaces).forEach(function (ifname) {
 			ifaces[ifname].forEach(function (iface) {
 				if (!iface.internal && iface.family === 'IPv4') {
 					console.log(`IP Address: ${iface.address}`);
+					logService.trace(`IP Address: ${iface.address}`);
 				}
 			});
 		});
 
-		setTimeout(() => this.cleanupOlderLogs(this._environmentService.logsPath).then(null, err => console.error(err)), 10000);
+		setTimeout(() => this.cleanupOlderLogs(this._environmentService.logsPath).then(null, err => this._logService.error(err)), 10000);
 
 		const webviewPort = await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
 
@@ -107,18 +110,18 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || 'text/plain' });
 				return res.end(data);
 			} catch (error) {
-				console.error(error.toString());
+				this._logService.error(error);
 				res.writeHead(404, { 'Content-Type': 'text/plain' });
 				return res.end('Not found');
 			}
 		});
 		webviewServer.on('error', (err) => {
-			console.error(`Error occurred in webviewServer`);
-			console.error(err);
+			this._logService.error(`Error occurred in webviewServer`, err);
 		});
 		webviewServer.listen(webviewPort, () => {
 			const address = webviewServer.address();
 			console.log(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
+			this._logService.trace(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
 		});
 
 		let transformer: IURITransformer;
@@ -193,7 +196,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 				return res.end(data);
 			} catch (error) {
-				console.error(error.toString());
+				this._logService.error(error);
 
 				res.writeHead(404, { 'Content-Type': 'text/plain' });
 				return res.end('Not found');
@@ -246,14 +249,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			}
 		});
 		server.on('error', (err) => {
-			console.error(`Error occurred in server`);
-			console.error(err);
+			this._logService.error(`Error occurred in server`, err);
 		});
 		server.listen(port, () => {
 			// Do not change this line. VS Code looks for this in
 			// the output.
 			const address = server.address();
 			console.log(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
+			this._logService.debug(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
 		});
 
 		this._register({ dispose: () => server.close() });
@@ -309,7 +312,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				if (typeof msg.auth !== 'string' || msg.auth !== '00000000000000000000') {
 					// TODO@vs-remote: use real nonce here
 					// Invalid nonce, will not communicate further with this client
-					console.error(`Unauthorized client refused.`);
+					this._logService.error(`Unauthorized client refused.`);
 					protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unauthorized client refused.' })));
 					protocol.dispose();
 					socket.dispose();
@@ -340,7 +343,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				if (rendererCommit && myCommit) {
 					// Running in the built version where commits are defined
 					if (rendererCommit !== myCommit) {
-						console.error(`Version mismatch, client refused.`);
+						this._logService.error(`Version mismatch, client refused.`);
 						protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Version mismatch, client refused.' })));
 						protocol.dispose();
 						socket.dispose();
@@ -363,17 +366,18 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 				if (!valid) {
 					if (msg.isBuilt) {
-						console.error(`Unauthorized client refused.`);
+						this._logService.error(`Unauthorized client refused.`);
 						protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unauthorized client refused.' })));
 						protocol.dispose();
 						socket.dispose();
 						return;
 					} else {
-						console.error(`Unauthorized client handshake failed but we proceed because of dev mode.`);
+						this._logService.error(`Unauthorized client handshake failed but we proceed because of dev mode.`);
 					}
 				} else {
 					if (!msg.isBuilt) {
 						console.log(`Client handshake succeded.`);
+						this._logService.trace(`Client handshake succeded.`);
 					}
 				}
 
@@ -381,6 +385,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					case ConnectionType.Management:
 						// This should become a management connection
 						console.log(`==> Received a management connection`);
+						this._logService.trace(`==> Received a management connection`);
 
 
 						if (isReconnection) {
@@ -421,13 +426,15 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						this._updateWithFreeDebugPort(startParams).then(startParams => {
 
 							console.log(`==> Received an extension host connection.`);
+							this._logService.trace(`==> Received an extension host connection.`);
 							if (startParams.port) {
 								console.log(`==> Debug port ${startParams.port}`);
+								this._logService.trace(`==> Debug port ${startParams.port}`);
 							}
 							if (msg.args) {
-								console.log(`==> Using UI language: ${startParams.language}`);
+								this._logService.trace(`==> Using UI language: ${startParams.language}`);
 							} else {
-								console.log(`==> No UI language provided by renderer. Falling back to English.`);
+								this._logService.trace(`==> No UI language provided by renderer. Falling back to English.`);
 							}
 
 							if (isReconnection) {
@@ -454,7 +461,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 									const dataChunk = protocol.readEntireBuffer();
 									protocol.dispose();
-									const con = new ExtensionHostConnection(this._environmentService, socket, dataChunk);
+									const con = new ExtensionHostConnection(this._environmentService, this._logService, socket, dataChunk);
 									this._extHostConnections[reconnectionToken] = con;
 									con.onClose(() => {
 										delete this._extHostConnections[reconnectionToken];
@@ -472,7 +479,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						break;
 
 					default:
-						console.error(`Unknown initial data received.`);
+						this._logService.error(`Unknown initial data received.`);
 						protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unknown initial data received.' })));
 						protocol.dispose();
 						socket.dispose();
@@ -538,6 +545,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const hasActiveExtHosts = !!Object.keys(this._extHostConnections).length;
 		if (!hasActiveExtHosts) {
 			console.log('Last EH closed, waiting before shutting down');
+			this._logService.trace('Last EH closed, waiting before shutting down');
 			this.waitThenShutdown();
 		}
 	}
@@ -553,9 +561,11 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const hasActiveExtHosts = !!Object.keys(this._extHostConnections).length;
 			if (hasActiveExtHosts) {
 				console.log('New EH opened, aborting shutdown');
+				this._logService.trace('New EH opened, aborting shutdown');
 				return;
 			} else {
 				console.log('Last EH closed, shutting down');
+				this._logService.trace('Last EH closed, shutting down');
 				this.dispose();
 				process.exit(0);
 			}
@@ -568,6 +578,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private delayShutdown(): void {
 		if (this.shutdownTimer) {
 			console.log('Got delay-shutdown request while in shutdown timeout, delaying');
+			this._logService.trace('Got delay-shutdown request while in shutdown timeout, delaying');
 			this.cancelShutdown();
 			this.waitThenShutdown();
 		}
@@ -576,6 +587,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private cancelShutdown(): void {
 		if (this.shutdownTimer) {
 			console.log('Cancelling previous shutdown timeout');
+			this._logService.trace('Cancelling previous shutdown timeout');
 			clearTimeout(this.shutdownTimer);
 			this.shutdownTimer = undefined;
 		}
