@@ -16,14 +16,13 @@ import * as nls from 'vs/nls';
 export class NotificationService extends Disposable implements INotificationService {
 
 	_serviceBrand: ServiceIdentifier<INotificationService>;
-	private readonly neverShowLabel = nls.localize('neverShowAgain', "Don't Show Again");
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 
 	get model(): INotificationsModel {
 		return this._model;
 	}
 
-	constructor(@IStorageService private readonly _storageService: IStorageService) {
+	constructor(@IStorageService private readonly storageService: IStorageService) {
 		super();
 	}
 
@@ -61,16 +60,19 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		let handle: INotificationHandle;
 		if (notification.neverShowOptions) {
-			const id = notification.neverShowOptions.promptId;
+			const id = notification.neverShowOptions.id;
 			if (this.isRejected(id)) {
 				return new NoOpNotification();
 			}
 
-			const neverShowAction = new Action('workbench.dialog.choice.neverShowAgain', this.neverShowLabel, undefined, true, () => {
-				handle.close();
-				this.neverShow(id);
-				return Promise.resolve();
-			});
+			const neverShowAction = new Action(
+				'workbench.dialog.choice.neverShowAgain',
+				nls.localize('neverShowAgain', "Don't Show Again"),
+				undefined, true, () => {
+					handle.close();
+					this.neverShow(id);
+					return Promise.resolve();
+				});
 
 			//default to secondary
 			if (typeof (notification.neverShowOptions.isSecondary) !== 'boolean') {
@@ -85,10 +87,6 @@ export class NotificationService extends Disposable implements INotificationServ
 				notification.actions.primary = notification.actions.primary || [];
 				notification.actions.primary = [...notification.actions.primary, neverShowAction];
 			}
-
-
-
-
 		}
 
 		handle = this.model.addNotification(notification);
@@ -100,7 +98,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 
 		if (options && options.neverShowOptions) {
-			const id = options.neverShowOptions.promptId;
+			const id = options.neverShowOptions.id;
 			if (this.isRejected(id)) {
 				return new NoOpNotification();
 			}
@@ -110,7 +108,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			choices.push({
-				label: this.neverShowLabel,
+				label: nls.localize('neverShowAgain', "Don't Show Again"),
 				run: () => this.neverShow(id),
 				isSecondary: options.neverShowOptions.isSecondary
 			});
@@ -162,11 +160,11 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	private neverShow(id: string) {
-		this._storageService.store(id, true, StorageScope.GLOBAL);
+		this.storageService.store(id, true, StorageScope.GLOBAL);
 	}
 
 	private isRejected(id: string): boolean {
-		return !!this._storageService.get(id, StorageScope.GLOBAL);
+		return !!this.storageService.get(id, StorageScope.GLOBAL);
 	}
 
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {

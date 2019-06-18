@@ -29,6 +29,11 @@ export interface INotificationProperties {
 	 * catch some attention.
 	 */
 	silent?: boolean;
+
+	/**
+ * options for showing "never show again" action.
+ */
+	neverShowOptions?: INeverShowOptions;
 }
 
 export interface INotification extends INotificationProperties {
@@ -62,12 +67,6 @@ export interface INotification extends INotificationProperties {
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
-
-	/**
-	 * options for showing "never show again" prompt.
-	 * by default shown as secondary action
-	 */
-	neverShowOptions?: INeverShowOptions;
 }
 
 export interface INotificationActions {
@@ -177,12 +176,6 @@ export interface IPromptOptions extends INotificationProperties {
 	 * any of the provided choices.
 	 */
 	onCancel?: () => void;
-
-	/**
-	 * options for showing "never show again" prompt.
-	 * by default shown as primary action
-	 */
-	neverShowOptions?: INeverShowOptions;
 }
 
 
@@ -192,7 +185,7 @@ export interface INeverShowOptions {
 	* If user picks this option, future calls to 'prompt' with the same prompt id will be ignored.
 	* The id is used to persist the selection to storage
 	*/
-	promptId: string;
+	id: string;
 	isSecondary?: boolean;
 }
 

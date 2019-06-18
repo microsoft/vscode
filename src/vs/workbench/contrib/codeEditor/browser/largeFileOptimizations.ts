@@ -56,7 +56,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 							});
 						}
 					}
-				], { neverShowOptions: { promptId: 'editor.contrib.largeFileOptimizationsWarner' } });
+				], { neverShowOptions: { id: 'editor.contrib.largeFileOptimizationsWarner' } });
 			}
 		}));
 	}
