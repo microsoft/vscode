@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -22,6 +22,8 @@ import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IPickOptions, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -63,6 +65,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
+	protected readonly _onRequestAvailableShells = new Emitter<(shells: IShellDefinition[]) => void>();
+	public get onRequestAvailableShells(): Event<(shells: IShellDefinition[]) => void> { return this._onRequestAvailableShells.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -76,7 +80,9 @@ export abstract class TerminalService implements ITerminalService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IFileService protected readonly _fileService: IFileService,
 		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService,
-		@ITerminalNativeService private readonly _terminalNativeService: ITerminalNativeService
+		@ITerminalNativeService private readonly _terminalNativeService: ITerminalNativeService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -525,5 +531,28 @@ export abstract class TerminalService implements ITerminalService {
 			}
 			c(escapeNonWindowsPath(originalPath));
 		});
+	}
+
+	public selectDefaultWindowsShell(): Promise<void> {
+		return this._detectWindowsShells().then(shells => {
+			const options: IPickOptions<IQuickPickItem> = {
+				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
+			};
+			const quickPickItems = shells.map(s => {
+				return { label: s.label, description: s.path };
+			});
+			return this._quickInputService.pick(quickPickItems, options).then(async value => {
+				if (!value) {
+					return undefined;
+				}
+				const shell = value.description;
+				await this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
+				return Promise.resolve();
+			});
+		});
+	}
+
+	private _detectWindowsShells(): Promise<IShellDefinition[]> {
+		return new Promise(r => this._onRequestAvailableShells.fire(r));
 	}
 }

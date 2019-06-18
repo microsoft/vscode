@@ -21,6 +21,8 @@ import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalService extends CommonTerminalService implements ITerminalService {
 	private _configHelper: IBrowserTerminalConfigHelper;
@@ -39,9 +41,11 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITerminalNativeService readonly terminalNativeService: ITerminalNativeService
+		@ITerminalNativeService readonly terminalNativeService: ITerminalNativeService,
+		@IQuickInputService readonly quickInputService: IQuickInputService,
+		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		super(contextKeyService, panelService, lifecycleService, storageService, notificationService, dialogService, extensionService, fileService, remoteAgentService, terminalNativeService);
+		super(contextKeyService, panelService, lifecycleService, storageService, notificationService, dialogService, extensionService, fileService, remoteAgentService, terminalNativeService, quickInputService, configurationService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this.terminalNativeService.linuxDistro);
 	}
 
