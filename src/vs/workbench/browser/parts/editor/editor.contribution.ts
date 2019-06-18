@@ -564,8 +564,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_PREVIOUS_CHANGE,
 		title: nls.localize('navigate.prev.label', "Previous Change"),
-		iconDark: 'previous-diff-inverse.svg',
-		iconLight: 'previous-diff.svg'
+		iconDark: 'previous-diff-dark.svg',
+		iconLight: 'previous-diff-light.svg'
 	},
 	TextCompareEditorActiveContext,
 	10
@@ -576,8 +576,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_NEXT_CHANGE,
 		title: nls.localize('navigate.next.label', "Next Change"),
-		iconDark: 'next-diff-inverse.svg',
-		iconLight: 'next-diff.svg'
+		iconDark: 'next-diff-dark.svg',
+		iconLight: 'next-diff-light.svg'
 	},
 	TextCompareEditorActiveContext,
 	11
@@ -588,8 +588,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
-		iconDark: 'paragraph-inverse.svg',
-		iconLight: 'paragraph.svg'
+		iconDark: 'paragraph-dark.svg',
+		iconLight: 'paragraph-light.svg'
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
 	20
@@ -600,8 +600,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
-		iconDark: 'paragraph-disabled-inverse.svg',
-		iconLight: 'paragraph-disabled.svg'
+		iconDark: 'paragraph-disabled-dark.svg',
+		iconLight: 'paragraph-disabled-light.svg'
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
 	20
