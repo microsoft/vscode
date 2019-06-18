@@ -82,7 +82,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -177,7 +177,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export class TestTextFileService extends BrowserTextFileService {
+export class TestTextFileService extends NodeTextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
 	private promptPath: URI;

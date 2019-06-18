@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.36.0",
-  "distro": "0293a04fc4ec308a7770025ead5660e2fb9667a9",
+  "distro": "b9dab7ca40335a67c58edc6caefe3a1de32b3bdc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -26,7 +26,7 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
     "web": "node resources/server/bin-dev/code-web.js --port 9888",
-    "web-selfhost": "node resources/server/bin-dev/code-web.js --port 9777 --selfhost --folder .",
+    "web-selfhost": "node resources/server/bin-dev/code-web.js --port 9777 --selfhost",
     "install-server": "node build/npm/install-server.js"
   },
   "dependencies": {
@@ -108,7 +108,7 @@
     "gulp-vinyl-zip": "^2.1.2",
     "http-server": "^0.11.1",
     "husky": "^0.13.1",
-    "innosetup-compiler": "^5.5.60",
+    "innosetup": "5.6.1",
     "is": "^3.1.0",
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",

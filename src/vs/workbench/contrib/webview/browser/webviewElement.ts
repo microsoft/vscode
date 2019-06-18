@@ -45,6 +45,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		if (typeof environmentService.webviewEndpoint !== 'string') {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		}
+
 		this.content = {
 			html: '',
 			options: contentOptions,
@@ -56,7 +60,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts');
 		this.element.sandbox.add('allow-same-origin');
-		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`); // TODO: get this from env service
+		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';

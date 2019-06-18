@@ -569,7 +569,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	suite('Terminal', () => {
+	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/75689 */ : suite)('Terminal', () => {
 		test('sendText immediately after createTerminal should not throw', () => {
 			const terminal = window.createTerminal();
 			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));

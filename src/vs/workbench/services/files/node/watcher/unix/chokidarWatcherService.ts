@@ -14,8 +14,8 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
-import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 
 interface IWatcher {
@@ -46,11 +46,13 @@ export class ChokidarWatcherService implements IWatcherService {
 	private spamWarningLogged: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<IDiskFileChange[] | IWatchError>();
+	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<IDiskFileChange[] | IWatchError> {
-		this._verboseLogging = options.verboseLogging;
+	private _onLogMessage = new Emitter<ILogMessage>();
+	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
+
+	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<IDiskFileChange[]> {
 		this._pollingInterval = options.pollingInterval;
 		this._watchers = Object.create(null);
 		this._watcherCount = 0;
@@ -100,7 +102,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	private _watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
 		if (this._verboseLogging) {
-			console.log(`Start watching: ${basePath}]`);
+			this.log(`Start watching: ${basePath}]`);
 		}
 
 		const pollingInterval = this._pollingInterval || 1000;
@@ -137,7 +139,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		const realBasePathDiffers = (basePath !== realBasePath);
 
 		if (realBasePathDiffers) {
-			console.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
+			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
@@ -145,7 +147,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		// Detect if for some reason the native watcher library fails to load
 		if (isMacintosh && !chokidarWatcher.options.useFsEvents) {
-			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
+			this.warn('Watcher is not using native fsevents library and is falling back to unefficient polling.');
 		}
 
 		let undeliveredFileEvents: IDiskFileChange[] = [];
@@ -156,7 +158,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			stop: () => {
 				try {
 					if (this._verboseLogging) {
-						console.log(`Stop watching: ${basePath}]`);
+						this.log(`Stop watching: ${basePath}]`);
 					}
 					if (chokidarWatcher) {
 						chokidarWatcher.close();
@@ -168,7 +170,7 @@ export class ChokidarWatcherService implements IWatcherService {
 						fileEventDelayer = null;
 					}
 				} catch (error) {
-					console.error(error.toString());
+					this.warn('Error while stopping watcher: ' + error.toString());
 				}
 			}
 		};
@@ -218,7 +220,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 			// Logging
 			if (this._verboseLogging) {
-				console.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
+				this.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
 			// Check for spam
@@ -228,7 +230,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				this.spamCheckStartTime = now;
 			} else if (!this.spamWarningLogged && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
 				this.spamWarningLogged = true;
-				console.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
+				this.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
 			}
 
 			// Add to buffer
@@ -247,7 +249,7 @@ export class ChokidarWatcherService implements IWatcherService {
 					// Logging
 					if (this._verboseLogging) {
 						res.forEach(r => {
-							console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
+							this.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 						});
 					}
 
@@ -268,10 +270,10 @@ export class ChokidarWatcherService implements IWatcherService {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;
 						this.stop();
-						this._onWatchEvent.fire({ message: 'Inotify limit reached (ENOSPC)' });
+						this.error('Inotify limit reached (ENOSPC)');
 					}
 				} else {
-					console.error(error.toString());
+					this.warn(error.toString());
 				}
 			}
 		});
@@ -285,6 +287,18 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 		this._watchers = Object.create(null);
 		return Promise.resolve();
+	}
+
+	private log(message: string) {
+		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (chockidar)] ` + message });
+	}
+
+	private warn(message: string) {
+		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (chockidar)] ` + message });
+	}
+
+	private error(message: string) {
+		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (chockidar)] ` + message });
 	}
 }
 

@@ -230,7 +230,8 @@
 		};
 
 		document.addEventListener('DOMContentLoaded', () => {
-			const ID = document.location.search.match(/\bid=([\w-]+)/)[1];
+			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
+			const ID = idMatch ? idMatch[1] : undefined;
 
 			if (!document.body) {
 				return;

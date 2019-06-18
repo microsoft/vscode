@@ -217,7 +217,7 @@ export class InstallAction extends ExtensionAction {
 
 		alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 
-		if (extension.local) {
+		if (extension && extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
 			if (runningExtension) {
 				const colorThemes = await this.workbenchThemeService.getColorThemes();
@@ -237,7 +237,7 @@ export class InstallAction extends ExtensionAction {
 
 	}
 
-	private install(extension: IExtension): Promise<IExtension> {
+	private install(extension: IExtension): Promise<IExtension | void> {
 		return this.extensionsWorkbenchService.install(extension)
 			.then(null, err => {
 				if (!extension.gallery) {

@@ -8,13 +8,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
 
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { RemoteExtensionLogFileName, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/contrib/output/common/output';
-import * as resources from 'vs/base/common/resources';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -213,21 +211,6 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	}
 }
 
-class LogOutputChannels extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
-	) {
-		super();
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: nls.localize('remoteExtensionLog', "Remote Server"), file: resources.joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-			}
-		});
-	}
-}
-
 class RemoteChannelsContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -418,7 +401,6 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);

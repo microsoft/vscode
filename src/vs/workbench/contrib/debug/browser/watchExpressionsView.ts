@@ -247,6 +247,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			onFinish: (value: string, success: boolean) => {
 				if (success && value) {
 					this.debugService.renameWatchExpression(expression.getId(), value);
+					variableSetEmitter.fire();
 				} else if (!expression.name) {
 					this.debugService.removeWatchExpressions(expression.getId());
 				}
