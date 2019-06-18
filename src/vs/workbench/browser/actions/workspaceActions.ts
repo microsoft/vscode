@@ -17,6 +17,9 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { toResource } from 'vs/workbench/common/editor';
+import { URI } from 'vs/base/common/uri';
 
 export class OpenFileAction extends Action {
 
@@ -62,13 +65,20 @@ export class SaveLocalFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private readonly dialogService: IFileDialogService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
-		return this.dialogService.pickFileToSave({ availableFileSystems: [Schemas.file] });
+		let resource: URI | undefined = toResource(this.editorService.activeEditor);
+		const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
+		if (resource) {
+			return this.textFileService.saveAs(resource, undefined, options);
+		} else {
+			return Promise.resolve();
+		}
 	}
 }
 
