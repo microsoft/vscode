@@ -8,9 +8,11 @@ import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterato
 import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
+	readonly identityProvider?: IIdentityProvider<T>;
 }
 
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
@@ -19,6 +21,8 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	private model: IndexTreeModel<T | null, TFilterData>;
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
+	private readonly nodesByIdentity = new Map<string, ITreeNode<T, TFilterData>>();
+	private readonly identityProvider?: IIdentityProvider<T>;
 	private sorter?: ITreeSorter<{ element: T; }>;
 
 	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>>;
@@ -40,6 +44,8 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 				}
 			};
 		}
+
+		this.identityProvider = options.identityProvider;
 	}
 
 	setChildren(
@@ -59,10 +65,17 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 	): Iterator<ITreeElement<T | null>> {
 		const insertedElements = new Set<T | null>();
+		const insertedElementIds = new Set<string>();
 
 		const _onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
 			insertedElements.add(node.element);
 			this.nodes.set(node.element, node);
+
+			if (this.identityProvider) {
+				const id = this.identityProvider.getId(node.element).toString();
+				insertedElementIds.add(id);
+				this.nodesByIdentity.set(id, node);
+			}
 
 			if (onDidCreateNode) {
 				onDidCreateNode(node);
@@ -74,18 +87,27 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 				this.nodes.delete(node.element);
 			}
 
+			if (this.identityProvider) {
+				const id = this.identityProvider.getId(node.element).toString();
+				if (!insertedElementIds.has(id)) {
+					this.nodesByIdentity.delete(id);
+				}
+			}
+
 			if (onDidDeleteNode) {
 				onDidDeleteNode(node);
 			}
 		};
 
-		return this.model.splice(
+		const result = this.model.splice(
 			[...location, 0],
 			Number.MAX_VALUE,
 			children,
 			_onDidCreateNode,
 			_onDidDeleteNode
 		);
+
+		return result;
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {
@@ -96,7 +118,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		}
 
 		return Iterator.map(iterator, treeElement => {
-			const node = this.nodes.get(treeElement.element);
+			let node = this.nodes.get(treeElement.element);
+
+			if (!node && this.identityProvider) {
+				const id = this.identityProvider.getId(treeElement.element).toString();
+				node = this.nodesByIdentity.get(id);
+			}
 
 			if (!node) {
 				return {

@@ -119,7 +119,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}));
 	}
 
-	private beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// Dirty files need treatment on shutdown
 		const dirty = this.getDirty();
@@ -648,18 +648,19 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return result;
 	}
 
-	protected async promptForPath(resource: URI, defaultUri: URI): Promise<URI | undefined> {
+	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } });
 
-		return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
+		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
 	}
 
-	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
+	private getSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[]): ISaveDialogOptions {
 		const options: ISaveDialogOptions = {
 			defaultUri,
-			title: nls.localize('saveAsTitle', "Save As")
+			title: nls.localize('saveAsTitle', "Save As"),
+			availableFileSystems,
 		};
 
 		// Filters are only enabled on Windows where they work properly
@@ -765,7 +766,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			targetResource = await this.promptForPath(resource, dialogPath);
+			targetResource = await this.promptForPath(resource, dialogPath, options ? options.availableFileSystems : undefined);
 		}
 
 		if (!targetResource) {

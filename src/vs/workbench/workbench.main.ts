@@ -117,9 +117,11 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
+import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
+import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
-import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
+import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
@@ -228,11 +230,12 @@ import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
-import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
+import 'vs/workbench/contrib/debug/browser/debug.contribution';
 import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/node/debugHelperService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
@@ -266,7 +269,10 @@ import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
 
 // Tasks
-import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
+import 'vs/workbench/contrib/tasks/browser/task.contribution';
+import { TaskService } from 'vs/workbench/contrib/tasks/electron-browser/taskService';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+registerSingleton(ITaskService, TaskService, true);
 
 // Remote
 import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';

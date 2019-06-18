@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -177,9 +177,8 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionManifest: Cache<IExtensionManifest | null> | null;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
-	private contentDisposables: IDisposable[] = [];
-	private transientDisposables: IDisposable[] = [];
-	private disposables: IDisposable[];
+	private readonly contentDisposables = this._register(new DisposableStore());
+	private readonly transientDisposables = this._register(new DisposableStore());
 	private activeElement: IActiveElement | null;
 	private editorLoadComplete: boolean = false;
 
@@ -199,7 +198,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
-		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
@@ -257,18 +255,18 @@ export class ExtensionEditor extends BaseEditor {
 		this.subtext = append(this.subtextContainer, $('.subtext'));
 		this.ignoreActionbar = new ActionBar(this.subtextContainer, { animated: false });
 
-		this.disposables.push(this.extensionActionBar);
-		this.disposables.push(this.ignoreActionbar);
+		this._register(this.extensionActionBar);
+		this._register(this.ignoreActionbar);
 
-		Event.chain(this.extensionActionBar.onDidRun)
+		this._register(Event.chain(this.extensionActionBar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
-			.on(this.onError, this, this.disposables);
+			.on(this.onError, this));
 
-		Event.chain(this.ignoreActionbar.onDidRun)
+		this._register(Event.chain(this.ignoreActionbar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
-			.on(this.onError, this, this.disposables);
+			.on(this.onError, this));
 
 		const body = append(root, $('.body'));
 		this.navbar = new NavBar(body);
@@ -285,7 +283,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.editorLoadComplete = false;
 		const extension = input.extension;
 
-		this.transientDisposables = dispose(this.transientDisposables);
+		this.transientDisposables.clear();
 
 		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
 		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
@@ -384,7 +382,9 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.extensionActionBar.clear();
 		this.extensionActionBar.push(actions, { icon: true, label: true });
-		this.transientDisposables.push(...[...actions, ...widgets, extensionContainers]);
+		for (const disposable of [...actions, ...widgets, extensionContainers]) {
+			this.transientDisposables.add(disposable);
+		}
 
 		this.setSubText(extension, reloadAction);
 		this.content.innerHTML = ''; // Clear content before setting navbar actions.
@@ -431,7 +431,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.ignoreActionbar.clear();
 		this.ignoreActionbar.push([ignoreAction, undoIgnoreAction], { icon: true, label: true });
-		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
+		this.transientDisposables.add(ignoreAction);
+		this.transientDisposables.add(undoIgnoreAction);
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
@@ -464,7 +465,7 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		this.transientDisposables.push(reloadAction.onDidChange(e => {
+		this.transientDisposables.add(reloadAction.onDidChange(e => {
 			if (e.tooltip) {
 				this.subtext.textContent = reloadAction.tooltip;
 				show(this.subtextContainer);
@@ -505,7 +506,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.telemetryService.publicLog('extensionEditor:navbarChange', assign(extension.telemetryData, { navItem: id }));
 		}
 
-		this.contentDisposables = dispose(this.contentDisposables);
+		this.contentDisposables.clear();
 		this.content.innerHTML = '';
 		this.activeElement = null;
 		this.open(id, extension)
@@ -545,12 +546,12 @@ export class ExtensionEditor extends BaseEditor {
 						]
 					});
 				webviewElement.mountTo(this.content);
-				this.contentDisposables.push(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+				this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
-				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 				webviewElement.html = body;
 
-				this.contentDisposables.push(webviewElement.onDidClickLink(link => {
+				this.contentDisposables.add(webviewElement.onDidClickLink(link => {
 					if (!link) {
 						return;
 					}
@@ -559,7 +560,7 @@ export class ExtensionEditor extends BaseEditor {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables));
-				this.contentDisposables.push(webviewElement);
+				this.contentDisposables.add(webviewElement);
 				return webviewElement;
 			})
 			.then(undefined, () => {
@@ -589,7 +590,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				const layout = () => scrollableContent.scanDomNode();
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 				const renders = [
 					this.renderSettings(content, manifest, layout),
@@ -613,7 +614,7 @@ export class ExtensionEditor extends BaseEditor {
 					append(this.content, content);
 				} else {
 					append(this.content, scrollableContent.getDomNode());
-					this.contentDisposables.push(scrollableContent);
+					this.contentDisposables.add(scrollableContent);
 				}
 				return content;
 			}, () => {
@@ -632,7 +633,7 @@ export class ExtensionEditor extends BaseEditor {
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
 		append(this.content, scrollableContent.getDomNode());
-		this.contentDisposables.push(scrollableContent);
+		this.contentDisposables.add(scrollableContent);
 
 		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content);
 		const layout = () => {
@@ -641,9 +642,9 @@ export class ExtensionEditor extends BaseEditor {
 			dependenciesTree.layout(scrollDimensions.height);
 		};
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
-		this.contentDisposables.push(dependenciesTree);
+		this.contentDisposables.add(dependenciesTree);
 		scrollableContent.scanDomNode();
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
@@ -652,7 +653,7 @@ export class ExtensionEditor extends BaseEditor {
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
 		append(this.content, scrollableContent.getDomNode());
-		this.contentDisposables.push(scrollableContent);
+		this.contentDisposables.add(scrollableContent);
 
 		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content);
 		const layout = () => {
@@ -661,9 +662,9 @@ export class ExtensionEditor extends BaseEditor {
 			extensionsPackTree.layout(scrollDimensions.height);
 		};
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
-		this.contentDisposables.push(extensionsPackTree);
+		this.contentDisposables.add(extensionsPackTree);
 		scrollableContent.scanDomNode();
 		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
 	}
@@ -1078,7 +1079,7 @@ export class ExtensionEditor extends BaseEditor {
 		const onDone = () => removeClass(this.content, 'loading');
 		result.promise.then(onDone, onDone);
 
-		this.contentDisposables.push(toDisposable(() => result.dispose()));
+		this.contentDisposables.add(toDisposable(() => result.dispose()));
 
 		return result.promise;
 	}
@@ -1093,12 +1094,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.notificationService.error(err);
-	}
-
-	dispose(): void {
-		this.transientDisposables = dispose(this.transientDisposables);
-		this.disposables = dispose(this.disposables);
-		super.dispose();
 	}
 }
 

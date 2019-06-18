@@ -19,13 +19,13 @@ import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/n
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';

@@ -25,7 +25,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { hash } from 'vs/base/common/hash';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -75,7 +75,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSaveDisposable?: IDisposable;
+	private readonly autoSaveDisposable = this._register(new MutableDisposable());
 
 	private saveSequentializer: SaveSequentializer;
 	private lastSaveAttemptTime: number;
@@ -243,7 +243,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Cancel any running auto-save
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		// Unset flags
 		const undo = this.setDirty(false);
@@ -567,7 +567,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace(`doAutoSave() - enter for versionId ${versionId}`, this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		// Create new save timer and store it for disposal as needed
 		const handle = setTimeout(() => {
@@ -578,25 +578,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}, this.autoSaveAfterMillies);
 
-		this.autoSaveDisposable = toDisposable(() => clearTimeout(handle));
+		this.autoSaveDisposable.value = toDisposable(() => clearTimeout(handle));
 	}
 
-	private cancelPendingAutoSave(): void {
-		if (this.autoSaveDisposable) {
-			this.autoSaveDisposable.dispose();
-			this.autoSaveDisposable = undefined;
-		}
-	}
-
-	save(options: ISaveOptions = Object.create(null)): Promise<void> {
+	async save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve();
+			return;
 		}
 
 		this.logService.trace('save() - enter', this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		return this.doSave(this.versionId, options);
 	}
@@ -1037,8 +1030,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
-
-		this.cancelPendingAutoSave();
 
 		super.dispose();
 	}

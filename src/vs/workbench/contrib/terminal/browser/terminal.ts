@@ -26,6 +26,11 @@ export interface ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 	getDefaultShell(p: Platform): string;
+	/**
+	 * Merges the default shell path and args into the provided launch configuration
+	 */
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, configHelper: ITerminalConfigHelper, platformOverride?: Platform): void;
+	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {

@@ -8,6 +8,7 @@ import { IWindowsShellHelper, ITerminalChildProcess } from 'vs/workbench/contrib
 import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -49,5 +50,12 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public getDefaultShell(): string {
 		throw new Error('Not implemented');
+	}
+
+	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+		return {};
+	}
+
+	public mergeDefaultShellPathAndArgs(): void {
 	}
 }

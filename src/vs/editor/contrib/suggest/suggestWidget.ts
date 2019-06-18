@@ -9,7 +9,7 @@ import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -29,7 +29,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { CompletionItemKind, completionKindToCssClass } from 'vs/editor/common/modes';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -281,7 +281,12 @@ class SuggestionDetails {
 		return this.el;
 	}
 
-	render(item: CompletionItem): void {
+	renderLoading(): void {
+		this.type.textContent = nls.localize('loading', "Loading...");
+		this.docs.textContent = '';
+	}
+
+	renderItem(item: CompletionItem): void {
 		this.renderDisposeable = dispose(this.renderDisposeable);
 
 		if (!item || !canExpandCompletionItem(item)) {
@@ -405,7 +410,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private state: State | null;
 	private isAuto: boolean;
-	private loadingTimeout: any;
+	private loadingTimeout: IDisposable = Disposable.None;
 	private currentSuggestionDetails: CancelablePromise<void> | null;
 	private focusedItem: CompletionItem | null;
 	private ignoreFocusEvents = false;
@@ -423,7 +428,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
-	private readonly toDispose: IDisposable[] = [];
+	private readonly toDispose = new DisposableStore();
 
 	private onDidSelectEmitter = new Emitter<ISelectedSuggestion>();
 	private onDidFocusEmitter = new Emitter<ISelectedSuggestion>();
@@ -466,7 +471,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
-		this.toDispose.push(addDisposableListener(this.element, 'click', e => {
+		this.toDispose.add(addDisposableListener(this.element, 'click', e => {
 			if (e.target === this.element) {
 				this.hideWidget();
 			}
@@ -487,19 +492,18 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			mouseSupport: false
 		});
 
-		this.toDispose.push(
-			attachListStyler(this.list, themeService, {
-				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-				listInactiveFocusOutline: activeContrastBorder
-			}),
-			themeService.onThemeChange(t => this.onThemeChange(t)),
-			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
-			this.list.onMouseDown(e => this.onListMouseDown(e)),
-			this.list.onSelectionChange(e => this.onListSelection(e)),
-			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
-			this.editor.onDidChangeConfiguration(e => e.contribInfo && applyIconStyle())
-		);
+		this.toDispose.add(attachListStyler(this.list, themeService, {
+			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
+			listInactiveFocusOutline: activeContrastBorder
+		}));
+		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
+		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
+		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDown(e)));
+		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
+		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
+		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
+		this.toDispose.add(this.editor.onDidChangeConfiguration(e => e.contribInfo && applyIconStyle()));
+
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
@@ -631,7 +635,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 			this.list.reveal(index);
 
-			this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
+			this.currentSuggestionDetails = createCancelablePromise(async token => {
+				const loading = disposableTimeout(() => this.showDetails(true), 250);
+				token.onCancellationRequested(() => loading.dispose());
+				const result = await item.resolve(token);
+				loading.dispose();
+				return result;
+			});
 
 			this.currentSuggestionDetails.then(() => {
 				if (this.list.length < index) {
@@ -645,7 +655,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.ignoreFocusEvents = false;
 
 				if (this.expandDocsSettingFromStorage()) {
-					this.showDetails();
+					this.showDetails(false);
 				} else {
 					removeClass(this.element, 'docs-side');
 				}
@@ -725,10 +735,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.isAuto = !!auto;
 
 		if (!this.isAuto) {
-			this.loadingTimeout = setTimeout(() => {
-				this.loadingTimeout = null;
-				this.setState(State.Loading);
-			}, delay);
+			this.loadingTimeout = disposableTimeout(() => this.setState(State.Loading), delay);
 		}
 	}
 
@@ -736,10 +743,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.preferDocPositionTop = false;
 		this.docsPositionPreviousWidgetY = null;
 
-		if (this.loadingTimeout) {
-			clearTimeout(this.loadingTimeout);
-			this.loadingTimeout = null;
-		}
+		this.loadingTimeout.dispose();
 
 		if (this.currentSuggestionDetails) {
 			this.currentSuggestionDetails.cancel();
@@ -952,7 +956,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}
 
 			this.updateExpandDocsSetting(true);
-			this.showDetails();
+			this.showDetails(true);
 			this._ariaAlert(this.details.getAriaLabel());
 			/* __GDPR__
 				"suggestWidget:expandDetails" : {
@@ -965,11 +969,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	showDetails(): void {
+	showDetails(loading: boolean): void {
 		this.expandSideOrBelow();
 
 		show(this.details.element);
-		this.details.render(this.list.getFocusedElements()[0]);
+		if (loading) {
+			this.details.renderLoading();
+		} else {
+			this.details.renderItem(this.list.getFocusedElements()[0]);
+		}
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
 		// Reset margin-top that was set as Fix for #26416
@@ -1005,7 +1013,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	hideWidget(): void {
-		clearTimeout(this.loadingTimeout);
+		this.loadingTimeout.dispose();
 		this.setState(State.Hidden);
 		this.onDidHideEmitter.fire(this);
 	}
@@ -1149,22 +1157,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	dispose(): void {
-		this.state = null;
-		this.currentSuggestionDetails = null;
-		this.focusedItem = null;
-		this.element = null!; // StrictNullOverride: nulling out ok in dispose
-		this.messageElement = null!; // StrictNullOverride: nulling out ok in dispose
-		this.listElement = null!; // StrictNullOverride: nulling out ok in dispose
 		this.details.dispose();
-		this.details = null!; // StrictNullOverride: nulling out ok in dispose
 		this.list.dispose();
-		this.list = null!; // StrictNullOverride: nulling out ok in dispose
-		dispose(this.toDispose);
-		if (this.loadingTimeout) {
-			clearTimeout(this.loadingTimeout);
-			this.loadingTimeout = null;
-		}
-
+		this.toDispose.dispose();
+		this.loadingTimeout.dispose();
 		this.editorBlurTimeout.dispose();
 		this.showTimeout.dispose();
 	}

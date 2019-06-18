@@ -20,7 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IDisposable, dispose, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
@@ -64,7 +64,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabDisposeables: IDisposable[] = [];
 
 	private dimension: Dimension;
-	private layoutScheduled?: IDisposable;
+	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean;
 
 	constructor(
@@ -996,10 +996,10 @@ export class TabsTitleControl extends TitleControl {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
-		if (!this.layoutScheduled) {
-			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
+		if (!this.layoutScheduled.value) {
+			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimension);
-				this.layoutScheduled = undefined;
+				this.layoutScheduled.clear();
 			});
 		}
 	}
@@ -1149,8 +1149,7 @@ export class TabsTitleControl extends TitleControl {
 	dispose(): void {
 		super.dispose();
 
-		dispose(this.layoutScheduled);
-		this.layoutScheduled = undefined;
+		this.tabDisposeables = dispose(this.tabDisposeables);
 	}
 }
 

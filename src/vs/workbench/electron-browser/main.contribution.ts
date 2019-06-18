@@ -14,7 +14,7 @@ import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenNewsletterSignupUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
 import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ReloadWindowAction, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
-import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction, OpenLocalFileAction, OpenLocalFolderAction, OpenLocalFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction, OpenLocalFileAction, OpenLocalFolderAction, OpenLocalFileFolderAction, SaveLocalFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -45,6 +45,7 @@ import product from 'vs/platform/product/node/product';
 			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFolderAction, OpenLocalFolderAction.ID, OpenLocalFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, RemoteFileDialogContext), 'File: Open Local Folder...', fileCategory);
 		}
 
+		registry.registerWorkbenchAction(new SyncActionDescriptor(SaveLocalFileAction, SaveLocalFileAction.ID, SaveLocalFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }, RemoteFileDialogContext), 'File: Save Local File...', fileCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
@@ -304,14 +305,6 @@ import product from 'vs/platform/product/node/product';
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-		submenu: MenuId.MenubarPreferencesMenu,
-		group: '5_autosave',
-		order: 2,
-		when: IsMacContext.toNegated()
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '6_close',
 		command: {
 			id: CloseWorkspaceAction.ID,
@@ -352,13 +345,6 @@ import product from 'vs/platform/product/node/product';
 	});
 
 	// Appereance menu
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '2_appearance',
-		title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
-		submenu: MenuId.MenubarAppearanceMenu,
-		order: 1
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		group: '1_toggle_view',
 		command: {
@@ -636,6 +622,13 @@ import product from 'vs/platform/product/node/product';
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
+				'included': isWindows || isLinux
+			},
+			'window.disableCustomMenuBarAltFocus': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': nls.localize('disableCustomMenuBarAltFocus', "If enabled, disables the ability to focus the menu bar with the Alt-key when not set to toggle."),
 				'included': isWindows || isLinux
 			},
 			'window.autoDetectHighContrast': {

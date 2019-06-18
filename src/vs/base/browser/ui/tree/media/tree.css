@@ -7,6 +7,19 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 16px;
+	pointer-events: none;
+}
+
+.monaco-tl-indent > svg {
+	overflow: visible;
 }
 
 .monaco-tl-twistie,
@@ -66,4 +79,13 @@
 
 .hc-black .monaco-tl-twistie.loading {
 	background-image: url("loading-hc.svg");
+}
+
+.monaco-list .monaco-tl-indent > svg {
+	height: 100%;
+}
+
+.monaco-list .monaco-tl-indent > svg > line {
+	stroke: transparent;
+	transition: stroke 0.1s linear;
 }

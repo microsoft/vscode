@@ -4,11 +4,12 @@ resources:
     image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
     endpoint: VSCodeHub
   - container: snapcraft
-    image: snapcore/snapcraft
+    image: snapcore/snapcraft:stable
 
 jobs:
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -18,6 +19,7 @@ jobs:
 
 - job: Windows32
   condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -27,6 +29,7 @@ jobs:
 
 - job: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -37,6 +40,7 @@ jobs:
 
 - job: LinuxSnap
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -48,6 +52,7 @@ jobs:
 
 - job: LinuxArmhf
   condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -57,12 +62,14 @@ jobs:
 
 - job: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
   steps:
   - template: darwin/product-build-darwin.yml
 
 - job: Mooncake
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   condition: true

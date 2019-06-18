@@ -18,12 +18,15 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 import { PanelPositionContext } from 'vs/workbench/common/panel';
 
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
 export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindows);
+
+export const IsWebContext = new RawContextKey<boolean>('isWeb', isWeb);
+export const IsMacNativeContext = new RawContextKey<boolean>('isMacNative', isMacintosh && !isWeb);
 
 export const RemoteAuthorityContext = new RawContextKey<string>('remoteAuthority', '');
 
@@ -114,6 +117,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
+
+		IsWebContext.bindTo(this.contextKeyService);
+		IsMacNativeContext.bindTo(this.contextKeyService);
 
 		RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.environmentService.configuration.remoteAuthority || '');
 

@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -130,7 +130,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	protected options: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement;
-	private badgeDisposable: IDisposable = Disposable.None;
+	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private mouseUpTimeout: any;
 
 	constructor(
@@ -236,8 +236,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		const badge = action.getBadge();
 		const clazz = action.getClass();
 
-		this.badgeDisposable.dispose();
-		this.badgeDisposable = Disposable.None;
+		this.badgeDisposable.clear();
 
 		dom.clearNode(this.badgeContent);
 		dom.hide(this.badge);
@@ -280,7 +279,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 			if (clazz) {
 				dom.addClasses(this.badge, clazz);
-				this.badgeDisposable = toDisposable(() => dom.removeClasses(this.badge, clazz));
+				this.badgeDisposable.value = toDisposable(() => dom.removeClasses(this.badge, clazz));
 			}
 		}
 

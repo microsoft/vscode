@@ -248,7 +248,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): Promise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): Promise<boolean>;
+	$tryInsertSnippet(id: string, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
 }
 
@@ -400,7 +400,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
 	$sendProcessData(terminalId: number, data: string): void;
-	$sendProcessPid(terminalId: number, pid: number): void;
+	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
@@ -922,6 +922,20 @@ export interface SuggestResultDto {
 	c?: boolean;
 }
 
+export interface SignatureHelpDto {
+	id: CacheId;
+	signatures: modes.SignatureInformation[];
+	activeSignature: number;
+	activeParameter: number;
+}
+
+export interface SignatureHelpContextDto {
+	readonly triggerKind: modes.SignatureHelpTriggerKind;
+	readonly triggerCharacter?: string;
+	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelpDto;
+}
+
 export interface LocationDto {
 	uri: UriComponents;
 	range: IRange;
@@ -1060,7 +1074,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto | undefined>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined>;
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<SignatureHelpDto | undefined>;
+	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined>;
 	$releaseDocumentLinks(handle: number, id: number): void;
@@ -1091,6 +1106,11 @@ export interface ShellLaunchConfigDto {
 	env?: { [key: string]: string | null };
 }
 
+export interface IShellDefinitionDto {
+	label: string;
+	path: string;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
@@ -1107,6 +1127,8 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
+	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
 }
 
 export interface ExtHostSCMShape {
@@ -1305,7 +1327,6 @@ export const ExtHostContext = {
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
-	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),

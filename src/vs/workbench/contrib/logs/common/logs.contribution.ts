@@ -18,19 +18,27 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, joinPath } from 'vs/base/common/resources';
+import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ILogService logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		this.registerLogChannel(Constants.mainLogChannelId, nls.localize('mainLog', "Main"), URI.file(join(environmentService.logsPath, `main.log`)));
 		this.registerLogChannel(Constants.sharedLogChannelId, nls.localize('sharedLog', "Shared"), URI.file(join(environmentService.logsPath, `sharedprocess.log`)));
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), URI.file(join(environmentService.logsPath, `renderer${environmentService.configuration.windowId}.log`)));
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: nls.localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
+			}
+		});
 
 		const registerTelemetryChannel = (level: LogLevel) => {
 			if (level === LogLevel.Trace && !Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels).getChannel(Constants.telemetryLogChannelId)) {

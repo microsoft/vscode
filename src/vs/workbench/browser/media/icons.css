@@ -34,6 +34,20 @@
 	--yellow: #fc0;
 }
 
+:root .hc-black {
+	--blue: #75beff;
+	--gray: #FFF;
+	--grayLight: #FFF;
+	--green: #89d185;
+	--greenLight: #9cce9c;
+	--orange: #e8ab53;
+	--orangeLight: #ff8e00;
+	--purple: #b180d7;
+	--red: #f48771;
+	--redLight: #e51400;
+	--yellow: #fc0;
+}
+
 
 /****************
 	Base
@@ -145,7 +159,7 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
-	background-image: none;
+	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
 	-webkit-mask-position: center;
@@ -170,6 +184,7 @@ body[data-exploration^="icon-exploration"] .monaco-editor .find-widget .monaco-c
 }
 
 /* Before elements */
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before,
 body[data-exploration^="icon-exploration"] .search-view .search-widget .toggle-replace-button.collapse::before,
 body[data-exploration^="icon-exploration"] .search-view .search-widget .toggle-replace-button.expand::before,
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header::before,
@@ -192,6 +207,7 @@ body[data-exploration^="icon-exploration"] .keybindings-editor .monaco-action-ba
 }
 
 /* For icons that are a custom checkbox and use focus */
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
 body[data-exploration^="icon-exploration"] .monaco-findInput > .controls .monaco-custom-checkbox,
 body[data-exploration^="icon-exploration"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header,
@@ -199,6 +215,7 @@ body[data-exploration^="icon-exploration"] .keybindings-editor .monaco-action-ba
 	background-image: none !important;
 }
 
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before,
 body[data-exploration^="icon-exploration"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up::before,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down::before,
@@ -373,6 +390,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .ti
 	-webkit-mask-image: url("images/git/initialze.svg");
 }
 
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before,
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
 body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt1.svg");
@@ -686,8 +704,7 @@ body[data-exploration="icon-exploration"] .extensions-viewlet > .extensions .ext
 	Panels
 ****************/
 
-body[data-exploration="icon-exploration"] .monaco-workbench .hide-panel-action,
-.hc-black .monaco-workbench .hide-panel-action {
+body[data-exploration="icon-exploration"] .monaco-workbench .hide-panel-action {
 	-webkit-mask-image: url("images/panel/close-alt1.svg");
 }
 
@@ -872,6 +889,10 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 	background: transparent;
 }
 
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .symbol-icon {
+	margin-left: 4px;
+}
+
 body[data-exploration^="icon-exploration"] .monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon::before {
 	left: 0;
 	top: -3px;
@@ -929,7 +950,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.operato
 	background-color: var(--blue);
 }
 
-ody[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
+body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
 	-webkit-mask-image: url("images/intellisense/parameter-alt1.svg");
 }
 
@@ -1089,7 +1110,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
-	background-image: url("images/tree/expand-empty.svg");
+	background-image: url("images/tree/expand-empty.svg") !important;
 }
 
 body[data-exploration="icon-exploration"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
@@ -1098,7 +1119,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
-	background-image: url("images/tree/expand-empty.svg");
+	background-image: url("images/tree/expand-empty.svg") !important;
 
 }
 
@@ -1234,4 +1255,8 @@ body[data-exploration="icon-exploration"] .monaco-editor .margin-view-overlays .
 body[data-exploration="icon-exploration"] .monaco-editor .find-widget .matchesCount {
 	margin-right: 0;
 	padding-right: 0;
+}
+
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before {
+	-webkit-mask-size: 14px;
 }

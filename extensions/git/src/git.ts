@@ -371,8 +371,14 @@ export class Git {
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--absolute-git-dir']);
-		return path.normalize(result.stdout.trim());
+		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir']);
+		let dotGitPath = result.stdout.trim();
+
+		if (!path.isAbsolute(dotGitPath)) {
+			dotGitPath = path.join(repositoryPath, dotGitPath);
+		}
+
+		return path.normalize(dotGitPath);
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {

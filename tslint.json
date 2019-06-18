@@ -364,6 +364,7 @@
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
+					"**/vs/workbench/workbench.web.api",
 					"**/vs/workbench/{common,browser}/**",
 					"**/vs/workbench/services/*/{common,browser}/**",
 					"assert"
@@ -440,6 +441,7 @@
 					"**/vs/base/**/{common,browser}/**",
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
+					"**/vs/workbench/workbench.web.api",
 					"**/vs/workbench/{common,browser}/**",
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",

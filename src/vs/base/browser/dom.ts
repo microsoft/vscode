@@ -38,12 +38,12 @@ export function isInDOM(node: Node | null): boolean {
 }
 
 interface IDomClassList {
-	hasClass(node: HTMLElement, className: string): boolean;
-	addClass(node: HTMLElement, className: string): void;
-	addClasses(node: HTMLElement, ...classNames: string[]): void;
-	removeClass(node: HTMLElement, className: string): void;
-	removeClasses(node: HTMLElement, ...classNames: string[]): void;
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
+	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
+	addClass(node: HTMLElement | SVGElement, className: string): void;
+	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	removeClass(node: HTMLElement | SVGElement, className: string): void;
+	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
 const _manualClassList = new class implements IDomClassList {
@@ -191,12 +191,12 @@ const _nativeClassList = new class implements IDomClassList {
 // In IE11 there is only partial support for `classList` which makes us keep our
 // custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
 const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
-export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
-export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
-export const addClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
-export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
-export const removeClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
-export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
 
@@ -768,6 +768,10 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
+export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+}
+
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
@@ -983,14 +987,28 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+export enum Namespace {
+	HTML = 'http://www.w3.org/1999/xhtml',
+	SVG = 'http://www.w3.org/2000/svg'
+}
+
+function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
 		throw new Error('Bad use of emmet');
 	}
 
-	let result = document.createElement(match[1] || 'div');
+	attrs = { ...(attrs || {}) };
+
+	let tagName = match[1] || 'div';
+	let result: T;
+
+	if (namespace !== Namespace.HTML) {
+		result = document.createElementNS(namespace as string, tagName) as T;
+	} else {
+		result = document.createElement(tagName) as unknown as T;
+	}
 
 	if (match[3]) {
 		result.id = match[3];
@@ -999,7 +1017,6 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	attrs = attrs || {};
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
 		if (/^on\w+$/.test(name)) {
@@ -1025,6 +1042,14 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 
 	return result as T;
 }
+
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+	return _$(Namespace.HTML, description, attrs, ...children);
+}
+
+$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+	return _$(Namespace.SVG, description, attrs, ...children);
+};
 
 export function join(nodes: Node[], separator: Node | string): Node[] {
 	const result: Node[] = [];

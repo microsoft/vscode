@@ -10,8 +10,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
@@ -20,7 +20,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getDefaultShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -278,6 +278,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
+	// TODO: Pull this from main side
+	private _isWorkspaceShellAllowed: boolean = false;
+
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
@@ -323,6 +326,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminalRenderers.push(renderer);
 
 		return renderer;
+	}
+
+	public getDefaultShell(configProvider: ExtHostConfigProvider): string {
+		const fetchSetting = (key: string) => {
+			const setting = configProvider
+				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
+				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
+			return this._apiInspectConfigToPlain<string | string[]>(setting);
+		};
+		return terminalEnvironment.getDefaultShell(
+			fetchSetting,
+			this._isWorkspaceShellAllowed,
+			getDefaultShell(platform.platform),
+			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+			process.env.windir
+		);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -472,7 +491,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 				return this._apiInspectConfigToPlain<string | string[]>(setting);
 			};
-			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false, getDefaultShell(platform.platform));
+			terminalEnvironment.mergeDefaultShellPathAndArgs(
+				shellLaunchConfig,
+				fetchSetting,
+				isWorkspaceShellAllowed || false,
+				getDefaultShell(platform.platform),
+				process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+				process.env.windir
+			);
 		}
 
 		// Get the initial cwd
@@ -500,13 +526,18 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			variableResolver,
 			isWorkspaceShellAllowed,
 			pkg.version,
-			terminalConfig.get<boolean>('setLocaleVariables', false)
+			terminalConfig.get<boolean>('setLocaleVariables', false),
+			// Always inherit the environment as we need to be running in a login shell, this may
+			// change when macOS servers are supported
+			process.env as platform.IProcessEnvironment
 		);
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
-		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty') as boolean, this._logService);
-		p.onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
+		// TODO: Support conpty on remote, it doesn't seem to work for some reason?
+		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
+		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService);
+		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
@@ -542,6 +573,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptProcessRequestLatency(id: number): number {
 		return id;
+	}
+
+	public $requestAvailableShells(): Promise<IShellDefinitionDto[]> {
+		return detectAvailableShells();
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
@@ -608,6 +643,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			return false;
 		});
 		return index;
+	}
+
+	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
+		this._isWorkspaceShellAllowed = isAllowed;
 	}
 }
 
