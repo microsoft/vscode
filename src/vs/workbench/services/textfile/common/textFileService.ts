@@ -119,7 +119,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}));
 	}
 
-	private beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// Dirty files need treatment on shutdown
 		const dirty = this.getDirty();

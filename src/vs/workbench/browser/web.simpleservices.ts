@@ -21,9 +21,8 @@ import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
-import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -515,55 +514,6 @@ export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
 }
 
 registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
-
-//#endregion
-
-//#region Lifecycle
-
-export class SimpleLifecycleService extends AbstractLifecycleService {
-
-	_serviceBrand: any;
-
-	constructor(
-		@ILogService readonly logService: ILogService
-	) {
-		super(logService);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		window.onbeforeunload = () => this.beforeUnload();
-	}
-
-	private beforeUnload(): string {
-
-		// Before Shutdown
-		this._onBeforeShutdown.fire({
-			veto(value) {
-				if (value === true) {
-					console.warn(new Error('Preventing onBeforeUnload currently not supported'));
-				} else if (value instanceof Promise) {
-					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
-				}
-			},
-			reason: ShutdownReason.QUIT
-		});
-
-		// Will Shutdown
-		this._onWillShutdown.fire({
-			join() {
-				console.warn(new Error('Long running onWillShutdown currently not supported'));
-			},
-			reason: ShutdownReason.QUIT
-		});
-
-		// @ts-ignore
-		return null;
-	}
-}
-
-registerSingleton(ILifecycleService, SimpleLifecycleService);
 
 //#endregion
 

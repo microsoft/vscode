@@ -6,6 +6,7 @@
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { ITextFileService, IResourceEncodings, IResourceEncoding } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class BrowserTextFileService extends TextFileService {
 
@@ -14,6 +15,19 @@ export class BrowserTextFileService extends TextFileService {
 			return { encoding: 'utf8', hasBOM: false };
 		}
 	};
+
+	protected beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+		const veto = super.beforeShutdown(reason);
+
+		// Web: there is no support for long running unload handlers. As such
+		// we need to return a direct boolean veto when we detect that there
+		// are dirty files around. 
+		if (veto instanceof Promise) {
+			return this.getDirty().length > 0;
+		}
+
+		return veto;
+	}
 }
 
 registerSingleton(ITextFileService, BrowserTextFileService);
