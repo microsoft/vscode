@@ -36,7 +36,7 @@ export class BrowserKeyboardMapperFactory {
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
-		import('vs/workbench/services/keybinding/browser/keyboardlayouts/layout.contribution.' + platform).then(() => {
+		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then(() => {
 			this._initialized = true;
 			this._onKeyboardLayoutChanged();
 		});
