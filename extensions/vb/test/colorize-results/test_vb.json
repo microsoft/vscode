@@ -22,7 +22,7 @@
 		}
 	},
 	{
-		"c": "dim",
+		"c": "dim ",
 		"t": "source.asp.vb.net keyword.control.asp",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
@@ -33,8 +33,8 @@
 		}
 	},
 	{
-		"c": "i",
-		"t": "source.asp.vb.net meta.round-brackets",
+		"c": "i ",
+		"t": "source.asp.vb.net",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -44,7 +44,7 @@
 		}
 	},
 	{
-		"c": "as integer",
+		"c": "as integer ",
 		"t": "source.asp.vb.net keyword.control.asp",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
@@ -55,7 +55,7 @@
 		}
 	},
 	{
-		"c": "=",
+		"c": "= ",
 		"t": "source.asp.vb.net keyword.operator.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "Console.",
-		"t": "source.asp.vb.net meta.round-brackets",
+		"t": "source.asp.vb.net",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.asp.vb.net meta.round-brackets",
+		"t": "source.asp.vb.net",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "i",
-		"t": "source.asp.vb.net meta.round-brackets variable.other.asp",
+		"t": "source.asp.vb.net variable.other.asp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.asp.vb.net meta.round-brackets",
+		"t": "source.asp.vb.net",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
