@@ -8,7 +8,8 @@ import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
-import { writeFileSync } from 'vs/base/node/pfs';
+import { statSync, readFileSync } from 'fs';
+import { writeFileSync, readdirSync } from 'vs/base/node/pfs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -41,6 +42,7 @@ export const options: Option[] = [
 	{ id: 'user-data-dir', type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
 	{ id: 'version', type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
 	{ id: 'help', type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
+	{ id: 'telemetry', type: 'boolean', cat: 'o', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
 	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
@@ -216,6 +218,35 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
+}
+
+export function buildTelemetryMessage(extensionsPath: string): string {
+	// const contents = readFileSync('./telemetry.json');
+	// Gets all the directories inside the extension directory
+	const dirs = readdirSync(extensionsPath).filter(files => statSync(join(extensionsPath, files)).isDirectory());
+	const telemetryJsonFolders: string[] = [];
+	dirs.forEach((dir) => {
+		const files = readdirSync(join(extensionsPath, dir)).filter(file => file === 'telemetry.json');
+		// We know it contains a telemetry.json file so we add it to the list of folders which have one
+		if (files.length === 1) {
+			telemetryJsonFolders.push(dir);
+		}
+	});
+	const mergedTelemetry = Object.create(null);
+	// Simple function to merge the telemetry into one json object
+	const mergeTelemetry = (contents: string, dirName: string) => {
+		const telemetryData = JSON.parse(contents);
+		mergedTelemetry[dirName] = telemetryData;
+	};
+	telemetryJsonFolders.forEach((folder) => {
+		const contents = readFileSync(join(extensionsPath, folder, 'telemetry.json')).toString();
+		mergeTelemetry(contents, folder);
+	});
+	let contents = readFileSync('./telemetry-core.json').toString();
+	mergeTelemetry(contents, 'vscode-core');
+	contents = readFileSync('./telemetry-extensions.json').toString();
+	mergeTelemetry(contents, 'vscode-extensions');
+	return JSON.stringify(mergedTelemetry, null, 4);
 }
 
 /**
