@@ -28,6 +28,7 @@ gulp.task('vscode-reh-win32-x64-min', noop);
 gulp.task('vscode-reh-darwin-min', noop);
 gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
+gulp.task('vscode-reh-linux-alpine-min', noop);
 
 
 function getNodeVersion() {
