@@ -133,7 +133,7 @@ class CodeLensAdapter {
 				result.lenses.push({
 					cacheId: [cacheId, i],
 					range: typeConvert.Range.from(lenses[i].range),
-					command: this._commands.toInternal2(lenses[i].command, disposables)
+					command: this._commands.toInternal(lenses[i].command, disposables)
 				});
 			}
 
@@ -167,7 +167,7 @@ class CodeLensAdapter {
 			}
 
 			newLens = newLens || lens;
-			symbol.command = this._commands.toInternal2(newLens.command || CodeLensAdapter._badCmd, disposables);
+			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd, disposables);
 			return symbol;
 		});
 	}
@@ -368,7 +368,7 @@ class CodeActionAdapter {
 					actions.push({
 						_isSynthetic: true,
 						title: candidate.title,
-						command: this._commands.toInternal2(candidate, disposables),
+						command: this._commands.toInternal(candidate, disposables),
 					});
 				} else {
 					if (codeActionContext.only) {
@@ -382,7 +382,7 @@ class CodeActionAdapter {
 					// new school: convert code action
 					actions.push({
 						title: candidate.title,
-						command: candidate.command && this._commands.toInternal2(candidate.command, disposables),
+						command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
@@ -735,7 +735,7 @@ class SuggestAdapter {
 			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			k: item.commitCharacters,
 			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			m: this._commands.toInternal2(item.command, disposables),
+			m: this._commands.toInternal(item.command, disposables),
 		};
 
 		// 'insertText'-logic
