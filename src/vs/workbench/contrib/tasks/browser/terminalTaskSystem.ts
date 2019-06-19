@@ -763,25 +763,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
 
-	private getDefaultShell(platform: Platform.Platform): string {
-		let defaultShell: string | undefined = undefined;
-		try {
-			defaultShell = this.terminalInstanceService.getDefaultShell(platform);
-		} catch {
-			// Do nothing
-		}
-		if (!defaultShell) {
-			// Make up a guess for the default shell.
-			if (platform === Platform.Platform.Windows) {
-				defaultShell = 'cmd.exe';
-			} else {
-				defaultShell = 'bash';
-			}
-			console.warn('Cannot get the default shell.');
-		}
-		return defaultShell;
-	}
-
 	private async getUserHome(): Promise<URI> {
 		const env = await this.remoteAgentService.getEnvironment();
 		if (env) {
@@ -797,8 +778,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), this.terminalService.configHelper, platform);
+			const defaultConfig = await this.terminalInstanceService.getDefaultShellAndArgs();
+			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {

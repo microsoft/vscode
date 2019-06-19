@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Platform, OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Event } from 'vs/base/common/event';
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {
 	public get localLinkRegex(): RegExp {
@@ -30,7 +31,8 @@ class TestXterm {
 }
 
 class MockTerminalInstanceService implements ITerminalInstanceService {
-	mergeDefaultShellPathAndArgs(): void {
+	onRequestDefaultShellAndArgs?: Event<any> | undefined;
+	getDefaultShellAndArgs(): Promise<{ shell: string; args: string | string[] | undefined; }> {
 		throw new Error('Method not implemented.');
 	}
 	_serviceBrand: any;
@@ -47,9 +49,6 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Method not implemented.');
 	}
 	createTerminalProcess(): any {
-		throw new Error('Method not implemented.');
-	}
-	getDefaultShell(p: Platform): string {
 		throw new Error('Method not implemented.');
 	}
 	getMainProcessParentEnv(): any {
