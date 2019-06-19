@@ -46,7 +46,6 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 
 interface ContributedKeyBinding {
@@ -149,7 +148,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _keyboardMapper: IKeyboardMapper;
 	private _cachedResolver: KeybindingResolver | null;
 	private userKeybindings: UserKeybindings;
-	private _statusBarDisposable: IDisposable = Disposable.None;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -161,8 +159,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IWindowService private readonly windowService: IWindowService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IKeymapService private readonly keymapService: IKeymapService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IKeymapService private readonly keymapService: IKeymapService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService);
 

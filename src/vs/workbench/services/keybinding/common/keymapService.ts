@@ -98,3 +98,27 @@ export interface IKeymapService {
 	getRawKeyboardMapping(): IKeyboardMapping | null;
 	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
 }
+
+export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeyboardLayoutInfo | null): boolean {
+	if (!a || !b) {
+		return false;
+	}
+
+	if ((<IWindowsKeyboardLayoutInfo>a).name && (<IWindowsKeyboardLayoutInfo>b).name && (<IWindowsKeyboardLayoutInfo>a).name === (<IWindowsKeyboardLayoutInfo>b).name) {
+		return true;
+	}
+
+	if ((<IMacKeyboardLayoutInfo>a).id && (<IMacKeyboardLayoutInfo>b).id && (<IMacKeyboardLayoutInfo>a).id === (<IMacKeyboardLayoutInfo>b).id) {
+		return true;
+	}
+
+	if ((<ILinuxKeyboardLayoutInfo>a).model &&
+		(<ILinuxKeyboardLayoutInfo>b).model &&
+		(<ILinuxKeyboardLayoutInfo>a).model === (<ILinuxKeyboardLayoutInfo>b).model &&
+		(<ILinuxKeyboardLayoutInfo>a).layout === (<ILinuxKeyboardLayoutInfo>b).layout
+	) {
+		return true;
+	}
+
+	return false;
+}

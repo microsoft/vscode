@@ -67,15 +67,24 @@ interface ISerializedMapping {
 
 export class KeyboardLayoutInfo {
 	value: IKeyboardMapping;
+	isUserKeyboardLayout: boolean;
 
-	constructor(public layout: IKeyboardLayoutInfo, public secondaryLayouts: IKeyboardLayoutInfo[], keyboardMapping: ISerializedMapping) {
+	constructor(public layout: IKeyboardLayoutInfo, public secondaryLayouts: IKeyboardLayoutInfo[], keyboardMapping: ISerializedMapping, isUserKeyboardLayout?: boolean) {
 		this.value = deserializeMapping(keyboardMapping);
+		this.isUserKeyboardLayout = !!isUserKeyboardLayout;
 	}
 
-	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IKeyboardMapping): KeyboardLayoutInfo {
-		let keyboardLayoutInfo = new KeyboardLayoutInfo(layout, [], {});
+	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IKeyboardMapping, isUserKeyboardLayout?: boolean): KeyboardLayoutInfo {
+		let keyboardLayoutInfo = new KeyboardLayoutInfo(layout, [], {}, true);
 		keyboardLayoutInfo.value = value;
 		return keyboardLayoutInfo;
+	}
+
+	update(other: KeyboardLayoutInfo) {
+		this.layout = other.layout;
+		this.secondaryLayouts = other.secondaryLayouts;
+		this.value = other.value;
+		this.isUserKeyboardLayout = other.isUserKeyboardLayout;
 	}
 
 	fuzzyEqual(other: IKeyboardMapping): boolean {
@@ -265,6 +274,19 @@ export class KeyboardLayoutProvider {
 		this._mru.unshift(this._active);
 	}
 
+	setActive2(layout: KeyboardLayoutInfo) {
+		this._active = layout;
+
+		const index = this._mru.indexOf(this._active);
+
+		if (index === 0) {
+			return;
+		}
+
+		this._mru.splice(index, 1);
+		this._mru.unshift(this._active);
+	}
+
 	getMatchedKeyboardLayout(keymap: IKeyboardMapping): KeyboardLayoutInfo | null {
 		// TODO go through mru list instead of _layoutInfos
 		for (let i = 0; i < this._mru.length; i++) {
@@ -276,7 +298,14 @@ export class KeyboardLayoutProvider {
 		return null;
 	}
 
-	getKeyboardLayouts(): IKeyboardLayoutInfo[] {
-		return this._layoutInfos.map(info => info.layout);
+	getKeyboardLayouts(): KeyboardLayoutInfo[] {
+		return this._layoutInfos;
+	}
+
+	removeKeyboardLayout(layout: KeyboardLayoutInfo): void {
+		let index = this._mru.indexOf(layout);
+		this._mru.splice(index, 1);
+		index = this._layoutInfos.indexOf(layout);
+		this._layoutInfos.splice(index, 1);
 	}
 }
