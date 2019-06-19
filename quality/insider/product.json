@@ -49,7 +49,7 @@
 		"rust-lang.rust": "{**/*.rs,**/*.rslib}",
 		"ms-vscode.cpptools": "{**/*.c,**/*.cpp,**/*.cc,**/.cxx,**/*.hh,**/*.hpp,**/*.hxx,**/*.h}",
 		"DavidAnson.vscode-markdownlint": "{**/*.md}",
-		"PeterJausovec.vscode-docker": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml}",
+		"ms-azuretools.vscode-docker": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml}",
 		"EditorConfig.EditorConfig": "{**/.editorconfig}",
 		"HookyQR.beautify": "{**/.jsbeautifyrc,**/*.js,**/*.jsx,**/*.es6,**/.eslintrc.*,**/.babelrc,**/jsconfig.json}",
 		"donjayamanne.githistory": "{**/.gitignore,**/.git}",
@@ -99,7 +99,7 @@
 			"name": "C/C++",
 			"pattern": "{**/*.c,**/*.cpp,**/*.cc,**/.cxx,**/*.hh,**/*.hpp,**/*.hxx,**/*.h}"
 		},
-		"PeterJausovec.vscode-docker": {
+		"ms-azuretools.vscode-docker": {
 			"name": "Docker",
 			"pattern": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml}"
 		},
@@ -191,14 +191,14 @@
 			"windowsPath": "%APPDATA%\\npm\\now.cmd",
 			"recommendations": [
 				"ms-azuretools.vscode-azureappservice",
-				"PeterJausovec.vscode-docker"
+				"ms-azuretools.vscode-docker"
 			]
 		},
 		"docker": {
 			"friendlyName": "Docker",
 			"windowsPath": "%ProgramFiles%\\Docker\\Docker\\Resources\\bin\\docker.exe",
 			"recommendations": [
-				"PeterJausovec.vscode-docker",
+				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
 				"azuredevspaces.azds"
 			]
@@ -207,7 +207,7 @@
 			"friendlyName": "Kubernetes",
 			"windowsPath": "%ProgramFiles%\\Docker\\Docker\\Resources\\bin\\kubectl.exe",
 			"recommendations": [
-				"PeterJausovec.vscode-docker",
+				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
 				"azuredevspaces.azds"
 			]
@@ -729,7 +729,7 @@
 		"ms-vscode-remote.remote-wsl-nightly",
 		"ms-vscode-remote.vscode-remote-extensionpack",
 		"ms-vscode-remote.vscode-remote-extensionpack-nightly",
-		"PeterJausovec.vscode-docker"
+		"ms-azuretools.vscode-docker"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
@@ -743,6 +743,6 @@
 		"techer.open-in-browser",
 		"vincaslt.highlight-matching-tag",
 		"wayou.vscode-todo-highlight",
-		"peterjausovec.vscode-docker"
+		"ms-azuretools.vscode-docker"
 	]
 }
