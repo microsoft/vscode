@@ -75,12 +75,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		);
 	}
 
-	public getDefaultShell(): Promise<string> {
-		// Don't go via ext host as that would delay terminal start up until after the extension
-		// host is ready.
-		return Promise.resolve(getSystemShell(platform));
-	}
-
 	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
 		// TODO: Pull the workspace shell permissions setting
 		const isWorkspaceShellAllowed = false; // configHelper.checkWorkspaceShellPermissions(platform);

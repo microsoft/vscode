@@ -18,8 +18,6 @@ let SearchAddon: typeof XTermSearchAddon;
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: any;
 
-	private readonly _onRequestDefaultShell = new Emitter<(defaultShell: string) => void>();
-	public get onRequestDefaultShell(): Event<(defaultShell: string) => void> { return this._onRequestDefaultShell.event; }
 	private readonly _onRequestDefaultShellAndArgs = new Emitter<IDefaultShellAndArgsRequest>();
 	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }
 
@@ -52,10 +50,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public createTerminalProcess(): ITerminalChildProcess {
 		throw new Error('Not implemented');
-	}
-
-	public getDefaultShell(): Promise<string> {
-		return new Promise(r => this._onRequestDefaultShell.fire(r));
 	}
 
 	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {

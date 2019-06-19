@@ -49,9 +49,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(_terminalService.onRequestAvailableShells(r => this._proxy.$requestAvailableShells().then(e => r(e))));
 
 		// ITerminalInstanceService listeners
-		if (terminalInstanceService.onRequestDefaultShell) {
-			this._toDispose.push(terminalInstanceService.onRequestDefaultShell(r => this._proxy.$requestDefaultShell().then(e => r(e))));
-		}
 		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
 			this._toDispose.push(terminalInstanceService.onRequestDefaultShellAndArgs(r => this._proxy.$requestDefaultShellAndArgs().then(e => r(e.shell, e.args))));
 		}

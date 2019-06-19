@@ -35,10 +35,6 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getDefaultShellAndArgs(): Promise<{ shell: string; args: string | string[] | undefined; }> {
 		throw new Error('Method not implemented.');
 	}
-	onRequestDefaultShell: any;
-	getDefaultShell(): Promise<string> {
-		throw new Error('Method not implemented.');
-	}
 	mergeDefaultShellPathAndArgs(): void {
 		throw new Error('Method not implemented.');
 	}

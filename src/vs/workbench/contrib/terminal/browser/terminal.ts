@@ -21,7 +21,6 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
 export interface ITerminalInstanceService {
 	_serviceBrand: any;
 
-	onRequestDefaultShell?: Event<(defaultShell: string) => void>;
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
 
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
@@ -34,7 +33,6 @@ export interface ITerminalInstanceService {
 	 */
 	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, configHelper: ITerminalConfigHelper, platformOverride?: Platform): void;
 
-	getDefaultShell(): Promise<string>;
 	getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }

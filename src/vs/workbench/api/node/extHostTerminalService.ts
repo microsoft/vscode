@@ -589,11 +589,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return detectAvailableShells();
 	}
 
-	// TODO: Remove this once requestDefaultShellAndArgs is working
-	public $requestDefaultShell(): Promise<string> {
-		return Promise.resolve(getSystemShell(platform.platform));
-	}
-
 	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return Promise.resolve({
