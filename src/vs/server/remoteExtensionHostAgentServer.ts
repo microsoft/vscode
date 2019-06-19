@@ -186,7 +186,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						})))
 						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(URI.file(this._environmentService.userDataPath)))));
+						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
