@@ -104,6 +104,9 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
+	@memoize
+	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
+
 	get appNameLong(): string { return product.nameLong; }
 
 	get appQuality(): string | undefined { return product.quality; }

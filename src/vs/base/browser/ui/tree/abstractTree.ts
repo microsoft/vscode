@@ -381,12 +381,14 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const disposableStore = new DisposableStore();
 		const width = this.indent * target.depth;
+		const virtualWidth = width * window.devicePixelRatio;
+		const virtualHeight = height * window.devicePixelRatio;
+
 		const svg = $.SVG('svg', {
-			'shape-rendering': 'crispEdges',
 			preserveAspectRatio: 'none',
 			width: `${width}`,
 			height: `${height}`,
-			viewBox: `0 0 ${width} ${height}`
+			viewBox: `0 0 ${virtualWidth} ${virtualHeight}`
 		});
 
 		let node = target;
@@ -394,8 +396,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		while (node.parent && node.parent.parent) {
 			const parent = node.parent;
-			const x = Math.floor((target.depth - i - 1) * this.indent) + 2;
-			const line = $.SVG<SVGLineElement>('line', { x1: x, y1: 0, x2: x, y2: height });
+			const x = Math.floor((target.depth - i - 1) * this.indent * window.devicePixelRatio) + 2.5;
+			const line = $.SVG<SVGLineElement>('line', { x1: x, y1: 0, x2: x, y2: virtualHeight });
 
 			if (this.activeParentNodes.has(parent)) {
 				addClass(line, 'active');

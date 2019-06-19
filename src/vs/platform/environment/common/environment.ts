@@ -69,6 +69,7 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
+	'enable-remote-auto-shutdown'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

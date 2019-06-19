@@ -18,6 +18,7 @@ import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeature
 import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class ExtHostApiCommands {
 
@@ -414,15 +415,21 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[][]> {
+	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[]> {
 		const pos = positions.map(typeConverters.Position.from);
 		const args = {
 			resource,
 			position: pos[0],
 			positions: pos
 		};
-		return this._commands.executeCommand<modes.SelectionRange[][]>('_executeSelectionRangeProvider', args).then(result => {
-			return result.map(oneResult => oneResult.map(typeConverters.SelectionRange.to));
+		return this._commands.executeCommand<IRange[][]>('_executeSelectionRangeProvider', args).then(result => {
+			return result.map(ranges => {
+				let node: types.SelectionRange | undefined;
+				for (const range of ranges.reverse()) {
+					node = new types.SelectionRange(typeConverters.Range.to(range), node);
+				}
+				return node!;
+			});
 		});
 	}
 

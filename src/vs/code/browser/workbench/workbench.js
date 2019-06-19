@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
 'use strict';
 
 (function () {
 
-	// @ts-ignore
 	require.config({
 		baseUrl: `${window.location.origin}/out`,
 		paths: {
@@ -20,9 +18,9 @@
 		}
 	});
 
-	// @ts-ignore
 	require(['vs/workbench/workbench.web.api'], function (api) {
-		// @ts-ignore
-		api.create(document.body, self.WORKBENCH_WEB_CONFIGURATION);
+		const options = JSON.parse(document.getElementById('vscode-workbench-web-configuration').getAttribute('data-settings'));
+
+		api.create(document.body, options);
 	});
 })();

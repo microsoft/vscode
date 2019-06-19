@@ -25,7 +25,7 @@ import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
 class MessageWidget {
@@ -287,9 +287,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 
-		if (this.editor.getConfiguration().accessibilitySupport !== AccessibilitySupport.Disabled) {
-			this.focus();
-		}
+		aria.alert(marker.message);
 	}
 
 	updateMarker(marker: IMarker): void {
