@@ -84,48 +84,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		const webviewPort = port > 0 ? await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */) : 0;
 
-		const webviewServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
-			// Only serve GET requests
-			if (req.method !== 'GET') {
-				res.writeHead(500, { 'Content-Type': 'text/plain' });
-				return res.end(`Unsupported method ${req.method}`);
-			}
-			const rootPath = URI.parse(require.toUrl('vs/workbench/contrib/webview/browser/pre')).fsPath;
-			const resourceWhitelist = new Set([
-				'/index.html',
-				'/',
-				'/fake.html',
-				'/main.js',
-				'/service-worker.js'
-			]);
-			try {
-				const requestUrl = url.parse(req.url!);
-				if (!resourceWhitelist.has(requestUrl.pathname!)) {
-					res.writeHead(404, { 'Content-Type': 'text/plain' });
-					return res.end('Not found');
-				}
-
-				const filePath = rootPath + (requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
-				const data = await util.promisify(fs.readFile)(filePath);
-				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || 'text/plain' });
-				return res.end(data);
-			} catch (error) {
-				console.error(error.toString());
-				this._logService.error(error);
-				res.writeHead(404, { 'Content-Type': 'text/plain' });
-				return res.end('Not found');
-			}
-		});
-		webviewServer.on('error', (err) => {
-			this._logService.error(`Error occurred in webviewServer`, err);
-			console.error(`Error occurred in webviewServer`);
-			console.error(err);
-		});
-		webviewServer.listen(webviewPort, () => {
-			const address = webviewServer.address();
-			console.log(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
-			this._logService.trace(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
-		});
+		const webviewServer = this.spawnWebviewServer(webviewPort);
 
 		let transformer: IURITransformer;
 
@@ -274,6 +233,55 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		});
 
 		this._register({ dispose: () => server.close() });
+	}
+
+	private spawnWebviewServer(webviewPort: number) {
+		const webviewServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
+			// Only serve GET requests
+			if (req.method !== 'GET') {
+				res.writeHead(500, { 'Content-Type': 'text/plain' });
+				return res.end(`Unsupported method ${req.method}`);
+			}
+			const rootPath = URI.parse(require.toUrl('vs/workbench/contrib/webview/browser/pre')).fsPath;
+			const resourceWhitelist = new Set([
+				'/index.html',
+				'/',
+				'/fake.html',
+				'/main.js',
+				'/service-worker.js'
+			]);
+			try {
+				const requestUrl = url.parse(req.url!);
+				if (!resourceWhitelist.has(requestUrl.pathname!)) {
+					res.writeHead(404, { 'Content-Type': 'text/plain' });
+					return res.end('Not found');
+				}
+				const filePath = rootPath + (requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
+				const data = await util.promisify(fs.readFile)(filePath);
+				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || 'text/plain' });
+				return res.end(data);
+			}
+			catch (error) {
+				console.error(error.toString());
+				this._logService.error(error);
+				res.writeHead(404, { 'Content-Type': 'text/plain' });
+				return res.end('Not found');
+			}
+		});
+		webviewServer.on('error', (err) => {
+			this._logService.error(`Error occurred in webviewServer`, err);
+			console.error(`Error occurred in webviewServer`);
+			console.error(err);
+		});
+		webviewServer.listen(webviewPort, () => {
+			const address = webviewServer.address();
+			// Do not change this line. VS Code looks for this in
+			// the output.
+			console.log(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
+			this._logService.trace(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
+		});
+		this._register({ dispose: () => webviewServer.close() });
+		return webviewServer;
 	}
 
 	// Eventually cleanup
