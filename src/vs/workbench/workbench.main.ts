@@ -71,6 +71,8 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService } from 'vs/platform/dialogs/browser/dialogService';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
@@ -136,6 +138,7 @@ import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 
+registerSingleton(IDialogService, DialogService, true);
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
 registerSingleton(IOpenerService, OpenerService, true);

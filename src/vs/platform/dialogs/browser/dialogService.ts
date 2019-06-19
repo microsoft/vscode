@@ -9,7 +9,6 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -93,5 +92,3 @@ export class DialogService implements IDialogService {
 		return choice;
 	}
 }
-
-registerSingleton(IDialogService, DialogService, true);
