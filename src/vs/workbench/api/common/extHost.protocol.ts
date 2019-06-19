@@ -58,6 +58,7 @@ export interface IEnvironment {
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
+	webviewResourceRoot: string;
 }
 
 export interface IStaticWorkspaceData {

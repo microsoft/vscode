@@ -154,4 +154,5 @@ export interface IEnvironmentService {
 	driverVerbose: boolean;
 
 	webviewEndpoint?: string;
+	readonly webviewResourceRoot: string;
 }
