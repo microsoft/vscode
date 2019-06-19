@@ -523,7 +523,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
@@ -535,7 +535,7 @@ export class CodeApplication extends Disposable {
 		// if there is none
 		if (isMacintosh) {
 			const environmentService = accessor.get(IEnvironmentService);
-
+			const windowsMainService = this.windowsMainService;
 			urlService.registerHandler({
 				async handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
@@ -558,7 +558,7 @@ export class CodeApplication extends Disposable {
 		// Watch Electron URLs and forward them to the UrlService
 		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService);
+		const urlListener = new ElectronURLListener(urls || [], urlService, this.windowsMainService);
 		this._register(urlListener);
 
 		// Open our first window
@@ -572,7 +572,7 @@ export class CodeApplication extends Disposable {
 
 		// new window if "-n" was used without paths
 		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
+			return this.windowsMainService.open({
 				context,
 				cli: args,
 				forceNewWindow: true,
@@ -585,7 +585,7 @@ export class CodeApplication extends Disposable {
 
 		// mac: open-file event received on startup
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return windowsMainService.open({
+			return this.windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,
 				urisToOpen: macOpenFiles.map(file => this.getURIToOpenFromPathSync(file)),
@@ -596,7 +596,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// default: read paths from cli
-		return windowsMainService.open({
+		return this.windowsMainService.open({
 			context,
 			cli: args,
 			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
