@@ -108,6 +108,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		'vs/css.d.ts',
 		'vs/css.js',
 		'vs/loader.js',
+		'vs/web-configuration-init.js',
 		'vs/nls.build.js',
 		'vs/nls.d.ts',
 		'vs/nls.js',
