@@ -45,6 +45,16 @@ export interface IHostUtils {
 	realpath(path: string): Promise<string>;
 }
 
+type TelemetryActivationEventFragment = {
+	id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	extensionVersion: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	activationEvents: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
 export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
@@ -316,13 +326,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"activatePlugin" : {
-				"${include}": [
-					"${TelemetryActivationEvent}"
-				]
-			}
-		*/
+		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
+		this._mainThreadTelemetryProxy.$publicLog2<any, ActivatePluginClassification>('activatePlugin', event);
 		this._mainThreadTelemetryProxy.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
@@ -719,18 +724,6 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
 		reason instanceof ExtensionActivatedByAPI ? 'api' :
 			'';
-
-	/* __GDPR__FRAGMENT__
-		"TelemetryActivationEvent" : {
-			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"extensionVersion": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	*/
 	const event = {
 		id: extensionDescription.identifier.value,
 		name: extensionDescription.name,
