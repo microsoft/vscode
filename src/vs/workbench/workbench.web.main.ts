@@ -89,10 +89,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 // import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { RemoteSearchService } from 'vs/workbench/services/search/common/searchService';
 import 'vs/platform/dialogs/browser/dialogService';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
@@ -101,7 +97,7 @@ import 'vs/workbench/services/textMate/browser/textMateService';
 // import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
-// import 'vs/workbench/services/search/node/searchService';
+import 'vs/workbench/services/search/common/searchService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 // import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
@@ -134,6 +130,7 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/notification/common/notificationService';
 // import 'vs/workbench/services/window/electron-browser/windowService';
 // import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
+import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
 import 'vs/workbench/browser/web.simpleservices';
 
@@ -162,9 +159,7 @@ registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(IWorkspacesService, WorkspacesService);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
-registerSingleton(ISearchService, RemoteSearchService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 
 //#endregion
 

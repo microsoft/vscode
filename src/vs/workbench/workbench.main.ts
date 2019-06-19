@@ -90,8 +90,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
@@ -136,6 +134,7 @@ import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
+import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -163,7 +162,6 @@ registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
