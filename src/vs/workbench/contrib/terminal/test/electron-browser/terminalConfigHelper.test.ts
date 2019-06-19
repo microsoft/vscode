@@ -16,7 +16,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		fixture = document.body;
 	});
 
-	test('TerminalConfigHelper - getFont fontFamily', function () {
+	test.skip('TerminalConfigHelper - getFont fontFamily', function () {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
 		configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: 'bar' } });
