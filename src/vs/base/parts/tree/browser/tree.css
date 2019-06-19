@@ -112,10 +112,13 @@
 }
 
 .monaco-tree-action.collapse-all {
-	background: url('CollapseAll.svg') center center no-repeat;
+	background: url('collapse-all-light.svg') center center no-repeat;
 }
 
-.hc-black .monaco-tree-action.collapse-all,
 .vs-dark .monaco-tree-action.collapse-all {
-	background: url('CollapseAll_inverse.svg') center center no-repeat;
+	background: url('collapse-all-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-tree-action.collapse-all {
+	background: url('collapse-all-hc.svg') center center no-repeat;
 }
