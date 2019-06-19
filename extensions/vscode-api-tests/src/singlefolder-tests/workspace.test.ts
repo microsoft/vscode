@@ -513,28 +513,28 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('findFiles', () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles', () => {
 		return vscode.workspace.findFiles('**/*.png').then((res) => {
 			assert.equal(res.length, 2);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
-	test('findFiles - exclude', () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles - exclude', () => {
 		return vscode.workspace.findFiles('**/*.png').then((res) => {
 			assert.equal(res.length, 2);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
-	test('findFiles, exclude', () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles, exclude', () => {
 		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
-	test('findFiles, cancellation', () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles, cancellation', () => {
 
 		const source = new vscode.CancellationTokenSource();
 		const token = source.token; // just to get an instance first
@@ -545,7 +545,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('findTextInFiles', async () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findTextInFiles', async () => {
 		const options: vscode.FindTextInFilesOptions = {
 			include: '*.ts',
 			previewOptions: {
@@ -565,7 +565,7 @@ suite('workspace-namespace', () => {
 		assert.equal(vscode.workspace.asRelativePath(match.uri), '10linefile.ts');
 	});
 
-	test('findTextInFiles, cancellation', async () => {
+	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/74898 */ : suite)('findTextInFiles, cancellation', async () => {
 		const results: vscode.TextSearchResult[] = [];
 		const cancellation = new vscode.CancellationTokenSource();
 		cancellation.cancel();
