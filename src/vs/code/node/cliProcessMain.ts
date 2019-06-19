@@ -40,7 +40,6 @@ import { IExtensionManifest, ExtensionType, isLanguagePackExtension } from 'vs/p
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { Schemas } from 'vs/base/common/network';
-import { buildTelemetryMessage } from 'vs/platform/environment/node/argv';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -95,8 +94,6 @@ export class Main {
 			const arg = argv['locate-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			await this.locateExtension(ids);
-		} else if (argv['telemetry']) {
-			console.log(buildTelemetryMessage(this.environmentService.extensionsPath));
 		}
 	}
 
