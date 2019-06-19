@@ -20,6 +20,7 @@ import 'vs/workbench/browser/web.main';
 //#region --- workbench actions
 
 import 'vs/workbench/browser/actions/layoutActions';
+import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
@@ -68,8 +69,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 // import { IRequestService } from 'vs/platform/request/node/request';
 // import { RequestService } from 'vs/platform/request/electron-browser/requestService';
-// import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-// import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 // import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 // import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 // import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
@@ -152,7 +153,7 @@ registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 // registerSingleton(IRequestService, RequestService, true);
-// registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
 // registerSingleton(IProductService, ProductService, true);
@@ -232,11 +233,12 @@ import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
-// import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
-// import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
-// import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-// import 'vs/workbench/contrib/debug/browser/repl';
-// import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/browser/debug.contribution';
+import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
+import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
+import 'vs/workbench/contrib/debug/browser/repl';
+import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/browser/debugHelperService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
@@ -248,13 +250,12 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
-// import 'vs/workbench/contrib/webview/browser/webview.contribution';
-// import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
+import 'vs/workbench/contrib/webview/browser/webview.contribution';
 
 import { IWebviewService } from 'vs/workbench/contrib/webview/common/webview';
-import { NullWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
 import { IWebviewEditorService, WebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-registerSingleton(IWebviewService, NullWebviewService, true);
+registerSingleton(IWebviewService, WebviewService, true);
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 // Extensions Management
@@ -283,9 +284,13 @@ registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 // import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
 
 // Tasks
-// import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
+import 'vs/workbench/contrib/tasks/browser/task.contribution';
+import { TaskService } from 'vs/workbench/contrib/tasks/browser/taskService';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+registerSingleton(ITaskService, TaskService, true);
 
 // Remote
+import 'vs/workbench/contrib/remote/common/remote.contribution';
 // import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 
 // Emmet

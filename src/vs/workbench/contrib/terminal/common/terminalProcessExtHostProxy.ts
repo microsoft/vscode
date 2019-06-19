@@ -71,8 +71,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onProcessTitleChanged.fire(title);
 	}
 
-	public emitPid(pid: number): void {
-		this._onProcessReady.fire({ pid, cwd: '' });
+	public emitReady(pid: number, cwd: string): void {
+		this._onProcessReady.fire({ pid, cwd });
 	}
 
 	public emitExit(exitCode: number): void {

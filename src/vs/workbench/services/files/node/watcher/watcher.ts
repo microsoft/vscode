@@ -12,6 +12,11 @@ export interface IDiskFileChange {
 	path: string;
 }
 
+export interface ILogMessage {
+	type: 'trace' | 'warn' | 'error';
+	message: string;
+}
+
 export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,

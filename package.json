@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.36.0",
-  "distro": "8a2c96a9296c1b8112a4d0e74c0b10063c1a8d44",
+  "distro": "c1ec2234fb5dc62f2bf9689f41dc1cd0a507a581",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -26,7 +26,7 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
     "web": "node resources/server/bin-dev/code-web.js --port 9888",
-    "web-selfhost": "node resources/server/bin-dev/code-web.js --port 9777 --selfhost --folder .",
+    "web-selfhost": "node resources/server/bin-dev/code-web.js --port 9777 --selfhost",
     "install-server": "node build/npm/install-server.js"
   },
   "dependencies": {
@@ -54,7 +54,7 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.1.1",
-    "xterm": "3.15.0-beta34",
+    "xterm": "3.15.0-beta42",
     "xterm-addon-search": "0.1.0-beta6",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
@@ -108,7 +108,7 @@
     "gulp-vinyl-zip": "^2.1.2",
     "http-server": "^0.11.1",
     "husky": "^0.13.1",
-    "innosetup-compiler": "^5.5.60",
+    "innosetup": "5.6.1",
     "is": "^3.1.0",
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",

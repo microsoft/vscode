@@ -301,6 +301,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_keybindings',
+	command: {
+		id: ShowRecommendedKeymapExtensionsAction.ID,
+		title: localize('miOpenKeymapExtensions2', "Keymaps")
+	},
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '1_settings',
 	command: {

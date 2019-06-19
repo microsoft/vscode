@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class SignService implements ISignService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<ISignService>;
 
 	async sign(value: string): Promise<string> {
-		return Promise.resolve((<any>self).CONNECTION_AUTH_TOKEN);
+		return Promise.resolve((<any>self).WORKBENCH_WEB_CONFIGURATION.connectionAuthToken);
 	}
 }

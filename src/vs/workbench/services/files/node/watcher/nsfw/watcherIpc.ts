@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions } from './watcher';
 import { Event } from 'vs/base/common/event';
-import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 
 export class WatcherChannel implements IServerChannel {
 
@@ -15,6 +15,7 @@ export class WatcherChannel implements IServerChannel {
 	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'watch': return this.service.watch(arg);
+			case 'onLogMessage': return this.service.onLogMessage;
 		}
 
 		throw new Error(`Event not found: ${event}`);
@@ -35,7 +36,7 @@ export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IChannel) { }
 
-	watch(options: IWatcherOptions): Event<IDiskFileChange[] | IWatchError> {
+	watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
 		return this.channel.listen('watch', options);
 	}
 
@@ -45,6 +46,10 @@ export class WatcherChannelClient implements IWatcherService {
 
 	setRoots(roots: IWatcherRequest[]): Promise<void> {
 		return this.channel.call('setRoots', roots);
+	}
+
+	get onLogMessage(): Event<ILogMessage> {
+		return this.channel.listen('onLogMessage');
 	}
 
 	stop(): Promise<void> {

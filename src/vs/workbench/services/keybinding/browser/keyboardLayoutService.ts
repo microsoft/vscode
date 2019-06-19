@@ -28,6 +28,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 
 export class BrowserKeyboardMapperFactory {
 	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
@@ -51,8 +52,8 @@ export class BrowserKeyboardMapperFactory {
 			this._onKeyboardLayoutChanged();
 		});
 
-		if ((navigator as any).keyboard && (navigator as any).keyboard.addEventListener) {
-			(navigator as any).keyboard.addEventListener('layoutchange', () => {
+		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
+			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
 				// Update user keyboard map settings
 				this.getBrowserKeyMap().then((keymap: IKeyboardMapping) => {
 					if (KeyboardLayoutProvider.INSTANCE.isActive(keymap)) {
@@ -223,25 +224,29 @@ export class BrowserKeyboardMapperFactory {
 
 	async getBrowserKeyMap() {
 		if ((navigator as any).keyboard) {
-			return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
-				let ret: IKeyboardMapping = {};
-				for (let key of e) {
-					ret[key[0]] = {
-						'value': key[1],
-						'withShift': '',
-						'withAltGr': '',
-						'withShiftAltGr': ''
-					};
-				}
+			try {
+				return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
+					let ret: IKeyboardMapping = {};
+					for (let key of e) {
+						ret[key[0]] = {
+							'value': key[1],
+							'withShift': '',
+							'withAltGr': '',
+							'withShiftAltGr': ''
+						};
+					}
 
-				const matchedKeyboardLayout = KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret);
+					const matchedKeyboardLayout = KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret);
 
-				if (matchedKeyboardLayout) {
-					return matchedKeyboardLayout.value;
-				}
+					if (matchedKeyboardLayout) {
+						return matchedKeyboardLayout.value;
+					}
 
-				return {};
-			});
+					return {};
+				});
+			} catch {
+				// getLayoutMap can throw if invoked from a nested browsing context
+			}
 		}
 
 		return {};
@@ -314,7 +319,7 @@ class UserKeyboardLayout extends Disposable {
 	private fileWatcherDisposable: IDisposable = Disposable.None;
 	private directoryWatcherDisposable: IDisposable = Disposable.None;
 
-	private _keyboardLayout: KeyboardLayoutInfo | null ;
+	private _keyboardLayout: KeyboardLayoutInfo | null;
 	get keyboardLayout(): KeyboardLayoutInfo | null { return this._keyboardLayout; }
 
 	constructor(
@@ -346,7 +351,7 @@ class UserKeyboardLayout extends Disposable {
 			const layoutInfo = value.layout;
 			const mappings = value.rawMapping;
 			this._keyboardLayout = KeyboardLayoutInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings);
-		} catch(e) {
+		} catch (e) {
 			this._keyboardLayout = null;
 		}
 

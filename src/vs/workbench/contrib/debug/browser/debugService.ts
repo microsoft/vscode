@@ -21,7 +21,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/contrib/debug/browser/debugActions';
-import { ConfigurationManager } from 'vs/workbench/contrib/debug/electron-browser/debugConfigurationManager';
+import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/contrib/tasks/common/taskSystem';
@@ -39,7 +39,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
-import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
+import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
@@ -794,8 +794,11 @@ export class DebugService implements IDebugService {
 				if (editor) {
 					const control = editor.getControl();
 					if (stackFrame && isCodeEditor(control) && control.hasModel()) {
-						const lineContent = control.getModel().getLineContent(stackFrame.range.startLineNumber);
-						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+						const model = control.getModel();
+						if (stackFrame.range.startLineNumber <= model.getLineCount()) {
+							const lineContent = control.getModel().getLineContent(stackFrame.range.startLineNumber);
+							aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+						}
 					}
 				}
 			});

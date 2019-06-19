@@ -29,6 +29,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -296,14 +297,14 @@ export class CallStackView extends ViewletPanel {
 			this.callStackItemType.reset();
 		}
 
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-			getActionsContext: () => element
+			getActions: () => actions,
+			getActionsContext: () => element,
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 

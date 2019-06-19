@@ -30,6 +30,7 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const $ = dom.$;
+let forgetScopes = true;
 
 export const variableSetEmitter = new Emitter<void>();
 
@@ -99,7 +100,14 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-		this._register(variableSetEmitter.event(() => this.tree.updateChildren()));
+		this._register(variableSetEmitter.event(() => {
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (stackFrame && forgetScopes) {
+				stackFrame.forgetScopes();
+			}
+			forgetScopes = true;
+			this.tree.updateChildren();
+		}));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
@@ -256,7 +264,11 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 				if (success && variable.value !== value) {
 					variable.setVariable(value)
 						// Need to force watch expressions and variables to update since a variable change can have an effect on both
-						.then(() => variableSetEmitter.fire());
+						.then(() => {
+							// Do not refresh scopes due to a node limitation #15520
+							forgetScopes = false;
+							variableSetEmitter.fire();
+						});
 				}
 			}
 		};
