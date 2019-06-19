@@ -124,8 +124,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 					const _data = await util.promisify(fs.readFile)(filePath);
-					const folder = this._environmentService.args['folder'] ? sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd()) : this._getQueryValue(req.url, 'folder');
-					const workspace = this._environmentService.args['workspace'];
+					const queryFolder = this._getQueryValue(req.url, 'folder');
+					const folder = queryFolder ? queryFolder : sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd());
+					const queryWorkspace = this._getQueryValue(req.url, 'workspace');
+					const workspace = queryWorkspace ? queryWorkspace : this._environmentService.args['workspace'];
 
 					const webviewServerAddress = webviewServer.address();
 					const webviewEndpoint = 'http://' + (typeof webviewServerAddress === 'string'
