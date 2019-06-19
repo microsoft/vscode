@@ -8,6 +8,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Event } from 'vs/base/common/event';
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {
 	public get localLinkRegex(): RegExp {
@@ -30,6 +31,10 @@ class TestXterm {
 }
 
 class MockTerminalInstanceService implements ITerminalInstanceService {
+	onRequestDefaultShellAndArgs?: Event<any> | undefined;
+	getDefaultShellAndArgs(): Promise<{ shell: string; args: string | string[] | undefined; }> {
+		throw new Error('Method not implemented.');
+	}
 	onRequestDefaultShell: any;
 	getDefaultShell(): Promise<string> {
 		throw new Error('Method not implemented.');

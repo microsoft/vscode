@@ -9,14 +9,14 @@ import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsSh
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform, isLinux, isMacintosh, isWindows, OperatingSystem, platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { readFile } from 'vs/base/node/pfs';
 import { basename } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { mergeDefaultShellPathAndArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { mergeDefaultShellPathAndArgs, getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -78,7 +78,24 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	public getDefaultShell(): Promise<string> {
 		// Don't go via ext host as that would delay terminal start up until after the extension
 		// host is ready.
-		return Promise.resolve(getDefaultShell(platform));
+		return Promise.resolve(getSystemShell(platform));
+	}
+
+	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
+		// TODO: Pull the workspace shell permissions setting
+		const isWorkspaceShellAllowed = false; // configHelper.checkWorkspaceShellPermissions(platform);
+		const shell = getDefaultShell(
+			(key) => this._configurationService.inspect(key),
+			isWorkspaceShellAllowed,
+			getSystemShell(platform),
+			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+			process.env.windir
+		);
+		const args = getDefaultShellArgs(
+			(key) => this._configurationService.inspect(key),
+			isWorkspaceShellAllowed
+		);
+		return Promise.resolve({ shell, args });
 	}
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {

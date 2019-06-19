@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -20,7 +20,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { getDefaultShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -338,10 +338,20 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminalEnvironment.getDefaultShell(
 			fetchSetting,
 			this._isWorkspaceShellAllowed,
-			getDefaultShell(platform.platform),
+			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir
 		);
+	}
+
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string | undefined {
+		const fetchSetting = (key: string) => {
+			const setting = configProvider
+				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
+				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
+			return this._apiInspectConfigToPlain<string | string[]>(setting);
+		};
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -495,7 +505,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				shellLaunchConfig,
 				fetchSetting,
 				isWorkspaceShellAllowed || false,
-				getDefaultShell(platform.platform),
+				getSystemShell(platform.platform),
 				process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 				process.env.windir
 			);
@@ -579,8 +589,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return detectAvailableShells();
 	}
 
+	// TODO: Remove this once requestDefaultShellAndArgs is working
 	public $requestDefaultShell(): Promise<string> {
-		return Promise.resolve(getDefaultShell(platform.platform));
+		return Promise.resolve(getSystemShell(platform.platform));
+	}
+
+	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		return Promise.resolve({
+			shell: this.getDefaultShell(configProvider),
+			args: this._getDefaultShellArgs(configProvider)
+		});
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {

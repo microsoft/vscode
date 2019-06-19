@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
@@ -46,11 +46,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 		this._toDispose.push(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
-		this._toDispose.push(_terminalService.onRequestAvailableShells(r => this._onRequestAvailableShells(r)));
+		this._toDispose.push(_terminalService.onRequestAvailableShells(r => this._proxy.$requestAvailableShells().then(e => r(e))));
 
 		// ITerminalInstanceService listeners
 		if (terminalInstanceService.onRequestDefaultShell) {
-			this._toDispose.push(terminalInstanceService.onRequestDefaultShell(r => this._onRequestDefaultShell(r)));
+			this._toDispose.push(terminalInstanceService.onRequestDefaultShell(r => this._proxy.$requestDefaultShell().then(e => r(e))));
+		}
+		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
+			this._toDispose.push(terminalInstanceService.onRequestDefaultShellAndArgs(r => this._proxy.$requestDefaultShellAndArgs().then(e => r(e.shell, e.args))));
 		}
 
 		// Set initial ext host state
@@ -284,13 +287,5 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			sum += sw.elapsed();
 		}
 		this._terminalProcesses[terminalId].emitLatency(sum / COUNT);
-	}
-
-	private _onRequestAvailableShells(resolve: (shells: IShellDefinition[]) => void): void {
-		this._proxy.$requestAvailableShells().then(e => resolve(e));
-	}
-
-	private _onRequestDefaultShell(resolve: (defaultShell: string) => void): void {
-		this._proxy.$requestDefaultShell().then(e => resolve(e));
 	}
 }
