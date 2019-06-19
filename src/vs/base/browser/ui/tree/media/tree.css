@@ -14,8 +14,13 @@
 	height: 100%;
 	position: absolute;
 	top: 0;
-	left: 16px;
+	left: 14px;
 	pointer-events: none;
+}
+
+/* TODO @misolori remove before shipping stable */
+body:not([data-exploration="icon-exploration"]) .monaco-tl-indent {
+	left: 16px;
 }
 
 .monaco-tl-indent > svg {
