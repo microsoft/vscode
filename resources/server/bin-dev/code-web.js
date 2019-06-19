@@ -10,13 +10,19 @@ const fs = require('fs');
 
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 const HAS_FOLDER = process.argv.indexOf('--folder') !== -1;
+const HAS_PORT = process.argv.indexOf('--port') !== -1;
+
+let PORT = SELFHOST ? 9777 : 9888;
 
 if (!HAS_FOLDER) {
 	console.log(`Using ${process.cwd()} as workspace. Use --folder <path> to specifcy a different workspace location.`);
 	process.argv.push('--folder', process.cwd());
 }
 
-let PORT = 8000;
+if (!HAS_PORT) {
+	process.argv.push('--port', new String(PORT));
+}
+
 let BROWSER = undefined;
 process.argv.forEach((arg, idx) => {
 	if (arg.indexOf('--port') !== -1 && process.argv.length >= idx + 1) {
