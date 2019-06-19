@@ -802,16 +802,39 @@ export class SimpleWindowService implements IWindowService {
 			return Promise.resolve();
 		}
 
-		// Chromium, Safari and Edge 14 are all using webkit prefix.
-		if ((<any>document).webkitIsFullScreen !== undefined) {
-			if (!(<any>document).webkitIsFullScreen) {
-				(<any>target).webkitRequestFullscreen();
-				browser.setFullscreen(true);
+		// Chromium
+		if ((<any>document).fullscreen !== undefined) {
+			if (!(<any>document).fullscreen) {
+
+				return (<any>target).requestFullscreen().then(() => {
+					browser.setFullscreen(true);
+				}).catch(() => {
+					// if it fails, chromium throws an exception with error undefined.
+					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+					console.warn('Toggle Full Screen failed');
+				});
 			} else {
-				(<any>document).webkitExitFullscreen();
-				browser.setFullscreen(false);
+				return document.exitFullscreen().then(() => {
+					browser.setFullscreen(false);
+				}).catch(() => {
+					console.warn('Exit Full Screen failed');
+				});
 			}
-			return Promise.resolve();
+		}
+
+		// Safari and Edge 14 are all using webkit prefix
+		if ((<any>document).webkitIsFullScreen !== undefined) {
+			try {
+				if (!(<any>document).webkitIsFullScreen) {
+					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
+					browser.setFullscreen(true);
+				} else {
+					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					browser.setFullscreen(false);
+				}
+			} catch {
+				console.warn('Enter/Exit Full Screen failed');
+			}
 		}
 
 		return Promise.resolve();

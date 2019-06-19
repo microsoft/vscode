@@ -247,7 +247,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 
 			if (browser.isFullscreen()) {
-				keyboard.lock();
+				keyboard.lock(['Escape']);
 			} else {
 				keyboard.unlock();
 			}

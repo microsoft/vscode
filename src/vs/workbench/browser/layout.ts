@@ -172,8 +172,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		protected readonly parent: HTMLElement
 	) {
 		super();
-
-		this._container.setAttribute('allowfullscreen', '');
 	}
 
 	protected initLayout(accessor: ServicesAccessor): void {
