@@ -29,7 +29,6 @@ import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationN
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
 export class BrowserKeyboardMapperFactory {
 	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
@@ -77,8 +76,8 @@ export class BrowserKeyboardMapperFactory {
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
-		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then(() => {
-			this._keymapInfos.push(...KeyboardLayoutContribution.INSTANCE.layoutInfos);
+		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
+			this._keymapInfos.push(...m.KeyboardLayoutContribution.INSTANCE.layoutInfos);
 			this._mru = this._keymapInfos;
 			this._initialized = true;
 			this.onKeyboardLayoutChanged();
