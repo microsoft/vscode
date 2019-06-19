@@ -13,6 +13,7 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { Schemas } from 'vs/base/common/network';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -82,6 +83,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		};
 
 		this.webviewEndpoint = configuration.webviewEndpoint;
+		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 	}
 
 	untitledWorkspacesHome: URI;
