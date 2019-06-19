@@ -157,7 +157,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
-// registerSingleton(IProductService, ProductService, true);
 // registerSingleton(IWindowsService, WindowsService);
 // registerSingleton(IUpdateService, UpdateService);
 // registerSingleton(IIssueService, IssueService);
