@@ -26,8 +26,8 @@ if (!HAS_PORT) {
 }
 
 if (INSIDERS) {
-	process.argv.push('--web-user-data-dir', `"${getInsidersUserDataPath()}"`);
-	process.argv.push('--extensions-dir', `"${getInsidersExtensionPath()}"`);
+	process.argv.push('--web-user-data-dir', getInsidersUserDataPath());
+	process.argv.push('--extensions-dir', getInsidersExtensionPath());
 }
 
 let BROWSER = undefined;
