@@ -331,9 +331,45 @@ export class BreadcrumbsControl {
 		let editorDecorations: string[] = [];
 		let editorViewState: ICodeEditorViewState | undefined;
 
+		const calcPickerPositionAndDimensions = () => {
+			let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+			let maxHeight = Math.min(window.innerHeight * 0.7, 300);
+
+			let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
+			let pickerArrowSize = 8;
+			let pickerArrowOffset: number;
+
+			let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+			let y = data.top + data.height + pickerArrowSize;
+			if (y + maxHeight >= window.innerHeight) {
+				maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
+			}
+			let x = data.left;
+			if (x + pickerWidth >= maxInnerWidth) {
+				x = maxInnerWidth - pickerWidth;
+			}
+			if (event.payload instanceof StandardMouseEvent) {
+				let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+				pickerArrowOffset = event.payload.posx - x;
+				if (pickerArrowOffset > maxPickerArrowOffset) {
+					x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
+					pickerArrowOffset = maxPickerArrowOffset;
+				}
+			} else {
+				pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
+			}
+			pickerArrowOffset = Math.max(0, pickerArrowOffset);
+
+			return { x, y, maxHeight, pickerWidth, pickerArrowSize, pickerArrowOffset };
+		};
+
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
+
+				const dimensions = calcPickerPositionAndDimensions();
+				picker.show(element, dimensions.maxHeight, dimensions.pickerWidth, dimensions.pickerArrowSize, dimensions.pickerArrowOffset);
+
 				let selectListener = picker.onDidPickElement(data => {
 					if (data.target) {
 						editorViewState = undefined;
@@ -392,36 +428,7 @@ export class BreadcrumbsControl {
 					blurListener
 				);
 			},
-			getAnchor: () => {
-				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
-				let maxHeight = Math.min(window.innerHeight * 0.7, 300);
-
-				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-				let pickerArrowSize = 8;
-				let pickerArrowOffset: number;
-
-				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-				let y = data.top + data.height + pickerArrowSize;
-				if (y + maxHeight >= window.innerHeight) {
-					maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
-				}
-				let x = data.left;
-				if (x + pickerWidth >= maxInnerWidth) {
-					x = maxInnerWidth - pickerWidth;
-				}
-				if (event.payload instanceof StandardMouseEvent) {
-					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
-					pickerArrowOffset = event.payload.posx - x;
-					if (pickerArrowOffset > maxPickerArrowOffset) {
-						x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
-						pickerArrowOffset = maxPickerArrowOffset;
-					}
-				} else {
-					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
-				}
-				picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
-				return { x, y };
-			},
+			getAnchor: () => calcPickerPositionAndDimensions(),
 			onHide: (data) => {
 				if (editor) {
 					editor.deltaDecorations(editorDecorations, []);
