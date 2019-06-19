@@ -10,9 +10,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';
+import { localize } from 'vs/nls';
+import { joinPath } from 'vs/base/common/resources';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -54,6 +57,21 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 	}
 }
 
+class RemoteLogOutputChannels implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	) {
+		remoteAgentService.getEnvironment().then(remoteEnv => {
+			if (remoteEnv) {
+				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
+			}
+		});
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
