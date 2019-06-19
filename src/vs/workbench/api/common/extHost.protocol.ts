@@ -1129,6 +1129,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
+	$requestDefaultShell(): Promise<string>;
 }
 
 export interface ExtHostSCMShape {

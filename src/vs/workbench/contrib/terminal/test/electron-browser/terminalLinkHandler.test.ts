@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Platform, OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -30,6 +30,10 @@ class TestXterm {
 }
 
 class MockTerminalInstanceService implements ITerminalInstanceService {
+	onRequestDefaultShell: any;
+	getDefaultShell(): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
 	mergeDefaultShellPathAndArgs(): void {
 		throw new Error('Method not implemented.');
 	}
@@ -47,9 +51,6 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Method not implemented.');
 	}
 	createTerminalProcess(): any {
-		throw new Error('Method not implemented.');
-	}
-	getDefaultShell(p: Platform): string {
 		throw new Error('Method not implemented.');
 	}
 	getMainProcessParentEnv(): any {

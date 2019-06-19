@@ -9,6 +9,7 @@ import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { Emitter, Event } from 'vs/base/common/event';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -16,6 +17,9 @@ let SearchAddon: typeof XTermSearchAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: any;
+
+	private readonly _onRequestDefaultShell = new Emitter<(defaultShell: string) => void>();
+	public get onRequestDefaultShell(): Event<(defaultShell: string) => void> { return this._onRequestDefaultShell.event; }
 
 	constructor() { }
 
@@ -48,8 +52,8 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public getDefaultShell(): string {
-		throw new Error('Not implemented');
+	public getDefaultShell(): Promise<string> {
+		return new Promise(r => this._onRequestDefaultShell.fire(r));
 	}
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {

@@ -62,10 +62,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
 	}
 
-	public getDefaultShell(p: Platform): string {
-		return getDefaultShell(p);
-	}
-
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, configHelper: ITerminalConfigHelper, platformOverride: Platform = platform): void {
 		const isWorkspaceShellAllowed = configHelper.checkWorkspaceShellPermissions(platformOverride === Platform.Windows ? OperatingSystem.Windows : (platformOverride === Platform.Mac ? OperatingSystem.Macintosh : OperatingSystem.Linux));
 		mergeDefaultShellPathAndArgs(
@@ -77,6 +73,12 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			process.env.windir,
 			platformOverride
 		);
+	}
+
+	public getDefaultShell(): Promise<string> {
+		// Don't go via ext host as that would delay terminal start up until after the extension
+		// host is ready.
+		return Promise.resolve(getDefaultShell(platform));
 	}
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {

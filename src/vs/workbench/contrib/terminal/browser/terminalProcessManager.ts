@@ -163,7 +163,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	private async _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<ITerminalChildProcess> {
 		if (!shellLaunchConfig.executable) {
-			this._terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this._terminalInstanceService.getDefaultShell(platform.platform), this._configHelper);
+			this._terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, await this._terminalInstanceService.getDefaultShell(), this._configHelper);
 		}
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);

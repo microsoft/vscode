@@ -579,6 +579,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return detectAvailableShells();
 	}
 
+	public $requestDefaultShell(): Promise<string> {
+		return Promise.resolve(getDefaultShell(platform.platform));
+	}
+
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
 		this._terminalProcesses[id].dispose();
