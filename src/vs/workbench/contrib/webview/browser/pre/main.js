@@ -123,16 +123,18 @@
 			navigator.serviceWorker.register('service-worker.js');
 
 			navigator.serviceWorker.ready.then(registration => {
-				host.onMessage('loaded-resource', event => {
-					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
-				});
+				function forwardFromHostToWorker(channel) {
+					host.onMessage(channel, event => {
+						registration.active.postMessage({ channel: channel, data: event.data.args });
+					});
+				}
+				forwardFromHostToWorker('did-load-resource');
+				forwardFromHostToWorker('did-load-localhost');
 			});
 
 			navigator.serviceWorker.addEventListener('message', event => {
-				switch (event.data.channel) {
-					case 'load-resource':
-						host.postMessage('load-resource', { path: event.data.path });
-						return;
+				if (['load-resource', 'load-localhost'].includes(event.data.channel)) {
+					host.postMessage(event.data.channel, event.data);
 				}
 			});
 		}

@@ -189,20 +189,12 @@ export class StatusBarController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const c of commands) {
-			const statusId = `status.scm.${repository.provider.id}.${c.tooltip}`; // needs to be unique, but c.id is too random
-			let statusLabel: string;
-			if (c.tooltip) {
-				statusLabel = localize('status.scm', "Source Control ({0}): {1}", repository.provider.label, c.tooltip.replace('...', ''));
-			} else {
-				statusLabel = localize('status.scm.short', "Source Control ({0})", repository.provider.label);
-			}
-
 			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
 				tooltip: `${label} - ${c.tooltip}`,
 				command: c.id,
 				arguments: c.arguments
-			}, statusId, statusLabel, MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;

@@ -16,7 +16,7 @@
 	<script>
 		(function () {
 			const id = document.location.search.match(/\bid=([\w\-]+)/)[1];
-			const handlers = {};
+			const handlers = new Map();
 
 			const postMessageToVsCode = (channel, data) => {
 				window.parent.postMessage({ target: id, channel, data }, '*');
@@ -30,7 +30,7 @@
 				}
 
 				const channel = e.data.channel;
-				const handler = handlers[channel];
+				const handler = handlers.get(channel);
 				if (handler) {
 					handler(e, e.data.args);
 				} else {
@@ -44,7 +44,7 @@
 					postMessageToVsCode(channel, data);
 				},
 				onMessage: (channel, handler) => {
-					handlers[channel] = handler;
+					handlers.set(channel, handler);
 				}
 			});
 		}());

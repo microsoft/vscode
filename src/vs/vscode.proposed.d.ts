@@ -1417,22 +1417,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region DocumentLink tooltip mjbvz
-
-	interface DocumentLink {
-		/**
-		 * The tooltip text when you hover over this link.
-		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
-		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
-		 * user settings, and localization.
-		 */
-		tooltip?: string;
-	}
-
-	// #endregion
-
-
 	// #region Ben - status bar item with ID and Name
 
 	export namespace window {

@@ -6,8 +6,10 @@
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
-import { readFile, fileExists } from 'vs/base/node/pfs';
-import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { readFile, fileExists, stat } from 'vs/base/node/pfs';
+import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { coalesce } from 'vs/base/common/arrays';
+import { normalize, basename } from 'vs/base/common/path';
 
 export function getDefaultShell(p: platform.Platform): string {
 	if (p === platform.Platform.Windows) {
@@ -81,4 +83,81 @@ export function getWindowsBuildNumber(): number {
 		buildNumber = parseInt(osVersion[3]);
 	}
 	return buildNumber;
+}
+
+export function detectAvailableShells(): Promise<IShellDefinition[]> {
+	return platform.isWindows ? detectAvailableWindowsShells() : detectAvailableUnixShells();
+}
+
+async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
+	// Determine the correct System32 path. We want to point to Sysnative
+	// when the 32-bit version of VS Code is running on a 64-bit machine.
+	// The reason for this is because PowerShell's important PSReadline
+	// module doesn't work if this is not the case. See #27915.
+	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
+
+	let useWSLexe = false;
+
+	if (getWindowsBuildNumber() >= 16299) {
+		useWSLexe = true;
+	}
+
+	const expectedLocations = {
+		'Command Prompt': [`${system32Path}\\cmd.exe`],
+		PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+		'PowerShell Core': [await getShellPathFromRegistry('pwsh')],
+		'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
+		'Git Bash': [
+			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
+		]
+	};
+	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
+	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
+
+	return Promise.all(promises).then(coalesce);
+}
+
+async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {
+	const contents = await readFile('/etc/shells', 'utf8');
+	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+	return shells.map(e => {
+		return {
+			label: basename(e),
+			path: e
+		};
+	});
+}
+
+function validateShellPaths(label: string, potentialPaths: string[]): Promise<IShellDefinition | undefined> {
+	if (potentialPaths.length === 0) {
+		return Promise.resolve(undefined);
+	}
+	const current = potentialPaths.shift()!;
+	if (current! === '') {
+		return validateShellPaths(label, potentialPaths);
+	}
+	return stat(normalize(current)).then(stat => {
+		if (!stat.isFile && !stat.isSymbolicLink) {
+			return validateShellPaths(label, potentialPaths);
+		}
+		return {
+			label,
+			path: current
+		};
+	});
+}
+
+async function getShellPathFromRegistry(shellName: string): Promise<string> {
+	const Registry = await import('vscode-windows-registry');
+	try {
+		const shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
+		return shellPath ? shellPath : '';
+	} catch (error) {
+		return '';
+	}
 }

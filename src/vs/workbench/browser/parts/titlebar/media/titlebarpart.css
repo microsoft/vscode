@@ -52,7 +52,7 @@
 
 .monaco-workbench.windows .part.titlebar .menubar,
 .monaco-workbench.linux .part.titlebar .menubar {
-	z-index: 1;
+	z-index: 2000;
 }
 
 .monaco-workbench.web .part.titlebar > .window-title,

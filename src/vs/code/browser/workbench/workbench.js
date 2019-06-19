@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
 'use strict';
 
 (function () {
 
-	// @ts-ignore
 	require.config({
 		baseUrl: `${window.location.origin}/out`,
 		paths: {
@@ -20,10 +18,9 @@
 		}
 	});
 
-	// @ts-ignore
-	require(['vs/workbench/workbench.web.api'], function () {
-		// @ts-ignore
-		// eslint-disable-next-line no-undef
-		monaco.workbench.create(document.body, self.WINDOW_CONFIGURATION);
+	require(['vs/workbench/workbench.web.api'], function (api) {
+		const options = JSON.parse(document.getElementById('vscode-workbench-web-configuration').getAttribute('data-settings'));
+
+		api.create(document.body, options);
 	});
 })();

@@ -23,10 +23,6 @@ export class TerminalNativeService implements ITerminalNativeService {
 		throw new Error('Not implemented');
 	}
 
-	public selectDefaultWindowsShell(): Promise<string | undefined> {
-		throw new Error('Not implemented');
-	}
-
 	public getWslPath(): Promise<string> {
 		throw new Error('Not implemented');
 	}

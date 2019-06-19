@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper, ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -35,7 +35,6 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -624,13 +623,13 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalNativeService private readonly _terminalNativeService: ITerminalNativeService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): Promise<any> {
-		return this._terminalNativeService.selectDefaultWindowsShell();
+		return this._terminalService.selectDefaultWindowsShell();
 	}
 }
 
@@ -712,8 +711,7 @@ export class SwitchTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@ITerminalNativeService private readonly terminalNativeService: ITerminalNativeService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -728,7 +726,7 @@ export class SwitchTerminalAction extends Action {
 		}
 		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
 			this.terminalService.refreshActiveTab();
-			return this.terminalNativeService.selectDefaultWindowsShell();
+			return this.terminalService.selectDefaultWindowsShell();
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);
@@ -744,8 +742,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
@@ -757,11 +754,8 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	private _updateItems(): void {
 		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
-		let enableSelectDefaultShell = this.workbenchEnvironmentService.configuration.remoteAuthority ? false : isWindows;
-		if (enableSelectDefaultShell) {
-			items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
-			items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
-		}
+		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
+		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
 		this.setOptions(items, this.terminalService.activeTabIndex);
 	}
 }

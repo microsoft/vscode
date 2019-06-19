@@ -1106,6 +1106,11 @@ export interface ShellLaunchConfigDto {
 	env?: { [key: string]: string | null };
 }
 
+export interface IShellDefinitionDto {
+	label: string;
+	path: string;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
@@ -1123,6 +1128,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
 }
 
 export interface ExtHostSCMShape {
