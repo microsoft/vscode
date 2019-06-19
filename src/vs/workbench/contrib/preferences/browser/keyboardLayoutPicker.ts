@@ -33,27 +33,40 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 		super();
 
 		let layout = this.keymapService.getCurrentKeyboardLayout();
-		let layoutInfo = (<any>layout).text || (<any>layout).lang || (<any>layout).model;
-		this.pickerElement.value = this.statusbarService.addEntry(
-			{
-				text: `Layout: ${layoutInfo}`,
-				// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
-				command: KEYBOARD_LAYOUT_OPEN_PICKER
-			},
-			'status.editor.screenReaderMode',
-			nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"),
-			StatusbarAlignment.RIGHT
-		);
+		if (layout) {
+			let layoutInfo = (<any>layout).text || (<any>layout).lang || (<any>layout).model;
+			this.pickerElement.value = this.statusbarService.addEntry(
+				{
+					text: `Layout: ${layoutInfo}`,
+					// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
+					command: KEYBOARD_LAYOUT_OPEN_PICKER
+				},
+				'status.editor.screenReaderMode',
+				nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"),
+				StatusbarAlignment.RIGHT
+			);
+		}
 
 		this._register(keymapService.onDidChangeKeyboardMapper(() => {
-			if (this.pickerElement.value) {
-				let layout = this.keymapService.getCurrentKeyboardLayout();
-				let layoutInfo = (<any>layout).text || (<any>layout).lang || (<any>layout).model;
+			let layout = this.keymapService.getCurrentKeyboardLayout();
+			let layoutInfo = (<any>layout).text || (<any>layout).lang || (<any>layout).model;
 
+			if (this.pickerElement.value) {
 				this.pickerElement.value.update({
 					text: `Layout: ${layoutInfo}`,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				});
+			} else {
+				this.pickerElement.value = this.statusbarService.addEntry(
+					{
+						text: `Layout: ${layoutInfo}`,
+						// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
+						command: KEYBOARD_LAYOUT_OPEN_PICKER
+					},
+					'status.editor.screenReaderMode',
+					nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"),
+					StatusbarAlignment.RIGHT
+				);
 			}
 		}));
 	}
