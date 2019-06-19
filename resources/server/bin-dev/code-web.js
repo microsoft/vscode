@@ -116,7 +116,7 @@ proc.stdout.on("data", data => {
 function getInsidersUserDataPath() {
 	const name = 'Code - Insiders';
 	switch (process.platform) {
-		case 'win32': return path.join(process.env['USERPROFILE'], 'AppData', 'Roaming', name);
+		case 'win32': return `"${path.join(process.env['USERPROFILE'], 'AppData', 'Roaming', name)}"`;
 		case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support', name);
 		case 'linux': return path.join(os.homedir(), '.config', name);
 		default: throw new Error('Platform not supported');
