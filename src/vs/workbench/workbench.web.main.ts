@@ -9,7 +9,6 @@ import 'vs/editor/editor.all';
 
 import 'vs/workbench/api/browser/extensionHost.contribution';
 
-// import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
 import 'vs/workbench/browser/web.main';
@@ -20,6 +19,7 @@ import 'vs/workbench/browser/web.main';
 //#region --- workbench actions
 
 import 'vs/workbench/browser/actions/layoutActions';
+import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';

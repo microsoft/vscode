@@ -452,7 +452,7 @@ class ExtHostTreeView<T> extends Disposable {
 			description: extensionTreeItem.description,
 			resourceUri: extensionTreeItem.resourceUri,
 			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : undefined,
-			command: extensionTreeItem.command ? this.commands.toInternal2(extensionTreeItem.command, disposable) : undefined,
+			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command, disposable) : undefined,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,

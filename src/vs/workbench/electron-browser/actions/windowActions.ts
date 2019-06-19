@@ -61,20 +61,6 @@ export class NewWindowAction extends Action {
 	}
 }
 
-export class ToggleFullScreenAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleFullScreen';
-	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
-
-	constructor(id: string, label: string, @IWindowService private readonly windowService: IWindowService) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowService.toggleFullScreen();
-	}
-}
-
 export abstract class BaseZoomAction extends Action {
 	private static readonly SETTING_KEY = 'window.zoomLevel';
 
