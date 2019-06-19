@@ -203,20 +203,6 @@ export function getDefaultShellArgs(
 	return args;
 }
 
-// TODO: Remove this?
-export function mergeDefaultShellPathAndArgs(
-	shell: IShellLaunchConfig,
-	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
-	isWorkspaceShellAllowed: boolean,
-	defaultShell: string,
-	isWoW64: boolean,
-	windir: string | undefined,
-	platformOverride: platform.Platform = platform.platform
-): void {
-	shell.executable = getDefaultShell(fetchSetting, isWorkspaceShellAllowed, defaultShell, isWoW64, windir, platformOverride);
-	shell.args = getDefaultShellArgs(fetchSetting, isWorkspaceShellAllowed, platformOverride);
-}
-
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
 	lastActiveWorkspace: IWorkspaceFolder | null,

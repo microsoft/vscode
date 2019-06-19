@@ -495,20 +495,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
-			const fetchSetting = (key: string) => {
-				const setting = configProvider
-					.getConfiguration(key.substr(0, key.lastIndexOf('.')))
-					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
-				return this._apiInspectConfigToPlain<string | string[]>(setting);
-			};
-			terminalEnvironment.mergeDefaultShellPathAndArgs(
-				shellLaunchConfig,
-				fetchSetting,
-				isWorkspaceShellAllowed || false,
-				getSystemShell(platform.platform),
-				process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
-				process.env.windir
-			);
+			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
+			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
 		}
 
 		// Get the initial cwd

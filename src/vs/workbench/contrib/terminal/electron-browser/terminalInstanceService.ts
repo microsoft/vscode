@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalInstance, IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessEnvironment, Platform, isLinux, isMacintosh, isWindows, OperatingSystem, platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows, platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
@@ -16,7 +16,7 @@ import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { readFile } from 'vs/base/node/pfs';
 import { basename } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { mergeDefaultShellPathAndArgs, getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 
 let Terminal: typeof XTermTerminal;
@@ -66,19 +66,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	private _isWorkspaceShellAllowed(): boolean {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
-	}
-
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, configHelper: ITerminalConfigHelper, platformOverride: Platform = platform): void {
-		const isWorkspaceShellAllowed = configHelper.checkWorkspaceShellPermissions(platformOverride === Platform.Windows ? OperatingSystem.Windows : (platformOverride === Platform.Mac ? OperatingSystem.Macintosh : OperatingSystem.Linux));
-		mergeDefaultShellPathAndArgs(
-			shell,
-			(key) => this._configurationService.inspect(key),
-			isWorkspaceShellAllowed,
-			defaultShell,
-			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
-			process.env.windir,
-			platformOverride
-		);
 	}
 
 	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {

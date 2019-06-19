@@ -59,7 +59,4 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
 	}
-
-	public mergeDefaultShellPathAndArgs(): void {
-	}
 }
