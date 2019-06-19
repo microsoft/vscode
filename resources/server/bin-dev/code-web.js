@@ -7,10 +7,12 @@ const opn = require('opn');
 const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 const HAS_FOLDER = process.argv.indexOf('--folder') !== -1;
 const HAS_PORT = process.argv.indexOf('--port') !== -1;
+const INSIDERS = process.argv.indexOf('--insiders') !== -1;
 
 let PORT = SELFHOST ? 9777 : 9888;
 
@@ -21,6 +23,11 @@ if (!HAS_FOLDER) {
 
 if (!HAS_PORT) {
 	process.argv.push('--port', new String(PORT));
+}
+
+if (INSIDERS) {
+	process.argv.push('--web-user-data-dir', getInsidersUserDataPath());
+	process.argv.push('--extensions-dir', getInsidersExtensionPath());
 }
 
 let BROWSER = undefined;
@@ -105,6 +112,20 @@ proc.stdout.on("data", data => {
 		}, 100);
 	}
 });
+
+function getInsidersUserDataPath() {
+	const name = 'Code - Insiders';
+	switch (process.platform) {
+		case 'win32': return path.join(process.env['USERPROFILE'], 'AppData', 'Roaming', name);
+		case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support', name);
+		case 'linux': return path.join(os.homedir(), '.config', name);
+		default: throw new Error('Platform not supported');
+	}
+}
+
+function getInsidersExtensionPath() {
+	return path.join(os.homedir(), '.vscode-insiders', 'extensions');
+}
 
 // Log errors
 proc.stderr.on("data", data => {

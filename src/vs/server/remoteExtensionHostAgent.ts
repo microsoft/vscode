@@ -48,6 +48,7 @@ args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER,
 const environmentService = new EnvironmentService(args, process.execPath);
 const logService: ILogService = new SpdLogService(RemoteExtensionLogFileName, environmentService.logsPath, getLogLevel(environmentService));
 logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
+logService.trace('process arguments:', args);
 
 function eventuallyExit(code: number): void {
 	setTimeout(() => process.exit(code), 0);
