@@ -158,9 +158,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				let filePath: string;
 				if (pathname === '/') {
 
-					const authority = req.headers.host!; // TODO@web this is localhost when opening 127.0.0.1 and is possibly undefined, does it matter?
+					const remoteAuthority = req.headers.host!; // TODO@web this is localhost when opening 127.0.0.1 and is possibly undefined, does it matter?
 					if (!transformer) {
-						transformer = createRemoteURITransformer(authority);
+						transformer = createRemoteURITransformer(remoteAuthority);
 					}
 
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
@@ -182,11 +182,11 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							connectionAuthToken: CONNECTION_AUTH_TOKEN,
 							folderUri: folder ? transformer.transformOutgoing(URI.file(folder)) : undefined,
 							workspaceUri: workspace ? transformer.transformOutgoing(URI.file(workspace)) : undefined,
-							userDataUri: transformer.transformOutgoing(URI.file(this._environmentService.userDataPath)),
-							remoteAuthority: authority,
-							webviewEndpoint: webviewEndpoint,
+							remoteAuthority,
+							webviewEndpoint,
 						})))
-						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint);
+						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
+						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(URI.file(this._environmentService.userDataPath)))));
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
