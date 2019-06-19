@@ -259,7 +259,11 @@ export function createApiFactory(
 			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
-			}
+			},
+			get webviewResourceRoot() {
+				checkProposedApiEnabled(extension);
+				return initData.environment.webviewResourceRoot;
+			},
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
