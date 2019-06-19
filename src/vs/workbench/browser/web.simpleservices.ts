@@ -73,6 +73,7 @@ import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsE
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
+import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
 	scheme: Schemas.vscodeRemote,
@@ -1042,7 +1043,9 @@ export class SimpleTelemetryService implements ITelemetryService {
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
-
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>) {
+		return Promise.resolve(undefined);
+	}
 	setEnabled(value: boolean): void {
 	}
 

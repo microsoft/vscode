@@ -33,6 +33,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 declare var __dirname: string;
 
@@ -159,6 +160,13 @@ class TestTelemetryService implements ITelemetryService {
 	}
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
+		const event = { name: eventName, data: data };
+		this.events.push(event);
+		this.emitter.fire(event);
+		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>) {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);

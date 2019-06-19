@@ -57,12 +57,13 @@ export class TelemetryService implements ITelemetryService {
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
-			/* __GDPR__
-				"optInStatus" : {
-					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
-				}
-			*/
-			this.publicLog('optInStatus', { optIn: this._userOptIn });
+			type OptInClass = {
+				optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+			};
+			type OptInEvent = {
+				optIn: boolean;
+			};
+			this.publicLog2<OptInEvent, OptInClass>('optInStatus', { optIn: this._userOptIn });
 
 			this._commonProperties.then(values => {
 				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
@@ -105,7 +106,7 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog2?<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean): Promise<any> {
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
 		if (!this.isOptedIn) {
 			return Promise.resolve(undefined);

@@ -16,6 +16,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -57,6 +58,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
 		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	}
+
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean) {
+		return this.impl.publicLog2(eventName, data, anonymizeFilePaths);
 	}
 
 	getTelemetryInfo(): Promise<ITelemetryInfo> {

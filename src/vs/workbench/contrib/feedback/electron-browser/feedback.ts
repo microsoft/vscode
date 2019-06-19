@@ -19,6 +19,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
@@ -217,14 +218,7 @@ export class FeedbackDropdown extends Dropdown {
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
-
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'feedback' });
+			this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: actionId, from: 'feedback' });
 		}));
 
 		// Contact: Request a Feature

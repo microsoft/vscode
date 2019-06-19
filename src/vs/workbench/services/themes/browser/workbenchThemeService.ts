@@ -437,16 +437,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (themeData) {
 			let key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
-				/* __GDPR__
-					"activatePlugin" : {
-						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('activatePlugin', {
+				type ActivatePluginClassification = {
+					id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+					name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+					isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					themeId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+				};
+				type ActivatePluginEvent = {
+					id: string;
+					name: string;
+					isBuiltin: boolean;
+					publisherDisplayName: string;
+					themeId: string;
+				};
+				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activatePlugin', {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
 					isBuiltin: themeData.extensionIsBuiltin,

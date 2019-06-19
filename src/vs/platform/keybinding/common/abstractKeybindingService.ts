@@ -17,6 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 
 interface CurrentChord {
 	keypress: string;
@@ -210,13 +211,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			} else {
 				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
 			}
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this._telemetryService.publicLog('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
+			this._telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
 		}
 
 		return shouldPreventDefault;
