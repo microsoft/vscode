@@ -15,6 +15,8 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 interface WebviewContent {
 	readonly html: string;
@@ -32,11 +34,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly id: string;
 
+	private readonly _portMappingManager: WebviewPortMappingManager;
+
 	constructor(
 		private _options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITunnelService tunnelService: ITunnelService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -44,6 +49,12 @@ export class IFrameWebview extends Disposable implements Webview {
 		if (typeof environmentService.webviewEndpoint !== 'string') {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
 		}
+
+		this._portMappingManager = this._register(new WebviewPortMappingManager(
+			this._options.extension ? this._options.extension.location : undefined,
+			() => this.content.options.portMappings || [],
+			tunnelService
+		));
 
 		this.content = {
 			html: '',
@@ -103,9 +114,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const path = e.data.data.path;
-						const uri = URI.file(path);
+						const uri = URI.file(e.data.data.path);
 						this.loadResource(uri);
+						return;
+					}
+
+				case 'load-localhost':
+					{
+						this.localLocalhost(e.data.data.origin);
 						return;
 					}
 			}
@@ -303,6 +319,14 @@ export class IFrameWebview extends Disposable implements Webview {
 		return this._send('loaded-resource', {
 			status: 404,
 			path: uri.path
+		});
+	}
+
+	private async localLocalhost(origin: string) {
+		const redirect = await this._portMappingManager.getRedirect(origin);
+		return this._send('loaded-localhost', {
+			origin,
+			location: redirect
 		});
 	}
 }

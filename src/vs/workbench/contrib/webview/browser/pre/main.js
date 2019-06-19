@@ -126,12 +126,20 @@
 				host.onMessage('loaded-resource', event => {
 					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
 				});
+
+				host.onMessage('loaded-localhost', event => {
+					registration.active.postMessage({ channel: 'loaded-localhost', data: event.data.args });
+				});
 			});
 
 			navigator.serviceWorker.addEventListener('message', event => {
 				switch (event.data.channel) {
 					case 'load-resource':
-						host.postMessage('load-resource', { path: event.data.path });
+						host.postMessage('load-resource', event.data);
+						return;
+
+					case 'load-localhost':
+						host.postMessage('load-localhost', event.data);
 						return;
 				}
 			});

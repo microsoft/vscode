@@ -39,15 +39,15 @@ export class WebviewPortMappingManager extends Disposable {
 					const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
 					if (tunnel) {
 						return url.replace(
-							new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
-							`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`);
+							new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}(/|$)`),
+							`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}$1`);
 					}
 				}
 
 				if (mapping.webviewPort !== mapping.extensionHostPort) {
 					return url.replace(
-						new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
-						`${uri.scheme}://localhost:${mapping.extensionHostPort}/`);
+						new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}(/|$)`),
+						`${uri.scheme}://localhost:${mapping.extensionHostPort}$1`);
 				}
 			}
 		}
