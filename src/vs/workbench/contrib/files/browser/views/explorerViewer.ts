@@ -218,8 +218,17 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
-		setTimeout(() => inputBox.focus(), 100);
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+
+		let isFinishableDisposeEvent = false;
+		setTimeout(() => {
+			// Check if disposed
+			if (!inputBox.inputElement) {
+				return;
+			}
+			inputBox.focus();
+			inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+			isFinishableDisposeEvent = true;
+		}, 0);
 
 		const done = once(async (success: boolean) => {
 			label.element.style.display = 'none';
@@ -251,8 +260,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		];
 
 		return toDisposable(() => {
-			blurDisposable.dispose();
-			done(false);
+			if (isFinishableDisposeEvent) {
+				done(false);
+			}
+			else {
+				dispose(toDispose);
+			}
 		});
 	}
 
