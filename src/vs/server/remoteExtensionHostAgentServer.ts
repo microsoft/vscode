@@ -179,13 +179,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 					const data = _data.toString()
 						.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
-							connectionAuthToken: CONNECTION_AUTH_TOKEN,
 							folderUri: folder ? transformer.transformOutgoing(URI.file(folder)) : undefined,
 							workspaceUri: workspace ? transformer.transformOutgoing(URI.file(workspace)) : undefined,
 							remoteAuthority,
 							webviewEndpoint,
 						})))
 						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
+						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
 						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(URI.file(this._environmentService.userDataPath)))));
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
