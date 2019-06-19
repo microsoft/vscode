@@ -82,7 +82,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		setTimeout(() => this.cleanupOlderLogs(this._environmentService.logsPath).then(null, err => this._logService.error(err)), 10000);
 
-		const webviewPort = await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
+		const webviewPort = port > 0 ? await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */) : 0;
 
 		const webviewServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
 			// Only serve GET requests
