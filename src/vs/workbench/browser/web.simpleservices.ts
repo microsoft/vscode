@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import * as browser from 'vs/base/browser/browser';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -796,7 +797,46 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	toggleFullScreen(): Promise<void> {
+	toggleFullScreen(target?: HTMLElement): Promise<void> {
+		if (!target) {
+			return Promise.resolve();
+		}
+
+		// Chromium
+		if ((<any>document).fullscreen !== undefined) {
+			if (!(<any>document).fullscreen) {
+
+				return (<any>target).requestFullscreen().then(() => {
+					browser.setFullscreen(true);
+				}).catch(() => {
+					// if it fails, chromium throws an exception with error undefined.
+					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+					console.warn('Toggle Full Screen failed');
+				});
+			} else {
+				return document.exitFullscreen().then(() => {
+					browser.setFullscreen(false);
+				}).catch(() => {
+					console.warn('Exit Full Screen failed');
+				});
+			}
+		}
+
+		// Safari and Edge 14 are all using webkit prefix
+		if ((<any>document).webkitIsFullScreen !== undefined) {
+			try {
+				if (!(<any>document).webkitIsFullScreen) {
+					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
+					browser.setFullscreen(true);
+				} else {
+					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					browser.setFullscreen(false);
+				}
+			} catch {
+				console.warn('Enter/Exit Full Screen failed');
+			}
+		}
+
 		return Promise.resolve();
 	}
 

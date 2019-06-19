@@ -46,6 +46,7 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
+import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -237,6 +238,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
 		});
+
+		this._register(browser.onDidChangeFullscreen(() => {
+			const keyboard = (<INavigatorWithKeyboard>navigator).keyboard;
+
+			if (!keyboard) {
+				return;
+			}
+
+			if (browser.isFullscreen()) {
+				keyboard.lock(['Escape']);
+			} else {
+				keyboard.unlock();
+			}
+
+			// update resolver which will bring back all unbound keyboard shortcuts
+			this._cachedResolver = null;
+			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
+		}));
 	}
 
 	public _dumpDebugInfo(): string {
