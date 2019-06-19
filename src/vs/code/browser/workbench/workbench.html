@@ -12,6 +12,8 @@
 		content="default-src 'none'; img-src 'self' https: data: blob: vscode-remote:; media-src 'none'; child-src 'self' {{WEBVIEW_ENDPOINT}}; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' blob: vscode-remote:;">
 
 	<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONGIGURATION}}">
+	<!-- Workaround to pass remote user data uri-->
+	<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
 </head>
 
 <body class="vs-dark" aria-label="">
