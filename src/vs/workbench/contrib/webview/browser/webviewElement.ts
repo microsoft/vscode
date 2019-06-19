@@ -305,7 +305,7 @@ export class IFrameWebview extends Disposable implements Webview {
 				() => (this.content.options.localResourceRoots || []));
 
 			if (result.type === 'success') {
-				return this._send('loaded-resource', {
+				return this._send('did-load-resource', {
 					status: 200,
 					path: uri.path,
 					mime: result.mimeType,
@@ -316,7 +316,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			// noop
 		}
 
-		return this._send('loaded-resource', {
+		return this._send('did-load-resource', {
 			status: 404,
 			path: uri.path
 		});
@@ -324,7 +324,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private async localLocalhost(origin: string) {
 		const redirect = await this._portMappingManager.getRedirect(origin);
-		return this._send('loaded-localhost', {
+		return this._send('did-load-localhost', {
 			origin,
 			location: redirect
 		});

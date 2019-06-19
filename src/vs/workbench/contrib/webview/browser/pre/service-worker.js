@@ -10,7 +10,7 @@ const resourceRoot = '/vscode-resource';
 /**
  * @template T
  * @typedef {{
- *     resolve: () => void,
+ *     resolve: (x: T) => void,
  *     promise: Promise<T>
  * }} RequestStoreEntry
  */
@@ -36,19 +36,31 @@ class RequestStore {
 	/**
 	 * @param {string} webviewId
 	 * @param {string} path
-	 * @return {boolean}
 	 */
-	has(webviewId, path) {
-		return this.map.has(this._key(webviewId, path));
+	create(webviewId, path) {
+		const existing = this.get(webviewId, path);
+		if (existing) {
+			return existing.promise;
+		}
+		let resolve;
+		const promise = new Promise(r => resolve = r);
+		this.map.set(this._key(webviewId, path), { resolve, promise });
+		return promise;
 	}
 
 	/**
 	 * @param {string} webviewId
 	 * @param {string} path
-	 * @param {RequestStoreEntry<T>} entry
+	 * @param {T} result
+	 * @return {boolean}
 	 */
-	set(webviewId, path, entry) {
-		this.map.set(this._key(webviewId, path), entry);
+	resolve(webviewId, path, result) {
+		const entry = this.get(webviewId, path);
+		if (!entry) {
+			return false;
+		}
+		entry.resolve(result);
+		return true;
 	}
 
 	/**
@@ -64,12 +76,12 @@ class RequestStore {
 /**
  * Map of requested paths to responses.
  *
- * @type {RequestStore<Response>}
+ * @type {RequestStore<{ body: any, mime: string } | undefined>}
  */
 const resourceRequestStore = new RequestStore();
 
 /**
- * Map of requested paths to responses.
+ * Map of requested localhost origins to optional redirects.
  *
  * @type {RequestStore<string | undefined>}
  */
@@ -82,38 +94,27 @@ const notFoundResponse = new Response('Not Found', {
 
 self.addEventListener('message', (event) => {
 	switch (event.data.channel) {
-		case 'loaded-resource':
+		case 'did-load-resource':
 			{
 				const webviewId = getWebviewIdForClient(event.source);
 				const data = event.data.data;
-				const target = resourceRequestStore.get(webviewId, data.path);
-				if (!target) {
-					console.log('Loaded unknown resource', data.path);
-					return;
-				}
+				const response = data.status === 200
+					? { body: data.data, mime: data.mime }
+					: undefined;
 
-				if (data.status === 200) {
-					target.resolve(new Response(data.data, {
-						status: 200,
-						headers: { 'Content-Type': data.mime },
-					}));
-				} else {
-					target.resolve(notFoundResponse.clone());
+				if (!resourceRequestStore.resolve(webviewId, data.path, response)) {
+					console.log('Could not resolve unknown resource', data.path);
 				}
 				return;
 			}
 
-		case 'loaded-localhost':
+		case 'did-load-localhost':
 			{
 				const webviewId = getWebviewIdForClient(event.source);
 				const data = event.data.data;
-				const target = localhostRequestStore.get(webviewId, data.origin);
-				if (!target) {
-					console.log('Loaded unknown localhost', data.origin);
-					return;
+				if (!localhostRequestStore.resolve(webviewId, data.origin, data.location)) {
+					console.log('Could not resolve unknown localhost', data.origin);
 				}
-
-				target.resolve(data.location);
 				return;
 			}
 	}
@@ -123,7 +124,6 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-	console.log(requestUrl.host);
 
 	// See if it's a resource request
 	if (requestUrl.origin === self.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
@@ -147,8 +147,6 @@ self.addEventListener('activate', (event) => {
 async function processResourceRequest(event, requestUrl) {
 	const client = await self.clients.get(event.clientId);
 	if (!client) {
-		// This is expected when requesting resources on other localhost ports
-		// that are not spawned by vs code
 		console.log('Could not find inner client for request');
 		return notFoundResponse.clone();
 	}
@@ -156,32 +154,35 @@ async function processResourceRequest(event, requestUrl) {
 	const webviewId = getWebviewIdForClient(client);
 	const resourcePath = requestUrl.pathname.replace(resourceRoot, '');
 
-	const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+	function resolveResourceEntry(entry) {
+		if (!entry) {
+			return notFoundResponse.clone();
+		}
+		return new Response(entry.body, {
+			status: 200,
+			headers: { 'Content-Type': entry.mime }
+		});
+	}
+
+	const parentClient = await getOuterIframeClient(webviewId);
+	if (!parentClient) {
+		console.log('Could not find parent client for request');
+		return notFoundResponse.clone();
+	}
 
 	// Check if we've already resolved this request
 	const existing = resourceRequestStore.get(webviewId, resourcePath);
 	if (existing) {
-		return existing.promise.then(r => r.clone());
+		return existing.promise.then(resolveResourceEntry);
 	}
 
-	// Find parent iframe
-	for (const client of allClients) {
-		const clientUrl = new URL(client.url);
-		if (clientUrl.pathname === '/' && clientUrl.search.match(new RegExp('\\bid=' + webviewId))) {
-			client.postMessage({
-				channel: 'load-resource',
-				path: resourcePath
-			});
+	parentClient.postMessage({
+		channel: 'load-resource',
+		path: resourcePath
+	});
 
-			let resolve;
-			const promise = new Promise(r => resolve = r);
-			resourceRequestStore.set(webviewId, resourcePath, { resolve, promise, resolved: false });
-			return promise.then(r => r.clone());
-		}
-	}
-
-	console.log('Could not find parent client for request');
-	return notFoundResponse.clone();
+	return resourceRequestStore.create(webviewId, resourcePath)
+		.then(resolveResourceEntry);
 }
 
 /**
@@ -211,7 +212,11 @@ async function processLocalhostRequest(event, requestUrl) {
 		});
 	};
 
-	const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+	const parentClient = await getOuterIframeClient(webviewId);
+	if (!parentClient) {
+		console.log('Could not find parent client for request');
+		return notFoundResponse.clone();
+	}
 
 	// Check if we've already resolved this request
 	const existing = localhostRequestStore.get(webviewId, origin);
@@ -219,27 +224,24 @@ async function processLocalhostRequest(event, requestUrl) {
 		return existing.promise.then(resolveRedirect);
 	}
 
-	// Find parent iframe
-	for (const client of allClients) {
-		const clientUrl = new URL(client.url);
-		if (clientUrl.pathname === '/' && clientUrl.search.match(new RegExp('\\bid=' + webviewId))) {
-			client.postMessage({
-				channel: 'load-localhost',
-				origin: origin
-			});
+	parentClient.postMessage({
+		channel: 'load-localhost',
+		origin: origin
+	});
 
-			let resolve;
-			const promise = new Promise(r => resolve = r);
-			localhostRequestStore.set(webviewId, origin, { resolve, promise });
-			return promise.then(resolveRedirect);
-		}
-	}
-
-	console.log('Could not find parent client for request');
-	return notFoundResponse.clone();
+	return localhostRequestStore.create(webviewId, origin)
+		.then(resolveRedirect);
 }
 
 function getWebviewIdForClient(client) {
 	const requesterClientUrl = new URL(client.url);
 	return requesterClientUrl.search.match(/\bid=([a-z0-9-]+)/i)[1];
+}
+
+async function getOuterIframeClient(webviewId) {
+	const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+	return allClients.find(client => {
+		const clientUrl = new URL(client.url);
+		return clientUrl.pathname === '/' && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
+	});
 }
