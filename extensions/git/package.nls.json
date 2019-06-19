@@ -88,6 +88,7 @@
 	"config.ignoreMissingGitWarning": "Ignores the warning when Git is missing.",
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository.",
 	"config.defaultCloneDirectory": "The default location to clone a git repository.",
+	"config.restoreCommitTemplateOnRefresh": "Enables restoring the commit template on every `git.refresh`.",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
 	"config.enableCommitSigning": "Enables commit signing with GPG.",
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
