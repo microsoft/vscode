@@ -11,7 +11,6 @@ import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -224,7 +223,7 @@ export class BreadcrumbsControl {
 			input = input.master;
 		}
 
-		if (!input || !input.getResource() || (input.getResource()!.scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()!))) {
+		if (!input || !input.getResource() || !this._fileService.canHandleResource(input.getResource()!)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -328,6 +327,7 @@ export class BreadcrumbsControl {
 
 		// show picker
 		let picker: BreadcrumbsPicker;
+		let pickerAnchor: { x: number; y: number };
 		let editor = this._getActiveCodeEditor();
 		let editorDecorations: string[] = [];
 		let editorViewState: ICodeEditorViewState | undefined;
@@ -394,34 +394,37 @@ export class BreadcrumbsControl {
 				);
 			},
 			getAnchor: () => {
-				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
-				let maxHeight = Math.min(window.innerHeight * 0.7, 300);
+				if (!pickerAnchor) {
+					let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
-				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-				let pickerArrowSize = 8;
-				let pickerArrowOffset: number;
+					let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
+					let pickerArrowSize = 8;
+					let pickerArrowOffset: number;
 
-				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-				let y = data.top + data.height + pickerArrowSize;
-				if (y + maxHeight >= window.innerHeight) {
-					maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
-				}
-				let x = data.left;
-				if (x + pickerWidth >= maxInnerWidth) {
-					x = maxInnerWidth - pickerWidth;
-				}
-				if (event.payload instanceof StandardMouseEvent) {
-					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
-					pickerArrowOffset = event.payload.posx - x;
-					if (pickerArrowOffset > maxPickerArrowOffset) {
-						x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
-						pickerArrowOffset = maxPickerArrowOffset;
+					let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+					let y = data.top + data.height + pickerArrowSize;
+					if (y + maxHeight >= window.innerHeight) {
+						maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
 					}
-				} else {
-					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
+					let x = data.left;
+					if (x + pickerWidth >= maxInnerWidth) {
+						x = maxInnerWidth - pickerWidth;
+					}
+					if (event.payload instanceof StandardMouseEvent) {
+						let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+						pickerArrowOffset = event.payload.posx - x;
+						if (pickerArrowOffset > maxPickerArrowOffset) {
+							x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
+							pickerArrowOffset = maxPickerArrowOffset;
+						}
+					} else {
+						pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
+					}
+					picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+					pickerAnchor = { x, y };
 				}
-				picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
-				return { x, y };
+				return pickerAnchor;
 			},
 			onHide: (data) => {
 				if (editor) {
@@ -490,16 +493,16 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'View: Toggle Breadcrumbs' },
-		category: localize('cmd.category', "View")
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+		category: { value: localize('cmd.category', "View"), original: 'View' }
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
-	order: 99,
+	order: 3,
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('miToggleBreadcrumbs', "Toggle &&Breadcrumbs"),
+		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
 		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
 	}
 });

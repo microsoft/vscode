@@ -25,7 +25,6 @@
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	z-index: -1;
 	-webkit-app-region: drag;
 }
 
@@ -41,7 +40,7 @@
 }
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
-
+.monaco-workbench.web .part.titlebar,
 .monaco-workbench.windows .part.titlebar,
 .monaco-workbench.linux .part.titlebar {
 	padding: 0;
@@ -51,6 +50,12 @@
 	overflow: visible;
 }
 
+.monaco-workbench.windows .part.titlebar .menubar,
+.monaco-workbench.linux .part.titlebar .menubar {
+	z-index: 2000;
+}
+
+.monaco-workbench.web .part.titlebar > .window-title,
 .monaco-workbench.windows .part.titlebar > .window-title,
 .monaco-workbench.linux .part.titlebar > .window-title {
 	cursor: default;

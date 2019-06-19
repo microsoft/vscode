@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { join, basename, extname } from 'vs/base/common/path';
+import { basename, extname } from 'vs/base/common/path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
@@ -88,14 +88,14 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 		}
 	}
 
-	const dir = join(envService.appSettingsHome, 'snippets');
+	const dir = joinPath(envService.appSettingsHome, 'snippets');
 	for (const mode of modeService.getRegisteredModes()) {
 		const label = modeService.getLanguageName(mode);
 		if (label && !seen.has(mode)) {
 			future.push({
 				label: mode,
 				description: `(${label})`,
-				filepath: URI.file(join(dir, `${mode}.json`)),
+				filepath: joinPath(dir, `${mode}.json`),
 				hint: true
 			});
 		}
@@ -220,7 +220,7 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const globalSnippetPicks: SnippetPick[] = [{
 		scope: nls.localize('new.global_scope', 'global'),
 		label: nls.localize('new.global', "New Global Snippets file..."),
-		uri: URI.file(join(envService.appSettingsHome, 'snippets'))
+		uri: joinPath(envService.appSettingsHome, 'snippets')
 	}];
 
 	const workspaceSnippetPicks: SnippetPick[] = [];
@@ -259,8 +259,8 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id,
-		title: { value: nls.localize('openSnippet.label', "Configure User Snippets"), original: 'Preferences: Configure User Snippets' },
-		category: nls.localize('preferences', "Preferences")
+		title: { value: nls.localize('openSnippet.label', "Configure User Snippets"), original: 'Configure User Snippets' },
+		category: { value: nls.localize('preferences', "Preferences"), original: 'Preferences' }
 	}
 });
 
@@ -269,6 +269,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	command: {
 		id,
 		title: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '3_snippets',
+	command: {
+		id,
+		title: nls.localize('userSnippets', "User Snippets")
 	},
 	order: 1
 });

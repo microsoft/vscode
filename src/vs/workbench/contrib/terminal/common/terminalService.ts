@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -17,10 +17,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows, Platform } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IPickOptions, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -62,6 +65,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
+	protected readonly _onRequestAvailableShells = new Emitter<(shells: IShellDefinition[]) => void>();
+	public get onRequestAvailableShells(): Event<(shells: IShellDefinition[]) => void> { return this._onRequestAvailableShells.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -74,13 +79,18 @@ export abstract class TerminalService implements ITerminalService {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IFileService protected readonly _fileService: IFileService,
-		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService,
+		@ITerminalNativeService private readonly _terminalNativeService: ITerminalNativeService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		lifecycleService.onBeforeShutdown(event => event.veto(this._onBeforeShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
+		this._terminalNativeService.onOpenFileRequest(e => this._onOpenFileRequest(e));
+		this._terminalNativeService.onOsResume(() => this._onOsResume());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onTabDisposed(tab => this._removeTab(tab));
@@ -102,15 +112,10 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
-	protected abstract _getWslPath(path: string): Promise<string>;
-	protected abstract _getWindowsBuildNumber(): number;
 	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
-	public abstract refreshActiveTab(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
-	public abstract getDefaultShell(platform: Platform): string;
-	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
@@ -165,6 +170,31 @@ export abstract class TerminalService implements ITerminalService {
 		this.terminalInstances.forEach(instance => instance.dispose(true));
 	}
 
+	private _onOpenFileRequest(request: IOpenFileRequest): void {
+		// if the request to open files is coming in from the integrated terminal (identified though
+		// the termProgram variable) and we are instructed to wait for editors close, wait for the
+		// marker file to get deleted and then focus back to the integrated terminal.
+		if (request.termProgram === 'vscode' && request.filesToWait) {
+			const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
+			this._terminalNativeService.whenFileDeleted(waitMarkerFileUri).then(() => {
+				if (this.terminalInstances.length > 0) {
+					const terminal = this.getActiveInstance();
+					if (terminal) {
+						terminal.focus();
+					}
+				}
+			});
+		}
+	}
+
+	private _onOsResume(): void {
+		const activeTab = this.getActiveTab();
+		if (!activeTab) {
+			return;
+		}
+		activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
+	}
+
 	public getTabLabels(): string[] {
 		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
 	}
@@ -208,6 +238,11 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
+	public refreshActiveTab(): void {
+		// Fire active instances changed
+		this._onActiveTabChanged.fire();
+	}
+
 	public getActiveTab(): ITerminalTab | null {
 		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalTabs.length) {
 			return null;
@@ -223,7 +258,7 @@ export abstract class TerminalService implements ITerminalService {
 		return tab.activeInstance;
 	}
 
-	public getInstanceFromId(terminalId: number): ITerminalInstance {
+	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
 			if (terminalInstance.id === terminalId) {
@@ -233,7 +268,11 @@ export abstract class TerminalService implements ITerminalService {
 		if (bgIndex !== -1) {
 			return this._backgroundedTerminalInstances[bgIndex];
 		}
-		return this.terminalInstances[this._getIndexFromId(terminalId)];
+		try {
+			return this.terminalInstances[this._getIndexFromId(terminalId)];
+		} catch {
+			return undefined;
+		}
 	}
 
 	public getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
@@ -479,9 +518,9 @@ export abstract class TerminalService implements ITerminalService {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
 				const lowerExecutable = executable.toLowerCase();
-				if (this._getWindowsBuildNumber() >= 17063 &&
+				if (this._terminalNativeService.getWindowsBuildNumber() >= 17063 &&
 					(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
-					c(this._getWslPath(originalPath));
+					c(this._terminalNativeService.getWslPath(originalPath));
 					return;
 				} else if (hasSpace) {
 					c('"' + originalPath + '"');
@@ -492,5 +531,28 @@ export abstract class TerminalService implements ITerminalService {
 			}
 			c(escapeNonWindowsPath(originalPath));
 		});
+	}
+
+	public selectDefaultWindowsShell(): Promise<void> {
+		return this._detectWindowsShells().then(shells => {
+			const options: IPickOptions<IQuickPickItem> = {
+				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
+			};
+			const quickPickItems = shells.map(s => {
+				return { label: s.label, description: s.path };
+			});
+			return this._quickInputService.pick(quickPickItems, options).then(async value => {
+				if (!value) {
+					return undefined;
+				}
+				const shell = value.description;
+				await this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
+				return Promise.resolve();
+			});
+		});
+	}
+
+	private _detectWindowsShells(): Promise<IShellDefinition[]> {
+		return new Promise(r => this._onRequestAvailableShells.fire(r));
 	}
 }

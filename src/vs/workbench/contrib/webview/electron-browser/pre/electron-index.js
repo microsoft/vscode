@@ -34,10 +34,16 @@
 		},
 		onMessage: (channel, handler) => {
 			ipcRenderer.on(channel, handler);
-		}
+		},
+		focusIframeOnCreate: true
 	});
 
 	document.addEventListener('DOMContentLoaded', () => {
 		registerVscodeResourceScheme();
+
+		// Forward messages from the embedded iframe
+		window.onmessage = (message) => {
+			ipcRenderer.sendToHost(message.data.command, message.data.data);
+		};
 	});
 }());

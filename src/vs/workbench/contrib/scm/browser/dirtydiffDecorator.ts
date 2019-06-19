@@ -39,7 +39,7 @@ import { IActionBarOptions, ActionsOrientation, IActionViewItem } from 'vs/base/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { fillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
@@ -184,7 +184,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
-		themeService.onThemeChange(this._applyTheme, this, this._disposables);
+		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getTheme());
 
 		this.contextKeyService = contextKeyService.createScoped();
@@ -199,7 +199,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}
 		this.setTitle(this.title);
 
-		model.onDidChange(this.renderTitle, this, this._disposables);
+		this._disposables.add(model.onDidChange(this.renderTitle, this));
 	}
 
 	showChange(index: number): void {
@@ -253,12 +253,12 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
 
-		this._disposables.push(previous);
-		this._disposables.push(next);
+		this._disposables.add(previous);
+		this._disposables.add(next);
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		fillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 
@@ -675,11 +675,11 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		this.isDirtyDiffVisible.set(true);
 
 		const disposables = new DisposableStore();
-		disposables.push(Event.once(this.widget.onDidClose)(this.close, this));
-		disposables.push(model.onDidChange(this.onDidModelChange, this));
+		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
+		disposables.add(model.onDidChange(this.onDidModelChange, this));
 
-		disposables.push(this.widget);
-		disposables.push(toDisposable(() => {
+		disposables.add(this.widget);
+		disposables.add(toDisposable(() => {
 			this.model = null;
 			this.widget = null;
 			this.currentIndex = -1;
@@ -960,7 +960,7 @@ export class DirtyDiffModel extends Disposable {
 	private diffDelayer: ThrottledDelayer<IChange[] | null> | null;
 	private _originalURIPromise?: Promise<URI | null>;
 	private repositoryDisposables = new Set<IDisposable>();
-	private originalModelDisposables: IDisposable = Disposable.None;
+	private readonly originalModelDisposables = this._register(new DisposableStore());
 
 	private _onDidChange = new Emitter<ISplice<IChange>[]>();
 	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
@@ -993,13 +993,13 @@ export class DirtyDiffModel extends Disposable {
 		const disposables = new DisposableStore();
 
 		this.repositoryDisposables.add(disposables);
-		disposables.push(toDisposable(() => this.repositoryDisposables.delete(disposables)));
+		disposables.add(toDisposable(() => this.repositoryDisposables.delete(disposables)));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		disposables.push(onDidChange(this.triggerDiff, this));
+		disposables.add(onDidChange(this.triggerDiff, this));
 
 		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		disposables.push(onDidRemoveThis(() => dispose(disposables), null));
+		disposables.add(onDidRemoveThis(() => dispose(disposables), null));
 
 		this.triggerDiff();
 	}
@@ -1069,12 +1069,9 @@ export class DirtyDiffModel extends Disposable {
 
 				this._originalModel = ref.object.textEditorModel;
 
-				const originalModelDisposables = new DisposableStore();
-				originalModelDisposables.push(ref);
-				originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-				this.originalModelDisposables.dispose();
-				this.originalModelDisposables = originalModelDisposables;
+				this.originalModelDisposables.clear();
+				this.originalModelDisposables.add(ref);
+				this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 				return originalUri;
 			});
@@ -1131,7 +1128,6 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	dispose(): void {
-		this.originalModelDisposables = dispose(this.originalModelDisposables);
 		super.dispose();
 
 		this._editorModel = null;

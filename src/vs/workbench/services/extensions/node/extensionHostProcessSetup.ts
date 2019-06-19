@@ -16,12 +16,12 @@ import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHo
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
@@ -82,7 +82,7 @@ function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
 	};
 }
 
-const createLogService: ILogServiceFn = initData => createBufferSpdLogService(ExtensionHostLogFileName, initData.logLevel, initData.logsLocation.fsPath);
+const createLogService: ILogServiceFn = initData => new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
@@ -131,13 +131,21 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
-						protocol.onSocketClose(() => {
-							// The socket has closed, let's give the renderer a certain amount of time to reconnect
-							disconnectWaitTimer = setTimeout(() => {
-								disconnectWaitTimer = null;
+						if (msg.skipWebSocketFrames) {
+							// Wait for rich client to reconnect
+							protocol.onSocketClose(() => {
+								// The socket has closed, let's give the renderer a certain amount of time to reconnect
+								disconnectWaitTimer = setTimeout(() => {
+									disconnectWaitTimer = null;
+									onTerminate();
+								}, ProtocolConstants.ReconnectionGraceTime);
+							});
+						} else {
+							// Do not wait for web companion to reconnect
+							protocol.onSocketClose(() => {
 								onTerminate();
-							}, ProtocolConstants.ReconnectionGraceTime);
-						});
+							});
+						}
 					}
 				}
 			});

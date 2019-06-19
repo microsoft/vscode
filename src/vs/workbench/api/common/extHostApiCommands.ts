@@ -18,6 +18,7 @@ import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeature
 import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class ExtHostApiCommands {
 
@@ -414,15 +415,21 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[][]> {
+	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[]> {
 		const pos = positions.map(typeConverters.Position.from);
 		const args = {
 			resource,
 			position: pos[0],
 			positions: pos
 		};
-		return this._commands.executeCommand<modes.SelectionRange[][]>('_executeSelectionRangeProvider', args).then(result => {
-			return result.map(oneResult => oneResult.map(typeConverters.SelectionRange.to));
+		return this._commands.executeCommand<IRange[][]>('_executeSelectionRangeProvider', args).then(result => {
+			return result.map(ranges => {
+				let node: types.SelectionRange | undefined;
+				for (const range of ranges.reverse()) {
+					node = new types.SelectionRange(typeConverters.Range.to(range), node);
+				}
+				return node!;
+			});
 		});
 	}
 
@@ -473,7 +480,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
 			range: typeConverters.Range.from(range),
@@ -504,7 +511,7 @@ export class ExtHostApiCommands {
 
 	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Promise<vscode.CodeLens[] | undefined> {
 		const args = { resource, itemResolveCount };
-		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
+		return this._commands.executeCommand<modes.CodeLens[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
 					typeConverters.Range.to(item.range),

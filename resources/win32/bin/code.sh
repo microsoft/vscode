@@ -6,12 +6,23 @@ COMMIT="@@COMMIT@@"
 APP_NAME="@@APPNAME@@"
 QUALITY="@@QUALITY@@"
 NAME="@@NAME@@"
+DATAFOLDER="@@DATAFOLDER@@"
 VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 if grep -qi Microsoft /proc/version; then
 	# in a wsl shell
-	WSL_BUILD=$(uname -r | sed -E 's/^.+-([0-9]+)-[Mm]icrosoft/\1/')
-	if [ $WSL_BUILD -ge 17063 ] 2> /dev/null; then
+	if ! [ -z "$WSL_DISTRO_NAME"]; then
+		# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
+		WSL_BUILD=18362
+	else
+		WSL_BUILD=$(uname -r | sed -E 's/^.+-([0-9]+)-Microsoft/\1/')
+		if ! [ -z "$WSL_BUILD" ]; then
+			WSL_BUILD=0
+		fi
+	fi
+
+	if [ $WSL_BUILD -ge 17063 ]; then
+		# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
 		# WSLPATH is available since WSL build 17046
 		# WSLENV is available since WSL build 17063
 		export WSLENV=ELECTRON_RUN_AS_NODE/w:$WSLENV
@@ -26,7 +37,7 @@ if grep -qi Microsoft /proc/version; then
 			# replace \r\n with \n in WSL_EXT_WLOC
 			WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
 			WIN_CODE_CMD=$(wslpath -w "$VSCODE_PATH/bin/$APP_NAME.cmd")
-			"$WSL_CODE" $COMMIT $QUALITY "$WIN_CODE_CMD" "$APP_NAME" "$@"
+			"$WSL_CODE" "$COMMIT" "$QUALITY" "$WIN_CODE_CMD" "$APP_NAME" "$DATAFOLDER" "$@"
 			exit $?
 		else
 			CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")

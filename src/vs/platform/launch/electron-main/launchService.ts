@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
@@ -107,7 +107,7 @@ export class LaunchChannel implements IServerChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILaunchService>;
 
 	constructor(private channel: IChannel) { }
 
@@ -134,7 +134,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 export class LaunchService implements ILaunchService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILaunchService>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

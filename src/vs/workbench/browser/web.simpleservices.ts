@@ -4,69 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import * as browser from 'vs/base/browser/browser';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys, ResourceMap } from 'vs/base/common/map';
+import { keys } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
-import { SimpleConfigurationService as StandaloneEditorConfigurationService, StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
-import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/product';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
-import { ISearchService, ITextQueryProps, ISearchProgressItem, ISearchComplete, IFileQueryProps, SearchProviderType, ISearchResultProvider, ITextQuery, IFileMatch, QueryType, FileMatch, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { coalesce } from 'vs/base/common/arrays';
-import { Schemas } from 'vs/base/common/network';
-import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IWindowConfiguration, IPath, IPathsToWaitFor, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, isSingleFolderWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { ExportData } from 'vs/base/common/performance';
+import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IWorkspaceContextService, Workspace, toWorkspaceFolder, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
-import { State as DebugState, IDebugService, IDebugSession, IConfigurationManager, IStackFrame, IThread, IViewModel, IExpression, IFunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
-// tslint:disable-next-line: import-patterns
-import { ITerminalService, ITerminalConfigHelper, ITerminalTab, ITerminalInstance, ITerminalProcessExtHostRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-// tslint:disable-next-line: import-patterns
-import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-// tslint:disable-next-line: import-patterns
-import { TaskEvent } from 'vs/workbench/contrib/tasks/common/tasks';
 // tslint:disable-next-line: import-patterns
 import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 // tslint:disable-next-line: import-patterns
@@ -74,11 +45,8 @@ import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common
 import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-
-export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
-	scheme: Schemas.vscodeRemote,
-	authority: document.location.host
-});
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 //#region Backup File
 
@@ -142,36 +110,6 @@ registerSingleton(IBackupFileService, SimpleBackupFileService, true);
 
 //#endregion
 
-//#region Broadcast
-
-export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
-
-export interface IBroadcast {
-	channel: string;
-	payload: any;
-}
-
-export interface IBroadcastService {
-	_serviceBrand: any;
-
-	onBroadcast: Event<IBroadcast>;
-
-	broadcast(b: IBroadcast): void;
-}
-
-export class SimpleBroadcastService implements IBroadcastService {
-
-	_serviceBrand: any;
-
-	readonly onBroadcast: Event<IBroadcast> = Event.None;
-
-	broadcast(b: IBroadcast): void { }
-}
-
-registerSingleton(IBroadcastService, SimpleBroadcastService, true);
-
-//#endregion
-
 //#region Clipboard
 
 export class SimpleClipboardService implements IClipboardService {
@@ -207,14 +145,6 @@ registerSingleton(IClipboardService, SimpleClipboardService, true);
 
 //#endregion
 
-//#region Configuration
-
-export class SimpleConfigurationService extends StandaloneEditorConfigurationService { }
-
-registerSingleton(IConfigurationService, SimpleConfigurationService);
-
-//#endregion
-
 //#region Dialog
 
 // export class SimpleDialogService extends StandaloneEditorDialogService { }
@@ -236,67 +166,6 @@ export class SimpleDownloadService implements IDownloadService {
 }
 
 registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
-
-//#region Environment
-
-export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
-	configuration: IWindowConfiguration = new SimpleWindowConfiguration();
-	untitledWorkspacesHome: URI;
-	extensionTestsLocationURI?: URI;
-	_serviceBrand: any;
-	args = { _: [] };
-	execPath: string;
-	cliPath: string;
-	appRoot: string = '/web/';
-	userHome: string;
-	userDataPath: string;
-	appNameLong: string;
-	appQuality?: string;
-	appSettingsHome: string = '/web/settings';
-	appSettingsPath: string = '/web/settings/settings.json';
-	appKeybindingsPath: string = '/web/settings/keybindings.json';
-	machineSettingsHome: string;
-	machineSettingsPath: string;
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-	backupHome: string;
-	backupWorkspacesPath: string;
-	workspacesHome: string;
-	isExtensionDevelopment: boolean;
-	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI[];
-	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams = {
-		port: null,
-		break: false
-	};
-	debugSearch: IDebugParams;
-	logExtensionHostCommunication: boolean;
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
-	log?: string;
-	logsPath: string = '/web/logs';
-	verbose: boolean;
-	skipGettingStarted: boolean;
-	skipReleaseNotes: boolean;
-	skipAddToRecentlyOpened: boolean;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
-	nodeCachedDataDir?: string;
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
-	driverHandle?: string;
-	driverVerbose: boolean;
-}
-
 
 //#endregion
 
@@ -368,86 +237,6 @@ registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true)
 
 //#endregion
 
-//#region IDebugService
-export class SimpleDebugService implements IDebugService {
-	_serviceBrand: any;
-	state: DebugState;
-	onDidChangeState: Event<DebugState> = Event.None;
-	onDidNewSession: Event<IDebugSession> = Event.None;
-	onWillNewSession: Event<IDebugSession> = Event.None;
-	onDidEndSession: Event<IDebugSession> = Event.None;
-	getConfigurationManager(): IConfigurationManager {
-		return new class implements IConfigurationManager {
-			canSetBreakpointsIn: any;
-			selectedConfiguration: any;
-			selectConfiguration: any;
-			getLaunches: any;
-			getLaunch: any;
-			onDidSelectConfiguration: Event<void>;
-			activateDebuggers: any;
-			hasDebugConfigurationProvider: any;
-			registerDebugConfigurationProvider: any;
-			unregisterDebugConfigurationProvider: any;
-			registerDebugAdapterDescriptorFactory: any;
-			unregisterDebugAdapterDescriptorFactory: any;
-			resolveConfigurationByProviders: any;
-			getDebugAdapterDescriptor: any;
-			registerDebugAdapterFactory() { return Disposable.None; }
-			createDebugAdapter: any;
-			substituteVariables: any;
-			runInTerminal: any;
-		};
-	}
-	focusStackFrame: any;
-	addBreakpoints: any;
-	updateBreakpoints: any;
-	enableOrDisableBreakpoints: any;
-	setBreakpointsActivated: any;
-	removeBreakpoints: any;
-	addFunctionBreakpoint: any;
-	renameFunctionBreakpoint: any;
-	removeFunctionBreakpoints: any;
-	sendAllBreakpoints: any;
-	addWatchExpression: any;
-	renameWatchExpression: any;
-	moveWatchExpression: any;
-	removeWatchExpressions: any;
-	startDebugging: any;
-	restartSession: any;
-	stopSession: any;
-	sourceIsNotAvailable: any;
-	getModel: any;
-	getViewModel(): IViewModel {
-		return new class implements IViewModel {
-			focusedSession: IDebugSession | undefined;
-			focusedThread: IThread | undefined;
-			focusedStackFrame: IStackFrame | undefined;
-			getSelectedExpression(): IExpression | undefined {
-				throw new Error('Method not implemented.');
-			}
-			getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined {
-				throw new Error('Method not implemented.');
-			}
-			setSelectedExpression(expression: IExpression | undefined): void {
-				throw new Error('Method not implemented.');
-			}
-			setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void {
-				throw new Error('Method not implemented.');
-			}
-			isMultiSessionView(): boolean {
-				throw new Error('Method not implemented.');
-			}
-			onDidFocusSession: Event<IDebugSession | undefined> = Event.None;
-			onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; }> = Event.None;
-			onDidSelectExpression: Event<IExpression | undefined> = Event.None;
-			getId(): string {
-				throw new Error('Method not implemented.');
-			}
-		};
-	}
-}
-registerSingleton(IDebugService, SimpleDebugService, true);
-
 //#endregion IExtensionsWorkbenchService
 export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	_serviceBrand: any;
@@ -470,89 +259,6 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
 //#endregion
 
-//#region ITerminalService
-export class SimpleTerminalService implements ITerminalService {
-	_serviceBrand: any; activeTabIndex: number;
-	configHelper: ITerminalConfigHelper;
-	onActiveTabChanged: Event<void> = Event.None;
-	onTabDisposed: Event<ITerminalTab> = Event.None;
-	onInstanceCreated: Event<ITerminalInstance> = Event.None;
-	onInstanceDisposed: Event<ITerminalInstance> = Event.None;
-	onInstanceProcessIdReady: Event<ITerminalInstance> = Event.None;
-	onInstanceDimensionsChanged: Event<ITerminalInstance> = Event.None;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest> = Event.None;
-	onInstancesChanged: Event<void> = Event.None;
-	onInstanceTitleChanged: Event<ITerminalInstance> = Event.None;
-	onActiveInstanceChanged: Event<ITerminalInstance | undefined> = Event.None;
-	terminalInstances: ITerminalInstance[] = [];
-	terminalTabs: ITerminalTab[];
-	createTerminal: any;
-	createTerminalRenderer: any;
-	createInstance: any;
-	getInstanceFromId: any;
-	getInstanceFromIndex: any;
-	getTabLabels: any;
-	getActiveInstance() { return null; }
-	setActiveInstance: any;
-	setActiveInstanceByIndex: any;
-	getActiveOrCreateInstance: any;
-	splitInstance: any;
-	getActiveTab: any;
-	setActiveTabToNext: any;
-	setActiveTabToPrevious: any;
-	setActiveTabByIndex: any;
-	refreshActiveTab: any;
-	showPanel: any;
-	hidePanel: any;
-	focusFindWidget: any;
-	hideFindWidget: any;
-	getFindState: any;
-	findNext: any;
-	findPrevious: any;
-	setContainers: any;
-	getDefaultShell: any;
-	selectDefaultWindowsShell: any;
-	setWorkspaceShellAllowed: any;
-	preparePathForTerminalAsync: any;
-	extHostReady() { }
-	requestExtHostProcess: any;
-}
-registerSingleton(ITerminalService, SimpleTerminalService, true);
-
-//#endregion
-
-//#region ITaskService
-export class SimpleTaskService implements ITaskService {
-	_serviceBrand: any;
-	onDidStateChange: Event<TaskEvent> = Event.None;
-	supportsMultipleTaskExecutions: boolean;
-	configureAction: any;
-	build: any;
-	runTest: any;
-	run: any;
-	inTerminal: any;
-	isActive: any;
-	getActiveTasks: any;
-	restart: any;
-	terminate: any;
-	terminateAll: any;
-	tasks: any;
-	getWorkspaceTasks: any;
-	getTask: any;
-	getTasksForGroup: any;
-	getRecentlyUsedTasks: any;
-	createSorter: any;
-	needsFolderQualification: any;
-	canCustomize: any;
-	customize: any;
-	openConfig: any;
-	registerTaskProvider() { return Disposable.None; }
-	registerTaskSystem() { }
-	extensionCallbackTaskComplete: any;
-}
-registerSingleton(ITaskService, SimpleTaskService, true);
-//#endregion
-
 //#region ICommentService
 export class SimpleCommentService implements ICommentService {
 	_serviceBrand: any;
@@ -560,6 +266,7 @@ export class SimpleCommentService implements ICommentService {
 	onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = Event.None;
 	onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = Event.None;
 	onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges; }> = Event.None;
+	onDidChangeActiveCommentThread: Event<any> = Event.None;
 	onDidSetDataProvider: Event<void> = Event.None;
 	onDidDeleteDataProvider: Event<string> = Event.None;
 	setDocumentComments: any;
@@ -569,6 +276,7 @@ export class SimpleCommentService implements ICommentService {
 	unregisterCommentController: any;
 	getCommentController: any;
 	createCommentThreadTemplate: any;
+	updateCommentThreadTemplate: any;
 	getCommentMenus: any;
 	registerDataProvider: any;
 	unregisterDataProvider: any;
@@ -589,7 +297,9 @@ export class SimpleCommentService implements ICommentService {
 	addReaction: any;
 	deleteReaction: any;
 	getReactionGroup: any;
+	hasReactionHandler: any;
 	toggleReaction: any;
+	setActiveCommentThread: any;
 }
 registerSingleton(ICommentService, SimpleCommentService, true);
 //#endregion
@@ -746,90 +456,9 @@ registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
 
 //#endregion
 
-//#region Keybinding
-
-export class SimpleKeybindingService extends StandaloneKeybindingService {
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, window.document.body);
-	}
-}
-
-registerSingleton(IKeybindingService, SimpleKeybindingService);
-
-//#endregion
-
-//#region Lifecycle
-
-export class SimpleLifecycleService extends AbstractLifecycleService {
-
-	_serviceBrand: any;
-
-	constructor(
-		@ILogService readonly logService: ILogService
-	) {
-		super(logService);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		window.onbeforeunload = () => this.beforeUnload();
-	}
-
-	private beforeUnload(): string {
-
-		// Before Shutdown
-		this._onBeforeShutdown.fire({
-			veto(value) {
-				if (value === true) {
-					console.warn(new Error('Preventing onBeforeUnload currently not supported'));
-				} else if (value instanceof Promise) {
-					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
-				}
-			},
-			reason: ShutdownReason.QUIT
-		});
-
-		// Will Shutdown
-		this._onWillShutdown.fire({
-			join() {
-				console.warn(new Error('Long running onWillShutdown currently not supported'));
-			},
-			reason: ShutdownReason.QUIT
-		});
-
-		// @ts-ignore
-		return null;
-	}
-}
-
-registerSingleton(ILifecycleService, SimpleLifecycleService);
-
-//#endregion
-
 //#region Log
 
 export class SimpleLogService extends ConsoleLogService { }
-
-//#endregion
-
-//#region Menu Bar
-
-export class SimpleMenubarService implements IMenubarService {
-
-	_serviceBrand: any;
-
-	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IMenubarService, SimpleMenubarService);
 
 //#endregion
 
@@ -927,108 +556,108 @@ export class SimpleRequestService implements IRequestService {
 
 //#endregion
 
-//#region Search
+//#region Storage
 
-export class SimpleSearchService implements ISearchService {
+export class LocalStorageService extends Disposable implements IStorageService {
+	_serviceBrand = undefined;
 
-	_serviceBrand: any;
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
+
+	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IEditorService private editorService: IEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IFileService private fileService: IFileService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
+		super();
 
+		this._register(lifecycleService.onBeforeShutdown(() => this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN })));
 	}
 
-	textSearch(query: ITextQueryProps<URI>, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
-
-		if (onProgress) {
-			coalesce(localResults.values()).forEach(onProgress);
+	private toKey(key: string, scope: StorageScope): string {
+		if (scope === StorageScope.GLOBAL) {
+			return `global://${key}`;
 		}
 
-		// @ts-ignore
-		return Promise.resolve(undefined);
+		return `workspace://${this.workspaceContextService.getWorkspace().id}/${key}`;
 	}
 
-	fileSearch(query: IFileQueryProps<URI>, token?: CancellationToken): Promise<ISearchComplete> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
+		const value = window.localStorage.getItem(this.toKey(key, scope));
 
-	clearCache(cacheKey: string): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
-		return Disposable.None;
-	}
-
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
-		const localResults = new ResourceMap<IFileMatch | null>();
-
-		if (query.type === QueryType.Text) {
-			const models = this.modelService.getModels();
-			models.forEach((model) => {
-				const resource = model.uri;
-				if (!resource) {
-					return;
-				}
-
-				if (!this.editorService.isOpen({ resource })) {
-					return;
-				}
-
-				// Support untitled files
-				if (resource.scheme === Schemas.untitled) {
-					if (!this.untitledEditorService.exists(resource)) {
-						return;
-					}
-				}
-
-				// Block walkthrough, webview, etc.
-				else if (!this.fileService.canHandleResource(resource)) {
-					return;
-				}
-
-				if (!this.matches(resource, query)) {
-					return; // respect user filters
-				}
-
-				// Use editor API to find matches
-				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
-				if (matches.length) {
-					const fileMatch = new FileMatch(resource);
-					localResults.set(resource, fileMatch);
-
-					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
-				} else {
-					localResults.set(resource, null);
-				}
-			});
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
 		}
 
-		return localResults;
+		return value;
 	}
 
-	private matches(resource: URI, query: ITextQuery): boolean {
-		return pathIncludedInQuery(query, resource.fsPath);
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
+		const value = window.localStorage.getItem(this.toKey(key, scope));
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return value === 'true';
+	}
+
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		const value = window.localStorage.getItem(this.toKey(key, scope));
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return parseInt(value, 10);
+	}
+
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): Promise<void> {
+
+		// We remove the key for undefined/null values
+		if (isUndefinedOrNull(value)) {
+			return this.remove(key, scope);
+		}
+
+		// Otherwise, convert to String and store
+		const valueStr = String(value);
+
+		// Return early if value already set
+		const currentValue = window.localStorage.getItem(this.toKey(key, scope));
+		if (currentValue === valueStr) {
+			return Promise.resolve();
+		}
+
+		// Update in cache
+		window.localStorage.setItem(this.toKey(key, scope), valueStr);
+
+		// Events
+		this._onDidChangeStorage.fire({ scope, key });
+
+		return Promise.resolve();
+	}
+
+	remove(key: string, scope: StorageScope): Promise<void> {
+		const wasDeleted = window.localStorage.getItem(this.toKey(key, scope));
+		window.localStorage.removeItem(this.toKey(key, scope));
+
+		if (!wasDeleted) {
+			return Promise.resolve(); // Return early if value already deleted
+		}
+
+		// Events
+		this._onDidChangeStorage.fire({ scope, key });
+
+		return Promise.resolve();
 	}
 }
 
-registerSingleton(ISearchService, SimpleSearchService, true);
-
-//#endregion
-
-//#region Storage
-
-export class SimpleStorageService extends InMemoryStorageService { }
-
-registerSingleton(IStorageService, SimpleStorageService);
+registerSingleton(IStorageService, LocalStorageService);
 
 //#endregion
 
@@ -1059,14 +688,6 @@ export class SimpleTelemetryService implements ITelemetryService {
 }
 
 registerSingleton(ITelemetryService, SimpleTelemetryService);
-
-//#endregion
-
-//#region Text Resource Properties
-
-export class SimpleTextResourcePropertiesService extends SimpleResourcePropertiesService { }
-
-registerSingleton(ITextResourcePropertiesService, SimpleTextResourcePropertiesService);
 
 //#endregion
 
@@ -1124,47 +745,6 @@ registerSingleton(IURLService, SimpleURLService);
 
 //#region Window
 
-export class SimpleWindowConfiguration implements IWindowConfiguration {
-	_: any[];
-	machineId: string;
-	windowId: number;
-	logLevel: LogLevel;
-
-	mainPid: number;
-
-	appRoot: string;
-	execPath: string;
-	isInitialStartup?: boolean;
-
-	userEnv: IProcessEnvironment;
-	nodeCachedDataDir?: string;
-
-	backupPath?: string;
-
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-
-	remoteAuthority: string = document.location.host;
-
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	maximized?: boolean;
-	highContrast?: boolean;
-	frameless?: boolean;
-	accessibilitySupport?: boolean;
-	partsSplashPath?: string;
-
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
-	perfEntries: ExportData;
-
-	filesToOpenOrCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
-	termProgram?: string;
-}
-
 export class SimpleWindowService implements IWindowService {
 
 	_serviceBrand: any;
@@ -1172,12 +752,12 @@ export class SimpleWindowService implements IWindowService {
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 	readonly onDidChangeMaximize: Event<boolean> = Event.None;
 
-	hasFocus = true;
+	readonly hasFocus = true;
 
 	readonly windowId = 0;
 
 	isFocused(): Promise<boolean> {
-		return Promise.resolve(false);
+		return Promise.resolve(this.hasFocus);
 	}
 
 	isMaximized(): Promise<boolean> {
@@ -1220,7 +800,46 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	toggleFullScreen(): Promise<void> {
+	toggleFullScreen(target?: HTMLElement): Promise<void> {
+		if (!target) {
+			return Promise.resolve();
+		}
+
+		// Chromium
+		if ((<any>document).fullscreen !== undefined) {
+			if (!(<any>document).fullscreen) {
+
+				return (<any>target).requestFullscreen().then(() => {
+					browser.setFullscreen(true);
+				}).catch(() => {
+					// if it fails, chromium throws an exception with error undefined.
+					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+					console.warn('Toggle Full Screen failed');
+				});
+			} else {
+				return document.exitFullscreen().then(() => {
+					browser.setFullscreen(false);
+				}).catch(() => {
+					console.warn('Exit Full Screen failed');
+				});
+			}
+		}
+
+		// Safari and Edge 14 are all using webkit prefix
+		if ((<any>document).webkitIsFullScreen !== undefined) {
+			try {
+				if (!(<any>document).webkitIsFullScreen) {
+					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
+					browser.setFullscreen(true);
+				} else {
+					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					browser.setFullscreen(false);
+				}
+			} catch {
+				console.warn('Enter/Exit Full Screen failed');
+			}
+		}
+
 		return Promise.resolve();
 	}
 
@@ -1331,7 +950,7 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	isFocused(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
+		return Promise.resolve(true);
 	}
 
 	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
@@ -1579,66 +1198,6 @@ export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
 }
 
 registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true);
-
-//#endregion
-
-//#region Workspace
-
-export class SimpleWorkspaceService implements IWorkspaceContextService {
-	_serviceBrand: any;
-
-	private workspace: Workspace;
-
-	readonly onDidChangeWorkspaceName = Event.None;
-	readonly onDidChangeWorkspaceFolders = Event.None;
-	readonly onDidChangeWorkbenchState = Event.None;
-
-	constructor() {
-		this.workspace = new Workspace(workspaceResource.toString(), [toWorkspaceFolder(workspaceResource)]);
-	}
-
-	getFolders(): IWorkspaceFolder[] {
-		return this.workspace ? this.workspace.folders : [];
-	}
-
-	getWorkbenchState(): WorkbenchState {
-		if (this.workspace.configuration) {
-			return WorkbenchState.WORKSPACE;
-		}
-
-		if (this.workspace.folders.length) {
-			return WorkbenchState.FOLDER;
-		}
-
-		return WorkbenchState.EMPTY;
-	}
-
-	getCompleteWorkspace(): Promise<IWorkspace> {
-		return Promise.resolve(this.getWorkspace());
-	}
-
-	getWorkspace(): IWorkspace {
-		return this.workspace;
-	}
-
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-		return this.workspace.getFolder(resource);
-	}
-
-	isInsideWorkspace(resource: URI): boolean {
-		if (resource && this.workspace) {
-			return isEqualOrParent(resource, this.workspace.folders[0].uri);
-		}
-
-		return false;
-	}
-
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, workspaceIdentifier);
-	}
-}
-
-registerSingleton(IWorkspaceContextService, SimpleWorkspaceService);
 
 //#endregion
 

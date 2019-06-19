@@ -34,7 +34,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.hover';
 
-	private _toUnhook = new DisposableStore();
+	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ModesContentHoverWidget;
@@ -94,23 +94,22 @@ export class ModesHoverController implements IEditorContribution {
 		this._isHoverEnabled = hoverOpts.enabled;
 		this._isHoverSticky = hoverOpts.sticky;
 		if (this._isHoverEnabled) {
-			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-			this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
-			this._toUnhook.push(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.push(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
+			this._toUnhook.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
+			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
+			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.add(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		} else {
-			this._toUnhook.push(this._editor.onMouseMove(hideWidgetsEventHandler));
+			this._toUnhook.add(this._editor.onMouseMove(hideWidgetsEventHandler));
 		}
 
-		this._toUnhook.push(this._editor.onMouseLeave(hideWidgetsEventHandler));
-		this._toUnhook.push(this._editor.onDidChangeModel(hideWidgetsEventHandler));
-		this._toUnhook.push(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
+		this._toUnhook.add(this._editor.onMouseLeave(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 	}
 
 	private _unhookEvents(): void {
-		this._toUnhook.dispose();
-		this._toUnhook = new DisposableStore();
+		this._toUnhook.clear();
 	}
 
 	private _onModelDecorationsChanged(): void {
@@ -226,6 +225,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	public dispose(): void {
 		this._unhookEvents();
+		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
 
 		if (this._glyphWidget) {

@@ -9,8 +9,9 @@ import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -19,7 +20,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	protected textEditorModelHandle: URI | null;
 	private createdEditorModel: boolean;
 
-	private modelDisposeListener: IDisposable | null;
+	private readonly modelDisposeListener = this._register(new MutableDisposable());
 
 	constructor(
 		@IModelService protected modelService: IModelService,
@@ -48,11 +49,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	private registerModelDisposeListener(model: ITextModel): void {
-		if (this.modelDisposeListener) {
-			this.modelDisposeListener.dispose();
-		}
-
-		this.modelDisposeListener = model.onWillDispose(() => {
+		this.modelDisposeListener.value = model.onWillDispose(() => {
 			this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
 			this.dispose();
 		});
@@ -126,7 +123,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// lookup mode via resource path if the provided mode is unspecific
 		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(resource ? resource.path : null, firstLineText);
+			return modeService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
 		}
 
 		// otherwise take the preferred mode for granted
@@ -165,10 +162,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	dispose(): void {
-		if (this.modelDisposeListener) {
-			this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
-			this.modelDisposeListener = null;
-		}
+		this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
 
 		if (this.textEditorModelHandle && this.createdEditorModel) {
 			this.modelService.destroyModel(this.textEditorModelHandle);

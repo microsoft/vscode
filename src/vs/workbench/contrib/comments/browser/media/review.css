@@ -178,6 +178,7 @@
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
 	background-image: url(./reaction.svg);
+	background-size: 24px;
 	width: 26px;
 	height: 16px;
 	background-repeat: no-repeat;
@@ -188,6 +189,7 @@
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: inline-block;
+	background-size: 24px;
 }
 
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
@@ -212,7 +214,7 @@
 	background-image: url(./reaction.svg);
 	width: 18px;
 	height: 18px;
-	background-size: 100% auto;
+	background-size: 24px;
 	background-position: center;
 	background-repeat: no-repeat;
 }

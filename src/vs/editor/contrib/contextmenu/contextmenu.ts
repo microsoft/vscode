@@ -125,7 +125,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 	}
 
-	private _getMenuActions(model: ITextModel): IAction[] {
+	private _getMenuActions(model: ITextModel): ReadonlyArray<IAction> {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
@@ -141,7 +141,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: ReadonlyArray<IAction>, anchor: IAnchor | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}

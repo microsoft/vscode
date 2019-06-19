@@ -11,20 +11,17 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
-import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/webview';
+import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
 
@@ -117,7 +114,6 @@ class WebviewProtocolProvider extends Disposable {
 		webview: Electron.WebviewTag,
 		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
-		private readonly _environmentService: IEnvironmentService,
 		private readonly _fileService: IFileService,
 	) {
 		super();
@@ -135,13 +131,7 @@ class WebviewProtocolProvider extends Disposable {
 			return;
 		}
 
-		const appRootUri = URI.file(this._environmentService.appRoot);
-
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
-			appRootUri
-		]);
-
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -149,87 +139,21 @@ class WebviewProtocolProvider extends Disposable {
 
 class WebviewPortMappingProvider extends Disposable {
 
-	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+	private readonly _manager: WebviewPortMappingManager;
 
 	constructor(
 		session: WebviewSession,
 		extensionLocation: URI | undefined,
 		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
-		private readonly tunnelService: ITunnelService,
-		extensionId: ExtensionIdentifier | undefined,
-		@ITelemetryService telemetryService: ITelemetryService
+		tunnelService: ITunnelService,
 	) {
 		super();
+		this._manager = this._register(new WebviewPortMappingManager(extensionLocation, mappings, tunnelService));
 
-		let hasLogged = false;
-
-		session.onBeforeRequest(async (details) => {
-			const uri = URI.parse(details.url);
-			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-				return undefined;
-			}
-
-			const localhostMatch = /^localhost:(\d+)$/.exec(uri.authority);
-			if (localhostMatch) {
-				if (!hasLogged && extensionId) {
-					hasLogged = true;
-
-					/* __GDPR__
-						"webview.accessLocalhost" : {
-							"extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					telemetryService.publicLog('webview.accessLocalhost', { extension: extensionId.value });
-				}
-
-				const port = +localhostMatch[1];
-				for (const mapping of mappings()) {
-					if (mapping.webviewPort === port) {
-						if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-							const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
-							if (tunnel) {
-								return {
-									redirectURL: details.url.replace(
-										new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
-										`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`)
-								};
-							}
-						}
-
-						if (mapping.webviewPort !== mapping.extensionHostPort) {
-							return {
-								redirectURL: details.url.replace(
-									new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
-									`${uri.scheme}://localhost:${mapping.extensionHostPort}/`)
-							};
-						}
-					}
-				}
-			}
-
-			return undefined;
+		session.onBeforeRequest(async details => {
+			const redirect = await this._manager.getRedirect(details.url);
+			return redirect ? { redirectURL: redirect } : undefined;
 		});
-	}
-
-	dispose() {
-		super.dispose();
-
-		for (const tunnel of this._tunnels.values()) {
-			tunnel.then(tunnel => tunnel.dispose());
-		}
-		this._tunnels.clear();
-	}
-
-	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
-		const existing = this._tunnels.get(remotePort);
-		if (existing) {
-			return existing;
-		}
-		const tunnel = this.tunnelService.openTunnel(remotePort);
-		if (tunnel) {
-			this._tunnels.set(remotePort, tunnel);
-		}
-		return tunnel;
 	}
 }
 
@@ -361,10 +285,10 @@ interface WebviewContent {
 }
 
 export class WebviewElement extends Disposable implements Webview {
-	private _webview: Electron.WebviewTag;
+	private _webview: Electron.WebviewTag | undefined;
 	private _ready: Promise<void>;
 
-	private _webviewFindWidget: WebviewFindWidget;
+	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 	private content: WebviewContent;
 
@@ -378,10 +302,8 @@ export class WebviewElement extends Disposable implements Webview {
 		contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
@@ -404,8 +326,8 @@ export class WebviewElement extends Disposable implements Webview {
 		this._webview.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
 		this._ready = new Promise(resolve => {
-			const subscription = this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
-				if (event.channel === 'webview-ready') {
+			const subscription = this._register(addDisposableListener(this._webview!, 'ipc-message', (event) => {
+				if (this._webview && event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
 
@@ -421,7 +343,6 @@ export class WebviewElement extends Disposable implements Webview {
 			this._webview,
 			this._options.extension ? this._options.extension.location : undefined,
 			() => (this.content.options.localResourceRoots || []),
-			environmentService,
 			fileService));
 
 		this._register(new WebviewPortMappingProvider(
@@ -429,8 +350,6 @@ export class WebviewElement extends Disposable implements Webview {
 			_options.extension ? _options.extension.location : undefined,
 			() => (this.content.options.portMappings || []),
 			tunnelService,
-			_options.extension ? _options.extension.id : undefined,
-			telemetryService
 		));
 
 		if (!this._options.allowSvgs) {
@@ -447,7 +366,7 @@ export class WebviewElement extends Disposable implements Webview {
 			this.layout();
 
 			// Workaround for https://github.com/electron/electron/issues/14474
-			if (this._focused || document.activeElement === this._webview) {
+			if (this._webview && (this._focused || document.activeElement === this._webview)) {
 				this._webview.blur();
 				this._webview.focus();
 			}
@@ -456,6 +375,10 @@ export class WebviewElement extends Disposable implements Webview {
 			console.error('embedded page crashed');
 		}));
 		this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
+			if (!this._webview) {
+				return;
+			}
+
 			switch (event.channel) {
 				case 'onmessage':
 					if (event.args && event.args.length) {
@@ -513,6 +436,10 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public mountTo(parent: HTMLElement) {
+		if (!this._webview) {
+			return;
+		}
+
 		if (this._webviewFindWidget) {
 			parent.appendChild(this._webviewFindWidget.getDomNode()!);
 		}
@@ -524,10 +451,13 @@ export class WebviewElement extends Disposable implements Webview {
 			if (this._webview.parentElement) {
 				this._webview.parentElement.removeChild(this._webview);
 			}
+			this._webview = undefined;
 		}
 
-		this._webview = undefined!;
-		this._webviewFindWidget = undefined!;
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.dispose();
+			this._webviewFindWidget = undefined;
+		}
 		super.dispose();
 	}
 
@@ -543,9 +473,13 @@ export class WebviewElement extends Disposable implements Webview {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
-	private _send(channel: string, ...args: any[]): void {
+	private _send(channel: string, data?: any): void {
 		this._ready
-			.then(() => this._webview.send(channel, ...args))
+			.then(() => {
+				if (this._webview) {
+					this._webview.send(channel, data);
+				}
+			})
 			.catch(err => console.error(err));
 	}
 
@@ -604,6 +538,9 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public focus(): void {
+		if (!this._webview) {
+			return;
+		}
 		this._webview.focus();
 		this._send('focus');
 
@@ -629,31 +566,8 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	private style(theme: ITheme): void {
-		const configuration = this._configurationService.getValue<IEditorOptions>('editor');
-		const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
-		const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
-
-		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
-			const color = theme.getColor(entry.id);
-			if (color) {
-				colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
-			}
-			return colors;
-		}, {} as { [key: string]: string });
-
-		const styles = {
-			'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			'vscode-font-weight': 'normal',
-			'vscode-font-size': '13px',
-			'vscode-editor-font-family': editorFontFamily,
-			'vscode-editor-font-weight': editorFontWeight,
-			'vscode-editor-font-size': editorFontSize,
-			...exportedColors
-		};
-
-		const activeTheme = ApiThemeClassName.fromTheme(theme);
-		this._send('styles', styles, activeTheme);
+		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
+		this._send('styles', { styles, activeTheme });
 
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.updateTheme(theme);
@@ -661,6 +575,9 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public layout(): void {
+		if (!this._webview) {
+			return;
+		}
 		const contents = this._webview.getWebContents();
 		if (!contents || contents.isDestroyed()) {
 			return;
@@ -679,7 +596,7 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public startFind(value: string, options?: Electron.FindInPageOptions) {
-		if (!value) {
+		if (!value || !this._webview) {
 			return;
 		}
 
@@ -706,6 +623,10 @@ export class WebviewElement extends Disposable implements Webview {
 	 * @param value The string to search for. Empty strings are ignored.
 	 */
 	public find(value: string, previous: boolean): void {
+		if (!this._webview) {
+			return;
+		}
+
 		// Searching with an empty value will throw an exception
 		if (!value) {
 			return;
@@ -721,6 +642,9 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public stopFind(keepSelection?: boolean): void {
+		if (!this._webview) {
+			return;
+		}
 		this._findStarted = false;
 		this._webview.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
 	}
@@ -742,45 +666,38 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public selectAll() {
-		this._webview.selectAll();
+		if (this._webview) {
+			this._webview.selectAll();
+		}
 	}
 
 	public copy() {
-		this._webview.copy();
+		if (this._webview) {
+			this._webview.copy();
+		}
 	}
 
 	public paste() {
-		this._webview.paste();
+		if (this._webview) {
+			this._webview.paste();
+		}
 	}
 
 	public cut() {
-		this._webview.cut();
+		if (this._webview) {
+			this._webview.cut();
+		}
 	}
 
 	public undo() {
-		this._webview.undo();
+		if (this._webview) {
+			this._webview.undo();
+		}
 	}
 
 	public redo() {
-		this._webview.redo();
-	}
-}
-
-
-enum ApiThemeClassName {
-	light = 'vscode-light',
-	dark = 'vscode-dark',
-	highContrast = 'vscode-high-contrast'
-}
-
-namespace ApiThemeClassName {
-	export function fromTheme(theme: ITheme): ApiThemeClassName {
-		if (theme.type === LIGHT) {
-			return ApiThemeClassName.light;
-		} else if (theme.type === DARK) {
-			return ApiThemeClassName.dark;
-		} else {
-			return ApiThemeClassName.highContrast;
+		if (this._webview) {
+			this._webview.redo();
 		}
 	}
 }
