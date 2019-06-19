@@ -9,7 +9,6 @@ import 'vs/editor/editor.all';
 
 import 'vs/workbench/api/browser/extensionHost.contribution';
 
-import 'vs/workbench/browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
 import 'vs/workbench/browser/web.main';
