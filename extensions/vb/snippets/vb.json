@@ -1,73 +1,159 @@
 {
-	"For Next Loop": {
+	"For": {
 		"prefix": "for",
 		"body": [
 			"For ${1:index} As ${2:ObjectType} = ${3:lower} To ${4:Upper}",
 			"\t$0",
-			"Next ${1:index}"
+			"Next\n"
 		],
 		"description": "For Next Loop"
 	},
-	"For Each...Next": {
-		"prefix": "fore",
+	"ForEach": {
+		"prefix": "foreach",
 		"body": [
 			"For Each ${1:Variable} As ${2:ObjectType} In ${3:Collection}",
 			"\t$0",
-			"Next"
+			"Next\n"
 		],
 		"description": "For Each...Next"
 	},
-	"For i...Next i": {
-		"prefix": "fori",
+	"If": {
+		"prefix": "if",
 		"body": [
-			"For i As ${1:Integer} = ${2:Lower} To ${3:Upper}",
+			"If ${1:Boolean} Then",
 			"\t$0",
-			"Next i"
+			"End If\n"
 		],
-		"description": "For i...Next i"
+		"description": "If..."
 	},
-	"For j...Next j": {
-		"prefix": "forj",
+	"Function": {
+		"prefix": "function",
 		"body": [
-			"For j As ${1:Integer} = ${2:Lower} To ${3:Upper}",
+			"Function ${1:FunctionName}(${2:ParameterList}) As ${3:ReturnType}",
 			"\t$0",
-			"Next j"
+			"End Function\n"
 		],
-		"description": "For j...Next j"
+		"description": "Function..."
 	},
-	"Public Function...": {
-		"prefix": "pf",
+	"Sub": {
+		"prefix": "sub",
 		"body": [
-			"Public Function ${1:FunctionName}(${2:ParameterList}) As ${3:ReturnType}",
-			"\tTry",
+			"Sub ${1:ProcedureName}(${2:ParameterList})",
+			"\t$0",
+			"End Sub\n"
+		],
+		"description": "Sub ..."
+	},
+	"DoWhile": {
+		"prefix": "dowhile",
+		"body": [
+			"Do While ${1:Boolean}",
+			"\t$0",
+			"Loop\n"
+		],
+		"description": "Do While ... Loop"
+	},
+	"DoUntil": {
+		"prefix": "dountil",
+		"body": [
+			"Do Until ${1:Boolean}",
+			"\t$0",
+			"Loop\n"
+		],
+		"description": "Do Until ... Loop"
+	},
+	"Dim": {
+		"prefix": "dim",
+		"body": [
+			"Dim ${1:Name} As ${2:Type}"
+		],
+		"description": "Dim ... As"
+	},
+	"Operator": {
+		"prefix": "Operator",
+		"body": [
+			"Operator ${1:Op}(${2:A} As ${3:TypeA}, ${4:B} As ${5:TypeB}) As ${6:OutPutType}",
+			"\t$0",
+			"End Operator\n"
+		],
+		"description": "Operator ... "
+	},
+	"Property": {
+		"prefix": "property",
+		"body": [
+			"Property ${1:Name} As ${2:Type}",
+			"\tGet",
+			"\t\t$3",
+			"\tEnd Get",
+			"\tSet(value As ${2:Type})",
 			"\t\t$0",
-			"\tCatch ex As Exception",
-			"\tEnd Try",
-			"\tReturn ${3:ReturnValue}",
-			"End Function"
+			"\tEnd Set",
+			"End Property\n"
 		],
-		"description": "Public Function..."
+		"description": "Property..."
 	},
-	"Public Sub ...": {
-		"prefix": "ps",
+	"Try": {
+		"prefix": "try",
 		"body": [
-			"Public Sub ${1:ProcedureName}(${2:ParameterList})",
-			"\tTry",
-			"\t\t$0",
-			"\tCatch ex As Exception",
-			"\tEnd Try",
-			"End Sub"
-		],
-		"description": "Public Sub ..."
-	},
-	"While ... End While": {
-		"prefix": "while",
-		"body": [
-			"While ${1:Boolean}",
+			"Try",
+			"\t$1",
+			"Catch ex As Exception",
 			"\t$0",
-			"End While"
+			"End Try\n"
 		],
-		"description": "While ... End While"
+		"description": "Try..."
+	},
+	"Module": {
+		"prefix": "Module",
+		"body": [
+			"Module ${1:Name}",
+			"\t$0",
+			"End Module\n"
+		],
+		"description": "Module..."
+	},
+	"Class": {
+		"prefix": "Class",
+		"body": [
+			"Class ${1:Name}",
+			"\t$0",
+			"End Class\n"
+		],
+		"description": "Class..."
+	},
+	"Interface": {
+		"prefix": "Interface",
+		"body": [
+			"Interface ${1:Name}",
+			"\t$0",
+			"End Interface\n"
+		],
+		"description": "Interface..."
+	},
+	"Namespace": {
+		"prefix": "Namespace",
+		"body": [
+			"Namespace ${1:Name}",
+			"\t$0",
+			"End Namespace\n"
+		],
+		"description": "Namespace..."
+	},
+	"Enum": {
+		"prefix": "Enum",
+		"body": [
+			"Enum ${1:Name}",
+			"\t$0",
+			"End Enum\n"
+		],
+		"description": "Enum..."
+	},
+	"Declare": {
+		"prefix": "Declare",
+		"body": [
+			"Declare Function ${1:Name} Lib \"${2:user32}\" (${3:ParameterList}) As ${4:Type} "
+		],
+		"description": "Declare Function ..."
 	},
 	"Region Start": {
 		"prefix": "#Region",
@@ -82,5 +168,1104 @@
 			"#End Region"
 		],
 		"description": "Folding Region End"
+	},
+	"AddHandler": {
+		"prefix": "AddHandler",
+		"body": [
+			"AddHandler ${1:Event} , AddressOf ${2:Sub}\n"
+		],
+		"description": "AddHandler , AddressOf"
+	},
+	"Catch": {
+		"prefix": "Catch",
+		"body": [
+			"Catch ${1:ex} As Exception\n",
+			"\t$2"
+		],
+		"description": "Catch ..."
+	},
+	"Const": {
+		"prefix": "Const",
+		"body": [
+			"Const ${1:Name} As ${2:Type}"
+		],
+		"description": "Const ... As"
+	},
+	"Event": {
+		"prefix": "Event",
+		"body": [
+			"Event ${1:Name}(${2:ParameterList})\n"
+		],
+		"description": "Event ..."
+	},
+	"Select": {
+		"prefix": "Select",
+		"body": [
+			"Select Case ${1:Object}",
+			"\tCase ${2:What}",
+			"\t\t$0",
+			"End Select\n"
+		],
+		"description": "Select ..."
+	},
+	"Structure": {
+		"prefix": "Structure",
+		"body": [
+			"Structure ${1:Name}",
+			"\t$0",
+			"End Structure\n"
+		],
+		"description": "Structure..."
+	},
+	"Using": {
+		"prefix": "Using",
+		"body": [
+			"Using ${1:Object}",
+			"\t$0",
+			"End Using\n"
+		],
+		"description": "Using..."
+	},
+	"With": {
+		"prefix": "With",
+		"body": [
+			"With ${1:Object}",
+			"\t$0",
+			"End With\n"
+		],
+		"description": "With..."
+	},
+	"CType": {
+		"prefix": "CType",
+		"body": [
+			"CType(${1:Object}, ${2:NewType}) "
+		],
+		"description": "CType..."
+	},
+	"Get": {
+		"prefix": "Get",
+		"body": [
+			"Get",
+			"\t$0",
+			"End Get\n"
+		],
+		"description": "Get..."
+	},
+	"Set": {
+		"prefix": "Set",
+		"body": [
+			"Set(value As ${1:Type})",
+			"\t$0",
+			"End Set\n"
+		],
+		"description": "Set..."
+	},
+	"Alias": {
+		"prefix": "Alias",
+		"body": [
+			"Alias "
+		],
+		"description": "Alias ... VBNET"
+	},
+	"AndAlso": {
+		"prefix": "AndAlso",
+		"body": [
+			"AndAlso "
+		],
+		"description": "AndAlso ... VBNET"
+	},
+	"Boolean": {
+		"prefix": "Boolean",
+		"body": [
+			"Boolean "
+		],
+		"description": "Boolean ... VBNET"
+	},
+	"ByRef": {
+		"prefix": "ByRef",
+		"body": [
+			"ByRef "
+		],
+		"description": "ByRef ... VBNET"
+	},
+	"Byte": {
+		"prefix": "Byte",
+		"body": [
+			"Byte "
+		],
+		"description": "Byte ... VBNET"
+	},
+	"Async": {
+		"prefix": "Async",
+		"body": [
+			"Async "
+		],
+		"description": "Async ... VBNET"
+	},
+	"Await": {
+		"prefix": "Await",
+		"body": [
+			"Await "
+		],
+		"description": "Await ... VBNET"
+	},
+	"ByVal": {
+		"prefix": "ByVal",
+		"body": [
+			"ByVal "
+		],
+		"description": "ByVal ... VBNET"
+	},
+	"Call": {
+		"prefix": "Call",
+		"body": [
+			"Call "
+		],
+		"description": "Call ... VBNET"
+	},
+	"Case": {
+		"prefix": "Case",
+		"body": [
+			"Case "
+		],
+		"description": "Case ... VBNET"
+	},
+	"Constraint": {
+		"prefix": "Constraint",
+		"body": [
+			"Constraint "
+		],
+		"description": "Constraint ... VBNET"
+	},
+	"Statement": {
+		"prefix": "Statement",
+		"body": [
+			"Statement "
+		],
+		"description": "Statement ... VBNET"
+	},
+	"Continue": {
+		"prefix": "Continue",
+		"body": [
+			"Continue "
+		],
+		"description": "Continue ... VBNET"
+	},
+	"Date": {
+		"prefix": "Date",
+		"body": [
+			"Date "
+		],
+		"description": "Date ... VBNET"
+	},
+	"Decimal": {
+		"prefix": "Decimal",
+		"body": [
+			"Decimal "
+		],
+		"description": "Decimal ... VBNET"
+	},
+	"Default": {
+		"prefix": "Default",
+		"body": [
+			"Default "
+		],
+		"description": "Default ... VBNET"
+	},
+	"Delegate": {
+		"prefix": "Delegate",
+		"body": [
+			"Delegate "
+		],
+		"description": "Delegate ... VBNET"
+	},
+	"DirectCast": {
+		"prefix": "DirectCast",
+		"body": [
+			"DirectCast "
+		],
+		"description": "DirectCast ... VBNET"
+	},
+	"Double": {
+		"prefix": "Double",
+		"body": [
+			"Double "
+		],
+		"description": "Double ... VBNET"
+	},
+	"Each": {
+		"prefix": "Each",
+		"body": [
+			"Each "
+		],
+		"description": "Each ... VBNET"
+	},
+	"ElseIf": {
+		"prefix": "ElseIf",
+		"body": [
+			"ElseIf "
+		],
+		"description": "ElseIf ... VBNET"
+	},
+	"End": {
+		"prefix": "End",
+		"body": [
+			"End "
+		],
+		"description": "End ... VBNET"
+	},
+	"Erase": {
+		"prefix": "Erase",
+		"body": [
+			"Erase "
+		],
+		"description": "Erase ... VBNET"
+	},
+	"Error": {
+		"prefix": "Error",
+		"body": [
+			"Error "
+		],
+		"description": "Error ... VBNET"
+	},
+	"Exit": {
+		"prefix": "Exit",
+		"body": [
+			"Exit "
+		],
+		"description": "Exit ... VBNET"
+	},
+	"False": {
+		"prefix": "False",
+		"body": [
+			"False "
+		],
+		"description": "False ... VBNET"
+	},
+	"Next": {
+		"prefix": "Next",
+		"body": [
+			"Next "
+		],
+		"description": "Next ... VBNET"
+	},
+	"Friend": {
+		"prefix": "Friend",
+		"body": [
+			"Friend "
+		],
+		"description": "Friend ... VBNET"
+	},
+	"Global": {
+		"prefix": "Global",
+		"body": [
+			"Global "
+		],
+		"description": "Global ... VBNET"
+	},
+	"GoSub": {
+		"prefix": "GoSub",
+		"body": [
+			"GoSub "
+		],
+		"description": "GoSub ... VBNET"
+	},
+	"GoTo": {
+		"prefix": "GoTo",
+		"body": [
+			"GoTo "
+		],
+		"description": "GoTo ... VBNET"
+	},
+	"Handles": {
+		"prefix": "Handles",
+		"body": [
+			"Handles "
+		],
+		"description": "Handles ... VBNET"
+	},
+	"Implements": {
+		"prefix": "Implements",
+		"body": [
+			"Implements "
+		],
+		"description": "Implements ... VBNET"
+	},
+	"Imports": {
+		"prefix": "Imports",
+		"body": [
+			"Imports "
+		],
+		"description": "Imports ... VBNET"
+	},
+	"Type": {
+		"prefix": "Type",
+		"body": [
+			"Type "
+		],
+		"description": "Type ... VBNET"
+	},
+	"In": {
+		"prefix": "In",
+		"body": [
+			"In "
+		],
+		"description": "In ... VBNET"
+	},
+	"Inherits": {
+		"prefix": "Inherits",
+		"body": [
+			"Inherits "
+		],
+		"description": "Inherits ... VBNET"
+	},
+	"Integer": {
+		"prefix": "Integer",
+		"body": [
+			"Integer "
+		],
+		"description": "Integer ... VBNET"
+	},
+	"Is": {
+		"prefix": "Is",
+		"body": [
+			"Is "
+		],
+		"description": "Is ... VBNET"
+	},
+	"IsNot": {
+		"prefix": "IsNot",
+		"body": [
+			"IsNot "
+		],
+		"description": "IsNot ... VBNET"
+	},
+	"Lib": {
+		"prefix": "Lib",
+		"body": [
+			"Lib "
+		],
+		"description": "Lib ... VBNET"
+	},
+	"Like": {
+		"prefix": "Like",
+		"body": [
+			"Like "
+		],
+		"description": "Like ... VBNET"
+	},
+	"Long": {
+		"prefix": "Long",
+		"body": [
+			"Long "
+		],
+		"description": "Long ... VBNET"
+	},
+	"Loop": {
+		"prefix": "Loop",
+		"body": [
+			"Loop "
+		],
+		"description": "Loop ... VBNET"
+	},
+	"Me": {
+		"prefix": "Me",
+		"body": [
+			"Me "
+		],
+		"description": "Me ... VBNET"
+	},
+	"Mod": {
+		"prefix": "Mod",
+		"body": [
+			"Mod "
+		],
+		"description": "Mod ... VBNET"
+	},
+	"MustInherit": {
+		"prefix": "MustInherit",
+		"body": [
+			"MustInherit "
+		],
+		"description": "MustInherit ... VBNET"
+	},
+	"MustOverride": {
+		"prefix": "MustOverride",
+		"body": [
+			"MustOverride "
+		],
+		"description": "MustOverride ... VBNET"
+	},
+	"MyBase": {
+		"prefix": "MyBase",
+		"body": [
+			"MyBase "
+		],
+		"description": "MyBase ... VBNET"
+	},
+	"MyClass": {
+		"prefix": "MyClass",
+		"body": [
+			"MyClass "
+		],
+		"description": "MyClass ... VBNET"
+	},
+	"Narrowing": {
+		"prefix": "Narrowing",
+		"body": [
+			"Narrowing "
+		],
+		"description": "Narrowing ... VBNET"
+	},
+	"New": {
+		"prefix": "New",
+		"body": [
+			"New "
+		],
+		"description": "New ... VBNET"
+	},
+	"Resume": {
+		"prefix": "Resume",
+		"body": [
+			"Resume "
+		],
+		"description": "Resume ... VBNET"
+	},
+	"Nothing": {
+		"prefix": "Nothing",
+		"body": [
+			"Nothing "
+		],
+		"description": "Nothing ... VBNET"
+	},
+	"NotInheritable": {
+		"prefix": "NotInheritable",
+		"body": [
+			"NotInheritable "
+		],
+		"description": "NotInheritable ... VBNET"
+	},
+	"NotOverridable": {
+		"prefix": "NotOverridable",
+		"body": [
+			"NotOverridable "
+		],
+		"description": "NotOverridable ... VBNET"
+	},
+	"Object": {
+		"prefix": "Object",
+		"body": [
+			"Object "
+		],
+		"description": "Object ... VBNET"
+	},
+	"Of": {
+		"prefix": "Of",
+		"body": [
+			"Of "
+		],
+		"description": "Of ... VBNET"
+	},
+	"On": {
+		"prefix": "On",
+		"body": [
+			"On "
+		],
+		"description": "On ... VBNET"
+	},
+	"Option": {
+		"prefix": "Option",
+		"body": [
+			"Option "
+		],
+		"description": "Option ... VBNET"
+	},
+	"Optional": {
+		"prefix": "Optional",
+		"body": [
+			"Optional "
+		],
+		"description": "Optional ... VBNET"
+	},
+	"Or": {
+		"prefix": "Or",
+		"body": [
+			"Or "
+		],
+		"description": "Or ... VBNET"
+	},
+	"OrElse": {
+		"prefix": "OrElse",
+		"body": [
+			"OrElse "
+		],
+		"description": "OrElse ... VBNET"
+	},
+	"Out": {
+		"prefix": "Out",
+		"body": [
+			"Out "
+		],
+		"description": "Out ... VBNET"
+	},
+	"Overloads": {
+		"prefix": "Overloads",
+		"body": [
+			"Overloads "
+		],
+		"description": "Overloads ... VBNET"
+	},
+	"Overridable": {
+		"prefix": "Overridable",
+		"body": [
+			"Overridable "
+		],
+		"description": "Overridable ... VBNET"
+	},
+	"Overrides": {
+		"prefix": "Overrides",
+		"body": [
+			"Overrides "
+		],
+		"description": "Overrides ... VBNET"
+	},
+	"ParamArray": {
+		"prefix": "ParamArray",
+		"body": [
+			"ParamArray "
+		],
+		"description": "ParamArray ... VBNET"
+	},
+	"Partial": {
+		"prefix": "Partial",
+		"body": [
+			"Partial "
+		],
+		"description": "Partial ... VBNET"
+	},
+	"Private": {
+		"prefix": "Private",
+		"body": [
+			"Private "
+		],
+		"description": "Private ... VBNET"
+	},
+	"Protected": {
+		"prefix": "Protected",
+		"body": [
+			"Protected "
+		],
+		"description": "Protected ... VBNET"
+	},
+	"Public": {
+		"prefix": "Public",
+		"body": [
+			"Public "
+		],
+		"description": "Public ... VBNET"
+	},
+	"RaiseEvent": {
+		"prefix": "RaiseEvent",
+		"body": [
+			"RaiseEvent "
+		],
+		"description": "RaiseEvent ... VBNET"
+	},
+	"ReadOnly": {
+		"prefix": "ReadOnly",
+		"body": [
+			"ReadOnly "
+		],
+		"description": "ReadOnly ... VBNET"
+	},
+	"ReDim": {
+		"prefix": "ReDim",
+		"body": [
+			"ReDim "
+		],
+		"description": "ReDim ... VBNET"
+	},
+	"RemoveHandler": {
+		"prefix": "RemoveHandler",
+		"body": [
+			"RemoveHandler "
+		],
+		"description": "RemoveHandler ... VBNET"
+	},
+	"Return": {
+		"prefix": "Return",
+		"body": [
+			"Return "
+		],
+		"description": "Return ... VBNET"
+	},
+	"SByte": {
+		"prefix": "SByte",
+		"body": [
+			"SByte "
+		],
+		"description": "SByte ... VBNET"
+	},
+	"Shadows": {
+		"prefix": "Shadows",
+		"body": [
+			"Shadows "
+		],
+		"description": "Shadows ... VBNET"
+	},
+	"Shared": {
+		"prefix": "Shared",
+		"body": [
+			"Shared "
+		],
+		"description": "Shared ... VBNET"
+	},
+	"Short": {
+		"prefix": "Short",
+		"body": [
+			"Short "
+		],
+		"description": "Short ... VBNET"
+	},
+	"Single": {
+		"prefix": "Single",
+		"body": [
+			"Single "
+		],
+		"description": "Single ... VBNET"
+	},
+	"Static": {
+		"prefix": "Static",
+		"body": [
+			"Static "
+		],
+		"description": "Static ... VBNET"
+	},
+	"Step": {
+		"prefix": "Step",
+		"body": [
+			"Step "
+		],
+		"description": "Step ... VBNET"
+	},
+	"Stop": {
+		"prefix": "Stop",
+		"body": [
+			"Stop "
+		],
+		"description": "Stop ... VBNET"
+	},
+	"String": {
+		"prefix": "String",
+		"body": [
+			"String "
+		],
+		"description": "String ... VBNET"
+	},
+	"SyncLock": {
+		"prefix": "SyncLock",
+		"body": [
+			"SyncLock "
+		],
+		"description": "SyncLock ... VBNET"
+	},
+	"Then": {
+		"prefix": "Then",
+		"body": [
+			"Then "
+		],
+		"description": "Then ... VBNET"
+	},
+	"Throw": {
+		"prefix": "Throw",
+		"body": [
+			"Throw "
+		],
+		"description": "Throw ... VBNET"
+	},
+	"To": {
+		"prefix": "To",
+		"body": [
+			"To "
+		],
+		"description": "To ... VBNET"
+	},
+	"True": {
+		"prefix": "True",
+		"body": [
+			"True "
+		],
+		"description": "True ... VBNET"
+	},
+	"TryCast": {
+		"prefix": "TryCast",
+		"body": [
+			"TryCast "
+		],
+		"description": "TryCast ... VBNET"
+	},
+	"TypeOf": {
+		"prefix": "TypeOf",
+		"body": [
+			"TypeOf "
+		],
+		"description": "TypeOf ... VBNET"
+	},
+	"UInteger": {
+		"prefix": "UInteger",
+		"body": [
+			"UInteger "
+		],
+		"description": "UInteger ... VBNET"
+	},
+	"ULong": {
+		"prefix": "ULong",
+		"body": [
+			"ULong "
+		],
+		"description": "ULong ... VBNET"
+	},
+	"UShort": {
+		"prefix": "UShort",
+		"body": [
+			"UShort "
+		],
+		"description": "UShort ... VBNET"
+	},
+	"When": {
+		"prefix": "When",
+		"body": [
+			"When "
+		],
+		"description": "When ... VBNET"
+	},
+	"While": {
+		"prefix": "While",
+		"body": [
+			"While "
+		],
+		"description": "While ... VBNET"
+	},
+	"Widening": {
+		"prefix": "Widening",
+		"body": [
+			"Widening "
+		],
+		"description": "Widening ... VBNET"
+	},
+	"WithEvents": {
+		"prefix": "WithEvents",
+		"body": [
+			"WithEvents "
+		],
+		"description": "WithEvents ... VBNET"
+	},
+	"WriteOnly": {
+		"prefix": "WriteOnly",
+		"body": [
+			"WriteOnly "
+		],
+		"description": "WriteOnly ... VBNET"
+	},
+	"Xor": {
+		"prefix": "Xor",
+		"body": [
+			"Xor "
+		],
+		"description": "Xor ... VBNET"
+	},
+	"Tostring": {
+		"prefix": "Tostring",
+		"body": [
+			"Tostring "
+		],
+		"description": "Tostring ... VBNET"
+	},
+	"CBool": {
+		"prefix": "CBool",
+		"body": [
+			"CBool(${1:Obj}) "
+		],
+		"description": "CBool ... VBNET"
+	},
+	"CByte": {
+		"prefix": "CByte",
+		"body": [
+			"CByte(${1:Obj}) "
+		],
+		"description": "CByte ... VBNET"
+	},
+	"CChar": {
+		"prefix": "CChar",
+		"body": [
+			"CChar(${1:Obj}) "
+		],
+		"description": "CChar ... VBNET"
+	},
+	"CDate": {
+		"prefix": "CDate",
+		"body": [
+			"CDate(${1:Obj}) "
+		],
+		"description": "CDate ... VBNET"
+	},
+	"CDbl": {
+		"prefix": "CDbl",
+		"body": [
+			"CDbl(${1:Obj}) "
+		],
+		"description": "CDbl ... VBNET"
+	},
+	"CDec": {
+		"prefix": "CDec",
+		"body": [
+			"CDec(${1:Obj}) "
+		],
+		"description": "CDec ... VBNET"
+	},
+	"Char": {
+		"prefix": "Char",
+		"body": [
+			"Char(${1:Obj}) "
+		],
+		"description": "Char ... VBNET"
+	},
+	"CInt": {
+		"prefix": "CInt",
+		"body": [
+			"CInt(${1:Obj}) "
+		],
+		"description": "CInt ... VBNET"
+	},
+	"CLng": {
+		"prefix": "CLng",
+		"body": [
+			"CLng(${1:Obj}) "
+		],
+		"description": "CLng ... VBNET"
+	},
+	"CObj": {
+		"prefix": "CObj",
+		"body": [
+			"CObj(${1:Obj}) "
+		],
+		"description": "CObj ... VBNET"
+	},
+	"CSByte": {
+		"prefix": "CSByte",
+		"body": [
+			"CSByte(${1:Obj}) "
+		],
+		"description": "CSByte ... VBNET"
+	},
+	"CShort": {
+		"prefix": "CShort",
+		"body": [
+			"CShort(${1:Obj}) "
+		],
+		"description": "CShort ... VBNET"
+	},
+	"CSng": {
+		"prefix": "CSng",
+		"body": [
+			"CSng(${1:Obj}) "
+		],
+		"description": "CSng ... VBNET"
+	},
+	"CStr": {
+		"prefix": "CStr",
+		"body": [
+			"CStr(${1:Obj}) "
+		],
+		"description": "CStr ... VBNET"
+	},
+	"CUInt": {
+		"prefix": "CUInt",
+		"body": [
+			"CUInt(${1:Obj}) "
+		],
+		"description": "CUInt ... VBNET"
+	},
+	"CULng": {
+		"prefix": "CULng",
+		"body": [
+			"CULng(${1:Obj}) "
+		],
+		"description": "CULng ... VBNET"
+	},
+	"CUShort": {
+		"prefix": "CUShort",
+		"body": [
+			"CUShort(${1:Obj}) "
+		],
+		"description": "CUShort ... VBNET"
+	},
+	"GetType": {
+		"prefix": "GetType",
+		"body": [
+			"GetType(${1:Obj}) "
+		],
+		"description": "GetType ... VBNET"
+	},
+	"GetXMLNamespace": {
+		"prefix": "GetXMLNamespace",
+		"body": [
+			"GetXMLNamespace(${1:Obj}) "
+		],
+		"description": "GetXMLNamespace ... VBNET"
+	},
+	"Equals": {
+		"prefix": "Equals",
+		"body": [
+			"Equals(${1:Obj}) "
+		],
+		"description": "Equals ... VBNET"
+	},
+	"isNothing": {
+		"prefix": "isNothing",
+		"body": [
+			"isNothing(${1:Obj}) "
+		],
+		"description": "isNothing ... VBNET"
+	},
+	"Finally": {
+		"prefix": "Finally",
+		"body": [
+			"Finally\n\t"
+		],
+		"description": "Finally ... VBNET"
+	},
+	"Else": {
+		"prefix": "Else",
+		"body": [
+			"Else\n\t"
+		],
+		"description": "Else ... VBNET"
+	},
+	"EndIf": {
+		"prefix": "EndIf",
+		"body": [
+			"End If\n"
+		],
+		"description": "End If ... VBNET"
+	},
+	"EndWith": {
+		"prefix": "EndWith",
+		"body": [
+			"End With\n"
+		],
+		"description": "End With ... VBNET"
+	},
+	"EndModule": {
+		"prefix": "EndModule",
+		"body": [
+			"End Module\n"
+		],
+		"description": "End Module ... VBNET"
+	},
+	"EndClass": {
+		"prefix": "EndClass",
+		"body": [
+			"End Class\n"
+		],
+		"description": "End Class ... VBNET"
+	},
+	"EndUsing": {
+		"prefix": "EndUsing",
+		"body": [
+			"End Using\n"
+		],
+		"description": "End Using ... VBNET"
+	},
+	"EndStruct": {
+		"prefix": "EndStruct",
+		"body": [
+			"End Struct\n"
+		],
+		"description": "End Struct ... VBNET"
+	},
+	"EndGet": {
+		"prefix": "EndGet",
+		"body": [
+			"End Get\n"
+		],
+		"description": "End Get ... VBNET"
+	},
+	"EndSet": {
+		"prefix": "EndSet",
+		"body": [
+			"End Set\n"
+		],
+		"description": "End Set ... VBNET"
+	},
+	"EndStructure": {
+		"prefix": "EndStructure",
+		"body": [
+			"End Structure\n"
+		],
+		"description": "End Structure ... VBNET"
+	},
+	"EndSelect": {
+		"prefix": "EndSelect",
+		"body": [
+			"End Select\n"
+		],
+		"description": "End Select ... VBNET"
+	},
+	"EndTry": {
+		"prefix": "EndTry",
+		"body": [
+			"End Try\n"
+		],
+		"description": "End Try ... VBNET"
+	},
+	"EndEnum": {
+		"prefix": "EndEnum",
+		"body": [
+			"End Enum\n"
+		],
+		"description": "End Enum ... VBNET"
+	},
+	"EndNamespace": {
+		"prefix": "EndNamespace",
+		"body": [
+			"End Namespace\n"
+		],
+		"description": "End Namespace ... VBNET"
+	},
+	"EndInterface": {
+		"prefix": "EndInterface",
+		"body": [
+			"End Interface\n"
+		],
+		"description": "End Interface ... VBNET"
+	},
+	"EndProperty": {
+		"prefix": "EndProperty",
+		"body": [
+			"End Property\n"
+		],
+		"description": "End Property ... VBNET"
+	},
+	"EndOperator": {
+		"prefix": "EndOperator",
+		"body": [
+			"End Operator\n"
+		],
+		"description": "End Operator ... VBNET"
+	},
+	"EndFunction": {
+		"prefix": "EndFunction",
+		"body": [
+			"End Function\n"
+		],
+		"description": "End Function ... VBNET"
+	},
+	"EndSub": {
+		"prefix": "EndSub",
+		"body": [
+			"End Sub\n"
+		],
+		"description": "End Sub ... VBNET"
 	}
 }
