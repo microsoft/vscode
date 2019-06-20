@@ -117,10 +117,18 @@ export class BrowserKeyboardMapperFactory {
 
 		if (usStandard) {
 			let maxScore = usStandard.getScore(keyMapping);
+			if (maxScore === 0) {
+				return usStandard;
+			}
+
 			let result = usStandard;
 			for (let i = 0; i < this._mru.length; i++) {
 				let score = this._mru[i].getScore(keyMapping);
 				if (score > maxScore) {
+					if (score === 0) {
+						return this._mru[i];
+					}
+
 					maxScore = score;
 					result = this._mru[i];
 				}
