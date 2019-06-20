@@ -10,7 +10,7 @@ import * as nls from 'vscode-nls';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
-import { ITypeScriptServer, TypeScriptServerSpawner } from './tsServer/server';
+import { ITypeScriptServer } from './tsServer/server';
 import { ITypeScriptServiceClient, ServerResponse } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
@@ -25,6 +25,7 @@ import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
+import { TypeScriptServerSpawner } from './tsServer/spanwer';
 
 const localize = nls.loadMessageBundle();
 

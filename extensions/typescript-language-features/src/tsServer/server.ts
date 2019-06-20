@@ -3,179 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as child_process from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
 import * as stream from 'stream';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ServerResponse } from '../typescriptService';
-import API from '../utils/api';
-import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
-import * as electron from '../utils/electron';
-import LogDirectoryProvider from '../utils/logDirectoryProvider';
-import Logger from '../utils/logger';
-import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
-import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
+import { TypeScriptVersion } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 import { TypeScriptServerError } from './serverError';
-
-export class TypeScriptServerSpawner {
-	public constructor(
-		private readonly _versionProvider: TypeScriptVersionProvider,
-		private readonly _logDirectoryProvider: LogDirectoryProvider,
-		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
-		private readonly _logger: Logger,
-		private readonly _telemetryReporter: TelemetryReporter,
-		private readonly _tracer: Tracer,
-	) { }
-
-	public spawn(
-		version: TypeScriptVersion,
-		configuration: TypeScriptServiceConfiguration,
-		pluginManager: PluginManager
-	): ITypeScriptServer {
-		const apiVersion = version.version || API.defaultVersion;
-
-		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
-
-		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
-			if (tsServerLogFile) {
-				this._logger.info(`TSServer log file: ${tsServerLogFile}`);
-			} else {
-				this._logger.error('Could not create TSServer log directory');
-			}
-		}
-
-		this._logger.info('Forking TSServer');
-		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
-		this._logger.info('Started TSServer');
-
-		return new TypeScriptServer(
-			new ChildServerProcess(childProcess),
-			tsServerLogFile,
-			new PipeRequestCanceller(cancellationPipeName, this._tracer),
-			version,
-			this._telemetryReporter,
-			this._tracer);
-	}
-
-	private getForkOptions() {
-		const debugPort = TypeScriptServerSpawner.getDebugPort();
-		const tsServerForkOptions: electron.ForkOptions = {
-			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
-		};
-		return tsServerForkOptions;
-	}
-
-	private getTsServerArgs(
-		configuration: TypeScriptServiceConfiguration,
-		currentVersion: TypeScriptVersion,
-		apiVersion: API,
-		pluginManager: PluginManager,
-	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
-		const args: string[] = [];
-		let cancellationPipeName: string | undefined;
-		let tsServerLogFile: string | undefined;
-
-		if (apiVersion.gte(API.v206)) {
-			if (apiVersion.gte(API.v250)) {
-				args.push('--useInferredProjectPerProjectRoot');
-			} else {
-				args.push('--useSingleInferredProject');
-			}
-
-			if (configuration.disableAutomaticTypeAcquisition) {
-				args.push('--disableAutomaticTypingAcquisition');
-			}
-		}
-
-		if (apiVersion.gte(API.v208)) {
-			args.push('--enableTelemetry');
-		}
-
-		if (apiVersion.gte(API.v222)) {
-			cancellationPipeName = electron.getTempFile('tscancellation');
-			args.push('--cancellationPipeName', cancellationPipeName + '*');
-		}
-
-		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
-			const logDir = this._logDirectoryProvider.getNewLogDirectory();
-			if (logDir) {
-				tsServerLogFile = path.join(logDir, `tsserver.log`);
-				args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-				args.push('--logFile', tsServerLogFile);
-			}
-		}
-
-		if (apiVersion.gte(API.v230)) {
-			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
-
-			if (pluginManager.plugins.length) {
-				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
-
-				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-				for (const plugin of pluginManager.plugins) {
-					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-						pluginPaths.push(plugin.path);
-					}
-				}
-			}
-
-			if (pluginPaths.length !== 0) {
-				args.push('--pluginProbeLocations', pluginPaths.join(','));
-			}
-		}
-
-		if (apiVersion.gte(API.v234)) {
-			if (configuration.npmLocation) {
-				args.push('--npmLocation', `"${configuration.npmLocation}"`);
-			}
-		}
-
-		if (apiVersion.gte(API.v260)) {
-			args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
-		}
-
-		if (apiVersion.gte(API.v291)) {
-			args.push('--noGetErrOnBackgroundUpdate');
-		}
-
-		if (apiVersion.gte(API.v345)) {
-			args.push('--validateDefaultNpmLocation');
-		}
-
-		return { args, cancellationPipeName, tsServerLogFile };
-	}
-
-	private static getDebugPort(): number | undefined {
-		const value = process.env['TSS_DEBUG'];
-		if (value) {
-			const port = parseInt(value);
-			if (!isNaN(port)) {
-				return port;
-			}
-		}
-		return undefined;
-	}
-
-	private static isLoggingEnabled(apiVersion: API, configuration: TypeScriptServiceConfiguration) {
-		return apiVersion.gte(API.v222) &&
-			configuration.tsServerLogLevel !== TsServerLogLevel.Off;
-	}
-
-	private static getTsLocale(configuration: TypeScriptServiceConfiguration): string {
-		return configuration.locale
-			? configuration.locale
-			: vscode.env.language;
-	}
-}
 
 export interface OngoingRequestCanceller {
 	tryCancelOngoingRequest(seq: number): boolean;
@@ -211,28 +51,6 @@ export interface ServerProcess {
 	kill(): void;
 }
 
-class ChildServerProcess implements ServerProcess {
-
-	public constructor(
-		private readonly _process: child_process.ChildProcess,
-	) { }
-
-	get stdout(): stream.Readable { return this._process.stdout!; }
-
-	write(serverRequest: Proto.Request): void {
-		this._process.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
-	}
-
-	on(name: 'exit', handler: (code: number | null) => void): void;
-	on(name: 'error', handler: (error: Error) => void): void;
-	on(name: any, handler: any) {
-		this._process.on(name, handler);
-	}
-
-	kill(): void {
-		this._process.kill();
-	}
-}
 
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
@@ -476,4 +294,3 @@ function getQueueingType(
 	}
 	return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
 }
-
