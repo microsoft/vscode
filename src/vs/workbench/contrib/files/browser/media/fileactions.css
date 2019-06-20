@@ -108,12 +108,12 @@
 }
 
 .monaco-workbench .file-editor-action.action-open-preview {
-	background: url("Preview.svg") center center no-repeat;
+	background: url("preview-light.svg") center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .file-editor-action.action-open-preview,
 .hc-black .monaco-workbench .file-editor-action.action-open-preview {
-	background: url("Preview_inverse.svg") center center no-repeat;
+	background: url("preview-dark.svg") center center no-repeat;
 }
 
 .explorer-viewlet .explorer-open-editors .close-editor-action {

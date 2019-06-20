@@ -32,8 +32,8 @@
 				"title": "%markdown.preview.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/Preview.svg",
-					"dark": "./media/Preview_inverse.svg"
+					"light": "./media/preview-light.svg",
+					"dark": "./media/preview-dark.svg"
 				}
 			},
 			{
@@ -41,8 +41,8 @@
 				"title": "%markdown.previewSide.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/PreviewOnRightPane_16x.svg",
-					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+					"light": "./media/preview-right-light.svg",
+					"dark": "./media/preview-right-dark.svg"
 				}
 			},
 			{
@@ -50,8 +50,8 @@
 				"title": "%markdown.showLockedPreviewToSide.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/PreviewOnRightPane_16x.svg",
-					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+					"light": "./media/preview-right-light.svg",
+					"dark": "./media/preview-right-dark.svg"
 				}
 			},
 			{
@@ -59,8 +59,8 @@
 				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/ViewSource.svg",
-					"dark": "./media/ViewSource_inverse.svg"
+					"light": "./media/view-source-light.svg",
+					"dark": "./media/view-source-dark.svg"
 				}
 			},
 			{

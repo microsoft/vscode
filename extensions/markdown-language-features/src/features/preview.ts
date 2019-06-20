@@ -345,8 +345,8 @@ export class MarkdownPreview extends Disposable {
 	private get iconPath() {
 		const root = path.join(this._contributionProvider.extensionPath, 'media');
 		return {
-			light: vscode.Uri.file(path.join(root, 'Preview.svg')),
-			dark: vscode.Uri.file(path.join(root, 'Preview_inverse.svg'))
+			light: vscode.Uri.file(path.join(root, 'preview-light.svg')),
+			dark: vscode.Uri.file(path.join(root, 'preview-dark.svg'))
 		};
 	}
 
