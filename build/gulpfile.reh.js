@@ -198,6 +198,18 @@ function nodejs(platform, arch) {
 		);
 	}
 
+	if (arch === 'alpine') {
+		return es.readArray([
+			new File({
+				path: 'node',
+				contents: cp.execSync(`docker run --rm node:${VERSION}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' }),
+				stat: {
+					mode: parseInt('755', 8)
+				}
+			})
+		]);
+	}
+
 	if (platform === 'darwin') {
 		arch = 'x64';
 	}
@@ -393,6 +405,7 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
 	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 
 BUILD_TARGETS.forEach(buildTarget => {
