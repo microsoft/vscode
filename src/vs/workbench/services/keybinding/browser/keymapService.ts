@@ -113,6 +113,22 @@ export class BrowserKeyboardMapperFactory {
 			return null;
 		}
 
+		let usStandard = this.getUSStandardLayout();
+
+		if (usStandard) {
+			let maxScore = usStandard.getScore(keyMapping);
+			let result = usStandard;
+			for (let i = 0; i < this._mru.length; i++) {
+				let score = this._mru[i].getScore(keyMapping);
+				if (score > maxScore) {
+					maxScore = score;
+					result = this._mru[i];
+				}
+			}
+
+			return result;
+		}
+
 		for (let i = 0; i < this._mru.length; i++) {
 			if (this._mru[i].fuzzyEqual(keyMapping)) {
 				return this._mru[i];
@@ -234,26 +250,13 @@ export class BrowserKeyboardMapperFactory {
 	private _setKeyboardData(keymapInfo: KeymapInfo): void {
 		this._initialized = true;
 
-		this._keyboardMapper = new CachedKeyboardMapper(BrowserKeyboardMapperFactory._createKeyboardMapper(keymapInfo.mapping));
+		this._keyboardMapper = new CachedKeyboardMapper(BrowserKeyboardMapperFactory._createKeyboardMapper(keymapInfo));
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _isUSStandard(rawMapping: IKeyboardMapping): boolean {
-		for (let key in rawMapping) {
-			let str = rawMapping[key].value;
-			let keyCode = KeyCodeUtils.fromString(str);
-			let usKeyCode = US_SCANCODE_MAP[key];
-
-			if (keyCode !== usKeyCode) {
-				return false;
-			}
-
-		}
-		return true;
-	}
-
-	private static _createKeyboardMapper(rawMapping: IKeyboardMapping): IKeyboardMapper {
-		const isUSStandard = BrowserKeyboardMapperFactory._isUSStandard(rawMapping);
+	private static _createKeyboardMapper(keymapInfo: KeymapInfo): IKeyboardMapper {
+		let rawMapping = keymapInfo.mapping;
+		const isUSStandard = !!keymapInfo.layout.isUSStandard;
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
 		}
@@ -352,63 +355,6 @@ export class BrowserKeyboardMapperFactory {
 
 	//#endregion
 }
-
-export const US_SCANCODE_MAP: { [str: string]: KeyCode; } = {};
-
-(function () {
-	function define(scanCode: string, keyCode: KeyCode): void {
-		US_SCANCODE_MAP[scanCode] = keyCode;
-	}
-
-	define('Backquote', KeyCode.US_BACKTICK);
-	define('Backslash', KeyCode.US_BACKSLASH);
-	define('BracketLeft', KeyCode.US_OPEN_SQUARE_BRACKET);
-	define('BracketRight', KeyCode.US_CLOSE_SQUARE_BRACKET);
-	define('Comma', KeyCode.US_COMMA);
-	define('Digit0', KeyCode.KEY_0);
-	define('Digit1', KeyCode.KEY_1);
-	define('Digit2', KeyCode.KEY_2);
-	define('Digit3', KeyCode.KEY_3);
-	define('Digit4', KeyCode.KEY_4);
-	define('Digit5', KeyCode.KEY_5);
-	define('Digit6', KeyCode.KEY_6);
-	define('Digit7', KeyCode.KEY_7);
-	define('Digit8', KeyCode.KEY_8);
-	define('Digit9', KeyCode.KEY_9);
-	define('Equal', KeyCode.US_EQUAL);
-	define('IntlBackslash', KeyCode.Unknown);
-	define('KeyA', KeyCode.KEY_A);
-	define('KeyB', KeyCode.KEY_B);
-	define('KeyC', KeyCode.KEY_C);
-	define('KeyD', KeyCode.KEY_D);
-	define('KeyE', KeyCode.KEY_E);
-	define('KeyF', KeyCode.KEY_F);
-	define('KeyG', KeyCode.KEY_G);
-	define('KeyH', KeyCode.KEY_H);
-	define('KeyI', KeyCode.KEY_I);
-	define('KeyJ', KeyCode.KEY_J);
-	define('KeyK', KeyCode.KEY_K);
-	define('KeyL', KeyCode.KEY_L);
-	define('KeyM', KeyCode.KEY_M);
-	define('KeyN', KeyCode.KEY_N);
-	define('KeyO', KeyCode.KEY_O);
-	define('KeyP', KeyCode.KEY_P);
-	define('KeyQ', KeyCode.KEY_Q);
-	define('KeyR', KeyCode.KEY_R);
-	define('KeyS', KeyCode.KEY_S);
-	define('KeyT', KeyCode.KEY_T);
-	define('KeyU', KeyCode.KEY_U);
-	define('KeyV', KeyCode.KEY_V);
-	define('KeyW', KeyCode.KEY_W);
-	define('KeyX', KeyCode.KEY_X);
-	define('KeyY', KeyCode.KEY_Y);
-	define('KeyZ', KeyCode.KEY_Z);
-	define('Minus', KeyCode.US_MINUS);
-	define('Period', KeyCode.US_DOT);
-	define('Quote', KeyCode.US_QUOTE);
-	define('Semicolon', KeyCode.US_SEMICOLON);
-	define('Slash', KeyCode.US_SLASH);
-})();
 
 class UserKeyboardLayout extends Disposable {
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;

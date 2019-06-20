@@ -260,6 +260,28 @@ export class KeymapInfo {
 		this.layout.isUserKeyboardLayout = other.isUserKeyboardLayout;
 	}
 
+	getScore(other: IRawMixedKeyboardMapping): number {
+		let score = 0;
+		for (let key in other) {
+			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
+				// keymap from Chromium is probably wrong.
+				continue;
+			}
+			if (this.mapping[key] === undefined) {
+				score -= 1;
+			}
+
+			let currentMapping = this.mapping[key];
+			let otherMapping = other[key];
+
+			if (currentMapping.value !== otherMapping.value) {
+				score -= 1;
+			}
+		}
+
+		return score;
+	}
+
 	fuzzyEqual(other: IRawMixedKeyboardMapping): boolean {
 		for (let key in other) {
 			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
