@@ -113,6 +113,9 @@ if (process.env['VSCODE_WEB_BUILD']) {
 
 	entryPoints.push(
 		buildfile.entrypoint('vs/workbench/workbench.web.api'),
+		buildfile.entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
+		buildfile.entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
+		buildfile.entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win'),
 		buildfile.base,
 		buildfile.workbenchWeb
 	);
