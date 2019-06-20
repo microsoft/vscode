@@ -788,17 +788,13 @@ export class SimpleWindowService implements IWindowService {
 		if ((<any>document).fullscreen !== undefined) {
 			if (!(<any>document).fullscreen) {
 
-				return (<any>target).requestFullscreen().then(() => {
-					browser.setFullscreen(true);
-				}).catch(() => {
+				return (<any>target).requestFullscreen().catch(() => {
 					// if it fails, chromium throws an exception with error undefined.
 					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 					console.warn('Toggle Full Screen failed');
 				});
 			} else {
-				return document.exitFullscreen().then(() => {
-					browser.setFullscreen(false);
-				}).catch(() => {
+				return document.exitFullscreen().catch(() => {
 					console.warn('Exit Full Screen failed');
 				});
 			}
@@ -809,7 +805,7 @@ export class SimpleWindowService implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true);
+					browser.setFullscreen(true); // we have to set this proactively because Safari doesn't emit fullscreenchange event.
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 					browser.setFullscreen(false);

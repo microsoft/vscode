@@ -36,6 +36,7 @@ import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
+import { setFullscreen } from 'vs/base/browser/browser';
 
 class CodeRendererMain extends Disposable {
 
@@ -63,6 +64,13 @@ class CodeRendererMain extends Disposable {
 
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
+				setFullscreen(true);
+			} else {
+				setFullscreen(false);
+			}
+		}));
 
 		// Resource Loading
 		this._register(new WebResources(<IFileService>services.serviceCollection.get(IFileService)));
