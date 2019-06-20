@@ -470,6 +470,18 @@ export interface VariableResolver {
 	resolve(variable: Variable): Promise<string | undefined>;
 }
 
+async function walkAsync(marker: Marker[], visitor: (marker: Marker) => Promise<boolean>): Promise<void> {
+	const stack = [...marker];
+	while (stack.length > 0) {
+		const marker = stack.shift()!;
+		const recurse = await visitor(marker);
+		if (!recurse) {
+			break;
+		}
+		stack.unshift(...marker.children);
+	}
+}
+
 function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
 	const stack = [...marker];
 	while (stack.length > 0) {
@@ -547,10 +559,10 @@ export class TextmateSnippet extends Marker {
 		return ret;
 	}
 
-	resolveVariables(resolver: VariableResolver): this {
-		this.walk(candidate => {
+	async resolveVariables(resolver: VariableResolver): Promise<this> {
+		await this.walkAsync(async (candidate) => {
 			if (candidate instanceof Variable) {
-				if (candidate.resolve(resolver)) {
+				if (await candidate.resolve(resolver)) {
 					this._placeholders = undefined;
 				}
 			}
@@ -577,6 +589,10 @@ export class TextmateSnippet extends Marker {
 		let ret = new TextmateSnippet();
 		this._children = this.children.map(child => child.clone());
 		return ret;
+	}
+
+	async walkAsync(visitor: (marker: Marker) => Promise<boolean>): Promise<void> {
+		await walkAsync(this.children, visitor);
 	}
 
 	walk(visitor: (marker: Marker) => boolean): void {

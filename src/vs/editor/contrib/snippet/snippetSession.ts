@@ -363,7 +363,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static async createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): Promise<{ edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] }> {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 
@@ -425,7 +425,7 @@ export class SnippetSession {
 				SnippetSession.adjustWhitespace(model, start, snippet);
 			}
 
-			snippet.resolveVariables(new CompositeSnippetVariableResolver([
+			await snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
 				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
 				new SelectionBasedVariableResolver(model, selection),
@@ -471,7 +471,7 @@ export class SnippetSession {
 		return `template="${this._template}", merged_templates="${this._templateMerges.join(' -> ')}"`;
 	}
 
-	insert(): void {
+	async insert(): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -479,7 +479,7 @@ export class SnippetSession {
 		const model = this._editor.getModel();
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false, this._adjustWhitespace);
+		const { edits, snippets } = await SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false, this._adjustWhitespace);
 		this._snippets = snippets;
 
 		const selections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
@@ -493,12 +493,12 @@ export class SnippetSession {
 		this._editor.revealRange(selections[0]);
 	}
 
-	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true): void {
+	async merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace);
+		const { edits, snippets } = await SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace);
 
 		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 

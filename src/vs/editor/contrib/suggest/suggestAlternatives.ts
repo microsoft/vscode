@@ -17,7 +17,7 @@ export class SuggestAlternatives {
 
 	private _index: number;
 	private _model: CompletionModel | undefined;
-	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
+	private _acceptNext: ((selected: ISelectedSuggestion) => Promise<any>) | undefined;
 	private _listener: IDisposable | undefined;
 	private _ignore: boolean | undefined;
 
@@ -40,7 +40,7 @@ export class SuggestAlternatives {
 		this._ignore = false;
 	}
 
-	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => any): void {
+	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => Promise<any>): void {
 
 		// no suggestions -> nothing to do
 		if (model.items.length === 0) {
@@ -80,15 +80,15 @@ export class SuggestAlternatives {
 		return newIndex;
 	}
 
-	next(): void {
-		this._move(true);
+	async next(): Promise<void> {
+		await this._move(true);
 	}
 
-	prev(): void {
-		this._move(false);
+	async prev(): Promise<void> {
+		await this._move(false);
 	}
 
-	private _move(fwd: boolean): void {
+	private async _move(fwd: boolean): Promise<void> {
 		if (!this._model) {
 			// nothing to reason about
 			return;
@@ -96,7 +96,7 @@ export class SuggestAlternatives {
 		try {
 			this._ignore = true;
 			this._index = SuggestAlternatives._moveIndex(fwd, this._model, this._index);
-			this._acceptNext!({ index: this._index, item: this._model.items[this._index], model: this._model });
+			await this._acceptNext!({ index: this._index, item: this._model.items[this._index], model: this._model });
 		} finally {
 			this._ignore = false;
 		}

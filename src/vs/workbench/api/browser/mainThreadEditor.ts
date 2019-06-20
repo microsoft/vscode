@@ -469,7 +469,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;
@@ -486,7 +486,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController.insert(template, 0, 0, opts.undoStopBefore, opts.undoStopAfter);
+		await snippetController.insert(template, 0, 0, opts.undoStopBefore, opts.undoStopAfter);
 
 		return true;
 	}

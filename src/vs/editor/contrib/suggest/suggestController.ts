@@ -162,7 +162,7 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected async _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): Promise<void> {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
@@ -200,7 +200,7 @@ export class SuggestController implements IEditorContribution {
 		const overwriteBefore = position.column - suggestion.range.startColumn;
 		const overwriteAfter = suggestion.range.endColumn - position.column;
 
-		SnippetController2.get(this._editor).insert(
+		await SnippetController2.get(this._editor).insert(
 			insertText,
 			overwriteBefore + columnDelta,
 			overwriteAfter,
@@ -230,7 +230,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		if (keepAlternativeSuggestions) {
-			this._alternatives.getValue().set(event, next => {
+			this._alternatives.getValue().set(event, async (next) => {
 				// this is not so pretty. when inserting the 'next'
 				// suggestion we undo until we are at the state at
 				// which we were before inserting the previous suggestion...
@@ -238,7 +238,7 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._insertSuggestion(next, false, false);
+					await this._insertSuggestion(next, false, false);
 					break;
 				}
 			});
@@ -307,7 +307,7 @@ export class SuggestController implements IEditorContribution {
 				fallback();
 			}, undefined, listener);
 
-			this._model.onDidSuggest(({ completionModel }) => {
+			this._model.onDidSuggest(async ({ completionModel }) => {
 				dispose(listener);
 				if (completionModel.items.length === 0) {
 					fallback();
@@ -320,7 +320,7 @@ export class SuggestController implements IEditorContribution {
 					return;
 				}
 				this._editor.pushUndoStop();
-				this._insertSuggestion({ index, item, model: completionModel }, true, false);
+				await this._insertSuggestion({ index, item, model: completionModel }, true, false);
 
 			}, undefined, listener);
 		});
@@ -330,17 +330,17 @@ export class SuggestController implements IEditorContribution {
 		this._editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
+	async acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): Promise<void> {
 		const item = this._widget.getValue().getFocusedItem();
-		this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
+		await this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
 	}
 
-	acceptNextSuggestion() {
-		this._alternatives.getValue().next();
+	async acceptNextSuggestion() {
+		await this._alternatives.getValue().next();
 	}
 
-	acceptPrevSuggestion() {
-		this._alternatives.getValue().prev();
+	async acceptPrevSuggestion() {
+		await this._alternatives.getValue().prev();
 	}
 
 	cancelSuggestWidget(): void {
@@ -423,7 +423,7 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(true),
+	handler: async (x) => { await x.acceptSelectedSuggestion(true); },
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -434,7 +434,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(false),
+	handler: async (x) => { await x.acceptSelectedSuggestion(false); },
 	kbOpts: {
 		weight: weight,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
@@ -569,7 +569,7 @@ registerEditorCommand(new SuggestCommand({
 		SuggestContext.Visible.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
-	handler: x => x.acceptNextSuggestion(),
+	handler: async (x) => { await x.acceptNextSuggestion(); },
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -585,7 +585,7 @@ registerEditorCommand(new SuggestCommand({
 		SuggestContext.Visible.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
-	handler: x => x.acceptPrevSuggestion(),
+	handler: async (x) => { await x.acceptPrevSuggestion(); },
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,

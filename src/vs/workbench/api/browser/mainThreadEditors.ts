@@ -217,7 +217,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return Promise.resolve(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
+		return this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts);
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

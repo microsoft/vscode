@@ -165,9 +165,9 @@ class InsertSnippetAction extends EditorAction {
 				}
 				return quickInputService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}
-		}).then(snippet => {
+		}).then(async (snippet) => {
 			if (snippet) {
-				SnippetController2.get(editor).insert(snippet.codeSnippet, 0, 0);
+				await SnippetController2.get(editor).insert(snippet.codeSnippet, 0, 0);
 			}
 		});
 	}

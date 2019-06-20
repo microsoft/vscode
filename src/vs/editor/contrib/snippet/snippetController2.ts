@@ -60,17 +60,17 @@ export class SnippetController2 implements IEditorContribution {
 		return 'snippetController2';
 	}
 
-	insert(
+	async insert(
 		template: string,
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true,
 		adjustWhitespace: boolean = true,
-	): void {
+	): Promise<void> {
 		// this is here to find out more about the yet-not-understood
 		// error that sometimes happens when we fail to inserted a nested
 		// snippet
 		try {
-			this._doInsert(template, overwriteBefore, overwriteAfter, undoStopBefore, undoStopAfter, adjustWhitespace);
+			await this._doInsert(template, overwriteBefore, overwriteAfter, undoStopBefore, undoStopAfter, adjustWhitespace);
 
 		} catch (e) {
 			this.cancel();
@@ -81,12 +81,12 @@ export class SnippetController2 implements IEditorContribution {
 		}
 	}
 
-	private _doInsert(
+	private async _doInsert(
 		template: string,
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true,
 		adjustWhitespace: boolean = true,
-	): void {
+	): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -102,9 +102,9 @@ export class SnippetController2 implements IEditorContribution {
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
 			this._session = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter, adjustWhitespace);
-			this._session.insert();
+			await this._session.insert();
 		} else {
-			this._session.merge(template, overwriteBefore, overwriteAfter, adjustWhitespace);
+			await this._session.merge(template, overwriteBefore, overwriteAfter, adjustWhitespace);
 		}
 
 		if (undoStopAfter) {

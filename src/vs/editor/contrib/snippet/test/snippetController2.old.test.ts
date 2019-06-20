@@ -58,11 +58,11 @@ suite('SnippetController', () => {
 		});
 	}
 
-	test('Simple accepted', () => {
-		snippetTest((editor, cursor, template, snippetController) => {
+	test('Simple accepted', async () => {
+		await snippetTest(async (editor, cursor, template, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 
-			snippetController.insert(template, 0, 0);
+			await snippetController.insert(template, 0, 0);
 			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var index; index < array.length; index++) {');
 			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = array[index];');
 			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
@@ -94,11 +94,11 @@ suite('SnippetController', () => {
 		});
 	});
 
-	test('Simple canceled', () => {
-		snippetTest((editor, cursor, template, snippetController) => {
+	test('Simple canceled', async () => {
+		await snippetTest(async (editor, cursor, template, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 
-			snippetController.insert(template, 0, 0);
+			await snippetController.insert(template, 0, 0);
 			assert.equal(editor.getModel()!.getLineContent(4), '\tfor (var index; index < array.length; index++) {');
 			assert.equal(editor.getModel()!.getLineContent(5), '\t\tvar element = array[index];');
 			assert.equal(editor.getModel()!.getLineContent(6), '\t\t');
@@ -110,9 +110,9 @@ suite('SnippetController', () => {
 	});
 
 	// test('Stops when deleting lines above', () => {
-	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		snippetController.insert(codeSnippet, 0, 0);
+	// 		await snippetController.insert(codeSnippet, 0, 0);
 
 	// 		editor.getModel()!.applyEdits([{
 	// 			forceMoveMarkers: false,
@@ -127,7 +127,7 @@ suite('SnippetController', () => {
 	// });
 
 	// test('Stops when deleting lines below', () => {
-	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
@@ -144,7 +144,7 @@ suite('SnippetController', () => {
 	// });
 
 	// test('Stops when inserting lines above', () => {
-	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
@@ -161,7 +161,7 @@ suite('SnippetController', () => {
 	// });
 
 	// test('Stops when inserting lines below', () => {
-	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
@@ -177,10 +177,10 @@ suite('SnippetController', () => {
 	// 	});
 	// });
 
-	test('Stops when calling model.setValue()', () => {
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	test('Stops when calling model.setValue()', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			editor.getModel()!.setValue('goodbye');
 
@@ -188,10 +188,10 @@ suite('SnippetController', () => {
 		});
 	});
 
-	test('Stops when undoing', () => {
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	test('Stops when undoing', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			editor.getModel()!.undo();
 
@@ -199,10 +199,10 @@ suite('SnippetController', () => {
 		});
 	});
 
-	test('Stops when moving cursor outside', () => {
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	test('Stops when moving cursor outside', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			editor.setPosition({ lineNumber: 1, column: 1 });
 
@@ -210,10 +210,10 @@ suite('SnippetController', () => {
 		});
 	});
 
-	test('Stops when disconnecting editor model', () => {
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	test('Stops when disconnecting editor model', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			editor.setModel(null);
 
@@ -221,10 +221,10 @@ suite('SnippetController', () => {
 		});
 	});
 
-	test('Stops when disposing editor', () => {
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	test('Stops when disposing editor', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			snippetController.dispose();
 
@@ -232,15 +232,15 @@ suite('SnippetController', () => {
 		});
 	});
 
-	test('Final tabstop with multiple selections', () => {
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+	test('Final tabstop with multiple selections', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1),
 				new Selection(2, 1, 2, 1),
 			]);
 
 			codeSnippet = 'foo$0';
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			assert.equal(editor.getSelections()!.length, 2);
 			const [first, second] = editor.getSelections()!;
@@ -248,14 +248,14 @@ suite('SnippetController', () => {
 			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
 		});
 
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1),
 				new Selection(2, 1, 2, 1),
 			]);
 
 			codeSnippet = 'foo$0bar';
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			assert.equal(editor.getSelections()!.length, 2);
 			const [first, second] = editor.getSelections()!;
@@ -263,14 +263,14 @@ suite('SnippetController', () => {
 			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
 		});
 
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1),
 				new Selection(1, 5, 1, 5),
 			]);
 
 			codeSnippet = 'foo$0bar';
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			assert.equal(editor.getSelections()!.length, 2);
 			const [first, second] = editor.getSelections()!;
@@ -278,14 +278,14 @@ suite('SnippetController', () => {
 			assert.ok(second.equalsRange({ startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 14 }), second.toString());
 		});
 
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1),
 				new Selection(1, 5, 1, 5),
 			]);
 
 			codeSnippet = 'foo\n$0\nbar';
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			assert.equal(editor.getSelections()!.length, 2);
 			const [first, second] = editor.getSelections()!;
@@ -293,14 +293,14 @@ suite('SnippetController', () => {
 			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
 		});
 
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1),
 				new Selection(1, 5, 1, 5),
 			]);
 
 			codeSnippet = 'foo\n$0\nbar';
-			snippetController.insert(codeSnippet, 0, 0);
+			await snippetController.insert(codeSnippet, 0, 0);
 
 			assert.equal(editor.getSelections()!.length, 2);
 			const [first, second] = editor.getSelections()!;
@@ -308,26 +308,26 @@ suite('SnippetController', () => {
 			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
 		});
 
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+		await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
 			editor.setSelections([
 				new Selection(2, 7, 2, 7),
 			]);
 
 			codeSnippet = 'xo$0r';
-			snippetController.insert(codeSnippet, 1, 0);
+			await snippetController.insert(codeSnippet, 1, 0);
 
 			assert.equal(editor.getSelections()!.length, 1);
 			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 8, endColumn: 8, endLineNumber: 2 }));
 		});
 	});
 
-	test('Final tabstop, #11742 simple', () => {
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+	test('Final tabstop, #11742 simple', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelection(new Selection(1, 19, 1, 19));
 
 			codeSnippet = '{{% url_**$1** %}}';
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 
 			assert.equal(editor.getSelections()!.length, 1);
 			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 27, endLineNumber: 1, endColumn: 27 }));
@@ -335,7 +335,7 @@ suite('SnippetController', () => {
 
 		}, ['example example sc']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelection(new Selection(1, 3, 1, 3));
 
@@ -345,7 +345,7 @@ suite('SnippetController', () => {
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 
 			assert.equal(editor.getSelections()!.length, 1);
 			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), editor.getSelection()!.toString());
@@ -353,7 +353,7 @@ suite('SnippetController', () => {
 
 		}, ['af']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelection(new Selection(1, 3, 1, 3));
 
@@ -363,7 +363,7 @@ suite('SnippetController', () => {
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 
 			assert.equal(editor.getSelections()!.length, 1);
 			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), editor.getSelection()!.toString());
@@ -371,7 +371,7 @@ suite('SnippetController', () => {
 
 		}, ['af']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelection(new Selection(1, 9, 1, 9));
 
@@ -379,7 +379,7 @@ suite('SnippetController', () => {
 				'aft${1}er'
 			].join('\n');
 
-			controller.insert(codeSnippet, 8, 0);
+			await controller.insert(codeSnippet, 8, 0);
 
 			assert.equal(editor.getModel()!.getValue(), 'after');
 			assert.equal(editor.getSelections()!.length, 1);
@@ -388,9 +388,9 @@ suite('SnippetController', () => {
 		}, ['afterone']);
 	});
 
-	test('Final tabstop, #11742 different indents', () => {
+	test('Final tabstop, #11742 different indents', async () => {
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(2, 4, 2, 4),
@@ -403,7 +403,7 @@ suite('SnippetController', () => {
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 
 			assert.equal(editor.getSelections()!.length, 2);
 			const [first, second] = editor.getSelections()!;
@@ -414,9 +414,9 @@ suite('SnippetController', () => {
 		}, ['af', '\taf']);
 	});
 
-	test('Final tabstop, #11890 stay at the beginning', () => {
+	test('Final tabstop, #11890 stay at the beginning', async () => {
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 5, 1, 5)
@@ -428,7 +428,7 @@ suite('SnippetController', () => {
 				'});'
 			].join('\n');
 
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 
 			assert.equal(editor.getSelections()!.length, 1);
 			const [first] = editor.getSelections()!;
@@ -438,9 +438,9 @@ suite('SnippetController', () => {
 		}, ['  af']);
 	});
 
-	test('Final tabstop, no tabstop', () => {
+	test('Final tabstop, no tabstop', async () => {
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 3, 1, 3)
@@ -448,16 +448,16 @@ suite('SnippetController', () => {
 
 			codeSnippet = 'afterEach';
 
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 
 			assert.ok(editor.getSelection()!.equalsRange({ startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 10 }));
 
 		}, ['af', '\taf']);
 	});
 
-	test('Multiple cursor and overwriteBefore/After, issue #11060', () => {
+	test('Multiple cursor and overwriteBefore/After, issue #11060', async () => {
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 7, 1, 7),
@@ -465,12 +465,12 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = '_foo';
-			controller.insert(codeSnippet, 1, 0);
+			await controller.insert(codeSnippet, 1, 0);
 			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc_foo');
 
 		}, ['this._', 'abc']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 7, 1, 7),
@@ -478,12 +478,12 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = 'XX';
-			controller.insert(codeSnippet, 1, 0);
+			await controller.insert(codeSnippet, 1, 0);
 			assert.equal(editor.getModel()!.getValue(), 'this.XX\nabcXX');
 
 		}, ['this._', 'abc']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 7, 1, 7),
@@ -492,12 +492,12 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = '_foo';
-			controller.insert(codeSnippet, 1, 0);
+			await controller.insert(codeSnippet, 1, 0);
 			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc_foo\ndef_foo');
 
 		}, ['this._', 'abc', 'def_']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 7, 1, 7), // primary at `this._`
@@ -506,12 +506,12 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = '._foo';
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc._foo\ndef._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(3, 6, 3, 6), // primary at `def._`
@@ -520,12 +520,12 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = '._foo';
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 			assert.equal(editor.getModel()!.getValue(), 'this._foo\nabc._foo\ndef._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(2, 4, 2, 4), // primary at `abc`
@@ -534,15 +534,15 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = '._foo';
-			controller.insert(codeSnippet, 2, 0);
+			await controller.insert(codeSnippet, 2, 0);
 			assert.equal(editor.getModel()!.getValue(), 'this._._foo\na._foo\ndef._._foo');
 
 		}, ['this._', 'abc', 'def._']);
 
 	});
 
-	test('Multiple cursor and overwriteBefore/After, #16277', () => {
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+	test('Multiple cursor and overwriteBefore/After, #16277', async () => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 5, 1, 5),
@@ -550,35 +550,35 @@ suite('SnippetController', () => {
 			]);
 
 			codeSnippet = 'document';
-			controller.insert(codeSnippet, 3, 0);
+			await controller.insert(codeSnippet, 3, 0);
 			assert.equal(editor.getModel()!.getValue(), '{document}\n{document && true}');
 
 		}, ['{foo}', '{foo && true}']);
 	});
 
-	test('Insert snippet twice, #19449', () => {
+	test('Insert snippet twice, #19449', async () => {
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 1, 1, 1)
 			]);
 
 			codeSnippet = 'for (var ${1:i}=0; ${1:i}<len; ${1:i}++) { $0 }';
-			controller.insert(codeSnippet, 0, 0);
+			await controller.insert(codeSnippet, 0, 0);
 			assert.equal(editor.getModel()!.getValue(), 'for (var i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
 
 		}, ['for (var i=0; i<len; i++) {  }']);
 
 
-		snippetTest((editor, cursor, codeSnippet, controller) => {
+		await snippetTest(async (editor, cursor, codeSnippet, controller) => {
 
 			editor.setSelections([
 				new Selection(1, 1, 1, 1)
 			]);
 
 			codeSnippet = 'for (let ${1:i}=0; ${1:i}<len; ${1:i}++) { $0 }';
-			controller.insert(codeSnippet, 0, 0);
+			await controller.insert(codeSnippet, 0, 0);
 			assert.equal(editor.getModel()!.getValue(), 'for (let i=0; i<len; i++) {  }for (var i=0; i<len; i++) {  }');
 
 		}, ['for (var i=0; i<len; i++) {  }']);
