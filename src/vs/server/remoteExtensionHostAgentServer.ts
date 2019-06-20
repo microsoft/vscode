@@ -312,7 +312,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			for (let i = 0; i < args.length; i++) {
 				const split = args[i].split('=');
 				if (split[0] === key) {
-					return split[1];
+					return decodeURIComponent(split[1]);
 				}
 			}
 		}
