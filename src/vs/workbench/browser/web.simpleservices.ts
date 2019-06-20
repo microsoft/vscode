@@ -45,6 +45,7 @@ import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 //#region Backup File
 
@@ -1049,6 +1050,10 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openNewWindow(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
 		return Promise.resolve();
 	}
 

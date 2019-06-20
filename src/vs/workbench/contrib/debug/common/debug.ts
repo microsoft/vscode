@@ -843,27 +843,10 @@ export interface IDebugEditorContribution extends IEditorContribution {
 export const DEBUG_HELPER_SERVICE_ID = 'debugHelperService';
 export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HELPER_SERVICE_ID);
 
-/**
- * This interface represents a single command line argument split into a "prefix" and a "path" half.
- * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
- * Concatenating both results in the original command line argument.
- */
-export interface ILaunchVSCodeArgument {
-	prefix?: string;
-	path?: string;
-}
-
-export interface ILaunchVSCodeArguments {
-	args: ILaunchVSCodeArgument[];
-	env?: { [key: string]: string | null; };
-}
-
 export interface IDebugHelperService {
 	_serviceBrand: any;
 
 	createTerminalLauncher(instantiationService: IInstantiationService): ITerminalLauncher;
-
-	launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<number>;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

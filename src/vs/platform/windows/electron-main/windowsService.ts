@@ -306,6 +306,17 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
 	}
 
+	async openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
+		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
+
+		if (args.extensionDevelopmentPath) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
+				context: OpenContext.API,
+				cli: args
+			});
+		}
+	}
+
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		this.logService.trace('windowsService#getWindows');
 
