@@ -43,10 +43,7 @@ export interface IConfigurationCache {
 }
 
 export interface IConfigurationFileService {
-	fileService: IFileService | null;
 	readonly onFileChanges: Event<FileChangesEvent>;
-	readonly isWatching: boolean;
-	readonly whenWatchingStarted: Promise<void>;
 	whenProviderRegistered(scheme: string): Promise<void>;
 	watch(resource: URI): IDisposable;
 	exists(resource: URI): Promise<boolean>;
@@ -55,11 +52,9 @@ export interface IConfigurationFileService {
 
 export class ConfigurationFileService implements IConfigurationFileService {
 
-	constructor(public fileService: IFileService) { }
+	constructor(private readonly fileService: IFileService) { }
 
 	get onFileChanges() { return this.fileService.onFileChanges; }
-	readonly whenWatchingStarted: Promise<void> = Promise.resolve();
-	readonly isWatching: boolean = true;
 
 	whenProviderRegistered(scheme: string): Promise<void> {
 		if (this.fileService.canHandleResource(URI.from({ scheme }))) {
