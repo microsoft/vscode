@@ -282,14 +282,12 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
-		if (!urisToOpen || !urisToOpen.length) {
-			return undefined;
-		}
 
 		this.windowsMainService.open({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			urisToOpen: urisToOpen,
+			forceEmpty: !urisToOpen || !urisToOpen.length, // if there are no uris given, we have to force an empty window
 			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
 			forceNewWindow: options.forceNewWindow,
 			forceReuseWindow: options.forceReuseWindow,
