@@ -115,7 +115,7 @@ export class KeyboardLayoutPickerAction extends Action {
 			return {
 				label: layoutInfo.label,
 				id: (<any>layout).text || (<any>layout).lang || (<any>layout).layout,
-				description: layoutInfo.description + (picked ? ' (Current selection)' : ''),
+				description: layoutInfo.description + (picked ? ' (Current layout)' : ''),
 				picked: !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout)
 			};
 		});
@@ -132,7 +132,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		// Offer to "Auto Detect"
 		const autoDetectMode: IQuickPickItem = {
 			label: nls.localize('autoDetect', "Auto Detect"),
-			description: isAutoDetect ? `(Current: ${(<any>currentLayout).text || (<any>currentLayout).lang || (<any>currentLayout).layout})` : undefined,
+			description: isAutoDetect ? `(Current: ${parseKeyboardLayout(currentLayout).label})` : undefined,
 			picked: isAutoDetect ? true : undefined
 		};
 
