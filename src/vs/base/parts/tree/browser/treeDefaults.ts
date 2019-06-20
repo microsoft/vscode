@@ -14,6 +14,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -566,6 +567,28 @@ export class CollapseAllAction extends Action {
 		this.viewer.collapseAll();
 		this.viewer.clearSelection();
 		this.viewer.clearFocus();
+		this.viewer.domFocus();
+		this.viewer.focusFirst();
+
+		return Promise.resolve();
+	}
+}
+
+
+export class CollapseAllAction2<TInput, T, TFilterData = void> extends Action {
+
+	constructor(private viewer: AsyncDataTree<TInput, T, TFilterData>, enabled: boolean) {
+		super('vs.tree.collapse', nls.localize('collapse all', "Collapse All"), 'monaco-tree-action collapse-all', enabled);
+	}
+
+	public run(context?: any): Promise<any> {
+		// TODO: alexr00 how do I get highlight on the new tree?
+		// if (this.viewer.getHighlight()) {
+		// 	return Promise.resolve(); // Global action disabled if user is in edit mode from another action
+		// }
+		this.viewer.collapseAll();
+		this.viewer.setSelection([]);
+		this.viewer.setFocus([]);
 		this.viewer.domFocus();
 		this.viewer.focusFirst();
 
