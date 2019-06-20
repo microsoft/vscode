@@ -584,9 +584,21 @@ export class RawDebugSession {
 
 					if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
 						value = URI.file(value).toString();
-					}
 
-					args[key] = value;
+						const v = args[key];
+						if (v) {
+							if (Array.isArray(v)) {
+								v.push(value);
+							} else {
+								args[key] = [v, value];
+							}
+						} else {
+							args[key] = value;
+						}
+
+					} else {
+						args[key] = value;
+					}
 
 				} else {
 					args._.push(a2);
