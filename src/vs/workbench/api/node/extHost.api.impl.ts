@@ -505,9 +505,9 @@ export function createApiFactory(
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebviewPanel(extension, viewType, title, showOptions, options);
 			},
-			createWebviewTextEditorInset(editor: vscode.TextEditor, range: vscode.Range, options: vscode.WebviewOptions): vscode.WebviewEditorInset {
+			createWebviewTextEditorInset(editor: vscode.TextEditor, line: number, height: number, options: vscode.WebviewOptions): vscode.WebviewEditorInset {
 				checkProposedApiEnabled(extension);
-				return extHostEditorInsets.createWebviewEditorInset(editor, range, options, extension);
+				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {

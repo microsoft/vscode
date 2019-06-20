@@ -139,14 +139,15 @@ declare module 'vscode' {
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
-		readonly range: Range;
+		readonly line: number;
+		readonly height: number;
 		readonly webview: Webview;
 		readonly onDidDispose: Event<void>;
 		dispose(): void;
 	}
 
 	export namespace window {
-		export function createWebviewTextEditorInset(editor: TextEditor, range: Range, options?: WebviewOptions): WebviewEditorInset;
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
