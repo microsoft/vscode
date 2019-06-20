@@ -18,7 +18,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
@@ -438,7 +438,7 @@ export class ToggleMenuBarAction extends Action {
 	}
 }
 
-if (isWindows || isLinux) {
+if (isWindows || isLinux || isWeb) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 

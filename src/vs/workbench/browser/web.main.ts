@@ -8,7 +8,7 @@ import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/brow
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleLogService, SimpleProductService } from 'vs/workbench/browser/web.simpleservices';
+import { SimpleLogService } from 'vs/workbench/browser/web.simpleservices';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -35,6 +35,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { ProductService } from 'vs/platform/product/browser/productService';
 
 class CodeRendererMain extends Disposable {
 
@@ -90,7 +91,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = new SimpleProductService();
+		const productService = new ProductService();
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
