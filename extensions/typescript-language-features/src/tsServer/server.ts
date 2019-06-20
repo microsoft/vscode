@@ -41,17 +41,6 @@ export class PipeRequestCanceller implements OngoingRequestCanceller {
 	}
 }
 
-export interface ServerProcess {
-	readonly stdout: stream.Readable;
-	write(serverRequest: Proto.Request): void;
-
-	on(name: 'exit', handler: (code: number | null) => void): void;
-	on(name: 'error', handler: (error: Error) => void): void;
-
-	kill(): void;
-}
-
-
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
 	readonly onExit: vscode.Event<any>;
@@ -69,14 +58,24 @@ export interface ITypeScriptServer {
 	dispose(): void;
 }
 
-export class TypeScriptServer extends Disposable implements ITypeScriptServer {
+export interface TsServerProcess {
+	readonly stdout: stream.Readable;
+	write(serverRequest: Proto.Request): void;
+
+	on(name: 'exit', handler: (code: number | null) => void): void;
+	on(name: 'error', handler: (error: Error) => void): void;
+
+	kill(): void;
+}
+
+export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _reader: Reader<Proto.Response>;
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response>();
 	private readonly _pendingResponses = new Set<number>();
 
 	constructor(
-		private readonly _process: ServerProcess,
+		private readonly _process: TsServerProcess,
 		private readonly _tsServerLogFile: string | undefined,
 		private readonly _requestCanceller: OngoingRequestCanceller,
 		private readonly _version: TypeScriptVersion,

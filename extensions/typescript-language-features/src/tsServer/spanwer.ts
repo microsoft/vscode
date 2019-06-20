@@ -18,7 +18,7 @@ import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, ServerProcess, TypeScriptServer, PipeRequestCanceller } from './server';
+import { ITypeScriptServer, TsServerProcess, ProcessBasedTsServer, PipeRequestCanceller } from './server';
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -51,7 +51,7 @@ export class TypeScriptServerSpawner {
 		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
 		this._logger.info('Started TSServer');
 
-		return new TypeScriptServer(
+		return new ProcessBasedTsServer(
 			new ChildServerProcess(childProcess),
 			tsServerLogFile,
 			new PipeRequestCanceller(cancellationPipeName, this._tracer),
@@ -171,7 +171,7 @@ export class TypeScriptServerSpawner {
 	}
 }
 
-class ChildServerProcess implements ServerProcess {
+class ChildServerProcess implements TsServerProcess {
 
 	public constructor(
 		private readonly _process: child_process.ChildProcess,
