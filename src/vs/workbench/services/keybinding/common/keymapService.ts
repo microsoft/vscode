@@ -87,7 +87,7 @@ export interface IMacKeyboardLayoutInfo {
 	localizedName?: string;
 }
 
-export type IKeyboardLayoutInfo = IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo;
+export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo) & { isUserKeyboardLayout?: boolean; };
 
 export const IKeymapService = createDecorator<IKeymapService>('keymapService');
 
@@ -126,7 +126,9 @@ export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeybo
 }
 
 export function parseKeyboardLayout(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
-
+	if (!layout) {
+		return { label: '', description: '' };
+	}
 
 	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
 		// windows

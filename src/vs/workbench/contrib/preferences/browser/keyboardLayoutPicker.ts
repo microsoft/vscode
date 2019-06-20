@@ -113,11 +113,13 @@ export class KeyboardLayoutPickerAction extends Action {
 			const picked = !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout);
 			const layoutInfo = parseKeyboardLayout(layout);
 			return {
-				label: layoutInfo.label,
+				label: [layoutInfo.label, (layout && layout.isUserKeyboardLayout) ? '(User configured layout)' : ''].join(' '),
 				id: (<any>layout).text || (<any>layout).lang || (<any>layout).layout,
 				description: layoutInfo.description + (picked ? ' (Current layout)' : ''),
 				picked: !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout)
 			};
+		}).sort((a: IQuickPickItem, b: IQuickPickItem) => {
+			return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
 		});
 
 		if (picks.length > 0) {

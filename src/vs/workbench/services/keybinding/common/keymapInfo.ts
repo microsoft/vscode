@@ -47,7 +47,7 @@ function deserializeMapping(serializedMapping: ISerializedMapping) {
 	return ret;
 }
 
-interface IKeyboardMapping {
+interface IRawMixedKeyboardMapping {
 	[key: string]: {
 		value: string,
 		withShift: string;
@@ -66,15 +66,16 @@ interface ISerializedMapping {
 }
 
 export class KeymapInfo {
-	mapping: IKeyboardMapping;
+	mapping: IRawMixedKeyboardMapping;
 	isUserKeyboardLayout: boolean;
 
 	constructor(public layout: IKeyboardLayoutInfo, public secondaryLayouts: IKeyboardLayoutInfo[], keyboardMapping: ISerializedMapping, isUserKeyboardLayout?: boolean) {
 		this.mapping = deserializeMapping(keyboardMapping);
 		this.isUserKeyboardLayout = !!isUserKeyboardLayout;
+		this.layout.isUserKeyboardLayout = !!isUserKeyboardLayout;
 	}
 
-	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IKeyboardMapping, isUserKeyboardLayout?: boolean): KeymapInfo {
+	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IRawMixedKeyboardMapping, isUserKeyboardLayout?: boolean): KeymapInfo {
 		let keyboardLayoutInfo = new KeymapInfo(layout, [], {}, true);
 		keyboardLayoutInfo.mapping = value;
 		return keyboardLayoutInfo;
@@ -85,9 +86,10 @@ export class KeymapInfo {
 		this.secondaryLayouts = other.secondaryLayouts;
 		this.mapping = other.mapping;
 		this.isUserKeyboardLayout = other.isUserKeyboardLayout;
+		this.layout.isUserKeyboardLayout = other.isUserKeyboardLayout;
 	}
 
-	fuzzyEqual(other: IKeyboardMapping): boolean {
+	fuzzyEqual(other: IRawMixedKeyboardMapping): boolean {
 		for (let key in other) {
 			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
 				// keymap from Chromium is probably wrong.
