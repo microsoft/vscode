@@ -199,7 +199,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
-			queueingType: getQueueingType(command, executeInfo.lowPriority)
+			queueingType: ProcessBasedTsServer.getQueueingType(command, executeInfo.lowPriority)
 		};
 		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
@@ -280,16 +280,17 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		this._pendingResponses.delete(seq);
 		return callback;
 	}
-}
 
-const fenceCommands = new Set(['change', 'close', 'open', 'updateOpen']);
+	private static readonly fenceCommands = new Set(['change', 'close', 'open', 'updateOpen']);
 
-function getQueueingType(
-	command: string,
-	lowPriority?: boolean
-): RequestQueueingType {
-	if (fenceCommands.has(command)) {
-		return RequestQueueingType.Fence;
+	private static getQueueingType(
+		command: string,
+		lowPriority?: boolean
+	): RequestQueueingType {
+		if (ProcessBasedTsServer.fenceCommands.has(command)) {
+			return RequestQueueingType.Fence;
+		}
+		return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
 	}
-	return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
 }
+
