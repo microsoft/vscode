@@ -862,7 +862,8 @@ export class SimpleWindowService implements IWindowService {
 
 	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
 		const { openFolderInNewWindow } = this.shouldOpenNewWindow(_options);
-		_uris.forEach(async uri => {
+		for (let i = 0; i < _uris.length; i++) {
+			const uri = _uris[i];
 			if ('folderUri' in uri) {
 				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
 				if (openFolderInNewWindow) {
@@ -883,7 +884,7 @@ export class SimpleWindowService implements IWindowService {
 				const inputs: IResourceEditor[] = await pathsToEditors([uri], this.fileService);
 				this.editorService.openEditors(inputs);
 			}
-		});
+		}
 		return Promise.resolve();
 	}
 
