@@ -234,7 +234,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
-			container.removeChild(label.element);
+			label.element.remove();
 			// Timeout: once done rendering only then re-render #70902
 			setTimeout(() => editableData.onFinish(value, success), 0);
 		});
@@ -265,6 +265,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			}
 			else {
 				dispose(toDispose);
+				label.element.remove();
 			}
 		});
 	}
