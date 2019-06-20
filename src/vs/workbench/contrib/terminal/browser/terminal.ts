@@ -21,6 +21,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
 export interface ITerminalInstanceService {
 	_serviceBrand: any;
 
+	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
 
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
