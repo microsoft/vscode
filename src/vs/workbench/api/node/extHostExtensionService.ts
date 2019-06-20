@@ -51,7 +51,7 @@ type TelemetryActivationEventFragment = {
 	extensionVersion: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 	publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	activationEvents: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
@@ -328,7 +328,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
 		this._mainThreadTelemetryProxy.$publicLog2<any, ActivatePluginClassification>('activatePlugin', event);
-		this._mainThreadTelemetryProxy.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
