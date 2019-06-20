@@ -119,8 +119,12 @@
 
 		// Service worker for resource loading
 		const FAKE_LOAD = !!navigator.serviceWorker;
-		if (navigator.serviceWorker) {
-			navigator.serviceWorker.register('service-worker.js');
+
+		const workerReady = new Promise(resolve => {
+			if (!navigator.serviceWorker) {
+				resolve();
+			}
+			navigator.serviceWorker.register('service-worker.js').finally(resolve);
 
 			function forwardFromHostToWorker(channel) {
 				host.onMessage(channel, event => {
@@ -137,7 +141,7 @@
 					host.postMessage(event.data.channel, event.data);
 				}
 			});
-		}
+		});
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -234,7 +238,6 @@
 		document.addEventListener('DOMContentLoaded', () => {
 			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
 			const ID = idMatch ? idMatch[1] : undefined;
-
 			if (!document.body) {
 				return;
 			}
@@ -261,8 +264,16 @@
 				}
 			});
 
+
 			// update iframe-contents
-			host.onMessage('content', (_event, data) => {
+			let updateId = 0;
+			host.onMessage('content', async (_event, data) => {
+				const currentUpdateId = ++updateId;
+				await workerReady;
+				if (currentUpdateId !== updateId) {
+					return;
+				}
+
 				const options = data.options;
 
 				const text = data.contents;
