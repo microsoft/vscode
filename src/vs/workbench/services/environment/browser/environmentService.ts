@@ -59,7 +59,6 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 }
 
 export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
-
 	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
@@ -74,6 +73,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		this.appSettingsHome = joinPath(URI.revive(JSON.parse(document.getElementById('vscode-remote-user-data-uri')!.getAttribute('data-settings')!)), 'User');
 		this.settingsResource = joinPath(this.appSettingsHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json');
+		this.keyboardLayoutResource = joinPath(this.appSettingsHome, 'keyboardLayout.json');
 
 		this.logsPath = '/web/logs';
 
@@ -99,6 +99,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	appSettingsHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 	settingsSearchBuildId?: number;

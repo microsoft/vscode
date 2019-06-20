@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ id: 'com.apple.keylayout.Italian-Pro', lang: 'it' },
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
+	{ id: 'com.apple.keylayout.Italian-Pro', lang: 'it', localizedName: 'Italian' },
 	[],
 	{
 		KeyA: ['a', 'A', 'å', 'Å', 0],

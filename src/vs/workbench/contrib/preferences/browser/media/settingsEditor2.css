@@ -237,8 +237,6 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container {
-	margin-right: 1px;
-	/* So the item doesn't blend into the edge of the view container  */
 	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;

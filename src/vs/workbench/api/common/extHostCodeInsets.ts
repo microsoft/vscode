@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as vscode from 'vscode';
 import { MainThreadEditorInsetsShape } from './extHost.protocol';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
@@ -39,7 +38,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsets {
 		this._disposables.dispose();
 	}
 
-	createWebviewEditorInset(editor: vscode.TextEditor, range: vscode.Range, options: vscode.WebviewOptions | undefined, extension: IExtensionDescription): vscode.WebviewEditorInset {
+	createWebviewEditorInset(editor: vscode.TextEditor, line: number, height: number, options: vscode.WebviewOptions | undefined, extension: IExtensionDescription): vscode.WebviewEditorInset {
 
 		let apiEditor: ExtHostTextEditor | undefined;
 		for (const candidate of this._editors.getVisibleTextEditors()) {
@@ -92,7 +91,8 @@ export class ExtHostEditorInsets implements ExtHostEditorInsets {
 		const inset = new class implements vscode.WebviewEditorInset {
 
 			readonly editor: vscode.TextEditor = editor;
-			readonly range: vscode.Range = range;
+			readonly line: number = line;
+			readonly height: number = height;
 			readonly webview: vscode.Webview = webview;
 			readonly onDidDispose: vscode.Event<void> = onDidDispose.event;
 
@@ -109,7 +109,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsets {
 			}
 		};
 
-		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.document.uri, typeConverters.Range.from(range), options || {}, extension.identifier, extension.extensionLocation);
+		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
 		this._insets.set(handle, { editor, inset, onDidReceiveMessage });
 
 		return inset;

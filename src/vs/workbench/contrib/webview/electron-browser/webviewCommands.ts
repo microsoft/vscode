@@ -5,13 +5,10 @@
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
+	static readonly ALIAS = 'Open Webview Developer Tools';
 	static readonly LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
 
 	public constructor(id: string, label: string) {
@@ -30,10 +27,3 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		return Promise.resolve(true);
 	}
 }
-
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),
-	'Open Webview Developer Tools',
-	webviewDeveloperCategory);

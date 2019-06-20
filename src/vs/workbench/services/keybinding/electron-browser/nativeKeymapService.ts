@@ -153,6 +153,10 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 		return KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
 	}
 
+	getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
+		return [];
+	}
+
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
 		return KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping();
 	}

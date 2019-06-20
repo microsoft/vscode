@@ -60,6 +60,16 @@ jobs:
   steps:
   - template: linux/product-build-linux-arm.yml
 
+- job: LinuxAlpine
+  condition: eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: alpine
+  steps:
+  - template: linux/product-build-linux-alpine.yml
+
 - job: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
   timeoutInMinutes: 120
@@ -79,6 +89,7 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxAlpine
   - macOS
   steps:
   - template: sync-mooncake.yml

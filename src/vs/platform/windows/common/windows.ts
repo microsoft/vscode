@@ -153,6 +153,7 @@ export interface IWindowsService {
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;

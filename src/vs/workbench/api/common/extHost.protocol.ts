@@ -85,7 +85,7 @@ export interface IInitData {
 	logLevel: LogLevel;
 	logsLocation: URI;
 	autoStart: boolean;
-	remoteAuthority?: string | null;
+	remote: { isRemote: boolean; authority: string | undefined; };
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -511,7 +511,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
@@ -1126,6 +1126,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
+	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;

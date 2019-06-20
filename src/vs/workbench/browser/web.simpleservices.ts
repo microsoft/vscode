@@ -49,6 +49,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 //#region Backup File
 
@@ -1094,6 +1095,10 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openNewWindow(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
 		return Promise.resolve();
 	}
 

@@ -27,6 +27,11 @@ body:not([data-exploration="icon-exploration"]) .monaco-tl-indent {
 	left: 16px;
 }
 
+/* TODO @misolori remove before shipping stable */
+body:not([data-exploration="icon-exploration"]) .hide-arrows .monaco-tl-indent {
+	left: 10px;
+}
+
 .monaco-tl-indent > svg {
 	overflow: visible;
 }

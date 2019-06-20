@@ -7,6 +7,8 @@
  */
 const resourceRoot = '/vscode-resource';
 
+const resolveTimeout = 30000;
+
 /**
  * @template T
  * @typedef {{
@@ -36,6 +38,7 @@ class RequestStore {
 	/**
 	 * @param {string} webviewId
 	 * @param {string} path
+	 * @returns {Promise<T>}
 	 */
 	create(webviewId, path) {
 		const existing = this.get(webviewId, path);
@@ -44,7 +47,17 @@ class RequestStore {
 		}
 		let resolve;
 		const promise = new Promise(r => resolve = r);
-		this.map.set(this._key(webviewId, path), { resolve, promise });
+		const entry = { resolve, promise };
+		this.map.set(this._key(webviewId, path), entry);
+
+		const dispose = () => {
+			clearTimeout(timeout);
+			const existing = this.get(webviewId, path);
+			if (existing === entry) {
+				return this.map.delete(this._key(webviewId, path));
+			}
+		};
+		const timeout = setTimeout(dispose, resolveTimeout);
 		return promise;
 	}
 
@@ -90,7 +103,6 @@ const localhostRequestStore = new RequestStore();
 const notFoundResponse = new Response('Not Found', {
 	status: 404,
 });
-
 
 self.addEventListener('message', (event) => {
 	switch (event.data.channel) {
