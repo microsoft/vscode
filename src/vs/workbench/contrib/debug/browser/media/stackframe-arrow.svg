@@ -1,1 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.icon-canvas-transparent,.icon-vs-out{fill:#f6f6f6;}.icon-canvas-transparent{opacity:0;}.cls-1{fill:#9cce9c;}</style></defs><title>stackframe-arrow</title><g id="canvas"><path class="icon-canvas-transparent" d="M16,0V16H0V0Z"/></g><g id="outline" style="display: none;"><path class="icon-vs-out" d="M13.829,8,9.454,13H4V3H9.454Z"/></g><g id="iconBg"><path class="cls-1" d="M12.5,8,9,12H5V4H9Z"/></g></svg>
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8.48852 3.17865L12.7072 7.99999L8.48852 12.8213H3.17865V3.17865H8.48852ZM7.93627 11.6043L11.09 7.99999L7.93627 4.39569H4.39569V11.6043H7.93627Z" fill="#89D185"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M12.9446 8L8.5696 13H3V3H8.5696L12.9446 8ZM8.48853 3.17866H3.17866V12.8213H8.48853L12.7072 8L8.48853 3.17866ZM10.8526 8L7.85521 11.4256H4.57436V4.57436H7.85521L10.8526 8ZM7.93628 4.3957L11.5161 8L7.93628 11.6043H4.3957V4.3957H7.93628Z" fill="#89D185"/>
+</svg>

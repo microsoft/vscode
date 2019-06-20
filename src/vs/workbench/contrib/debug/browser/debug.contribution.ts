@@ -277,8 +277,8 @@ const registerDebugToolBarItem = (id: string, title: string, icon: string, order
 			id,
 			title,
 			iconLocation: {
-				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}.svg`)),
-				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-inverse.svg`))
+				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-light.svg`)),
+				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-dark.svg`))
 			},
 			precondition
 		}
