@@ -180,12 +180,6 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'default': true,
 				'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 			},
-			// TODO @misolori remove before shipping stable
-			'workbench.iconExploration.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': nls.localize('iconExplorationEnabled', "Controls the visibility of the icon exploration in the workbench.")
-			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,
