@@ -29,10 +29,11 @@ class RequestStore {
 	/**
 	 * @param {string} webviewId
 	 * @param {string} path
-	 * @return {RequestStoreEntry<T> | undefined}
+	 * @return {Promise<T> | undefined}
 	 */
 	get(webviewId, path) {
-		return this.map.get(this._key(webviewId, path));
+		const entry = this.map.get(this._key(webviewId, path));
+		return entry && entry.promise;
 	}
 
 	/**
@@ -43,18 +44,19 @@ class RequestStore {
 	create(webviewId, path) {
 		const existing = this.get(webviewId, path);
 		if (existing) {
-			return existing.promise;
+			return existing;
 		}
 		let resolve;
 		const promise = new Promise(r => resolve = r);
 		const entry = { resolve, promise };
-		this.map.set(this._key(webviewId, path), entry);
+		const key = this._key(webviewId, path);
+		this.map.set(key, entry);
 
 		const dispose = () => {
 			clearTimeout(timeout);
-			const existing = this.get(webviewId, path);
-			if (existing === entry) {
-				return this.map.delete(this._key(webviewId, path));
+			const existingEntry = this.map.get(key);
+			if (existingEntry === entry) {
+				return this.map.delete(key);
 			}
 		};
 		const timeout = setTimeout(dispose, resolveTimeout);
@@ -68,7 +70,7 @@ class RequestStore {
 	 * @return {boolean}
 	 */
 	resolve(webviewId, path, result) {
-		const entry = this.get(webviewId, path);
+		const entry = this.map.get(this._key(webviewId, path));
 		if (!entry) {
 			return false;
 		}
@@ -185,7 +187,7 @@ async function processResourceRequest(event, requestUrl) {
 	// Check if we've already resolved this request
 	const existing = resourceRequestStore.get(webviewId, resourcePath);
 	if (existing) {
-		return existing.promise.then(resolveResourceEntry);
+		return existing.then(resolveResourceEntry);
 	}
 
 	parentClient.postMessage({
@@ -233,7 +235,7 @@ async function processLocalhostRequest(event, requestUrl) {
 	// Check if we've already resolved this request
 	const existing = localhostRequestStore.get(webviewId, origin);
 	if (existing) {
-		return existing.promise.then(resolveRedirect);
+		return existing.then(resolveRedirect);
 	}
 
 	parentClient.postMessage({
