@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, areKeyboardLayoutsEqual, parseKeyboardLayout } from 'vs/workbench/services/keybinding/common/keymapService';
+import { IKeymapService, areKeyboardLayoutsEqual, parseKeyboardLayout } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
