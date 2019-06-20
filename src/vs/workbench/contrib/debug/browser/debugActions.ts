@@ -401,6 +401,6 @@ export class CopyValueAction extends Action {
 		}
 
 
-		return Promise.resolve(this.clipboardService.writeText(this.value));
+		return this.clipboardService.writeText(this.value);
 	}
 }
