@@ -76,7 +76,7 @@
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
     "electron-mksnapshot": "~2.0.0",
-    "eslint": "^3.4.0",
+    "eslint": "^4.18.2",
     "event-stream": "3.3.4",
     "express": "^4.13.1",
     "fancy-log": "^1.3.3",
