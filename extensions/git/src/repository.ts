@@ -730,7 +730,13 @@ export class Repository implements Disposable {
 
 	@throttle
 	async status(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const restoreCommitTemplateOnRefresh = config.get<boolean>('restoreCommitTemplateOnRefresh');
+
 		await this.run(Operation.Status);
+		if (restoreCommitTemplateOnRefresh) {
+			this.inputBox.value = await this.getCommitTemplate();
+		}
 	}
 
 	diff(cached?: boolean): Promise<string> {

@@ -235,12 +235,6 @@ export class CommandCenter {
 	@command('git.refresh', { repository: true })
 	async refresh(repository: Repository): Promise<void> {
 		await repository.status();
-
-		const config = workspace.getConfiguration('git');
-		const restoreCommitTemplateOnRefresh = config.get<boolean>('restoreCommitTemplateOnRefresh');
-		if (restoreCommitTemplateOnRefresh) {
-			repository.inputBox.value = await repository.getCommitTemplate();
-		}
 	}
 
 	@command('git.openResource')
