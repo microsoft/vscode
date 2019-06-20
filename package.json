@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.36.0",
-  "distro": "224180ef61f67fc894727cb89068881165b35a0f",
+  "distro": "555abb7db38aa08e0f905213c013f7bad0747ed2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -76,7 +76,7 @@
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
     "electron-mksnapshot": "~2.0.0",
-    "eslint": "^3.4.0",
+    "eslint": "^4.18.2",
     "event-stream": "3.3.4",
     "express": "^4.13.1",
     "fancy-log": "^1.3.3",

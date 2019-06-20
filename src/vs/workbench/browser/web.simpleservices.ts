@@ -23,7 +23,6 @@ import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ConsoleLogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/product';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -513,23 +512,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
-}
-
-//#endregion
-
-//#region Product
-
-export class SimpleProductService implements IProductService {
-
-	_serviceBrand: any;
-
-	version: string = '1.35.0';
-	commit?: string;
-	nameLong: string = '';
-	urlProtocol: string = '';
-	extensionAllowedProposedApi: string[] = [];
-	uiExtensions?: string[];
-	enableTelemetry: boolean = false;
 }
 
 //#endregion

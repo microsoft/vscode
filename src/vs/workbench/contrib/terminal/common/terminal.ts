@@ -790,3 +790,7 @@ export interface ITerminalChildProcess {
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 }
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
+}

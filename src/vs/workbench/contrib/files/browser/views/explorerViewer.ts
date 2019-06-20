@@ -218,29 +218,22 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
+		inputBox.focus();
+		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		let isFinishableDisposeEvent = false;
-		setTimeout(() => {
-			// Check if disposed
-			if (!inputBox.inputElement) {
-				return;
-			}
-			inputBox.focus();
-			inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
-			isFinishableDisposeEvent = true;
-		}, 0);
-
-		const done = once(async (success: boolean) => {
+		const done = once(async (success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			container.removeChild(label.element);
-			// Timeout: once done rendering only then re-render #70902
-			setTimeout(() => editableData.onFinish(value, success), 0);
+			if (finishEditing) {
+				// Timeout: once done rendering only then re-render #70902
+				setTimeout(() => editableData.onFinish(value, success), 0);
+			}
 		});
 
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			done(inputBox.isInputValid());
+			done(inputBox.isInputValid(), true);
 		});
 
 		const toDispose = [
@@ -248,10 +241,10 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true);
+						done(true, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false);
+					done(false, true);
 				}
 			}),
 			blurDisposable,
@@ -260,12 +253,8 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		];
 
 		return toDisposable(() => {
-			if (isFinishableDisposeEvent) {
-				done(false);
-			}
-			else {
-				dispose(toDispose);
-			}
+			blurDisposable.dispose();
+			done(false, false);
 		});
 	}
 

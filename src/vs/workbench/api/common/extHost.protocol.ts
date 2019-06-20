@@ -58,6 +58,7 @@ export interface IEnvironment {
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
+	webviewResourceRoot: string;
 }
 
 export interface IStaticWorkspaceData {
@@ -1111,6 +1112,11 @@ export interface IShellDefinitionDto {
 	path: string;
 }
 
+export interface IShellAndArgsDto {
+	shell: string;
+	args: string[] | string | undefined;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
@@ -1129,6 +1135,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
+	$requestDefaultShellAndArgs(): Promise<IShellAndArgsDto>;
 }
 
 export interface ExtHostSCMShape {

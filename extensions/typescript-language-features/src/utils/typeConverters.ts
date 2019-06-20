@@ -13,9 +13,12 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 
 export namespace Range {
 	export const fromTextSpan = (span: Proto.TextSpan): vscode.Range =>
+		fromLocations(span.start, span.end);
+
+	export const fromLocations = (start: Proto.Location, end: Proto.Location): vscode.Range =>
 		new vscode.Range(
-			Math.max(0, span.start.line - 1), Math.max(span.start.offset - 1, 0),
-			Math.max(0, span.end.line - 1), Math.max(0, span.end.offset - 1));
+			Math.max(0, start.line - 1), Math.max(start.offset - 1, 0),
+			Math.max(0, end.line - 1), Math.max(0, end.offset - 1));
 
 	export const toFileRangeRequestArgs = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
 		file,

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout((new KeyboardLayoutInfo(
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
 	{ name: '00000409', id: '', text: 'US' },
 	[
 		{ name: '00000804', id: '', text: 'Chinese (Simplified) - US Keyboard' },

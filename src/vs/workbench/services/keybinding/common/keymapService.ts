@@ -94,6 +94,72 @@ export interface IKeymapService {
 	onDidChangeKeyboardMapper: Event<void>;
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
+	getAllKeyboardLayouts(): IKeyboardLayoutInfo[];
 	getRawKeyboardMapping(): IKeyboardMapping | null;
 	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
+}
+
+export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeyboardLayoutInfo | null): boolean {
+	if (!a || !b) {
+		return false;
+	}
+
+	if ((<IWindowsKeyboardLayoutInfo>a).name && (<IWindowsKeyboardLayoutInfo>b).name && (<IWindowsKeyboardLayoutInfo>a).name === (<IWindowsKeyboardLayoutInfo>b).name) {
+		return true;
+	}
+
+	if ((<IMacKeyboardLayoutInfo>a).id && (<IMacKeyboardLayoutInfo>b).id && (<IMacKeyboardLayoutInfo>a).id === (<IMacKeyboardLayoutInfo>b).id) {
+		return true;
+	}
+
+	if ((<ILinuxKeyboardLayoutInfo>a).model &&
+		(<ILinuxKeyboardLayoutInfo>b).model &&
+		(<ILinuxKeyboardLayoutInfo>a).model === (<ILinuxKeyboardLayoutInfo>b).model &&
+		(<ILinuxKeyboardLayoutInfo>a).layout === (<ILinuxKeyboardLayoutInfo>b).layout
+	) {
+		return true;
+	}
+
+	return false;
+}
+
+export function parseKeyboardLayout(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
+
+
+	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
+		// windows
+		let windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
+		return {
+			label: windowsLayout.text,
+			description: ''
+		};
+	}
+
+	if ((<IMacKeyboardLayoutInfo>layout).id) {
+		let macLayout = <IMacKeyboardLayoutInfo>layout;
+		if (/^com\.apple\.keylayout\./.test(macLayout.id)) {
+			return {
+				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/, ' '),
+				description: ''
+			};
+		}
+		if (/^.*inputmethod\./.test(macLayout.id)) {
+			return {
+				label: macLayout.id.replace(/^.*inputmethod\./, '').replace(/[-\.]/, ' '),
+				description: `Input Method (${macLayout.lang})`
+			};
+		}
+
+		return {
+			label: macLayout.lang,
+			description: ''
+		};
+	}
+
+	let linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
+
+	return {
+		label: linuxLayout.layout,
+		description: ''
+	};
 }

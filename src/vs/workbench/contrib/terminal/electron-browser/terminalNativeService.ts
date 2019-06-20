@@ -15,7 +15,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/node/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isWeb } from 'vs/base/common/platform';
 
 export class TerminalNativeService implements ITerminalNativeService {
 	public _serviceBrand: any;
@@ -35,11 +34,9 @@ export class TerminalNativeService implements ITerminalNativeService {
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this._onOpenFileRequest.fire(request));
 		ipc.on('vscode:osResume', () => this._onOsResume.fire());
 
-		if (!isWeb) {
-			const connection = remoteAgentService.getConnection();
-			if (connection && connection.remoteAuthority) {
-				registerRemoteContributions();
-			}
+		const connection = remoteAgentService.getConnection();
+		if (connection && connection.remoteAuthority) {
+			registerRemoteContributions();
 		}
 	}
 
