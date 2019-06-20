@@ -46,8 +46,18 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 		}
 	}
 
-	read(key: string): Promise<string> {
-		return this.fileService.readFile(this.toResource(key)).then(content => content.value.toString());
+	async read(key: string): Promise<string> {
+		const resource = this.toResource(key);
+		try {
+			const content = await this.fileService.readFile(resource);
+			return content.value.toString();
+		} catch (e) {
+			const exists = await this.fileService.exists(resource);
+			if (exists) {
+				throw e;
+			}
+		}
+		return '';
 	}
 
 	write(key: string, value: string): Promise<void> {
