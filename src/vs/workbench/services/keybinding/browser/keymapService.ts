@@ -14,7 +14,6 @@ import { OS, OperatingSystem, isMacintosh, isWindows, isLinux } from 'vs/base/co
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { KeyCodeUtils, KeyCode } from 'vs/base/common/keyCodes';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { URI } from 'vs/base/common/uri';
@@ -194,12 +193,12 @@ export class BrowserKeyboardMapperFactory {
 		this._updateKeyboardLayoutAsync(this._initialized);
 	}
 
-	private _updateKeyboardLayoutAsync(initialized: boolean) {
+	private _updateKeyboardLayoutAsync(initialized: boolean, keyboardEvent?: IKeyboardEvent) {
 		if (!initialized) {
 			return;
 		}
 
-		this._getBrowserKeyMapping().then(keyMap => {
+		this._getBrowserKeyMapping(keyboardEvent).then(keyMap => {
 			// might be false positive
 			if (this.isKeyMappingActive(keyMap)) {
 				return;
@@ -230,7 +229,7 @@ export class BrowserKeyboardMapperFactory {
 			return;
 		}
 
-		this._updateKeyboardLayoutAsync(true);
+		this._updateKeyboardLayoutAsync(true, keyboardEvent);
 	}
 
 	public setKeyboardLayout(layoutName: string) {
@@ -331,7 +330,7 @@ export class BrowserKeyboardMapperFactory {
 		return true;
 	}
 
-	private async _getBrowserKeyMapping(): Promise<IRawMixedKeyboardMapping | null> {
+	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
 		if ((navigator as any).keyboard) {
 			try {
 				return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
@@ -356,6 +355,23 @@ export class BrowserKeyboardMapperFactory {
 			} catch {
 				// getLayoutMap can throw if invoked from a nested browsing context
 			}
+		} else if (keyboardEvent && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey && !keyboardEvent.metaKey) {
+			let ret: IKeyboardMapping = {};
+			const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
+			ret[standardKeyboardEvent.browserEvent.code] = {
+				'value': standardKeyboardEvent.browserEvent.key,
+				'withShift': '',
+				'withAltGr': '',
+				'withShiftAltGr': ''
+			};
+
+			const matchedKeyboardLayout = this.getMatchedKeymapInfo(ret);
+
+			if (matchedKeyboardLayout) {
+				return matchedKeyboardLayout.mapping;
+			}
+
+			return null;
 		}
 
 		return null;
