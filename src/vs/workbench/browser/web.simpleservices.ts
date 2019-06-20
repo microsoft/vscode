@@ -26,7 +26,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -48,6 +48,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 //#region Backup File
 
@@ -740,7 +741,8 @@ export class SimpleWindowService implements IWindowService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 	}
 
@@ -859,13 +861,23 @@ export class SimpleWindowService implements IWindowService {
 	}
 
 	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
-		// TODO: SUpport window.openFoldersInNewWindow setting
+		const { openFolderInNewWindow } = this.shouldOpenNewWindow(_options);
 		_uris.forEach(async uri => {
 			if ('folderUri' in uri) {
-				window.open(`${document.location.origin}/?folder=${uri.folderUri.path}`);
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				if (openFolderInNewWindow) {
+					window.open(newAddress);
+				} else {
+					window.location.href = newAddress;
+				}
 			}
 			if ('workspaceUri' in uri) {
-				window.open(`${document.location.origin}/?folder=${uri.workspaceUri.path}`);
+				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
+				if (openFolderInNewWindow) {
+					window.open(newAddress);
+				} else {
+					window.location.href = newAddress;
+				}
 			}
 			if ('fileUri' in uri) {
 				const inputs: IResourceEditor[] = await pathsToEditors([uri], this.fileService);
@@ -873,6 +885,16 @@ export class SimpleWindowService implements IWindowService {
 			}
 		});
 		return Promise.resolve();
+	}
+
+	private shouldOpenNewWindow(_options: IOpenSettings = {}): { openFolderInNewWindow: boolean } {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
+		let openFolderInNewWindow = !!_options.forceNewWindow && !_options.forceReuseWindow;
+		if (!_options.forceNewWindow && !_options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
+			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
+		}
+		return { openFolderInNewWindow };
 	}
 
 	closeWindow(): Promise<void> {
