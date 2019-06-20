@@ -109,7 +109,7 @@ export class TypeScriptServerSpawner {
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager
-	): TypeScriptServer {
+	): ITypeScriptServer {
 		const apiVersion = version.version || API.defaultVersion;
 
 		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
@@ -303,7 +303,24 @@ class ChildServerProcess implements ServerProcess {
 	}
 }
 
-export class TypeScriptServer extends Disposable {
+export interface ITypeScriptServer {
+	readonly onEvent: vscode.Event<Proto.Event>;
+	readonly onExit: vscode.Event<any>;
+	readonly onError: vscode.Event<any>;
+	readonly onReaderError: vscode.Event<Error>;
+
+	readonly tsServerLogFile: string | undefined;
+
+	kill(): void;
+
+	executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
+	executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
+	executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined;
+
+	dispose(): void;
+}
+
+export class TypeScriptServer extends Disposable implements ITypeScriptServer {
 	private readonly _reader: Reader<Proto.Response>;
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response>();
