@@ -850,6 +850,15 @@ export class SimpleWindowService implements IWindowService {
 	}
 
 	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
+		// TODO: SUpport window.openFoldersInNewWindow setting
+		_uris.forEach(uri => {
+			if ('folderUri' in uri) {
+				window.open(`${document.location.origin}/?folder=${uri.folderUri.path}`);
+			}
+			if ('workspaceUri' in uri) {
+				window.open(`${document.location.origin}/?folder=${uri.workspaceUri.path}`);
+			}
+		});
 		return Promise.resolve();
 	}
 
