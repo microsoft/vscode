@@ -165,7 +165,9 @@ suite('WorkspaceContextService - Workspace', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(new FileService(new NullLogService())), remoteAgentService);
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+				const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(fileService), remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
