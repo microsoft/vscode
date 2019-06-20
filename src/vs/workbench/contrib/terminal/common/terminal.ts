@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -55,6 +56,8 @@ export const TerminalCursorStyle = {
 };
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
@@ -222,6 +225,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
+	onRequestAvailableShells: Event<(shells: IShellDefinition[]) => void>;
 
 	/**
 	 * Creates a terminal.
@@ -239,7 +243,7 @@ export interface ITerminalService {
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
-	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance | null;
@@ -266,6 +270,8 @@ export interface ITerminalService {
 	getFindState(): FindReplaceState;
 	findNext(): void;
 	findPrevious(): void;
+
+	selectDefaultWindowsShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
@@ -299,7 +305,11 @@ export interface ITerminalNativeService {
 	getWindowsBuildNumber(): number;
 	whenFileDeleted(path: URI): Promise<void>;
 	getWslPath(path: string): Promise<string>;
-	selectDefaultWindowsShell(): Promise<string | undefined>;
+}
+
+export interface IShellDefinition {
+	label: string;
+	path: string;
 }
 
 export const enum Direction {
@@ -723,7 +733,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
-	emitPid(pid: number): void;
+	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
@@ -779,4 +789,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+}
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
 }

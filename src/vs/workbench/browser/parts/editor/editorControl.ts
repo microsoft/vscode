@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -38,7 +38,7 @@ export class EditorControl extends Disposable {
 	private _activeControl: BaseEditor | null;
 	private controls: BaseEditor[] = [];
 
-	private activeControlDisposeables: IDisposable[] = [];
+	private readonly activeControlDisposeables = this._register(new DisposableStore());
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
@@ -139,12 +139,12 @@ export class EditorControl extends Disposable {
 		this._activeControl = control;
 
 		// Clear out previous active control listeners
-		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
+		this.activeControlDisposeables.clear();
 
 		// Listen to control changes
 		if (control) {
-			this.activeControlDisposeables.push(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
-			this.activeControlDisposeables.push(control.onDidFocus(() => this._onDidFocus.fire()));
+			this.activeControlDisposeables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposeables.add(control.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor
@@ -227,11 +227,5 @@ export class EditorControl extends Disposable {
 		if (this._activeControl && this.dimension) {
 			this._activeControl.layout(this.dimension);
 		}
-	}
-
-	dispose(): void {
-		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
-
-		super.dispose();
 	}
 }

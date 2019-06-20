@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
-import { IDisposable, dispose, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -286,8 +286,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private readonly state = new State();
-	private readonly activeEditorListeners: IDisposable[] = [];
-	private delayedRender: IDisposable | null = null;
+	private readonly activeEditorListeners = this._register(new DisposableStore());
+	private readonly delayedRender = this._register(new MutableDisposable());
 	private toRender: StateChange | null = null;
 	private screenReaderNotification: INotificationHandle | null = null;
 	private promptedScreenReader: boolean = false;
@@ -514,8 +514,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender = runAtThisOrScheduleAtNextAnimationFrame(() => {
-				this.delayedRender = null;
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
+				this.delayedRender.clear();
+
 				const toRender = this.toRender;
 				this.toRender = null;
 				if (toRender) {
@@ -576,30 +577,30 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onMetadataChange(activeControl);
 
 		// Dispose old active editor listeners
-		dispose(this.activeEditorListeners);
+		this.activeEditorListeners.clear();
 
 		// Attach new listeners to active editor
 		if (activeCodeEditor) {
 
 			// Hook Listener for Configuration changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
 				if (event.accessibilitySupport) {
 					this.onScreenReaderModeChange(activeCodeEditor);
 				}
 			}));
 
 			// Hook Listener for Selection changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
 				this.onSelectionChange(activeCodeEditor);
 			}));
 
 			// Hook Listener for mode changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
 				this.onModeChange(activeCodeEditor);
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelContent((e) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelContent((e) => {
 				this.onEOLChange(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
@@ -614,7 +615,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content options changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
 				this.onIndentationChange(activeCodeEditor);
 			}));
 		}
@@ -637,11 +638,11 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 
 			binaryEditors.forEach(editor => {
-				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
+				this.activeEditorListeners.add(editor.onMetadataChanged(metadata => {
 					this.onMetadataChange(activeControl);
 				}));
 
-				this.activeEditorListeners.push(editor.onDidOpenInPlace(() => {
+				this.activeEditorListeners.add(editor.onDidOpenInPlace(() => {
 					this.updateStatusBar();
 				}));
 			});
@@ -811,15 +812,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const activeControl = this.editorService.activeControl;
 
 		return !!activeControl && activeControl === control;
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		if (this.delayedRender) {
-			this.delayedRender.dispose();
-			this.delayedRender = null;
-		}
 	}
 }
 

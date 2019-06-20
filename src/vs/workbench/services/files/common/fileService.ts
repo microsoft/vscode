@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -49,10 +49,10 @@ export class FileService extends Disposable implements IFileService {
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
 		// Forward events from provider
-		const providerDisposables: IDisposable[] = [];
-		providerDisposables.push(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
+		const providerDisposables = new DisposableStore();
+		providerDisposables.add(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
 		if (typeof provider.onDidErrorOccur === 'function') {
-			providerDisposables.push(provider.onDidErrorOccur(error => this._onError.fire(error)));
+			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(error)));
 		}
 
 		return toDisposable(() => {

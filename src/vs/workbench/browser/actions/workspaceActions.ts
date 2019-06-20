@@ -17,6 +17,9 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { toResource } from 'vs/workbench/common/editor';
+import { URI } from 'vs/base/common/uri';
 
 export class OpenFileAction extends Action {
 
@@ -51,6 +54,29 @@ export class OpenLocalFileAction extends Action {
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data, availableFileSystems: [Schemas.file] });
+	}
+}
+
+export class SaveLocalFileAction extends Action {
+
+	static readonly ID = 'workbench.action.files.saveLocalFile';
+	static LABEL = nls.localize('saveLocalFile', "Save Local File...");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService
+	) {
+		super(id, label);
+	}
+
+	async run(event?: any, data?: ITelemetryData): Promise<any> {
+		let resource: URI | undefined = toResource(this.editorService.activeEditor);
+		const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
+		if (resource) {
+			return this.textFileService.saveAs(resource, undefined, options);
+		}
 	}
 }
 

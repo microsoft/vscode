@@ -1090,17 +1090,6 @@ declare module 'vscode' {
 
 	//#region Terminal
 
-	export interface TerminalOptions {
-		/**
-		 * When enabled the terminal will run the process as normal but not be surfaced to the user
-		 * until `Terminal.show` is called. The typical usage for this is when you need to run
-		 * something that may need interactivity but only want to tell the user about it when
-		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
-		 */
-		runInBackground?: boolean;
-	}
-
 	/**
 	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
 	 */
@@ -1428,22 +1417,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region DocumentLink tooltip mjbvz
-
-	interface DocumentLink {
-		/**
-		 * The tooltip text when you hover over this link.
-		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
-		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
-		 * user settings, and localization.
-		 */
-		tooltip?: string;
-	}
-
-	// #endregion
-
-
 	// #region Ben - status bar item with ID and Name
 
 	export namespace window {
@@ -1488,6 +1461,20 @@ declare module 'vscode' {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
+	}
+
+	//#endregion
+
+	//#region Webview Resource Roots
+
+	export namespace env {
+		/**
+		 * Root url from which local resources are loaded inside of webviews.
+		 *
+		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
+		 * on the web, this points to a server endpoint.
+		 */
+		export const webviewResourceRoot: string;
 	}
 
 	//#endregion

@@ -12,7 +12,7 @@
     "keytar": "4.2.1",
     "minimist": "1.2.0",
     "native-watchdog": "1.0.0",
-    "node-pty": "0.8.1",
+    "node-pty": "0.9.0-beta17",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "^0.9.0",
@@ -21,13 +21,14 @@
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-textmate": "^4.1.1",
-    "yauzl": "^2.9.2",
-    "yazl": "^2.4.3",
     "xterm": "3.15.0-beta34",
     "xterm-addon-search": "0.1.0-beta6",
-    "xterm-addon-web-links": "0.1.0-beta10"
+    "xterm-addon-web-links": "0.1.0-beta10",
+    "yauzl": "^2.9.2",
+    "yazl": "^2.4.3"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.1.0"
+    "vscode-windows-ca-certs": "0.1.0",
+    "vscode-windows-registry": "1.0.1"
   }
 }

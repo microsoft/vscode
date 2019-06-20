@@ -16,9 +16,9 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
@@ -110,7 +110,7 @@ export class ToggleEditorLayoutAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
 	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
-	private toDispose: IDisposable[];
+	private readonly toDispose = this._register(new DisposableStore());
 
 	constructor(
 		id: string,
@@ -119,8 +119,6 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.toDispose = [];
-
 		this.class = 'flip-editor-layout';
 		this.updateEnablement();
 
@@ -128,8 +126,8 @@ export class ToggleEditorLayoutAction extends Action {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
-		this.toDispose.push(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
 	}
 
 	private updateEnablement(): void {
@@ -141,12 +139,6 @@ export class ToggleEditorLayoutAction extends Action {
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
 		return Promise.resolve();
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }
 
@@ -446,7 +438,7 @@ export class ToggleMenuBarAction extends Action {
 	}
 }
 
-if (isWindows || isLinux) {
+if (isWindows || isLinux || isWeb) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 

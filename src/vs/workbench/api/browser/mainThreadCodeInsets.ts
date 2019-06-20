@@ -36,6 +36,7 @@ class EditorWebviewZone implements IViewZone {
 		readonly webview: Webview,
 	) {
 		this.domNode = document.createElement('div');
+		this.domNode.style.zIndex = '10'; // without this, the webview is not interactive
 		this.afterLineNumber = range.startLineNumber;
 		this.afterColumn = range.startColumn;
 		this.heightInLines = range.endLineNumber - range.startLineNumber;
@@ -92,7 +93,8 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 			allowSvgs: false,
 			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
-				allowScripts: options.enableScripts
+				allowScripts: options.enableScripts,
+				localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
 			});
 
 		const webviewZone = new EditorWebviewZone(editor, range, webview);

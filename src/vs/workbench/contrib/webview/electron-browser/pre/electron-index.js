@@ -31,5 +31,10 @@
 
 	document.addEventListener('DOMContentLoaded', () => {
 		registerVscodeResourceScheme();
+
+		// Forward messages from the embedded iframe
+		window.onmessage = (message) => {
+			ipcRenderer.sendToHost(message.data.command, message.data.data);
+		};
 	});
 }());

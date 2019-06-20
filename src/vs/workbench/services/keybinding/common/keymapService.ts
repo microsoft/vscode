@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IWindowsKeyMapping {
 	vkey: string;
@@ -94,4 +95,5 @@ export interface IKeymapService {
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
 	getRawKeyboardMapping(): IKeyboardMapping | null;
+	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
 }

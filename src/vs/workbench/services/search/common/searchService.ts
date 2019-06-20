@@ -20,6 +20,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -421,3 +422,4 @@ export class RemoteSearchService extends SearchService {
 	}
 }
 
+registerSingleton(ISearchService, RemoteSearchService, true);

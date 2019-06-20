@@ -37,6 +37,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private completeWorkspaceBarrier: Barrier;
 	private readonly configurationCache: IConfigurationCache;
 	private _configuration: Configuration;
+	private initialized: boolean = false;
 	private defaultConfiguration: DefaultConfigurationModel;
 	private localUserConfiguration: UserConfiguration | null = null;
 	private remoteUserConfiguration: RemoteUserConfiguration | null = null;
@@ -73,6 +74,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
+		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
+		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 		if (userSettingsResource) {
 			this.localUserConfiguration = this._register(new UserConfiguration(userSettingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, configurationFileService));
 			this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
@@ -466,11 +469,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				const currentConfiguration = this._configuration;
 				this._configuration = new Configuration(this.defaultConfiguration, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 
-				if (currentConfiguration) {
+				if (this.initialized) {
 					const changedKeys = this._configuration.compare(currentConfiguration);
 					this.triggerConfigurationChange(new ConfigurationChangeEvent().change(changedKeys), ConfigurationTarget.WORKSPACE);
 				} else {
 					this._onDidChangeConfiguration.fire(new AllKeysConfigurationChangeEvent(this._configuration, ConfigurationTarget.WORKSPACE, this.getTargetConfiguration(ConfigurationTarget.WORKSPACE)));
+					this.initialized = true;
 				}
 			});
 	}
@@ -489,7 +493,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private onDefaultConfigurationChanged(keys: string[]): void {
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.registerConfigurationSchemas();
-		if (this.workspace && this._configuration) {
+		if (this.workspace) {
 			this._configuration.updateDefaultConfiguration(this.defaultConfiguration);
 			if (this.remoteUserConfiguration) {
 				this._configuration.updateRemoteUserConfiguration(this.remoteUserConfiguration.reprocess());
@@ -545,14 +549,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private onRemoteUserConfigurationChanged(userConfiguration: ConfigurationModel): void {
-		if (this._configuration) {
-			const keys = this._configuration.compareAndUpdateRemoteUserConfiguration(userConfiguration);
-			this.triggerConfigurationChange(keys, ConfigurationTarget.USER);
-		}
+		const keys = this._configuration.compareAndUpdateRemoteUserConfiguration(userConfiguration);
+		this.triggerConfigurationChange(keys, ConfigurationTarget.USER);
 	}
 
 	private onWorkspaceConfigurationChanged(): Promise<void> {
-		if (this.workspace && this.workspace.configuration && this._configuration) {
+		if (this.workspace && this.workspace.configuration) {
 			const workspaceConfigurationChangeEvent = this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
 			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration);
 			const changes = this.compareFolders(this.workspace.folders, configuredFolders);

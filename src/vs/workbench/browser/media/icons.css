@@ -67,8 +67,13 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .t
 body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon[data-title="git.refresh"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Debug actions"] .icon,
 body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label^="Extensions"] .icon,
-body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title^="git."],
-body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label,
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title^="git.unstage"],
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title^="git.stage"],
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title^="git.openChange"],
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title^="git.clean"],
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.cleanAll"],
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.stageAll"],
+body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.unstageAll"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part > .content > .debug-viewlet .actions .action-label.icon,
 body[data-exploration^="icon-exploration"] .monaco-workbench .debug-toolbar .drag-area,
 body[data-exploration^="icon-exploration"] .monaco-workbench .debug-toolbar .action-label,
@@ -184,6 +189,7 @@ body[data-exploration^="icon-exploration"] .monaco-editor .find-widget .monaco-c
 }
 
 /* Before elements */
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before,
 body[data-exploration^="icon-exploration"] .search-view .search-widget .toggle-replace-button.collapse::before,
 body[data-exploration^="icon-exploration"] .search-view .search-widget .toggle-replace-button.expand::before,
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header::before,
@@ -206,6 +212,7 @@ body[data-exploration^="icon-exploration"] .keybindings-editor .monaco-action-ba
 }
 
 /* For icons that are a custom checkbox and use focus */
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
 body[data-exploration^="icon-exploration"] .monaco-findInput > .controls .monaco-custom-checkbox,
 body[data-exploration^="icon-exploration"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header,
@@ -213,6 +220,7 @@ body[data-exploration^="icon-exploration"] .keybindings-editor .monaco-action-ba
 	background-image: none !important;
 }
 
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before,
 body[data-exploration^="icon-exploration"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up::before,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down::before,
@@ -387,6 +395,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .ti
 	-webkit-mask-image: url("images/git/initialze.svg");
 }
 
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before,
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
 body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt1.svg");
@@ -700,8 +709,7 @@ body[data-exploration="icon-exploration"] .extensions-viewlet > .extensions .ext
 	Panels
 ****************/
 
-body[data-exploration="icon-exploration"] .monaco-workbench .hide-panel-action,
-.hc-black .monaco-workbench .hide-panel-action {
+body[data-exploration="icon-exploration"] .monaco-workbench .hide-panel-action {
 	-webkit-mask-image: url("images/panel/close-alt1.svg");
 }
 
@@ -947,7 +955,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.operato
 	background-color: var(--blue);
 }
 
-ody[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
+body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
 	-webkit-mask-image: url("images/intellisense/parameter-alt1.svg");
 }
 
@@ -1252,4 +1260,8 @@ body[data-exploration="icon-exploration"] .monaco-editor .margin-view-overlays .
 body[data-exploration="icon-exploration"] .monaco-editor .find-widget .matchesCount {
 	margin-right: 0;
 	padding-right: 0;
+}
+
+body[data-exploration="icon-exploration"] .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked::before {
+	-webkit-mask-size: 14px;
 }

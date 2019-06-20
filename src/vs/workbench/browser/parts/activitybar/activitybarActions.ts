@@ -147,7 +147,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 	private showContextMenu(): void {
 		const globalActivityActions: IAction[] = [];
 		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
-		createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
+		const actionsDisposable = createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
 		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
@@ -156,7 +156,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 			getActions: () => globalActivityActions,
 			onHide: () => {
 				globalActivityMenu.dispose();
-				dispose(globalActivityActions);
+				dispose(actionsDisposable);
 			}
 		});
 	}

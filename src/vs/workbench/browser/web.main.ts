@@ -8,7 +8,8 @@ import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/brow
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleLogService, SimpleProductService, SimpleWorkbenchEnvironmentService } from 'vs/workbench/browser/web.simpleservices';
+import { SimpleLogService } from 'vs/workbench/browser/web.simpleservices';
+import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -24,7 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
@@ -33,21 +34,17 @@ import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
-import { joinPath } from 'vs/base/common/resources';
-
-interface IWindowConfiguration {
-	remoteAuthority: string;
-
-	userDataUri: URI;
-	folderUri?: URI;
-	workspaceUri?: URI;
-}
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { ProductService } from 'vs/platform/product/browser/productService';
 
 class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
 
-	constructor(private readonly configuration: IWindowConfiguration) {
+	constructor(
+		private readonly domElement: HTMLElement,
+		private readonly configuration: IWorkbenchConstructionOptions
+	) {
 		super();
 	}
 
@@ -59,7 +56,7 @@ class CodeRendererMain extends Disposable {
 
 		// Create Workbench
 		this.workbench = new Workbench(
-			document.body,
+			this.domElement,
 			services.serviceCollection,
 			services.logService
 		);
@@ -90,21 +87,22 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const environmentService = this.createEnvironmentService();
+		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = new SimpleProductService();
+		const productService = new ProductService();
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
-		// Sign
+		// Signing
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
+		// Remote Agent
 		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
@@ -116,6 +114,7 @@ class CodeRendererMain extends Disposable {
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
@@ -137,22 +136,6 @@ class CodeRendererMain extends Disposable {
 		return { serviceCollection, logService };
 	}
 
-	private createEnvironmentService(): IWorkbenchEnvironmentService {
-		const environmentService = new SimpleWorkbenchEnvironmentService();
-		environmentService.appRoot = '/web/';
-		environmentService.args = { _: [] };
-		environmentService.appSettingsHome = joinPath(this.configuration.userDataUri, 'User');
-		environmentService.settingsResource = joinPath(environmentService.appSettingsHome, 'settings.json');
-		environmentService.keybindingsResource = joinPath(environmentService.appSettingsHome, 'keybindings.json');
-		environmentService.logsPath = '/web/logs';
-		environmentService.debugExtensionHost = {
-			port: null,
-			break: false
-		};
-
-		return environmentService;
-	}
-
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
 		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
 
@@ -172,33 +155,20 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspaceUri) {
-			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
+			return { id: hash(URI.revive(this.configuration.workspaceUri).toString()).toString(16), configPath: URI.revive(this.configuration.workspaceUri) };
 		}
 
 		// Single-folder workspace
 		if (this.configuration.folderUri) {
-			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
+			return { id: hash(URI.revive(this.configuration.folderUri).toString()).toString(16), folder: URI.revive(this.configuration.folderUri) };
 		}
 
 		return { id: 'empty-window' };
 	}
 }
 
-export interface IWindowConfigurationContents {
-	authority: string;
-	userDataUri: UriComponents;
-	folderUri?: UriComponents;
-	workspaceUri?: UriComponents;
-}
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+	const renderer = new CodeRendererMain(domElement, options);
 
-export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
-	const windowConfiguration: IWindowConfiguration = {
-		userDataUri: URI.revive(windowConfigurationContents.userDataUri),
-		remoteAuthority: windowConfigurationContents.authority,
-		folderUri: windowConfigurationContents.folderUri ? URI.revive(windowConfigurationContents.folderUri) : undefined,
-		workspaceUri: windowConfigurationContents.workspaceUri ? URI.revive(windowConfigurationContents.workspaceUri) : undefined
-	};
-
-	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
 }

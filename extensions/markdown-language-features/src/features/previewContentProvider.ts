@@ -14,6 +14,7 @@ import { Logger } from '../logger';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
 import { MarkdownPreviewConfigurationManager, MarkdownPreviewConfiguration } from './previewConfig';
 import { MarkdownContributionProvider } from '../markdownExtensions';
+import { toResoruceUri } from '../util/resources';
 
 /**
  * Strings used inside the markdown preview.
@@ -63,7 +64,8 @@ export class MarkdownContentProvider {
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
-			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings()
+			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings(),
+			webviewResourceRoot: vscode.env.webviewResourceRoot,
 		};
 
 		this.logger.log('provideTextDocumentContent', initialData);
@@ -84,7 +86,7 @@ export class MarkdownContentProvider {
 					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
 				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config, state)}
-				<base href="${markdownDocument.uri.with({ scheme: 'vscode-resource' }).toString(true)}">
+				<base href="${toResoruceUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body}
@@ -108,8 +110,7 @@ export class MarkdownContentProvider {
 	}
 
 	private extensionResourcePath(mediaFile: string): string {
-		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile)))
-			.with({ scheme: 'vscode-resource' })
+		return toResoruceUri(vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))))
 			.toString();
 	}
 
@@ -124,23 +125,17 @@ export class MarkdownContentProvider {
 
 		// Assume it must be a local file
 		if (path.isAbsolute(href)) {
-			return vscode.Uri.file(href)
-				.with({ scheme: 'vscode-resource' })
-				.toString();
+			return toResoruceUri(vscode.Uri.file(href)).toString();
 		}
 
 		// Use a workspace relative path if there is a workspace
 		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
-			return vscode.Uri.file(path.join(root.uri.fsPath, href))
-				.with({ scheme: 'vscode-resource' })
-				.toString();
+			return toResoruceUri(vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
 		}
 
 		// Otherwise look relative to the markdown file
-		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))
-			.with({ scheme: 'vscode-resource' })
-			.toString();
+		return toResoruceUri(vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))).toString();
 	}
 
 	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
@@ -197,17 +192,17 @@ export class MarkdownContentProvider {
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: http: https: data:; media-src vscode-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' http: https: data:; font-src vscode-resource: http: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${vscode.env.webviewResourceRoot} http: https: data:; media-src 'self' ${vscode.env.webviewResourceRoot} http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${vscode.env.webviewResourceRoot} 'unsafe-inline' http: https: data:; font-src 'self' ${vscode.env.webviewResourceRoot} http: https: data:;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowInsecureLocalContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: https: data: http://localhost:* http://127.0.0.1:*; media-src vscode-resource: https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src vscode-resource: https: data: http://localhost:* http://127.0.0.1:*;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${vscode.env.webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*; media-src 'self' ${vscode.env.webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' ${vscode.env.webviewResourceRoot} 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src 'self' ${vscode.env.webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
 				return '';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: https: data:; media-src vscode-resource: https: data:; script-src 'nonce-${nonce}'; style-src 'self' vscode-resource: 'unsafe-inline' https: data:; font-src vscode-resource: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${vscode.env.webviewResourceRoot} https: data:; media-src 'self' ${vscode.env.webviewResourceRoot} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${vscode.env.webviewResourceRoot} 'unsafe-inline' https: data:; font-src 'self' ${vscode.env.webviewResourceRoot} https: data:;">`;
 		}
 	}
 }

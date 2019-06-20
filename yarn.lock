@@ -4535,10 +4535,10 @@ ini@^1.3.4, ini@~1.3.0:
   resolved "https://registry.yarnpkg.com/ini/-/ini-1.3.4.tgz#0537cb79daf59b59a1a517dff706c86ec039162e"
   integrity sha1-BTfLedr1m1mhpRff9wbIbsA5Fi4=
 
-innosetup-compiler@^5.5.60:
-  version "5.5.62"
-  resolved "https://registry.yarnpkg.com/innosetup-compiler/-/innosetup-compiler-5.5.62.tgz#fc12cd8d17cf75a2e3833b2754a5c2bc4f26cc4e"
-  integrity sha1-/BLNjRfPdaLjgzsnVKXCvE8mzE4=
+innosetup@5.6.1:
+  version "5.6.1"
+  resolved "https://registry.yarnpkg.com/innosetup/-/innosetup-5.6.1.tgz#6e7031ba35b23e716e4f29686bc994052e0c278c"
+  integrity sha512-Eit24N3JR8O0Wpuq/dMWCl2r550eiNP2124SbdbwOob43x89WPGL/SGpZG5EPHu20kV2N+4TwvHwFIM8pFUJ0g==
 
 inquirer@^0.12.0:
   version "0.12.0"
@@ -9998,10 +9998,10 @@ xterm-addon-web-links@0.1.0-beta10:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta37:
-  version "3.15.0-beta37"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta37.tgz#239733c1b195e8d1b560bb87806ace928ddd0874"
-  integrity sha512-ma9A8di0xxedFTZIuQD7wKbX9lxuwNi7j07rpSe9Igg5uw57YMFJnbb1E58zjLNQe4GHqU4edBsyNFmMyO7pbQ==
+xterm@3.15.0-beta42:
+  version "3.15.0-beta42"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta42.tgz#8ed1f2928d46cb5f941dc39e4116782787a4b8a6"
+  integrity sha512-1hXcdnrhAsvmyTrcR+cz/B3O/Bv9oRRg4lPrOVoJkW+0otRfljJ5CHMfaL0uiZwphNoWpkHXrzApsY5GzS8o5Q==
 
 y18n@^3.2.1:
   version "3.2.1"

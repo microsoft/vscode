@@ -442,7 +442,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
-		const disposable: DisposableStore = new DisposableStore();
+		const disposable = new DisposableStore();
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const item = {
@@ -452,7 +452,7 @@ class ExtHostTreeView<T> extends Disposable {
 			description: extensionTreeItem.description,
 			resourceUri: extensionTreeItem.resourceUri,
 			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : undefined,
-			command: extensionTreeItem.command ? this.commands.toInternal2(extensionTreeItem.command, disposable) : undefined,
+			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command, disposable) : undefined,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
@@ -464,7 +464,7 @@ class ExtHostTreeView<T> extends Disposable {
 			item,
 			parent,
 			children: undefined,
-			dispose() { disposable.dispose(); }
+			dispose(): void { disposable.dispose(); }
 		};
 	}
 

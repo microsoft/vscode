@@ -58,6 +58,7 @@ export interface IEnvironment {
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
+	webviewResourceRoot: string;
 }
 
 export interface IStaticWorkspaceData {
@@ -400,7 +401,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
 	$sendProcessData(terminalId: number, data: string): void;
-	$sendProcessPid(terminalId: number, pid: number): void;
+	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
@@ -1106,6 +1107,16 @@ export interface ShellLaunchConfigDto {
 	env?: { [key: string]: string | null };
 }
 
+export interface IShellDefinitionDto {
+	label: string;
+	path: string;
+}
+
+export interface IShellAndArgsDto {
+	shell: string;
+	args: string[] | string | undefined;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
@@ -1123,6 +1134,8 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
+	$requestDefaultShellAndArgs(): Promise<IShellAndArgsDto>;
 }
 
 export interface ExtHostSCMShape {

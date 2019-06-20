@@ -13,7 +13,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
-import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -101,13 +101,11 @@ export class ReplaceService implements IReplaceService {
 	) { }
 
 	replace(match: Match): Promise<any>;
-	replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
-	replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
-	replace(arg: any, progress: IProgressRunner | undefined = undefined, resource: URI | null = null): Promise<any> {
-
+	replace(files: FileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
+	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
+	replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
-
 	}
 
 	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {

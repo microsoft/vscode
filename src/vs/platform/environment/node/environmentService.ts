@@ -104,6 +104,9 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
+	@memoize
+	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
+
 	get appNameLong(): string { return product.nameLong; }
 
 	get appQuality(): string | undefined { return product.quality; }
@@ -265,6 +268,10 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
+
+	get webviewResourceRoot(): string {
+		return 'vscode-resource:';
+	}
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {
