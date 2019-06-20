@@ -45,6 +45,9 @@ import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { pathsToEditors } from 'vs/workbench/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
 
 //#region Backup File
 
@@ -735,6 +738,12 @@ export class SimpleWindowService implements IWindowService {
 
 	readonly windowId = 0;
 
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService
+	) {
+	}
+
 	isFocused(): Promise<boolean> {
 		return Promise.resolve(this.hasFocus);
 	}
@@ -849,14 +858,18 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
+	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
 		// TODO: SUpport window.openFoldersInNewWindow setting
-		_uris.forEach(uri => {
+		_uris.forEach(async uri => {
 			if ('folderUri' in uri) {
 				window.open(`${document.location.origin}/?folder=${uri.folderUri.path}`);
 			}
 			if ('workspaceUri' in uri) {
 				window.open(`${document.location.origin}/?folder=${uri.workspaceUri.path}`);
+			}
+			if ('fileUri' in uri) {
+				const inputs: IResourceEditor[] = await pathsToEditors([uri], this.fileService);
+				this.editorService.openEditors(inputs);
 			}
 		});
 		return Promise.resolve();
