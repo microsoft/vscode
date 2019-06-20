@@ -45,6 +45,7 @@ import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 //#region Backup File
 
@@ -724,7 +725,7 @@ registerSingleton(IURLService, SimpleURLService);
 
 //#region Window
 
-export class SimpleWindowService implements IWindowService {
+export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
@@ -734,6 +735,18 @@ export class SimpleWindowService implements IWindowService {
 	readonly hasFocus = true;
 
 	readonly windowId = 0;
+
+	constructor() {
+		super();
+
+		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
+	}
 
 	isFocused(): Promise<boolean> {
 		return Promise.resolve(this.hasFocus);
