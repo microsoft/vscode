@@ -57,7 +57,7 @@
 					// If we have the wrong version, try once to unregister and re-register
 					return registration.unregister()
 						.then(() => navigator.serviceWorker.register('service-worker.js'))
-						.then(navigator.serviceWorker.ready)
+						.then(() => navigator.serviceWorker.ready)
 						.finally(resolveWorkerReady);
 				}
 			};
