@@ -8,6 +8,7 @@
 const gulp = require('gulp');
 
 const path = require('path');
+const cp = require('child_process');
 const es = require('event-stream');
 const util = require('./lib/util');
 const task = require('./lib/task');
@@ -83,6 +84,18 @@ function nodejs(platform, arch) {
 					}));
 				}))
 		);
+	}
+
+	if (arch === 'alpine') {
+		return es.readArray([
+			new File({
+				path: 'node',
+				contents: cp.execSync(`docker run --rm node:${VERSION}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' }),
+				stat: {
+					mode: parseInt('755', 8)
+				}
+			})
+		]);
 	}
 
 	if (platform === 'darwin') {
