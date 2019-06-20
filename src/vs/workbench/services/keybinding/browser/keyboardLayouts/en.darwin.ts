@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.US', lang: 'en', localizedName: 'U.S.' },
+	{ id: 'com.apple.keylayout.US', lang: 'en', localizedName: 'U.S.', isUSStandard: true },
 	[
 		{ id: 'com.apple.keylayout.ABC', lang: 'en', localizedName: 'ABC' },
 		{ id: 'com.sogou.inputmethod.sogou.pinyin', lang: 'zh-Hans', localizedName: 'Pinyin - Simplified' },

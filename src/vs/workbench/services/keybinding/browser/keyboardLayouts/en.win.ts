@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
-	{ name: '00000409', id: '', text: 'US' },
+	{ name: '00000409', id: '', text: 'US', isUSStandard: true },
 	[
 		{ name: '00000804', id: '', text: 'Chinese (Simplified) - US Keyboard' },
 		{ name: '00000411', id: '', text: 'Japanese' },

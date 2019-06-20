@@ -89,7 +89,7 @@ export interface IMacKeyboardLayoutInfo {
 	localizedName?: string;
 }
 
-export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo) & { isUserKeyboardLayout?: boolean; };
+export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo) & { isUserKeyboardLayout?: boolean; isUSStandard?: true };
 
 export const IKeymapService = createDecorator<IKeymapService>('keymapService');
 
@@ -218,7 +218,7 @@ function deserializeMapping(serializedMapping: ISerializedMapping) {
 	return ret;
 }
 
-interface IRawMixedKeyboardMapping {
+export interface IRawMixedKeyboardMapping {
 	[key: string]: {
 		value: string,
 		withShift: string;

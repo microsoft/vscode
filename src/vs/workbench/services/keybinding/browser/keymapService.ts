@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, IWindowsKeyboardLayoutInfo, IMacKeyboardLayoutInfo, ILinuxKeyboardLayoutInfo, KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, IWindowsKeyboardLayoutInfo, IMacKeyboardLayoutInfo, ILinuxKeyboardLayoutInfo, KeymapInfo, IRawMixedKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -85,7 +85,7 @@ export class BrowserKeyboardMapperFactory {
 		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
 			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
 				// Update user keyboard map settings
-				this._getBrowserKeyMapping().then((mapping: IKeyboardMapping) => {
+				this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
 					if (this.isKeyMappingActive(mapping)) {
 						return;
 					}
@@ -108,7 +108,11 @@ export class BrowserKeyboardMapperFactory {
 		this._keymapInfos.splice(index, 1);
 	}
 
-	getMatchedKeymapInfo(keyMapping: IKeyboardMapping): KeymapInfo | null {
+	getMatchedKeymapInfo(keyMapping: IKeyboardMapping | null): KeymapInfo | null {
+		if (!keyMapping) {
+			return null;
+		}
+
 		for (let i = 0; i < this._mru.length; i++) {
 			if (this._mru[i].fuzzyEqual(keyMapping)) {
 				return this._mru[i];
@@ -118,12 +122,22 @@ export class BrowserKeyboardMapperFactory {
 		return null;
 	}
 
-	isKeyMappingActive(keymap: IKeyboardMapping) {
-		return this._activeKeymapInfo && this._activeKeymapInfo.fuzzyEqual(keymap);
+	getUSStandardLayout() {
+		const usStandardLayouts = this._mru.filter(layout => layout.layout.isUSStandard);
+
+		if (usStandardLayouts.length) {
+			return usStandardLayouts[0];
+		}
+
+		return null;
 	}
 
-	setActiveKeyMapping(keymap: IKeyboardMapping) {
-		this._activeKeymapInfo = this.getMatchedKeymapInfo(keymap);
+	isKeyMappingActive(keymap: IKeyboardMapping | null) {
+		return this._activeKeymapInfo && keymap && this._activeKeymapInfo.fuzzyEqual(keymap);
+	}
+
+	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
+		this._activeKeymapInfo = this.getMatchedKeymapInfo(keymap) || this.getUSStandardLayout();
 
 		if (!this._activeKeymapInfo) {
 			return;
@@ -179,7 +193,6 @@ export class BrowserKeyboardMapperFactory {
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 		return this._keyboardMapper!;
-
 	}
 
 	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
@@ -307,7 +320,7 @@ export class BrowserKeyboardMapperFactory {
 		return true;
 	}
 
-	private async _getBrowserKeyMapping() {
+	private async _getBrowserKeyMapping(): Promise<IRawMixedKeyboardMapping | null> {
 		if ((navigator as any).keyboard) {
 			try {
 				return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
@@ -327,14 +340,14 @@ export class BrowserKeyboardMapperFactory {
 						return matchedKeyboardLayout.mapping;
 					}
 
-					return {};
+					return null;
 				});
 			} catch {
 				// getLayoutMap can throw if invoked from a nested browsing context
 			}
 		}
 
-		return {};
+		return null;
 	}
 
 	//#endregion
