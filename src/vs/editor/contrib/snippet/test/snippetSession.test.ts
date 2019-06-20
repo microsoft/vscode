@@ -347,7 +347,7 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 4, 1, 7));
 
 		const second = new SnippetSession(editor, 'ba${1:zzzz}$0');
-		second.insert();
+		await second.insert();
 		assert.equal(model.getValue(), 'foobazzzzfoo');
 		assertSelections(editor, new Selection(1, 6, 1, 10));
 
