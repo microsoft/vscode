@@ -104,9 +104,8 @@ const resourceRequestStore = new RequestStore();
  */
 const localhostRequestStore = new RequestStore();
 
-const notFoundResponse = new Response('Not Found', {
-	status: 404,
-});
+const notFound = () =>
+	new Response('Not Found', { status: 404, });
 
 self.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
@@ -176,7 +175,7 @@ async function processResourceRequest(event, requestUrl) {
 	const client = await self.clients.get(event.clientId);
 	if (!client) {
 		console.log('Could not find inner client for request');
-		return notFoundResponse.clone();
+		return notFound();
 	}
 
 	const webviewId = getWebviewIdForClient(client);
@@ -184,7 +183,7 @@ async function processResourceRequest(event, requestUrl) {
 
 	function resolveResourceEntry(entry) {
 		if (!entry) {
-			return notFoundResponse.clone();
+			return notFound();
 		}
 		return new Response(entry.body, {
 			status: 200,
@@ -195,7 +194,7 @@ async function processResourceRequest(event, requestUrl) {
 	const parentClient = await getOuterIframeClient(webviewId);
 	if (!parentClient) {
 		console.log('Could not find parent client for request');
-		return notFoundResponse.clone();
+		return notFound();
 	}
 
 	// Check if we've already resolved this request
@@ -243,7 +242,7 @@ async function processLocalhostRequest(event, requestUrl) {
 	const parentClient = await getOuterIframeClient(webviewId);
 	if (!parentClient) {
 		console.log('Could not find parent client for request');
-		return notFoundResponse.clone();
+		return notFound();
 	}
 
 	// Check if we've already resolved this request
