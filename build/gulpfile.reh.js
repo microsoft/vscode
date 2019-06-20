@@ -8,7 +8,6 @@
 const gulp = require('gulp');
 
 const path = require('path');
-const cp = require('child_process');
 const es = require('event-stream');
 const util = require('./lib/util');
 const task = require('./lib/task');
