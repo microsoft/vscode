@@ -99,7 +99,8 @@
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
 	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   focusIframeOnCreate?: boolean
+	 *   focusIframeOnCreate?: boolean,
+	 *   ready?: Promise<void>
 	 * }} HostCommunications
 	 */
 
@@ -119,29 +120,6 @@
 
 		// Service worker for resource loading
 		const FAKE_LOAD = !!navigator.serviceWorker;
-
-		const workerReady = new Promise(resolve => {
-			if (!navigator.serviceWorker) {
-				resolve();
-			}
-			navigator.serviceWorker.register('service-worker.js').finally(resolve);
-
-			function forwardFromHostToWorker(channel) {
-				host.onMessage(channel, event => {
-					navigator.serviceWorker.ready.then(registration => {
-						registration.active.postMessage({ channel: channel, data: event.data.args });
-					});
-				});
-			}
-			forwardFromHostToWorker('did-load-resource');
-			forwardFromHostToWorker('did-load-localhost');
-
-			navigator.serviceWorker.addEventListener('message', event => {
-				if (['load-resource', 'load-localhost'].includes(event.data.channel)) {
-					host.postMessage(event.data.channel, event.data);
-				}
-			});
-		});
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -269,7 +247,7 @@
 			let updateId = 0;
 			host.onMessage('content', async (_event, data) => {
 				const currentUpdateId = ++updateId;
-				await workerReady;
+				await host.ready;
 				if (currentUpdateId !== updateId) {
 					return;
 				}

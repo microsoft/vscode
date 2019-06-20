@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+const VERSION = 1;
+
 /**
  * Root path for resources
  */
@@ -106,8 +108,20 @@ const notFoundResponse = new Response('Not Found', {
 	status: 404,
 });
 
-self.addEventListener('message', (event) => {
+self.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
+		case 'version':
+			{
+				self.clients.get(event.source.id).then(client => {
+					if (client) {
+						client.postMessage({
+							channel: 'version',
+							version: VERSION
+						});
+					}
+				});
+				return;
+			}
 		case 'did-load-resource':
 			{
 				const webviewId = getWebviewIdForClient(event.source);
