@@ -544,11 +544,11 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 		}));
 
 		this._userKeyboardLayout = new UserKeyboardLayout(environmentService.keyboardLayoutResource, fileService);
-		this._userKeyboardLayout.initialize();
-
-		if (this._userKeyboardLayout.keyboardLayout) {
-			BrowserKeyboardMapperFactory.INSTANCE.registerKeyboardLayout(this._userKeyboardLayout.keyboardLayout);
-		}
+		this._userKeyboardLayout.initialize().then(() => {
+			if (this._userKeyboardLayout.keyboardLayout) {
+				BrowserKeyboardMapperFactory.INSTANCE.registerKeyboardLayout(this._userKeyboardLayout.keyboardLayout);
+			}
+		});
 
 		this._register(this._userKeyboardLayout.onDidChange(() => {
 			let userKeyboardLayouts = BrowserKeyboardMapperFactory.INSTANCE.keymapInfos.filter(layout => layout.isUserKeyboardLayout);
