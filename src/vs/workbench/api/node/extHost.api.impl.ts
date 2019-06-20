@@ -125,10 +125,10 @@ export function createApiFactory(
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(LogOutputChannelFactory, initData.logsLocation, rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
-	if (initData.remoteAuthority) {
+	if (initData.remote.authority) {
 		extHostTask.registerTaskSystem(Schemas.vscodeRemote, {
 			scheme: Schemas.vscodeRemote,
-			authority: initData.remoteAuthority,
+			authority: initData.remote.authority,
 			platform: process.platform
 		});
 
@@ -150,7 +150,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
-	const outputChannelName = initData.remoteAuthority ? nls.localize('remote extension host Log', "Remote Extension Host") : nls.localize('extension host Log', "Extension Host");
+	const outputChannelName = initData.remote.isRemote ? nls.localize('remote extension host Log', "Remote Extension Host") : nls.localize('extension host Log', "Extension Host");
 	extHostOutputService.createOutputChannelFromLogFile(outputChannelName, extHostLogService.logFile);
 
 	// Register API-ish commands
@@ -258,12 +258,24 @@ export function createApiFactory(
 				return extHostTerminalService.getDefaultShell(configProvider);
 			},
 			openExternal(uri: URI) {
-				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
+				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get webviewResourceRoot() {
 				checkProposedApiEnabled(extension);
 				return initData.environment.webviewResourceRoot;
 			},
+			get remoteName() {
+				checkProposedApiEnabled(extension);
+				if (!initData.remote.authority) {
+					return undefined;
+				}
+				const pos = initData.remote.authority.indexOf('+');
+				if (pos < 0) {
+					// funky? bad authority?
+					return initData.remote.authority;
+				}
+				return initData.remote.authority.substr(0, pos);
+			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
@@ -824,6 +836,7 @@ export function createApiFactory(
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
 			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
+			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,

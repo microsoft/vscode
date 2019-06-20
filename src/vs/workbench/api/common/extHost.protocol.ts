@@ -85,7 +85,7 @@ export interface IInitData {
 	logLevel: LogLevel;
 	logsLocation: URI;
 	autoStart: boolean;
-	remoteAuthority?: string | null;
+	remote: { isRemote: boolean; authority: string | undefined; };
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
