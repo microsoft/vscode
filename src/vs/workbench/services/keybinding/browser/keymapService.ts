@@ -6,11 +6,11 @@
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, IWindowsKeyboardLayoutInfo, IMacKeyboardLayoutInfo, ILinuxKeyboardLayoutInfo, KeymapInfo, IRawMixedKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { OS, OperatingSystem, isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -40,6 +40,10 @@ export class BrowserKeyboardMapperFactory {
 	private _keymapInfos: KeymapInfo[];
 	private _mru: KeymapInfo[];
 	private _activeKeymapInfo: KeymapInfo | null;
+
+	get activeKeymap(): KeymapInfo | null {
+		return this._activeKeymapInfo;
+	}
 
 	get keymapInfos(): KeymapInfo[] {
 		return this._keymapInfos;
@@ -233,21 +237,7 @@ export class BrowserKeyboardMapperFactory {
 	}
 
 	public setKeyboardLayout(layoutName: string) {
-		let allKeyboardLayouts = this.keymapInfos;
-		let matchedLayouts: KeymapInfo[] = [];
-		if (isWindows) {
-			matchedLayouts = allKeyboardLayouts.filter(layout => (<IWindowsKeyboardLayoutInfo>layout.layout).name === layoutName);
-		}
-
-		if (isMacintosh) {
-			// todo, probably we should use layout.id?
-			matchedLayouts = allKeyboardLayouts.filter(layout => (<IMacKeyboardLayoutInfo>layout.layout).lang === layoutName);
-		}
-
-		if (isLinux) {
-			// todo, probably we should use layout.id?
-			matchedLayouts = allKeyboardLayouts.filter(layout => (<ILinuxKeyboardLayoutInfo>layout.layout).layout === layoutName);
-		}
+		let matchedLayouts: KeymapInfo[] = this.keymapInfos.filter(keymapInfo => getKeyboardLayoutId(keymapInfo.layout) === layoutName);
 
 		if (matchedLayouts.length > 0) {
 			this.setActiveKeymapInfo(matchedLayouts[0]);
@@ -498,8 +488,8 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
 		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
@@ -530,6 +520,8 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 		this._userKeyboardLayout.initialize().then(() => {
 			if (this._userKeyboardLayout.keyboardLayout) {
 				BrowserKeyboardMapperFactory.INSTANCE.registerKeyboardLayout(this._userKeyboardLayout.keyboardLayout);
+
+				this.setUserKeyboardLayoutIfMatched();
 			}
 		});
 
@@ -548,8 +540,22 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 				}
 			}
 
-			// TODO: trigger keymap update
+			this.setUserKeyboardLayoutIfMatched();
 		}));
+	}
+
+	setUserKeyboardLayoutIfMatched() {
+		const keyboardConfig = this.configurationService.getValue<{ layout: string }>('keyboard');
+		const layout = keyboardConfig.layout;
+
+		if (layout && this._userKeyboardLayout.keyboardLayout) {
+			if (getKeyboardLayoutId(this._userKeyboardLayout.keyboardLayout.layout) === layout && BrowserKeyboardMapperFactory.INSTANCE.activeKeymap) {
+
+				if (!this._userKeyboardLayout.keyboardLayout.equal(BrowserKeyboardMapperFactory.INSTANCE.activeKeymap)) {
+					BrowserKeyboardMapperFactory.INSTANCE.setActiveKeymapInfo(this._userKeyboardLayout.keyboardLayout);
+				}
+			}
+		}
 	}
 
 	registerKeyboardListener() {

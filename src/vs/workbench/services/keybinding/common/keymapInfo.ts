@@ -127,7 +127,7 @@ export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeybo
 	return false;
 }
 
-export function parseKeyboardLayout(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
+export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
 	if (!layout) {
 		return { label: '', description: '' };
 	}
@@ -175,6 +175,18 @@ export function parseKeyboardLayout(layout: IKeyboardLayoutInfo | null): { label
 		label: linuxLayout.layout,
 		description: ''
 	};
+}
+
+export function getKeyboardLayoutId(layout: IKeyboardLayoutInfo): string {
+	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
+		return (<IWindowsKeyboardLayoutInfo>layout).name;
+	}
+
+	if ((<IMacKeyboardLayoutInfo>layout).id) {
+		return (<IMacKeyboardLayoutInfo>layout).id;
+	}
+
+	return (<ILinuxKeyboardLayoutInfo>layout).layout;
 }
 
 function deserializeMapping(serializedMapping: ISerializedMapping) {
@@ -280,6 +292,18 @@ export class KeymapInfo {
 		}
 
 		return score;
+	}
+
+	equal(other: KeymapInfo): boolean {
+		if (this.isUserKeyboardLayout !== other.isUserKeyboardLayout) {
+			return false;
+		}
+
+		if (getKeyboardLayoutId(this.layout) !== getKeyboardLayoutId(other.layout)) {
+			return false;
+		}
+
+		return this.fuzzyEqual(other.mapping);
 	}
 
 	fuzzyEqual(other: IRawMixedKeyboardMapping): boolean {
