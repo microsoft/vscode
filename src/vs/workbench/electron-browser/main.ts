@@ -50,7 +50,6 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/node/con
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { ConfigurationFileService } from '../services/configuration/common/configuration';
 
 class CodeRendererMain extends Disposable {
 
@@ -306,9 +305,7 @@ class CodeRendererMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const configurationFileService = new ConfigurationFileService(fileService);
-
-		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, fileService, remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);

@@ -29,7 +29,6 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
@@ -137,7 +136,7 @@ class CodeRendererMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, fileService, remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);

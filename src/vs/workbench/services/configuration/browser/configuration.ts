@@ -12,7 +12,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -27,7 +27,7 @@ import { hash } from 'vs/base/common/hash';
 export class RemoteUserConfiguration extends Disposable {
 
 	private readonly _cachedConfiguration: CachedUserConfiguration;
-	private readonly _configurationFileService: IConfigurationFileService;
+	private readonly _configurationFileService: ConfigurationFileService;
 	private _userConfiguration: UserConfiguration | CachedUserConfiguration;
 	private _userConfigurationInitializationPromise: Promise<ConfigurationModel> | null = null;
 
@@ -37,7 +37,7 @@ export class RemoteUserConfiguration extends Disposable {
 	constructor(
 		remoteAuthority: string,
 		configurationCache: IConfigurationCache,
-		configurationFileService: IConfigurationFileService,
+		configurationFileService: ConfigurationFileService,
 		remoteAgentService: IRemoteAgentService
 	) {
 		super();
@@ -103,7 +103,7 @@ export class UserConfiguration extends Disposable {
 	constructor(
 		private readonly configurationResource: URI,
 		private readonly scopes: ConfigurationScope[] | undefined,
-		private readonly configurationFileService: IConfigurationFileService
+		private readonly configurationFileService: ConfigurationFileService
 	) {
 		super();
 
@@ -240,7 +240,7 @@ class CachedUserConfiguration extends Disposable {
 
 export class WorkspaceConfiguration extends Disposable {
 
-	private readonly _configurationFileService: IConfigurationFileService;
+	private readonly _configurationFileService: ConfigurationFileService;
 	private readonly _cachedConfiguration: CachedWorkspaceConfiguration;
 	private _workspaceConfiguration: IWorkspaceConfiguration;
 	private _workspaceConfigurationChangeDisposable: IDisposable = Disposable.None;
@@ -254,7 +254,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 	constructor(
 		configurationCache: IConfigurationCache,
-		configurationFileService: IConfigurationFileService
+		configurationFileService: ConfigurationFileService
 	) {
 		super();
 		this._configurationFileService = configurationFileService;
@@ -357,7 +357,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(private configurationFileService: IConfigurationFileService) {
+	constructor(private configurationFileService: ConfigurationFileService) {
 		super();
 
 		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
@@ -518,7 +518,7 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(protected readonly configurationFolder: URI, workbenchState: WorkbenchState, private configurationFileService: IConfigurationFileService) {
+	constructor(protected readonly configurationFolder: URI, workbenchState: WorkbenchState, private configurationFileService: ConfigurationFileService) {
 		super();
 
 		this.configurationNames = [FOLDER_SETTINGS_NAME /*First one should be settings */, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY];
@@ -685,7 +685,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		readonly workspaceFolder: IWorkspaceFolder,
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
-		configurationFileService: IConfigurationFileService,
+		configurationFileService: ConfigurationFileService,
 		configurationCache: IConfigurationCache
 	) {
 		super();

@@ -5,10 +5,10 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
+export const USER_CONFIGURATION_KEY = 'settings.json';
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
 export const FOLDER_SETTINGS_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTINGS_NAME}.json`;
@@ -42,15 +42,7 @@ export interface IConfigurationCache {
 
 }
 
-export interface IConfigurationFileService {
-	readonly onFileChanges: Event<FileChangesEvent>;
-	whenProviderRegistered(scheme: string): Promise<void>;
-	watch(resource: URI): IDisposable;
-	exists(resource: URI): Promise<boolean>;
-	readFile(resource: URI): Promise<string>;
-}
-
-export class ConfigurationFileService implements IConfigurationFileService {
+export class ConfigurationFileService {
 
 	constructor(private readonly fileService: IFileService) { }
 
