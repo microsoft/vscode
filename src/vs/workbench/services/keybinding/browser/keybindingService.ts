@@ -265,6 +265,14 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
 	}
 
+	public _dumpDebugInfoJSON(): string {
+		const info = {
+			layout: this.keymapService.getCurrentKeyboardLayout(),
+			rawMapping: this.keymapService.getRawKeyboardMapping()
+		};
+		return JSON.stringify(info, null, '\t');
+	}
+
 	public customKeybindingsCount(): number {
 		return this.userKeybindings.keybindings.length;
 	}

@@ -100,6 +100,7 @@ export interface IEnvironmentService {
 	appSettingsHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;

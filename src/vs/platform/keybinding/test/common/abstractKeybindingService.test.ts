@@ -83,6 +83,10 @@ suite('AbstractKeybindingService', () => {
 		public _dumpDebugInfo(): string {
 			return '';
 		}
+
+		public _dumpDebugInfoJSON(): string {
+			return '';
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;

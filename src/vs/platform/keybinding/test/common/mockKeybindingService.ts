@@ -137,4 +137,8 @@ export class MockKeybindingService implements IKeybindingService {
 	public _dumpDebugInfo(): string {
 		return '';
 	}
+
+	public _dumpDebugInfoJSON(): string {
+		return '';
+	}
 }
