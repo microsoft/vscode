@@ -29,6 +29,7 @@ import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IUserDataService } from '../../userData/common/userDataService';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
@@ -40,7 +41,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private _configuration: Configuration;
 	private initialized: boolean = false;
 	private defaultConfiguration: DefaultConfigurationModel;
-	private localUserConfiguration: UserConfiguration | null = null;
+	private localUserConfiguration: UserConfiguration;
 	private remoteUserConfiguration: RemoteUserConfiguration | null = null;
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
@@ -67,9 +68,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private cyclicDependency = new Promise<void>(resolve => this.cyclicDependencyReady = resolve);
 
 	constructor(
-		{ userSettingsResource, remoteAuthority, configurationCache }: { userSettingsResource?: URI, remoteAuthority?: string, configurationCache: IConfigurationCache },
+		{ remoteAuthority, configurationCache }: { remoteAuthority?: string, configurationCache: IConfigurationCache },
 		fileService: IFileService,
-		remoteAgentService: IRemoteAgentService,
+		userDataService: IUserDataService,
+		remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -79,10 +81,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.configurationFileService = new ConfigurationFileService(fileService);
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
-		if (userSettingsResource) {
-			this.localUserConfiguration = this._register(new UserConfiguration(userSettingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, this.configurationFileService));
-			this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
-		}
+		this.localUserConfiguration = this._register(new UserConfiguration(remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, userDataService));
+		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (remoteAuthority) {
 			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, this.configurationFileService, remoteAgentService));
 			this._register(this.remoteUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onRemoteUserConfigurationChanged(userConfiguration)));
@@ -426,7 +426,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private initializeUserConfiguration(): Promise<{ local: ConfigurationModel, remote: ConfigurationModel }> {
-		return Promise.all([this.localUserConfiguration ? this.localUserConfiguration.initialize() : Promise.resolve(new ConfigurationModel()), this.remoteUserConfiguration ? this.remoteUserConfiguration.initialize() : Promise.resolve(new ConfigurationModel())])
+		return Promise.all([this.localUserConfiguration.initialize(), this.remoteUserConfiguration ? this.remoteUserConfiguration.initialize() : Promise.resolve(new ConfigurationModel())])
 			.then(([local, remote]) => ({ local, remote }));
 	}
 
@@ -435,7 +435,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private reloadLocalUserConfiguration(key?: string): Promise<ConfigurationModel> {
-		return this.localUserConfiguration ? this.localUserConfiguration.reload() : Promise.resolve(new ConfigurationModel());
+		return this.localUserConfiguration.reload();
 	}
 
 	private reloadRemoeUserConfiguration(key?: string): Promise<ConfigurationModel> {
