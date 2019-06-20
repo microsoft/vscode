@@ -62,6 +62,8 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-window.js',
 	'out-build/paths.js',
+	'out-build/telemetry-core.json',
+	'out-build/telemetry-extensions.json',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'!out-build/vs/code/browser/**/*.html',
 	'out-build/vs/base/common/performance.js',
@@ -327,7 +329,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
 
 		let all = es.merge(
-		packageJsonStream,
+			packageJsonStream,
 			productJsonStream,
 			license,
 			api,

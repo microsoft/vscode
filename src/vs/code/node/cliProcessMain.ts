@@ -96,7 +96,7 @@ export class Main {
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			await this.locateExtension(ids);
 		} else if (argv['telemetry']) {
-			console.log(buildTelemetryMessage(this.environmentService.extensionsPath));
+			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath));
 		}
 	}
 
