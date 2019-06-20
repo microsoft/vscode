@@ -132,7 +132,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		// Offer to "Auto Detect"
 		const autoDetectMode: IQuickPickItem = {
 			label: nls.localize('autoDetect', "Auto Detect"),
-			description: isAutoDetect ? `(Current: ${parseKeyboardLayout(currentLayout).label})` : undefined,
+			description: isAutoDetect ? `Current: ${parseKeyboardLayout(currentLayout).label}` : undefined,
 			picked: isAutoDetect ? true : undefined
 		};
 

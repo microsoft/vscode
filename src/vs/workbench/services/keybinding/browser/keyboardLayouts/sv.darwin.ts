@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.Swedish-Pro', lang: 'sv' },
+	{ id: 'com.apple.keylayout.Swedish-Pro', lang: 'sv', localizedName: 'Swedish - Pro' },
 	[],
 	{
 		KeyA: ['a', 'A', '', '◊', 0],

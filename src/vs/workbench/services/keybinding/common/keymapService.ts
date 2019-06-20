@@ -78,11 +78,13 @@ export interface ILinuxKeyboardLayoutInfo {
 	"IKeyboardLayoutInfo" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"localizedName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface IMacKeyboardLayoutInfo {
 	id: string;
 	lang: string;
+	localizedName?: string;
 }
 
 export type IKeyboardLayoutInfo = IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo;
@@ -137,6 +139,13 @@ export function parseKeyboardLayout(layout: IKeyboardLayoutInfo | null): { label
 
 	if ((<IMacKeyboardLayoutInfo>layout).id) {
 		let macLayout = <IMacKeyboardLayoutInfo>layout;
+		if (macLayout.localizedName) {
+			return {
+				label: macLayout.localizedName,
+				description: ''
+			};
+		}
+
 		if (/^com\.apple\.keylayout\./.test(macLayout.id)) {
 			return {
 				label: macLayout.id.replace(/^com\.apple\.keylayout\./, '').replace(/-/, ' '),

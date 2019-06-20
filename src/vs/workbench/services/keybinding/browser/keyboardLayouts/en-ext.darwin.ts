@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.USExtended', lang: 'en' },
+	{ id: 'com.apple.keylayout.USExtended', lang: 'en', localizedName: 'ABC - Extended' },
 	[],
 	{
 		KeyA: ['a', 'A', '¯', '̄', 4],

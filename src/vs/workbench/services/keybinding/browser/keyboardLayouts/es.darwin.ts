@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.Spanish-ISO', lang: 'es' },
+	{ id: 'com.apple.keylayout.Spanish-ISO', lang: 'es', localizedName: 'Spanish - ISO' },
 	[],
 	{
 		KeyA: ['a', 'A', 'å', 'Å', 0],

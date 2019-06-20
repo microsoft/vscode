@@ -5951,10 +5951,10 @@ native-is-elevated@^0.2.1:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
   integrity sha1-cKISOoV1ufYko+9GXZjLdK4Bc4U=
 
-native-keymap@1.2.5:
-  version "1.2.5"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
-  integrity sha1-EDWpQXuak0DPgJd2OkPHbViBZaU=
+native-keymap@1.2.6:
+  version "1.2.6"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.6.tgz#93d1b4c4ae0e9136bc14538cafe02c0bbe95bebf"
+  integrity sha512-8hEr6wNkb7OmGPFLFk1cAsnOt2Y3F4mtBffr8uOyX0kKOjr2JVetSt9TKjk0xyJw/B/HcEgMhXmjFKzGN+9JjA==
 
 native-watchdog@1.0.0:
   version "1.0.0"

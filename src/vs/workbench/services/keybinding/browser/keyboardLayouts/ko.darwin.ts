@@ -8,7 +8,7 @@ import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 
-	{ id: 'com.apple.inputmethod.Korean.2SetKorean', lang: 'ko' },
+	{ id: 'com.apple.inputmethod.Korean.2SetKorean', lang: 'ko', localizedName: '2-Set Korean' },
 	[],
 	{
 		KeyA: ['ㅁ', 'ㅁ', 'a', 'A', 0],

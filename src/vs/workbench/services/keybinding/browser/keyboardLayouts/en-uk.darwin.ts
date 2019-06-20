@@ -8,7 +8,7 @@ import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 
-	{ id: 'com.apple.keylayout.British', lang: 'en' },
+	{ id: 'com.apple.keylayout.British', lang: 'en', localizedName: 'British' },
 	[],
 	{
 		KeyA: ['a', 'A', 'å', 'Å', 0],

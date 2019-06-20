@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.google.inputmethod.Japanese.Roman', lang: 'en' },
+	{ id: 'com.google.inputmethod.Japanese.Roman', lang: 'en', localizedName: 'Alphanumeric (Google)' },
 	[],
 	{
 		KeyA: ['a', 'A', '¯', '̄', 4],

@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.inputmethod.SCIM.ITABC', lang: 'zh-Hans' },
+	{ id: 'com.apple.inputmethod.SCIM.ITABC', lang: 'zh-Hans', localizedName: '搜狗拼音' },
 	[],
 	{
 		KeyA: ['a', 'A', 'å', 'Å', 0],
