@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OpenFileFolderAction, OpenLocalFileFolderAction, OpenFileAction, OpenFolderAction, OpenLocalFileAction, OpenLocalFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFileFolderAction, OpenLocalFileFolderAction, OpenFileAction, OpenFolderAction, OpenLocalFileAction, OpenLocalFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 // Contribute Global Actions
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
@@ -58,6 +58,9 @@ if (isMacintosh) {
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFolderAction, OpenLocalFolderAction.ID, OpenLocalFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, RemoteFileDialogContext), 'File: Open Local Folder...', fileCategory);
 	}
 }
+
+const workspacesCategory = nls.localize('workspaces', "Workspaces");
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory, SupportsWorkspacesContext);
 
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
@@ -632,6 +635,16 @@ if (isMacintosh) {
 		order: 2
 	});
 }
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenWorkspaceAction.ID,
+		title: nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")
+	},
+	order: 3,
+	when: SupportsWorkspacesContext
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '5_autosave',
