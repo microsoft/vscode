@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+function entrypoint (name) {
+	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
+}
+
 exports.base = [{
 	name: 'vs/base/common/worker/simpleWorker',
 	include: ['vs/editor/common/services/editorSimpleWorker'],
@@ -12,10 +16,14 @@ exports.base = [{
 }];
 
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
-exports.workbenchWeb = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.web.api']);
+exports.workbenchWeb = entrypoint('vs/workbench/workbench.web.api');
+
+exports.keyboardMaps = [
+	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
+	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
+	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win')
+];
 
 exports.code = require('./vs/code/buildfile').collectModules();
 
-exports.entrypoint = function (name) {
-	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
-};
+exports.entrypoint = entrypoint;
