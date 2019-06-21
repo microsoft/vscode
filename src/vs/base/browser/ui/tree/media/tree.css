@@ -22,11 +22,6 @@
 	left: 10px;
 }
 
-/* TODO @misolori remove before shipping stable */
-body:not([data-exploration="icon-exploration"]) .monaco-tl-indent {
-	left: 16px;
-}
-
 .monaco-tl-indent > svg {
 	overflow: visible;
 }

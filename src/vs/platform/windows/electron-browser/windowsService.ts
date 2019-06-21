@@ -195,6 +195,10 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('openNewWindow', options);
 	}
 
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
+		return this.channel.call('openExtensionDevelopmentHostWindow', args);
+	}
+
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		const result = await this.channel.call<{
 			id: number;

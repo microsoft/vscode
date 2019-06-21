@@ -242,6 +242,9 @@ export class RemoteFileDialog {
 			this.filePickBox.items = [];
 
 			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
+				if (uri) {
+					uri = resources.removeTrailingPathSeparator(uri);
+				}
 				resolve(uri);
 				dialog.contextKey.set(false);
 				dialog.filePickBox.dispose();

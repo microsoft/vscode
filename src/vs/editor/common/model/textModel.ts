@@ -2823,16 +2823,14 @@ function cleanClassName(className: string): string {
 	return className.replace(/[^a-z0-9\-_]/gi, ' ');
 }
 
-export class ModelDecorationOverviewRulerOptions implements model.IModelDecorationOverviewRulerOptions {
+class DecorationOptions implements model.IDecorationOptions {
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
-	readonly position: model.OverviewRulerLane;
 	private _resolvedColor: string | null;
 
-	constructor(options: model.IModelDecorationOverviewRulerOptions) {
+	constructor(options: model.IDecorationOptions) {
 		this.color = options.color || strings.empty;
 		this.darkColor = options.darkColor || strings.empty;
-		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 		this._resolvedColor = null;
 	}
 
@@ -2863,6 +2861,24 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 	}
 }
 
+export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
+	readonly position: model.OverviewRulerLane;
+
+	constructor(options: model.IModelDecorationOverviewRulerOptions) {
+		super(options);
+		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
+	}
+}
+
+export class ModelDecorationMinimapOptions extends DecorationOptions {
+	readonly position: model.MinimapPosition;
+
+	constructor(options: model.IModelDecorationMinimapOptions) {
+		super(options);
+		this.position = options.position;
+	}
+}
+
 export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	public static EMPTY: ModelDecorationOptions;
@@ -2884,6 +2900,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly showIfCollapsed: boolean;
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
+	readonly minimap: ModelDecorationMinimapOptions | null;
 	readonly glyphMarginClassName: string | null;
 	readonly linesDecorationsClassName: string | null;
 	readonly marginClassName: string | null;
@@ -2902,6 +2919,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
+		this.minimap = options.minimap ? new ModelDecorationMinimapOptions(options.minimap) : null;
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
 		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : null;

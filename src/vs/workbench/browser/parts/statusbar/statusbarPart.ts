@@ -604,6 +604,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
 		itemContainer.title = name;
+		itemContainer.id = id;
 
 		addClass(itemContainer, 'statusbar-item');
 		if (extraClasses) {

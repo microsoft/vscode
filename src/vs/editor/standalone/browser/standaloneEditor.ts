@@ -352,6 +352,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		MinimapPosition: standaloneEnums.MinimapPosition,
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
 		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
 		EndOfLineSequence: standaloneEnums.EndOfLineSequence,

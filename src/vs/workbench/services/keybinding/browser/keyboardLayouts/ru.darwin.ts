@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ id: 'com.apple.keylayout.Russian', lang: 'ru' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.keylayout.Russian', lang: 'ru', localizedName: 'Russian' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['ф', 'Ф', 'ƒ', 'ƒ', 0],
 		KeyB: ['и', 'И', 'и', 'И', 0],
 		KeyC: ['с', 'С', '≠', '≠', 0],
@@ -128,4 +129,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

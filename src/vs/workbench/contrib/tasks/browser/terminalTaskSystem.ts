@@ -513,69 +513,69 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let executedCommand: string | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
-		let terminalPromise: Promise<void> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
-			terminalPromise = new Promise<void>(async (resolveTerminal) => {
-				[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
-				resolveTerminal();
-			});
-			promise = new Promise<ITaskSummary>(async (resolve, reject) => {
-				const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
-				let toDispose: IDisposable[] | undefined = [];
-				let eventCounter: number = 0;
-				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
-					if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
-						eventCounter++;
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-					} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
-						eventCounter--;
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
-						if (eventCounter === 0) {
-							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
-								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
-								let reveal = task.command.presentation!.reveal;
-								let revealProblems = task.command.presentation!.revealProblems;
-								if (revealProblems === RevealProblemKind.OnProblem) {
-									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-								} else if (reveal === RevealKind.Silent) {
-									this.terminalService.setActiveInstance(terminal!);
-									this.terminalService.showPanel(false);
-								}
+			const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
+			let toDispose: IDisposable[] | undefined = [];
+			let eventCounter: number = 0;
+			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
+				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
+					eventCounter++;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+					eventCounter--;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+					if (eventCounter === 0) {
+						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
+							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+							let reveal = task.command.presentation!.reveal;
+							let revealProblems = task.command.presentation!.revealProblems;
+							if (revealProblems === RevealProblemKind.OnProblem) {
+								this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+							} else if (reveal === RevealKind.Silent) {
+								this.terminalService.setActiveInstance(terminal!);
+								this.terminalService.showPanel(false);
 							}
 						}
 					}
-				}));
-				watchingProblemMatcher.aboutToStart();
-				let delayer: Async.Delayer<any> | undefined = undefined;
-				await terminalPromise;
-				if (error || !terminal) {
-					return;
 				}
-				let processStartedSignaled = false;
-				terminal.processReady.then(() => {
-					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.CustomExecution) {
-							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
-						}
-						processStartedSignaled = true;
+			}));
+			watchingProblemMatcher.aboutToStart();
+			let delayer: Async.Delayer<any> | undefined = undefined;
+			[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
+
+			if (error) {
+				return Promise.reject(new Error((<TaskError>error).message));
+			}
+			if (!terminal) {
+				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
+			}
+
+			let processStartedSignaled = false;
+			terminal.processReady.then(() => {
+				if (!processStartedSignaled) {
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 					}
-				}, (_error) => {
-					// The process never got ready. Need to think how to handle this.
+					processStartedSignaled = true;
+				}
+			}, (_error) => {
+				// The process never got ready. Need to think how to handle this.
+			});
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			const onData = terminal.onLineData((line) => {
+				watchingProblemMatcher.processLine(line);
+				if (!delayer) {
+					delayer = new Async.Delayer(3000);
+				}
+				delayer.trigger(() => {
+					watchingProblemMatcher.forceDelivery();
+					delayer = undefined;
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
-				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
-				const onData = terminal.onLineData((line) => {
-					watchingProblemMatcher.processLine(line);
-					if (!delayer) {
-						delayer = new Async.Delayer(3000);
-					}
-					delayer.trigger(() => {
-						watchingProblemMatcher.forceDelivery();
-						delayer = undefined;
-					});
-				});
-				const onExit = terminal.onExit((exitCode) => {
+			});
+			promise = new Promise<ITaskSummary>((resolve, reject) => {
+				const onExit = terminal!.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
@@ -622,36 +622,36 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		} else {
-			terminalPromise = new Promise<void>(async (resolveTerminal) => {
-				[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
-				resolveTerminal();
-			});
-			promise = new Promise<ITaskSummary>(async (resolve, reject) => {
-				await terminalPromise;
-				if (!terminal || error) {
-					return;
-				}
+			[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
 
-				let processStartedSignaled = false;
-				terminal.processReady.then(() => {
-					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.CustomExecution) {
-							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
-						}
-						processStartedSignaled = true;
+			if (error) {
+				return Promise.reject(new Error((<TaskError>error).message));
+			}
+			if (!terminal) {
+				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
+			}
+
+			let processStartedSignaled = false;
+			terminal.processReady.then(() => {
+				if (!processStartedSignaled) {
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 					}
-				}, (_error) => {
-					// The process never got ready. Need to think how to handle this.
-				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-				let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
-				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
-				const onData = terminal.onLineData((line) => {
-					startStopProblemMatcher.processLine(line);
-				});
-				const onExit = terminal.onExit((exitCode) => {
+					processStartedSignaled = true;
+				}
+			}, (_error) => {
+				// The process never got ready. Need to think how to handle this.
+			});
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
+			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			const onData = terminal.onLineData((line) => {
+				startStopProblemMatcher.processLine(line);
+			});
+			promise = new Promise<ITaskSummary>((resolve, reject) => {
+				const onExit = terminal!.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
@@ -698,13 +698,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		}
-		await terminalPromise;
-		if (error) {
-			return Promise.reject(new Error((<TaskError>error).message));
-		}
-		if (!terminal) {
-			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
-		}
+
 		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
@@ -763,25 +757,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
 
-	private getDefaultShell(platform: Platform.Platform): string {
-		let defaultShell: string | undefined = undefined;
-		try {
-			defaultShell = this.terminalInstanceService.getDefaultShell(platform);
-		} catch {
-			// Do nothing
-		}
-		if (!defaultShell) {
-			// Make up a guess for the default shell.
-			if (platform === Platform.Platform.Windows) {
-				defaultShell = 'cmd.exe';
-			} else {
-				defaultShell = 'bash';
-			}
-			console.warn('Cannot get the default shell.');
-		}
-		return defaultShell;
-	}
-
 	private async getUserHome(): Promise<URI> {
 		const env = await this.remoteAgentService.getEnvironment();
 		if (env) {
@@ -797,8 +772,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), this.terminalService.configHelper, platform);
+			const defaultConfig = await this.terminalInstanceService.getDefaultShellAndArgs();
+			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ id: 'com.apple.keylayout.French', lang: 'fr' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.keylayout.French', lang: 'fr', localizedName: 'French' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['q', 'Q', '‡', 'Ω', 0],
 		KeyB: ['b', 'B', 'ß', '∫', 0],
 		KeyC: ['c', 'C', '©', '¢', 0],
@@ -128,4 +129,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

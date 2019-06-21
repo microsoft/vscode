@@ -43,6 +43,8 @@
 	font-feature-settings: "liga" 0;
 	position: relative;
 	user-select: none;
+	-ms-user-select: none;
+	-webkit-user-select: none;
 }
 
 .xterm.focus,
@@ -127,13 +129,22 @@
 	line-height: normal;
 }
 
+.xterm {
+	cursor: text;
+}
+
 .xterm.enable-mouse-events {
-	/* When mouse events are enabled (e.g. tmux), revert to the standard pointer cursor */
+	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
 	cursor: default;
 }
 
-.xterm:not(.enable-mouse-events) {
-	cursor: text;
+.xterm.xterm-cursor-pointer {
+	cursor: pointer;
+}
+
+.xterm.column-select.focus {
+	/* Column selection mode */
+	cursor: crosshair;
 }
 
 .xterm .xterm-accessibility,
@@ -147,10 +158,6 @@
 	color: transparent;
 }
 
-.xterm .xterm-accessibility-tree:focus [id^="xterm-active-item-"] {
-	outline: 1px solid #F80;
-}
-
 .xterm .live-region {
 	position: absolute;
 	left: -9999px;
@@ -159,11 +166,10 @@
 	overflow: hidden;
 }
 
-.xterm-cursor-pointer {
-	cursor: pointer !important;
+.xterm-dim {
+	opacity: 0.5;
 }
 
-.xterm.xterm-cursor-crosshair {
-	/* Column selection mode */
-	cursor: crosshair !important;
+.xterm-underline {
+	text-decoration: underline;
 }

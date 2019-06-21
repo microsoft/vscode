@@ -34,6 +34,15 @@ export class CreateNewLocalTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
+
+		// Append (Local) to the first title that comes back, the title will then become static
+		const disposable = instance.onTitleChanged(() => {
+			if (instance.title && instance.title.trim().length > 0) {
+				disposable.dispose();
+				instance.setTitle(`${instance.title} (Local)`, false);
+			}
+		});
+
 		this.terminalService.setActiveInstance(instance);
 		return this.terminalService.showPanel(true);
 	}

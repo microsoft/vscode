@@ -956,7 +956,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}
 
 			this.updateExpandDocsSetting(true);
-			this.showDetails(true);
+			this.showDetails(false);
 			this._ariaAlert(this.details.getAriaLabel());
 			/* __GDPR__
 				"suggestWidget:expandDetails" : {
