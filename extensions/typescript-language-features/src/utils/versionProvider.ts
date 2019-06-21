@@ -27,10 +27,10 @@ export class TypeScriptVersion {
 	}
 
 	public get isValid(): boolean {
-		return this.version !== undefined;
+		return this.apiVersion !== undefined;
 	}
 
-	public get version(): API | undefined {
+	public get apiVersion(): API | undefined {
 		const version = this.getTypeScriptVersion(this.tsServerPath);
 		if (version) {
 			return version;
@@ -46,7 +46,7 @@ export class TypeScriptVersion {
 	}
 
 	public get versionString(): string {
-		const version = this.version;
+		const version = this.apiVersion;
 		return version ? version.versionString : localize(
 			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}

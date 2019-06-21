@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ model: 'pc104', layout: 'fr', variant: '', options: '', rules: 'base' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { model: 'pc104', layout: 'fr', variant: '', options: '', rules: 'base' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['q', 'Q', '@', 'Ω', 0],
@@ -184,4 +184,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		MailForward: [],
 		MailSend: []
 	}
-));
+});

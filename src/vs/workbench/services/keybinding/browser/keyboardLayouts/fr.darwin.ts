@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.French', lang: 'fr' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.keylayout.French', lang: 'fr', localizedName: 'French' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['q', 'Q', '‡', 'Ω', 0],
 		KeyB: ['b', 'B', 'ß', '∫', 0],
 		KeyC: ['c', 'C', '©', '¢', 0],
@@ -129,4 +129,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

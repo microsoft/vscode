@@ -523,7 +523,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);

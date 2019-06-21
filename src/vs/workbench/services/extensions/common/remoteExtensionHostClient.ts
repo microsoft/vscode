@@ -197,6 +197,10 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					id: workspace.id,
 					name: this._labelService.getWorkspaceLabel(workspace)
 				},
+				remote: {
+					isRemote: true,
+					authority: this._initDataProvider.remoteAuthority
+				},
 				resolvedExtensions: resolvedExtensions,
 				hostExtensions: hostExtensions,
 				extensions: remoteExtensionHostData.extensions,
@@ -204,7 +208,6 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 				logLevel: this._logService.getLevel(),
 				logsLocation: remoteExtensionHostData.extensionHostLogsPath,
 				autoStart: true,
-				remoteAuthority: this._initDataProvider.remoteAuthority,
 			};
 			return r;
 		});

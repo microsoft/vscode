@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
-	{ name: '0000041D', id: '', text: 'Swedish' },
-	[
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '0000041D', id: '', text: 'Swedish' },
+	secondaryLayouts: [
 		{ name: '0000040B', id: '', text: 'Finnish' }
 	],
-	{
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['a', 'A', '', '', 0, 'VK_A'],
@@ -168,5 +168,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-
-)));
+});

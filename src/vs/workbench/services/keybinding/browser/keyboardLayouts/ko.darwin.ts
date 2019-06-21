@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 
-	{ id: 'com.apple.inputmethod.Korean.2SetKorean', lang: 'ko' },
-	[],
-	{
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.inputmethod.Korean.2SetKorean', lang: 'ko', localizedName: '2-Set Korean' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['ㅁ', 'ㅁ', 'a', 'A', 0],
 		KeyB: ['ㅠ', 'ㅠ', 'b', 'B', 0],
 		KeyC: ['ㅊ', 'ㅊ', 'c', 'C', 0],
@@ -130,5 +129,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-
-));
+});

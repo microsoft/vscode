@@ -26,7 +26,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -46,6 +46,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { pathsToEditors } from 'vs/workbench/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 //#region Backup File
 
@@ -736,7 +741,11 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	readonly windowId = 0;
 
-	constructor() {
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		super();
 
 		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
@@ -858,8 +867,42 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
+	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
+		const { openFolderInNewWindow } = this.shouldOpenNewWindow(_options);
+		for (let i = 0; i < _uris.length; i++) {
+			const uri = _uris[i];
+			if ('folderUri' in uri) {
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				if (openFolderInNewWindow) {
+					window.open(newAddress);
+				} else {
+					window.location.href = newAddress;
+				}
+			}
+			if ('workspaceUri' in uri) {
+				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
+				if (openFolderInNewWindow) {
+					window.open(newAddress);
+				} else {
+					window.location.href = newAddress;
+				}
+			}
+			if ('fileUri' in uri) {
+				const inputs: IResourceEditor[] = await pathsToEditors([uri], this.fileService);
+				this.editorService.openEditors(inputs);
+			}
+		}
 		return Promise.resolve();
+	}
+
+	private shouldOpenNewWindow(_options: IOpenSettings = {}): { openFolderInNewWindow: boolean } {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
+		let openFolderInNewWindow = !!_options.forceNewWindow && !_options.forceReuseWindow;
+		if (!_options.forceNewWindow && !_options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
+			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
+		}
+		return { openFolderInNewWindow };
 	}
 
 	closeWindow(): Promise<void> {
@@ -1058,6 +1101,10 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openNewWindow(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
 		return Promise.resolve();
 	}
 

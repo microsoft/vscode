@@ -29,13 +29,14 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
+import { FileUserDataService } from '../services/userData/common/fileUserDataService';
+import { IUserDataService } from '../services/userData/common/userDataService';
 
 class CodeRendererMain extends Disposable {
 
@@ -118,10 +119,14 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
+		// User Data Service
+		const userDataService = this._register(new FileUserDataService(environmentService, fileService));
+		serviceCollection.set(IUserDataService, userDataService);
+
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, fileService, userDataService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -136,8 +141,8 @@ class CodeRendererMain extends Disposable {
 		return { serviceCollection, logService };
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, userDataService: IUserDataService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, fileService, userDataService, remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);

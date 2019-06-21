@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, areKeyboardLayoutsEqual, parseKeyboardLayout } from 'vs/workbench/services/keybinding/common/keymapService';
+import { IKeymapService, areKeyboardLayoutsEqual, parseKeyboardLayoutDescription, getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -34,7 +34,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 
 		let layout = this.keymapService.getCurrentKeyboardLayout();
 		if (layout) {
-			let layoutInfo = parseKeyboardLayout(layout);
+			let layoutInfo = parseKeyboardLayoutDescription(layout);
 			this.pickerElement.value = this.statusbarService.addEntry(
 				{
 					text: `Layout: ${layoutInfo.label}`,
@@ -49,7 +49,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 
 		this._register(keymapService.onDidChangeKeyboardMapper(() => {
 			let layout = this.keymapService.getCurrentKeyboardLayout();
-			let layoutInfo = parseKeyboardLayout(layout);
+			let layoutInfo = parseKeyboardLayoutDescription(layout);
 
 			if (this.pickerElement.value) {
 				this.pickerElement.value.update({
@@ -75,6 +75,9 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(KeyboardLayoutPickerContribution, LifecyclePhase.Starting);
 
+interface LayoutQuickPickItem extends IQuickPickItem {
+	layout: IKeyboardLayoutInfo;
+}
 
 export class KeyboardLayoutPickerAction extends Action {
 	static readonly ID = KEYBOARD_LAYOUT_OPEN_PICKER;
@@ -111,13 +114,16 @@ export class KeyboardLayoutPickerAction extends Action {
 
 		const picks: QuickPickInput[] = layouts.map(layout => {
 			const picked = !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout);
-			const layoutInfo = parseKeyboardLayout(layout);
+			const layoutInfo = parseKeyboardLayoutDescription(layout);
 			return {
-				label: layoutInfo.label,
+				layout: layout,
+				label: [layoutInfo.label, (layout && layout.isUserKeyboardLayout) ? '(User configured layout)' : ''].join(' '),
 				id: (<any>layout).text || (<any>layout).lang || (<any>layout).layout,
 				description: layoutInfo.description + (picked ? ' (Current layout)' : ''),
 				picked: !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout)
 			};
+		}).sort((a: IQuickPickItem, b: IQuickPickItem) => {
+			return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
 		});
 
 		if (picks.length > 0) {
@@ -132,7 +138,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		// Offer to "Auto Detect"
 		const autoDetectMode: IQuickPickItem = {
 			label: nls.localize('autoDetect', "Auto Detect"),
-			description: isAutoDetect ? `(Current: ${parseKeyboardLayout(currentLayout).label})` : undefined,
+			description: isAutoDetect ? `Current: ${parseKeyboardLayoutDescription(currentLayout).label}` : undefined,
 			picked: isAutoDetect ? true : undefined
 		};
 
@@ -169,7 +175,7 @@ export class KeyboardLayoutPickerAction extends Action {
 			return Promise.resolve();
 		}
 
-		this.configurationService.updateValue('keyboard.layout', pick.label);
+		this.configurationService.updateValue('keyboard.layout', getKeyboardLayoutId((<LayoutQuickPickItem>pick).layout));
 	}
 }
 

@@ -17,18 +17,58 @@
 declare module 'vscode' {
 
 	//#region Joh - ExecutionContext
-
+	// THIS is a deprecated proposal
 	export enum ExtensionExecutionContext {
 		Local = 1,
 		Remote = 2
 	}
+	export interface ExtensionContext {
+		executionContext: ExtensionExecutionContext;
+	}
+	//#endregion
+
+	//#region Joh - ExtensionKind, vscode.env.remoteKind
+
+	/**
+	 * In a remote window the extension kind describes if an extension
+	 * runs where the UI (window) runs or if an extension runs remotely.
+	 */
+	export enum ExtensionKind {
+
+		/**
+		 * Extension runs where the UI runs.
+		 */
+		UI = 1,
+
+		/**
+		 * Extension runs where the remote extension host runs.
+		 */
+		Workspace = 2
+	}
 
 	export interface ExtensionContext {
+
 		/**
-		 * Describes the context in which this extension is executed, e.g.
-		 * a Node.js-context on the same machine or on a remote machine
+		 * The extension kind describes if an extension runs where the UI runs
+		 * or if an extension runs where the remote extension host runs. The extension kind
+		 * if defined in the `package.json` file of extensions but can also be refined
+		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
+		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
 		 */
-		executionContext: ExtensionExecutionContext;
+		extensionKind: ExtensionKind;
+	}
+
+	export namespace env {
+		/**
+		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
+		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
+		 *
+		 * *Note* that the value is `undefined` when there is no remote extension host but that the
+		 * value is defined in all extension hosts (local and remote) in case a remote extension host
+		 * exists. Use [`ExtensionContext#extensionKind`](#ExtensionContext.extensionKind) to know if
+		 * a specific extension runs remote or not.
+		 */
+		export const remoteName: string | undefined;
 	}
 
 	//#endregion
@@ -139,14 +179,15 @@ declare module 'vscode' {
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
-		readonly range: Range;
+		readonly line: number;
+		readonly height: number;
 		readonly webview: Webview;
 		readonly onDidDispose: Event<void>;
 		dispose(): void;
 	}
 
 	export namespace window {
-		export function createWebviewTextEditorInset(editor: TextEditor, range: Range, options?: WebviewOptions): WebviewEditorInset;
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion

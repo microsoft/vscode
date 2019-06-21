@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-
-	{ id: 'com.apple.keylayout.British', lang: 'en' },
-	[],
-	{
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.keylayout.British', lang: 'en', localizedName: 'British' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['a', 'A', 'å', 'Å', 0],
 		KeyB: ['b', 'B', '∫', 'ı', 0],
 		KeyC: ['c', 'C', 'ç', 'Ç', 0],
@@ -130,4 +128,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

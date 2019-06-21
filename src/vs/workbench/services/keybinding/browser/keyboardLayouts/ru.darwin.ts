@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.Russian', lang: 'ru' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.keylayout.Russian', lang: 'ru', localizedName: 'Russian' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['ф', 'Ф', 'ƒ', 'ƒ', 0],
 		KeyB: ['и', 'И', 'и', 'И', 0],
 		KeyC: ['с', 'С', '≠', '≠', 0],
@@ -129,4 +129,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});
