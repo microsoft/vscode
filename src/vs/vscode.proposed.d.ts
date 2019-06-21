@@ -61,7 +61,7 @@ declare module 'vscode' {
 	export namespace env {
 		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
-		 * Subsystem for Linux or `ssh` for remotes using a secure shell.
+		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
 		 *
 		 * *Note* that the value is `undefined` when there is no remote extension host but that the
 		 * value is defined in all extension hosts (local and remote) in case a remote extension host
