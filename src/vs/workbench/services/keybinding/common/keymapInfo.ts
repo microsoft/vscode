@@ -248,6 +248,13 @@ interface ISerializedMapping {
 	[key: string]: (string | number)[];
 }
 
+export interface IKeymapInfo {
+	layout: IKeyboardLayoutInfo;
+	secondaryLayouts: IKeyboardLayoutInfo[];
+	mapping: ISerializedMapping;
+	isUserKeyboardLayout?: boolean;
+}
+
 export class KeymapInfo {
 	mapping: IRawMixedKeyboardMapping;
 	isUserKeyboardLayout: boolean;

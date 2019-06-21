@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 export class KeyboardLayoutContribution {
 	public static readonly INSTANCE: KeyboardLayoutContribution = new KeyboardLayoutContribution();
 
-	private _layoutInfos: KeymapInfo[] = [];
+	private _layoutInfos: IKeymapInfo[] = [];
 
 	get layoutInfos() {
 		return this._layoutInfos;
@@ -17,7 +17,7 @@ export class KeyboardLayoutContribution {
 	private constructor() {
 	}
 
-	registerKeyboardLayout(layout: KeymapInfo) {
+	registerKeyboardLayout(layout: IKeymapInfo) {
 		this._layoutInfos.push(layout);
 	}
 }

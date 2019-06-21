@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
-	{ name: '00004009', id: '', text: 'India' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '00004009', id: '', text: 'India' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['a', 'A', 'ā', 'Ā', 0, 'VK_A'],
@@ -166,4 +166,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-)));
+});

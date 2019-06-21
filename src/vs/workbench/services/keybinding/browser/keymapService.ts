@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -79,7 +79,8 @@ export class BrowserKeyboardMapperFactory {
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
 		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
-			this._keymapInfos.push(...m.KeyboardLayoutContribution.INSTANCE.layoutInfos);
+			let keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
+			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 			this._mru = this._keymapInfos;
 			this._initialized = true;
 			this.onKeyboardLayoutChanged();
