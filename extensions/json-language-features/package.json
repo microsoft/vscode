@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
@@ -14,6 +15,7 @@
     "onLanguage:jsonc"
   ],
   "main": "./client/out/jsonMain",
+  "enableProposedApi": true,
   "scripts": {
     "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
@@ -100,11 +102,12 @@
     }
   },
   "dependencies": {
+    "request-light": "^0.2.4",
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.1.0",
-    "vscode-nls": "^4.0.0"
+    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.14.8"
   }
 }

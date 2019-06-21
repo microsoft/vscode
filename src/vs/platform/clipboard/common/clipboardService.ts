@@ -15,12 +15,12 @@ export interface IClipboardService {
 	/**
 	 * Writes text to the system clipboard.
 	 */
-	writeText(text: string): void;
+	writeText(text: string, type?: string): void;
 
 	/**
 	 * Reads the content of the clipboard in plain text
 	 */
-	readText(): string;
+	readText(type?: string): string;
 
 	/**
 	 * Reads text from the system find pasteboard.

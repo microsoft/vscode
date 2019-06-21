@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -192,7 +192,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<any> {
-		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? (one: string) => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.readdir(cachePath);
@@ -237,10 +237,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${product.win32MutexName}-ready`;
-		const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
+		const mutex = await import('windows-mutex');
 
 		// poll for mutex-ready
-		pollUntil(() => isActive(readyMutexName))
+		pollUntil(() => mutex.isActive(readyMutexName))
 			.then(() => this.setState(State.Ready(update)));
 	}
 

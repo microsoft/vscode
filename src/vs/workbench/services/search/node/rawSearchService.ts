@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'path';
+import { join, sep } from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -16,23 +16,20 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/platform/search/common/search';
+import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
 
 gracefulFs.gracefulify(fs);
 
-type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
-type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
+export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
+export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
 export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private legacyTextSearchService = new LegacyTextSearchService();
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
@@ -64,9 +61,7 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (rawQuery.useRipgrep ?
-						this.ripgrepTextSearch(query, p => emitter.fire(p), token) :
-						this.legacyTextSearchService.textSearch(query, p => emitter.fire(p), token));
+					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
 				});
 
 				promise.then(
@@ -102,7 +97,7 @@ export class SearchService implements IRawSearchService {
 				resultCount++;
 				progressCallback(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 			} else {
-				progressCallback(<IProgress>progress);
+				progressCallback(<IProgressMessage>progress);
 			}
 		};
 
@@ -317,7 +312,7 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).lowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
@@ -388,11 +383,14 @@ export class SearchService implements IRawSearchService {
 			cancel() {
 				// Do nothing
 			}
-			then(resolve, reject) {
+			then(resolve: any, reject: any) {
 				return promise.then(resolve, reject);
 			}
-			catch(reject?) {
+			catch(reject?: any) {
 				return this.then(undefined, reject);
+			}
+			finally(onFinally: any) {
+				return promise.finally(onFinally);
 			}
 		};
 	}

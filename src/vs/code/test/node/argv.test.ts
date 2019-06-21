@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { formatOptions, Option } from 'vs/platform/environment/node/argv';
+import { formatOptions, Option, addArg } from 'vs/platform/environment/node/argv';
 
 suite('formatOptions', () => {
 
@@ -53,5 +53,14 @@ suite('formatOptions', () => {
 				'  --foo',
 				'      bar bar bar bar bar bar bar bar bar '
 			]);
+	});
+
+	test('addArg', () => {
+		assert.deepEqual(addArg([], 'foo'), ['foo']);
+		assert.deepEqual(addArg([], 'foo', 'bar'), ['foo', 'bar']);
+		assert.deepEqual(addArg(['foo'], 'bar'), ['foo', 'bar']);
+		assert.deepEqual(addArg(['--wait'], 'bar'), ['--wait', 'bar']);
+		assert.deepEqual(addArg(['--wait', '--', '--foo'], 'bar'), ['--wait', 'bar', '--', '--foo']);
+		assert.deepEqual(addArg(['--', '--foo'], 'bar'), ['bar', '--', '--foo']);
 	});
 });

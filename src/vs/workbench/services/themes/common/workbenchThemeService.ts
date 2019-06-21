@@ -22,13 +22,12 @@ export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
-export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors: ITokenColorizationRule[];
@@ -57,12 +56,16 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorTheme(): IColorTheme;
 	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
-	restoreColorTheme();
+	restoreColorTheme(): void;
 
 	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
 	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
+}
+
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
 }
 
 export interface ITokenColorCustomizations {

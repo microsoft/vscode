@@ -658,27 +658,6 @@ export class TreeView extends HeightMap {
 		}
 	}
 
-	public getFirstVisibleElement(): any {
-		const firstIndex = this.indexAt(this.lastRenderTop);
-		let item = this.itemAtIndex(firstIndex);
-		if (!item) {
-			return item;
-		}
-
-		const itemMidpoint = item.top + item.height / 2;
-		if (itemMidpoint < this.scrollTop) {
-			const nextItem = this.itemAtIndex(firstIndex + 1);
-			item = nextItem || item;
-		}
-
-		return item.model.getElement();
-	}
-
-	public getLastVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight - 1));
-		return item && item.model.getElement();
-	}
-
 	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {
 		let i: number;
 		let stop: number;
@@ -1043,31 +1022,6 @@ export class TreeView extends HeightMap {
 		}
 	}
 
-	public updateWidth(item: Model.Item): void {
-		if (!item || !item.isVisible()) {
-			return;
-		}
-
-		const viewItem = this.items[item.id];
-
-		if (!viewItem) {
-			return;
-		}
-
-		viewItem.updateWidth();
-		this.updateScrollWidth();
-	}
-
-	public getRelativeTop(item: Model.Item): number {
-		if (item && item.isVisible()) {
-			let viewItem = this.items[item.id];
-			if (viewItem) {
-				return (viewItem.top - this.scrollTop) / (this.viewHeight - viewItem.height);
-			}
-		}
-		return -1;
-	}
-
 	private onItemReveal(e: Model.IItemRevealEvent): void {
 		let item = <Model.Item>e.item;
 		let relativeTop = <number>e.relativeTop;
@@ -1301,8 +1255,8 @@ export class TreeView extends HeightMap {
 				element = this.model!.getInput();
 				position = DOM.getDomNodePagePosition(this.inputItem.element);
 			} else {
-				let id = this.context.dataSource.getId(this.context.tree, element);
-				let viewItem = this.items[id];
+				const id = this.context.dataSource.getId(this.context.tree, element);
+				const viewItem = this.items[id!];
 				position = DOM.getDomNodePagePosition(viewItem.element);
 			}
 
@@ -1437,6 +1391,8 @@ export class TreeView extends HeightMap {
 	}
 
 	private onDragOver(e: DragEvent): boolean {
+		e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 		let event = new Mouse.DragMouseEvent(e);
 
 		let viewItem = this.getItemAround(event.target);

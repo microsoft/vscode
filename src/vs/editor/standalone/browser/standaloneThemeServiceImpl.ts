@@ -26,9 +26,9 @@ class StandaloneTheme implements IStandaloneTheme {
 	public readonly id: string;
 	public readonly themeName: string;
 
-	private themeData: IStandaloneThemeData;
+	private readonly themeData: IStandaloneThemeData;
 	private colors: { [colorId: string]: Color } | null;
-	private defaultColors: { [colorId: string]: Color | null; };
+	private readonly defaultColors: { [colorId: string]: Color | undefined; };
 	private _tokenTheme: TokenTheme | null;
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
@@ -77,7 +77,7 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this.colors;
 	}
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | null {
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
 		const color = this.getColors()[colorId];
 		if (color) {
 			return color;
@@ -85,10 +85,10 @@ class StandaloneTheme implements IStandaloneTheme {
 		if (useDefault !== false) {
 			return this.getDefault(colorId);
 		}
-		return null;
+		return undefined;
 	}
 
-	private getDefault(colorId: ColorIdentifier): Color | null {
+	private getDefault(colorId: ColorIdentifier): Color | undefined {
 		let color = this.defaultColors[colorId];
 		if (color) {
 			return color;
@@ -159,12 +159,12 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
 	_serviceBrand: any;
 
-	private _knownThemes: Map<string, StandaloneTheme>;
-	private _styleElement: HTMLStyleElement;
+	private readonly _knownThemes: Map<string, StandaloneTheme>;
+	private readonly _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 	private readonly _onIconThemeChange: Emitter<IIconTheme>;
-	private environment: IEnvironmentService = Object.create(null);
+	private readonly environment: IEnvironmentService = Object.create(null);
 
 	constructor() {
 		this._onThemeChange = new Emitter<IStandaloneTheme>();

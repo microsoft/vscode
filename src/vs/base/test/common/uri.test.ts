@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/paths';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
 
@@ -64,7 +63,7 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
 		//http://a-test-site.com/#test=true
-		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test%3Dtrue');
+		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test=true');
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test%3Dtrue');
 	});
 
@@ -103,11 +102,11 @@ suite('URI', () => {
 
 	test('with, changes', () => {
 		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t=1234');
 		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
@@ -141,7 +140,6 @@ suite('URI', () => {
 		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, 'api');
 		assert.equal(value.path, '/files/test.me');
-		assert.equal(value.fsPath, normalize('/files/test.me', true));
 		assert.equal(value.query, 't=1234');
 		assert.equal(value.fragment, '');
 
@@ -151,7 +149,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/c:/test/me');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('c:/test/me', true));
+		assert.equal(value.fsPath, isWindows ? 'c:\\test\\me' : 'c:/test/me');
 
 		value = URI.parse('file://shares/files/c%23/p.cs');
 		assert.equal(value.scheme, 'file');
@@ -159,7 +157,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/files/c#/p.cs');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('//shares/files/c#/p.cs', true));
+		assert.equal(value.fsPath, isWindows ? '\\\\shares\\files\\c#\\p.cs' : '//shares/files/c#/p.cs');
 
 		value = URI.parse('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
 		assert.equal(value.scheme, 'file');
@@ -264,11 +262,11 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');
@@ -360,7 +358,6 @@ suite('URI', () => {
 	test('correctFileUriToFilePath2', () => {
 
 		const test = (input: string, expected: string) => {
-			expected = normalize(expected, true);
 			const value = URI.parse(input);
 			assert.equal(value.fsPath, expected, 'Result for ' + input);
 			const value2 = URI.file(value.fsPath);
@@ -368,10 +365,10 @@ suite('URI', () => {
 			assert.equal(value.toString(), value2.toString());
 		};
 
-		test('file:///c:/alex.txt', 'c:\\alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
-		test('file://monacotools/folder/isi.txt', '\\\\monacotools\\folder\\isi.txt');
-		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
+		test('file:///c:/alex.txt', isWindows ? 'c:\\alex.txt' : 'c:/alex.txt');
+		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', isWindows ? 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins' : 'c:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins');
+		test('file://monacotools/folder/isi.txt', isWindows ? '\\\\monacotools\\folder\\isi.txt' : '//monacotools/folder/isi.txt');
+		test('file://monacotools1/certificates/SSL/', isWindows ? '\\\\monacotools1\\certificates\\SSL\\' : '//monacotools1/certificates/SSL/');
 	});
 
 	test('URI - http, query & toString', function () {
@@ -379,7 +376,7 @@ suite('URI', () => {
 		let uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.query, 'LinkId=518008');
 		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId=518008');
 
 		let uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008');
@@ -388,7 +385,7 @@ suite('URI', () => {
 		uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId=518008&fo%C3%B6&k%C3%A9%C2%A5=%C3%BC%C3%BC');
 
 		uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
@@ -429,6 +426,57 @@ suite('URI', () => {
 		assert.equal(uri.toString(true), input);
 	});
 
+	test('Support URL specific encodings (query component) #25852', function () {
+		let input = 'http://example.com/over/there?name=ferret';
+		assert.equal(input, URI.parse(input).toString());
+
+		input = 'http://example.com/over/there?name=ferret&foo=bar';
+		assert.equal(input, URI.parse(input).toString());
+
+		input = 'attp://example.com/over/there?name=ferret';
+		assert.equal('attp://example.com/over/there?name%3Dferret', URI.parse(input).toString());
+	});
+
+	test('Uri#parse can break path-component #45515', function () {
+		let uri: URI;
+		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2f' });
+		assert.equal(uri.toString(), 's://a/o%2f');
+		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2fü' });
+		assert.equal(uri.toString(), 's://a/o%2f%C3%BC');
+		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2f%' });
+		assert.equal(uri.toString(), 's://a/o%2f%25');
+
+		uri = URI.file('/test with %25/c#code');
+		assert.equal(uri.path, '/test with %25/c#code');
+		assert.equal(uri.toString(), 'file:///test%20with%20%25/c%23code');
+
+		uri = URI.from({
+			scheme: 'http',
+			authority: 'a',
+			path: '/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg'
+		});
+		assert.equal(uri.path, '/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg');
+		assert.equal(uri.toString(), 'http://a/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg');
+
+		assert.equal(URI.parse(uri.toString()).path, '/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg');
+		assert.equal(uri.toString(), URI.parse(uri.toString()).toString()); // identity
+
+		uri = URI.parse('s://a/p%2ft%c3%bc');
+		assert.equal(uri.path, '/p%2ftü');
+
+		uri = URI.parse('s://a/%c3%bcp%2f-REST');
+		assert.equal(uri.path, '/üp%2f-REST');
+
+		uri = URI.parse('s://a/%c3%bcp%2fd%c3%b6wn');
+		assert.equal(uri.path, '/üp%2fdöwn');
+
+		//https://github.com/microsoft/vscode/issues/25852
+		uri = URI.parse('http://www.test.com/path/service?authId=CN%3DQ10');
+		assert.equal(uri.query, 'authId=CN%3DQ10');
+		assert.equal(uri.toString(), 'http://www.test.com/path/service?authId=CN%3DQ10');
+	});
+
+
 	test('URI - (de)serialize', function () {
 
 		const values = [
@@ -444,7 +492,7 @@ suite('URI', () => {
 		// let c = 100000;
 		// while (c-- > 0) {
 		for (let value of values) {
-			let data = value.toJSON();
+			let data = value.toJSON() as UriComponents;
 			let clone = URI.revive(data);
 
 			assert.equal(clone.scheme, value.scheme);

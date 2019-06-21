@@ -33,7 +33,7 @@ export const enum TreeVisibility {
 export interface ITreeFilterDataResult<TFilterData> {
 
 	/**
-	 * Whether the node should be visibile.
+	 * Whether the node should be visible.
 	 */
 	visibility: boolean | TreeVisibility;
 
@@ -84,6 +84,8 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
+	readonly visibleChildrenCount: number;
+	readonly visibleChildIndex: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visible: boolean;
@@ -95,8 +97,15 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 	deep: boolean;
 }
 
+export interface ITreeModelSpliceEvent<T, TFilterData> {
+	insertedNodes: ITreeNode<T, TFilterData>[];
+	deletedNodes: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
+
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -113,6 +122,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
+	expandTo(location: TRef): void;
 
 	refilter(): void;
 }
@@ -127,15 +137,22 @@ export interface ITreeEvent<T> {
 	browserEvent?: UIEvent;
 }
 
+export enum TreeMouseEventTarget {
+	Unknown,
+	Twistie,
+	Element
+}
+
 export interface ITreeMouseEvent<T> {
 	browserEvent: MouseEvent;
 	element: T | null;
+	target: TreeMouseEventTarget;
 }
 
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface ITreeNavigator<T> {

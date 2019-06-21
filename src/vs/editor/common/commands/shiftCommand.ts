@@ -15,34 +15,61 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
 	tabSize: number;
-	oneIndent: string;
+	indentSize: number;
+	insertSpaces: boolean;
 	useTabStops: boolean;
+}
+
+const repeatCache: { [str: string]: string[]; } = Object.create(null);
+export function cachedStringRepeat(str: string, count: number): string {
+	if (!repeatCache[str]) {
+		repeatCache[str] = ['', str];
+	}
+	const cache = repeatCache[str];
+	for (let i = cache.length; i <= count; i++) {
+		cache[i] = cache[i - 1] + str;
+	}
+	return cache[count];
 }
 
 export class ShiftCommand implements ICommand {
 
-	public static unshiftIndentCount(line: string, column: number, tabSize: number): number {
+	public static unshiftIndent(line: string, column: number, tabSize: number, indentSize: number, insertSpaces: boolean): string {
 		// Determine the visible column where the content starts
-		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
+		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
-		let desiredTabStop = CursorColumns.prevTabStop(contentStartVisibleColumn, tabSize);
-
-		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
-		return desiredTabStop / tabSize;
+		if (insertSpaces) {
+			const indent = cachedStringRepeat(' ', indentSize);
+			const desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
+			const indentCount = desiredTabStop / indentSize; // will be an integer
+			return cachedStringRepeat(indent, indentCount);
+		} else {
+			const indent = '\t';
+			const desiredTabStop = CursorColumns.prevRenderTabStop(contentStartVisibleColumn, tabSize);
+			const indentCount = desiredTabStop / tabSize; // will be an integer
+			return cachedStringRepeat(indent, indentCount);
+		}
 	}
 
-	public static shiftIndentCount(line: string, column: number, tabSize: number): number {
+	public static shiftIndent(line: string, column: number, tabSize: number, indentSize: number, insertSpaces: boolean): string {
 		// Determine the visible column where the content starts
-		let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
+		const contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
 
-		let desiredTabStop = CursorColumns.nextTabStop(contentStartVisibleColumn, tabSize);
-
-		// The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
-		return desiredTabStop / tabSize;
+		if (insertSpaces) {
+			const indent = cachedStringRepeat(' ', indentSize);
+			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
+			const indentCount = desiredTabStop / indentSize; // will be an integer
+			return cachedStringRepeat(indent, indentCount);
+		} else {
+			const indent = '\t';
+			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, tabSize);
+			const indentCount = desiredTabStop / tabSize; // will be an integer
+			return cachedStringRepeat(indent, indentCount);
+		}
 	}
 
-	private _opts: IShiftCommandOpts;
-	private _selection: Selection;
+	private readonly _opts: IShiftCommandOpts;
+	private readonly _selection: Selection;
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 	private _selectionStartColumnStaysPut: boolean;
@@ -70,8 +97,7 @@ export class ShiftCommand implements ICommand {
 			endLine = endLine - 1;
 		}
 
-		const tabSize = this._opts.tabSize;
-		const oneIndent = this._opts.oneIndent;
+		const { tabSize, indentSize, insertSpaces } = this._opts;
 		const shouldIndentEmptyLines = (startLine === endLine);
 
 		// if indenting or outdenting on a whitespace only line
@@ -82,9 +108,6 @@ export class ShiftCommand implements ICommand {
 		}
 
 		if (this._opts.useTabStops) {
-			// indents[i] represents i * oneIndent
-			let indents: string[] = ['', oneIndent];
-
 			// keep track of previous line's "miss-alignment"
 			let previousLineExtraSpaces = 0, extraSpaces = 0;
 			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
@@ -109,7 +132,7 @@ export class ShiftCommand implements ICommand {
 
 				if (lineNumber > 1) {
 					let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
-					if (contentStartVisibleColumn % tabSize !== 0) {
+					if (contentStartVisibleColumn % indentSize !== 0) {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
@@ -117,7 +140,7 @@ export class ShiftCommand implements ICommand {
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {
-									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < indentSize; j++) {
 										if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
 											extraSpaces++;
 										} else {
@@ -147,25 +170,22 @@ export class ShiftCommand implements ICommand {
 					continue;
 				}
 
-				let desiredIndentCount: number;
+				let desiredIndent: string;
 				if (this._opts.isUnshift) {
-					desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+					desiredIndent = ShiftCommand.unshiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
 				} else {
-					desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+					desiredIndent = ShiftCommand.shiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
 				}
 
-				// Fill `indents`, as needed
-				for (let j = indents.length; j <= desiredIndentCount; j++) {
-					indents[j] = indents[j - 1] + oneIndent;
-				}
-
-				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
+				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
 				if (lineNumber === startLine) {
 					// Force the startColumn to stay put because we're inserting after it
 					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
 				}
 			}
 		} else {
+
+			const oneIndent = (insertSpaces ? cachedStringRepeat(' ', indentSize) : '\t');
 
 			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
 				const lineText = model.getLineContent(lineNumber);
@@ -193,7 +213,7 @@ export class ShiftCommand implements ICommand {
 
 				if (this._opts.isUnshift) {
 
-					indentationEndIndex = Math.min(indentationEndIndex, tabSize);
+					indentationEndIndex = Math.min(indentationEndIndex, indentSize);
 					for (let i = 0; i < indentationEndIndex; i++) {
 						const chr = lineText.charCodeAt(i);
 						if (chr === CharCode.Tab) {

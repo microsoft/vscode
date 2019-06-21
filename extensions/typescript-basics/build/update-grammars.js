@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 'use strict';
 
 var updateGrammar = require('../../../build/npm/update-grammar');
@@ -16,12 +17,26 @@ function removeDom(grammar) {
 	return grammar;
 }
 
+function patchJsdoctype(grammar) {
+	grammar.repository['jsdoctype'].patterns = grammar.repository['jsdoctype'].patterns.filter(pattern => {
+		if (pattern.name && pattern.name.indexOf('illegal') >= -1) {
+			return false;
+		}
+		return true;
+	});
+	return grammar;
+}
+
+function patchGrammar(grammar) {
+	return removeDom(patchJsdoctype(grammar));
+}
+
 function adaptToJavaScript(grammar, replacementScope) {
 	grammar.name = 'JavaScript (with React support)';
-	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs' ];
+	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs'];
 	grammar.scopeName = `source${replacementScope}`;
 
-	var fixScopeNames = function(rule) {
+	var fixScopeNames = function (rule) {
 		if (typeof rule.name === 'string') {
 			rule.name = rule.name.replace(/\.tsx/g, replacementScope);
 		}
@@ -43,12 +58,7 @@ function adaptToJavaScript(grammar, replacementScope) {
 }
 
 var tsGrammarRepo = 'Microsoft/TypeScript-TmLanguage';
-updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json', grammar => removeDom(grammar));
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json', grammar => removeDom(grammar));
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', grammar => adaptToJavaScript(removeDom(grammar), '.js'));
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScriptReact.tmLanguage.json', grammar => adaptToJavaScript(removeDom(grammar), '.js.jsx'));
-
-
-
-
-
+updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json', grammar => patchGrammar(grammar));
+updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json', grammar => patchGrammar(grammar));
+updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', grammar => adaptToJavaScript(patchGrammar(grammar), '.js'));
+updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScriptReact.tmLanguage.json', grammar => adaptToJavaScript(patchGrammar(grammar), '.js.jsx'));

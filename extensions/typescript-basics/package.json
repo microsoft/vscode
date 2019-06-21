@@ -79,18 +79,8 @@
         }
       },
       {
-        "scopeName": "documentation.markdown.injection",
-        "path": "./syntaxes/MarkdownDocumentationInjection.tmLanguage.json",
-        "injectTo": [
-          "source.ts",
-          "source.tsx",
-          "source.js",
-          "source.js.jsx"
-        ]
-      },
-      {
-        "scopeName": "documentation.example.injection",
-        "path": "./syntaxes/ExampleJsDoc.injection.tmLanguage.json",
+        "scopeName": "documentation.injection",
+        "path": "./syntaxes/jsdoc.injection.tmLanguage.json",
         "injectTo": [
           "source.ts",
           "source.tsx",

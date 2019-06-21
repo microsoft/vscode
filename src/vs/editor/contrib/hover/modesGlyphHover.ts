@@ -10,6 +10,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { asArray } from 'vs/base/common/arrays';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -17,7 +20,7 @@ export interface IHoverMessage {
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
@@ -60,11 +63,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 				continue;
 			}
 
-			if (Array.isArray(hoverMessage)) {
-				result.push(...hoverMessage.map(toHoverMessage));
-			} else {
-				result.push(toHoverMessage(hoverMessage));
-			}
+			result.push(...asArray(hoverMessage).map(toHoverMessage));
 		}
 
 		return result;
@@ -89,17 +88,21 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
-	private _markdownRenderer: MarkdownRenderer;
-	private _computer: MarginComputer;
-	private _hoverOperation: HoverOperation<IHoverMessage[]>;
+	private readonly _markdownRenderer: MarkdownRenderer;
+	private readonly _computer: MarginComputer;
+	private readonly _hoverOperation: HoverOperation<IHoverMessage[]>;
 	private _renderDisposeables: IDisposable[];
 
-	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
+	constructor(
+		editor: ICodeEditor,
+		modeService: IModeService,
+		openerService: IOpenerService | null = NullOpenerService,
+	) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
 		this._lastLineNumber = -1;
 
-		this._markdownRenderer = markdownRenderer;
+		this._markdownRenderer = new MarkdownRenderer(this._editor, modeService, openerService);
 		this._computer = new MarginComputer(this._editor);
 
 		this._hoverOperation = new HoverOperation(

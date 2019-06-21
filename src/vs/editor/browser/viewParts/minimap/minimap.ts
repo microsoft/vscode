@@ -23,9 +23,10 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {
@@ -200,7 +201,7 @@ class MinimapLayout {
 	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
 	 */
 	public getDesiredScrollTopFromDelta(delta: number): number {
-		let desiredSliderPosition = this.sliderTop + delta;
+		const desiredSliderPosition = this.sliderTop + delta;
 		return Math.round(desiredSliderPosition / this._computedSliderRatio);
 	}
 
@@ -257,7 +258,12 @@ class MinimapLayout {
 		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
 		const sliderTop = (scrollTop * computedSliderRatio);
 
-		if (minimapLinesFitting >= lineCount) {
+		let extraLinesAtTheBottom = 0;
+		if (options.scrollBeyondLastLine) {
+			const expectedViewportLineCount = viewportHeight / lineHeight;
+			extraLinesAtTheBottom = expectedViewportLineCount;
+		}
+		if (minimapLinesFitting >= lineCount + extraLinesAtTheBottom) {
 			// All lines fit in the minimap
 			const startLineNumber = 1;
 			const endLineNumber = lineCount;
@@ -330,10 +336,7 @@ class RenderData {
 	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
 	 */
 	public linesEquals(layout: MinimapLayout): boolean {
-		if (this.renderedLayout.startLineNumber !== layout.startLineNumber) {
-			return false;
-		}
-		if (this.renderedLayout.endLineNumber !== layout.endLineNumber) {
+		if (!this.scrollEquals(layout)) {
 			return false;
 		}
 
@@ -349,8 +352,16 @@ class RenderData {
 		return true;
 	}
 
+	/**
+	 * Check if the current RenderData matches the new layout's scroll position
+	 */
+	public scrollEquals(layout: MinimapLayout): boolean {
+		return this.renderedLayout.startLineNumber === layout.startLineNumber
+			&& this.renderedLayout.endLineNumber === layout.endLineNumber;
+	}
+
 	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
-		let tmp = this._renderedLines._get();
+		const tmp = this._renderedLines._get();
 		return {
 			imageData: this._imageData,
 			rendLineNumberStart: tmp.rendLineNumberStart,
@@ -396,7 +407,7 @@ class MinimapBuffers {
 	public getBuffer(): ImageData {
 		// rotate buffers
 		this._lastUsedBuffer = 1 - this._lastUsedBuffer;
-		let result = this._buffers[this._lastUsedBuffer];
+		const result = this._buffers[this._lastUsedBuffer];
 
 		// fill with background color
 		result.data.set(this._backgroundFillData);
@@ -409,7 +420,7 @@ class MinimapBuffers {
 		const backgroundG = background.g;
 		const backgroundB = background.b;
 
-		let result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+		const result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
 		let offset = 0;
 		for (let i = 0; i < HEIGHT; i++) {
 			for (let j = 0; j < WIDTH; j++) {
@@ -430,6 +441,7 @@ export class Minimap extends ViewPart {
 	private readonly _domNode: FastDomNode<HTMLElement>;
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
+	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
 	private readonly _tokensColorTracker: MinimapTokensColorTracker;
@@ -439,6 +451,7 @@ export class Minimap extends ViewPart {
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
+	private _decorationsChanged: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
 	constructor(context: ViewContext) {
@@ -463,6 +476,12 @@ export class Minimap extends ViewPart {
 		this._canvas.setPosition('absolute');
 		this._canvas.setLeft(0);
 		this._domNode.appendChild(this._canvas);
+
+		this._decorationsCanvas = createFastDomNode(document.createElement('canvas'));
+		this._decorationsCanvas.setPosition('absolute');
+		this._decorationsCanvas.setClassName('minimap-decorations-layer');
+		this._decorationsCanvas.setLeft(0);
+		this._domNode.appendChild(this._decorationsCanvas);
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
@@ -564,10 +583,17 @@ export class Minimap extends ViewPart {
 		this._domNode.setWidth(this._options.minimapWidth);
 		this._domNode.setHeight(this._options.minimapHeight);
 		this._shadow.setHeight(this._options.minimapHeight);
+
 		this._canvas.setWidth(this._options.canvasOuterWidth);
 		this._canvas.setHeight(this._options.canvasOuterHeight);
 		this._canvas.domNode.width = this._options.canvasInnerWidth;
 		this._canvas.domNode.height = this._options.canvasInnerHeight;
+
+		this._decorationsCanvas.setWidth(this._options.canvasOuterWidth);
+		this._decorationsCanvas.setHeight(this._options.canvasOuterHeight);
+		this._decorationsCanvas.domNode.width = this._options.canvasInnerWidth;
+		this._decorationsCanvas.domNode.height = this._options.canvasInnerHeight;
+
 		this._slider.setWidth(this._options.minimapWidth);
 	}
 
@@ -584,7 +610,7 @@ export class Minimap extends ViewPart {
 	}
 
 	private _onOptionsMaybeChanged(): boolean {
-		let opts = new MinimapOptions(this._context.configuration);
+		const opts = new MinimapOptions(this._context.configuration);
 		if (this._options.equals(opts)) {
 			return false;
 		}
@@ -642,6 +668,11 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		this._decorationsChanged = true;
+		return true;
+	}
+
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -684,7 +715,76 @@ export class Minimap extends ViewPart {
 		this._sliderHorizontal.setTop(0);
 		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
+		this.renderDecorations(layout);
 		this._lastRenderData = this.renderLines(layout);
+	}
+
+	private renderDecorations(layout: MinimapLayout) {
+		const scrollHasChanged = this._lastRenderData && !this._lastRenderData.scrollEquals(layout);
+		if (scrollHasChanged || this._decorationsChanged) {
+			this._decorationsChanged = false;
+			const decorations = this._context.model.getDecorationsInViewport(new Range(layout.startLineNumber, 1, layout.endLineNumber, this._context.model.getLineMaxColumn(layout.endLineNumber)));
+
+			const { renderMinimap, canvasInnerWidth, canvasInnerHeight } = this._options;
+			const lineHeight = getMinimapLineHeight(renderMinimap);
+			const characterWidth = getMinimapCharWidth(renderMinimap);
+			const tabSize = this._context.model.getOptions().tabSize;
+			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+
+			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
+
+			// If the minimap is rendered using blocks, text takes up half the line height
+			const lineHeightRatio = renderMinimap === RenderMinimap.LargeBlocks || renderMinimap === RenderMinimap.SmallBlocks ? 0.5 : 1;
+			const height = lineHeight * lineHeightRatio;
+
+			for (let i = 0; i < decorations.length; i++) {
+				if (decorations[i].options.minimap) {
+					this.renderDecoration(canvasContext, decorations[i], layout, height, lineHeight, tabSize, characterWidth);
+				}
+			}
+		}
+	}
+
+	private renderDecoration(canvasContext: CanvasRenderingContext2D,
+		decoration: ViewModelDecoration,
+		layout: MinimapLayout,
+		height: number,
+		lineHeight: number,
+		tabSize: number,
+		charWidth: number) {
+		const { startLineNumber, startColumn, endColumn } = decoration.range;
+
+		const startIndex = startColumn - 1;
+		const endIndex = endColumn - 1;
+
+		const y = (startLineNumber - layout.startLineNumber) * lineHeight;
+
+		// Get the offset of the decoration in the line. Have to read line data to see how much space each character takes.
+		let x = 0;
+		let endPosition = 0;
+		const lineData = this._context.model.getLineContent(startLineNumber);
+		for (let i = 0; i < endIndex; i++) {
+			const charCode = lineData.charCodeAt(i);
+			const dx = charCode === CharCode.Tab
+				? tabSize * charWidth
+				: strings.isFullWidthCharacter(charCode)
+					? 2 * charWidth
+					: charWidth;
+
+			if (i < startIndex) {
+				x += dx;
+			}
+
+			endPosition += dx;
+		}
+
+		const width = endPosition - x;
+
+		const minimapOptions = <ModelDecorationMinimapOptions>decoration.options.minimap;
+		const decorationColor = minimapOptions.getColor(this._context.theme);
+
+		canvasContext.fillStyle = decorationColor;
+		canvasContext.fillRect(x, y, width, height);
 	}
 
 	private renderLines(layout: MinimapLayout): RenderData {
@@ -721,7 +821,7 @@ export class Minimap extends ViewPart {
 
 		// Render the rest of lines
 		let dy = 0;
-		let renderedLines: MinimapLine[] = [];
+		const renderedLines: MinimapLine[] = [];
 		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
 			if (needed[lineIndex]) {
 				Minimap._renderLine(
@@ -764,7 +864,7 @@ export class Minimap extends ViewPart {
 		lastRenderData: RenderData | null,
 	): [number, number, boolean[]] {
 
-		let needed: boolean[] = [];
+		const needed: boolean[] = [];
 		if (!lastRenderData) {
 			for (let i = 0, len = endLineNumber - startLineNumber + 1; i < len; i++) {
 				needed[i] = true;
@@ -801,10 +901,10 @@ export class Minimap extends ViewPart {
 				continue;
 			}
 
-			let sourceStart = source_dy * WIDTH * 4;
-			let sourceEnd = (source_dy + minimapLineHeight) * WIDTH * 4;
-			let destStart = dest_dy * WIDTH * 4;
-			let destEnd = (dest_dy + minimapLineHeight) * WIDTH * 4;
+			const sourceStart = source_dy * WIDTH * 4;
+			const sourceEnd = (source_dy + minimapLineHeight) * WIDTH * 4;
+			const destStart = dest_dy * WIDTH * 4;
+			const destEnd = (dest_dy + minimapLineHeight) * WIDTH * 4;
 
 			if (copySourceEnd === sourceStart && copyDestEnd === destStart) {
 				// contiguous zone => extend copy request
@@ -881,7 +981,7 @@ export class Minimap extends ViewPart {
 				const charCode = content.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {
-					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
+					const insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					// No need to render anything since tab is invisible
 					dx += insertSpacesCount * charWidth;
@@ -890,7 +990,7 @@ export class Minimap extends ViewPart {
 					dx += charWidth;
 				} else {
 					// Render twice for a full width character
-					let count = strings.isFullWidthCharacter(charCode) ? 2 : 1;
+					const count = strings.isFullWidthCharacter(charCode) ? 2 : 1;
 
 					for (let i = 0; i < count; i++) {
 						if (renderMinimap === RenderMinimap.Large) {

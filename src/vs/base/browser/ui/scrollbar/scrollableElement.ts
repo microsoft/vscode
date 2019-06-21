@@ -523,7 +523,7 @@ export class DomScrollableElement extends ScrollableElement {
 	}
 
 	public scanDomNode(): void {
-		// widh, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
+		// width, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
 		this.setScrollDimensions({
 			width: this._element.clientWidth,
 			scrollWidth: this._element.scrollWidth,

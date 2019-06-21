@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const ITitleService = createDecorator<ITitleService>('titleService');
 
@@ -14,6 +15,11 @@ export interface ITitleProperties {
 
 export interface ITitleService {
 	_serviceBrand: any;
+
+	/**
+	 * An event when the menubar visibility changes.
+	 */
+	readonly onMenubarVisibilityChange: Event<boolean>;
 
 	/**
 	 * Update some environmental title properties.

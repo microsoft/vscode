@@ -5,28 +5,27 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
+import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
-import * as paths from 'path';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
+import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { whenDeleted } from 'vs/base/node/pfs';
+import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { createWaitMarkerFile } from 'vs/code/node/wait';
-import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension'];
+		|| !!argv['uninstall-extension']
+		|| !!argv['locate-extension'];
 }
 
 interface IMainCli {
@@ -58,6 +57,7 @@ export async function main(argv: string[]): Promise<any> {
 	else if (shouldSpawnCliProcess(args)) {
 		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
 		await cli.main(args);
+
 		return;
 	}
 
@@ -99,9 +99,9 @@ export async function main(argv: string[]): Promise<any> {
 				// prevent removing alternate data streams
 				// (see https://github.com/Microsoft/vscode/issues/6363)
 				fs.truncateSync(target, 0);
-				writeFileAndFlushSync(target, data, { flag: 'r+' });
+				writeFileSync(target, data, { flag: 'r+' });
 			} else {
-				writeFileAndFlushSync(target, data);
+				writeFileSync(target, data);
 			}
 
 			// Restore previous mode as needed
@@ -125,7 +125,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
 
-		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
+		const verbose = args.verbose || args.status;
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -180,11 +180,11 @@ export async function main(argv: string[]): Promise<any> {
 					});
 
 					// Make sure to open tmp file
-					argv.push(stdinFilePath);
+					addArg(argv, stdinFilePath);
 
 					// Enable --wait to get all data and ignore adding this to history
-					argv.push('--wait');
-					argv.push('--skip-add-to-recently-opened');
+					addArg(argv, '--wait');
+					addArg(argv, '--skip-add-to-recently-opened');
 					args.wait = true;
 				}
 
@@ -230,9 +230,9 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = await createWaitMarkerFile(verbose);
+			waitMarkerFilePath = createWaitMarkerFile(verbose);
 			if (waitMarkerFilePath) {
-				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
+				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
 		}
 
@@ -252,13 +252,13 @@ export async function main(argv: string[]): Promise<any> {
 
 			const filenamePrefix = paths.join(os.homedir(), 'prof-' + Math.random().toString(16).slice(-4));
 
-			argv.push(`--inspect-brk=${portMain}`);
-			argv.push(`--remote-debugging-port=${portRenderer}`);
-			argv.push(`--inspect-brk-extensions=${portExthost}`);
-			argv.push(`--prof-startup-prefix`, filenamePrefix);
-			argv.push(`--no-cached-data`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
+			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
+			addArg(argv, `--no-cached-data`);
 
-			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
+			writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
 			processCallbacks.push(async _child => {
 
@@ -330,7 +330,7 @@ export async function main(argv: string[]): Promise<any> {
 					await extHost.stop();
 
 					// re-create the marker file to signal that profiling is done
-					fs.writeFileSync(filenamePrefix, '');
+					writeFileSync(filenamePrefix, '');
 
 				} catch (e) {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
@@ -341,7 +341,7 @@ export async function main(argv: string[]): Promise<any> {
 		if (args['js-flags']) {
 			const match = /max_old_space_size=(\d+)/g.exec(args['js-flags']);
 			if (match && !args['max-memory']) {
-				argv.push(`--max-memory=${match[1]}`);
+				addArg(argv, `--max-memory=${match[1]}`);
 			}
 		}
 
@@ -350,9 +350,7 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== 'undefined') {
-			options['stdio'] = ['pipe', 'pipe', 'pipe'];
-		} else if (!verbose) {
+		if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 

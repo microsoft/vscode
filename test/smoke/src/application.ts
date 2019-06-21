@@ -47,6 +47,10 @@ export class Application {
 		return this.options.logger;
 	}
 
+	get remote(): boolean {
+		return !!this.options.remote;
+	}
+
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;
@@ -60,10 +64,13 @@ export class Application {
 		return this.options.userDataDir;
 	}
 
-	async start(): Promise<any> {
+	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
-		await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+
+		if (expectWalkthroughPart) {
+			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+		}
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
@@ -117,6 +124,7 @@ export class Application {
 			verbose: this.options.verbose,
 			log: this.options.log,
 			extraArgs,
+			remote: this.options.remote
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -131,8 +139,12 @@ export class Application {
 		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
 
+		if (this.remote) {
+			await this.code.waitForElement('.monaco-workbench .statusbar-item.statusbar-entry a[title="Editing on TestResolver"]');
+		}
+
 		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (eg quick open)
-		await new Promise(c => setTimeout(c, 500));
+		// as soon as they open (e.g. quick open)
+		await new Promise(c => setTimeout(c, 1000));
 	}
 }

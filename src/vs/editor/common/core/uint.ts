@@ -5,12 +5,12 @@
 
 export class Uint8Matrix {
 
-	private _data: Uint8Array;
+	private readonly _data: Uint8Array;
 	public readonly rows: number;
 	public readonly cols: number;
 
 	constructor(rows: number, cols: number, defaultValue: number) {
-		let data = new Uint8Array(rows * cols);
+		const data = new Uint8Array(rows * cols);
 		for (let i = 0, len = rows * cols; i < len; i++) {
 			data[i] = defaultValue;
 		}
@@ -85,8 +85,8 @@ export function toUint32(v: number): number {
 }
 
 export function toUint32Array(arr: number[]): Uint32Array {
-	let len = arr.length;
-	let r = new Uint32Array(len);
+	const len = arr.length;
+	const r = new Uint32Array(len);
 	for (let i = 0; i < len; i++) {
 		r[i] = toUint32(arr[i]);
 	}

@@ -31,8 +31,13 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
-	refresh(location: number[]): void {
-		this.model.refresh(location);
+	rerender(location?: number[]): void {
+		if (location === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(location);
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {

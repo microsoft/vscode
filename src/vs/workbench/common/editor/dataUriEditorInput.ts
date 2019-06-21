@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { DataUri } from 'vs/base/common/resources';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 /**
  * An editor input to present data URIs in a binary editor. Data URIs have the form of:
@@ -17,14 +18,10 @@ export class DataUriEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
-	private resource: URI;
-	private readonly name: string | undefined;
-	private readonly description: string | undefined;
-
 	constructor(
-		name: string,
-		description: string,
-		resource: URI,
+		private readonly name: string | undefined,
+		private readonly description: string | undefined,
+		private readonly resource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -55,27 +52,25 @@ export class DataUriEditorInput extends EditorInput {
 	}
 
 	getName(): string | null {
-		return this.name || null;
+		return withUndefinedAsNull(this.name);
 	}
 
 	getDescription(): string | null {
-		return this.description || null;
+		return withUndefinedAsNull(this.description);
 	}
 
 	resolve(): Promise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
 
+		// Compare by resource
 		if (otherInput instanceof DataUriEditorInput) {
-			const otherDataUriEditorInput = <DataUriEditorInput>otherInput;
-
-			// Compare by resource
-			return otherDataUriEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

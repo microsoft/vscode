@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -24,11 +25,13 @@
           ".jshintrc",
           ".jscsrc",
           ".eslintrc",
+          ".swcrc",
           ".webmanifest",
           ".js.map",
           ".css.map"
         ],
         "filenames": [
+          "composer.lock",
           ".watchmanconfig",
           ".ember-cli"
         ],

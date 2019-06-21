@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { getAllPropertyNames } from 'vs/base/common/types';
 
 const INITIALIZE = '$initialize';
 
-export interface IWorker {
+export interface IWorker extends IDisposable {
 	getId(): number;
 	postMessage(message: string): void;
-	dispose(): void;
 }
 
 export interface IWorkerCallback {
@@ -324,7 +324,7 @@ export class SimpleWorkerServer {
 		if (this._requestHandler) {
 			// static request handler
 			let methods: string[] = [];
-			for (let prop in this._requestHandler) {
+			for (const prop of getAllPropertyNames(this._requestHandler)) {
 				if (typeof this._requestHandler[prop] === 'function') {
 					methods.push(prop);
 				}
@@ -360,7 +360,7 @@ export class SimpleWorkerServer {
 				}
 
 				let methods: string[] = [];
-				for (let prop in this._requestHandler) {
+				for (const prop of getAllPropertyNames(this._requestHandler)) {
 					if (typeof this._requestHandler[prop] === 'function') {
 						methods.push(prop);
 					}

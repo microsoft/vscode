@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IExtensionGalleryService, InstallOperation } from '../common/extensionManagement';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ILogService } from 'vs/platform/log/common/log';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
 	return URI.revive(transformer ? transformer.transformIncoming(uri) : uri);
@@ -44,7 +46,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, true);
 	}
 
-	listen(context, event: string): Event<any> {
+	listen(context: any, event: string): Event<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallExtension': return this.onInstallExtension;
@@ -56,7 +58,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
-	call(context, command: string, args?: any): Promise<any> {
+	call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
 		switch (command) {
 			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));
@@ -78,7 +80,12 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	_serviceBrand: any;
 
-	constructor(private channel: IChannel) { }
+	constructor(
+		private readonly channel: IChannel,
+		private readonly remote: boolean,
+		private readonly galleryService: IExtensionGalleryService,
+		private readonly logService: ILogService
+	) { }
 
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
 	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return Event.map(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: i.local ? transformIncomingExtension(i.local, null) : i.local })); }
@@ -86,7 +93,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
 	zip(extension: ILocalExtension): Promise<URI> {
-		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(result)));
+		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(<UriComponents>result)));
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
@@ -97,8 +104,25 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('install', [vsix]));
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
-		return Promise.resolve(this.channel.call('installFromGallery', [extension]));
+	async installFromGallery(extension: IGalleryExtension): Promise<void> {
+		try {
+			await Promise.resolve(this.channel.call('installFromGallery', [extension]));
+		} catch (error) {
+			if (this.remote) {
+				try {
+					const compatible = await this.galleryService.getCompatibleExtension(extension);
+					if (compatible) {
+						const installed = await this.getInstalled(ExtensionType.User);
+						const location = await this.galleryService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
+						await this.install(URI.file(location));
+						return;
+					}
+				} catch (e) {
+					this.logService.error(e);
+				}
+			}
+			throw error;
+		}
 	}
 
 	uninstall(extension: ILocalExtension, force = false): Promise<void> {

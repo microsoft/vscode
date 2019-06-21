@@ -13,9 +13,9 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
 
-	private selection: Selection;
+	private readonly selection: Selection;
 	private selectionId: string;
-	private cursors: Position[];
+	private readonly cursors: Position[];
 
 	constructor(selection: Selection, cursors: Position[]) {
 		this.selection = selection;

@@ -36,10 +36,12 @@ suite('workspace-namespace', () => {
 	});
 
 	test('rootPath', () => {
-		if (vscode.workspace.rootPath) {
-			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
-		}
+		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
 		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+	});
+
+	test('workspaceFile', () => {
+		assert.ok(!vscode.workspace.workspaceFile);
 	});
 
 	test('workspaceFolders', () => {
@@ -75,7 +77,7 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument, untitled is dirty', function () {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './newfile.txt'))).then(doc => {
+		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.workspaceFolders![0].uri.toString() || '', './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 		});
@@ -285,6 +287,30 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('events: onDidSaveTextDocument fires even for non dirty file when saved', () => {
+		return createRandomFile().then(file => {
+			let disposables: vscode.Disposable[] = [];
+
+			let onDidSaveTextDocument = false;
+			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
+				onDidSaveTextDocument = true;
+			}));
+
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc).then(() => {
+					return vscode.commands.executeCommand('workbench.action.files.save').then(() => {
+						assert.ok(onDidSaveTextDocument);
+
+						disposeAll(disposables);
+
+						return deleteFile(file);
+					});
+				});
+			});
+		});
+	});
+
 	test('openTextDocument, with selection', function () {
 		return createRandomFile('foo\nbar\nbar').then(file => {
 			return vscode.workspace.openTextDocument(file).then(doc => {
@@ -487,14 +513,28 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('findFiles', () => {
-		return vscode.workspace.findFiles('*.js').then((res) => {
-			assert.equal(res.length, 1);
-			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles', () => {
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
-	test('findFiles, cancellation', () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles - exclude', () => {
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
+
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles, exclude', () => {
+		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
+			assert.equal(res.length, 1);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
+
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findFiles, cancellation', () => {
 
 		const source = new vscode.CancellationTokenSource();
 		const token = source.token; // just to get an instance first
@@ -505,7 +545,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('findTextInFiles', async () => {
+	(process.platform === 'win32' ? test.skip /* https://github.com/microsoft/vscode/issues/74898 */ : test)('findTextInFiles', async () => {
 		const options: vscode.FindTextInFilesOptions = {
 			include: '*.ts',
 			previewOptions: {
@@ -525,7 +565,7 @@ suite('workspace-namespace', () => {
 		assert.equal(vscode.workspace.asRelativePath(match.uri), '10linefile.ts');
 	});
 
-	test('findTextInFiles, cancellation', async () => {
+	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/74898 */ : suite)('findTextInFiles, cancellation', async () => {
 		const results: vscode.TextSearchResult[] = [];
 		const cancellation = new vscode.CancellationTokenSource();
 		cancellation.cancel();
@@ -568,7 +608,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit should fail when editing renamed from resource', async () => {
 		const resource = await createRandomFile();
-		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
+		const newResource = vscode.Uri.file(resource.fsPath + '.1');
 		const edit = new vscode.WorkspaceEdit();
 		edit.renameFile(resource, newResource);
 		edit.insert(resource, new vscode.Position(0, 0), '');

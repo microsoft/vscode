@@ -27,7 +27,7 @@ bootstrapWindow.load([
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/main').startup(configuration);
+			return require('vs/workbench/electron-browser/main').main(configuration);
 		});
 	}, {
 		removeDeveloperKeybindingsAfterLoad: true,
@@ -35,14 +35,7 @@ bootstrapWindow.load([
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			loaderConfig.recordStats = !!windowConfig['prof-modules'];
-			if (loaderConfig.nodeCachedData) {
-				const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
-				loaderConfig.nodeCachedData.onData = function () {
-					onNodeCachedData.push(arguments);
-				};
-			}
-
+			loaderConfig.recordStats = true;
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');
@@ -50,19 +43,28 @@ bootstrapWindow.load([
 	});
 
 /**
- * @param {object} configuration
+ * // configuration: IWindowConfiguration
+ * @param {{
+ *	partsSplashPath?: string,
+ *	highContrast?: boolean,
+ *	extensionDevelopmentPath?: string | string[],
+ *	folderUri?: object,
+ *	workspace?: object
+ * }} configuration
  */
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
 	let data;
-	try {
-		data = JSON.parse(configuration.partsSplashData);
-	} catch (e) {
-		// ignore
+	if (typeof configuration.partsSplashPath === 'string') {
+		try {
+			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+		} catch (e) {
+			// ignore
+		}
 	}
 
-	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts
+	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
 	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}
@@ -79,8 +81,8 @@ function showPartsSplash(configuration) {
 	const style = document.createElement('style');
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
-	document.body.className = `monaco-shell ${baseTheme}`;
-	style.innerHTML = `.monaco-shell { background-color: ${shellBackground}; color: ${shellForeground}; }`;
+	document.body.className = baseTheme;
+	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; }`;
 
 	if (data && data.layoutInfo) {
 		// restore parts if possible (we might not always store layout info)

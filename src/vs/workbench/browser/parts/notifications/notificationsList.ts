@@ -77,7 +77,8 @@ export class NotificationsList extends Themable {
 			[renderer],
 			{
 				...this.options,
-				setRowLineHeight: false
+				setRowLineHeight: false,
+				horizontalScrolling: false
 			}
 		));
 
@@ -218,7 +219,7 @@ export class NotificationsList extends Themable {
 			this.listContainer.style.background = background ? background.toString() : null;
 
 			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
+			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : '';
 		}
 	}
 

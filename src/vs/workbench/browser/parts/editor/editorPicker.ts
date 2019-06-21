@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/editorpicker';
 import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -14,11 +13,12 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
@@ -38,8 +38,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		};
 	}
 
-	getLabel(): string {
-		return this.editor.getName();
+	getLabel() {
+		return withNullAsUndefined(this.editor.getName());
 	}
 
 	getIcon(): string {
@@ -50,16 +50,16 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return this._group;
 	}
 
-	getResource(): URI {
-		return toResource(this.editor, { supportSideBySide: true });
+	getResource() {
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 
 	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, editor group picker", this.getLabel());
 	}
 
-	getDescription(): string {
-		return this.editor.getDescription();
+	getDescription() {
+		return withNullAsUndefined(this.editor.getDescription());
 	}
 
 	run(mode: Mode, context: IEntryRunContext): boolean {
@@ -109,7 +109,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return false;
 			}
 
-			e.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
+			e.setHighlights(itemScore.labelMatch || [], itemScore.descriptionMatch);
 
 			return true;
 		});

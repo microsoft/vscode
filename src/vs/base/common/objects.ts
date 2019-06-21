@@ -14,7 +14,7 @@ export function deepClone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj).forEach((key: string) => {
+	Object.keys(obj as any).forEach((key: string) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -30,11 +30,11 @@ export function deepFreeze<T>(obj: T): T {
 	}
 	const stack: any[] = [obj];
 	while (stack.length > 0) {
-		let obj = stack.shift();
+		const obj = stack.shift();
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
-				let prop = obj[key];
+				const prop = obj[key];
 				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
 					stack.push(prop);
 				}
@@ -173,34 +173,6 @@ export function equals(one: any, other: any): boolean {
 		}
 	}
 	return true;
-}
-
-function arrayToHash(array: string[]): { [name: string]: true } {
-	const result: any = {};
-	for (const e of array) {
-		result[e] = true;
-	}
-	return result;
-}
-
-/**
- * Given an array of strings, returns a function which, given a string
- * returns true or false whether the string is in that array.
- */
-export function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): (str: string) => boolean {
-	if (caseInsensitive) {
-		arr = arr.map(function (x) { return x.toLowerCase(); });
-	}
-	const hash = arrayToHash(arr);
-	if (caseInsensitive) {
-		return function (word) {
-			return hash[word.toLowerCase()] !== undefined && hash.hasOwnProperty(word.toLowerCase());
-		};
-	} else {
-		return function (word) {
-			return hash[word] !== undefined && hash.hasOwnProperty(word);
-		};
-	}
 }
 
 /**

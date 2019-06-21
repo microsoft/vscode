@@ -13,6 +13,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -62,10 +63,8 @@ export interface ISplitLine {
 	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
 }
 
-export interface IViewModelLinesCollection {
+export interface IViewModelLinesCollection extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
-
-	dispose(): void;
 
 	setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean;
 	setTabSize(newTabSize: number): boolean;
@@ -149,7 +148,7 @@ const enum IndentGuideRepeatOption {
 
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
-	private model: ITextModel;
+	private readonly model: ITextModel;
 	private _validModelVersionId: number;
 
 	private wrappingColumn: number;
@@ -160,7 +159,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private prefixSumComputer: PrefixSumComputerWithCache;
 
-	private linePositionMapperFactory: ILineMapperFactory;
+	private readonly linePositionMapperFactory: ILineMapperFactory;
 
 	private hiddenAreasIds: string[];
 
@@ -1001,11 +1000,11 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 
 export class SplitLine implements ISplitLine {
 
-	private positionMapper: ILineMapping;
-	private outputLineCount: number;
+	private readonly positionMapper: ILineMapping;
+	private readonly outputLineCount: number;
 
-	private wrappedIndent: string;
-	private wrappedIndentLength: number;
+	private readonly wrappedIndent: string;
+	private readonly wrappedIndentLength: number;
 	private _isVisible: boolean;
 
 	constructor(positionMapper: ILineMapping, isVisible: boolean) {

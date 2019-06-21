@@ -6,16 +6,17 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -23,7 +24,7 @@ export interface INativeOpenDialogOptions {
 	windowId?: number;
 	forceNewWindow?: boolean;
 
-	dialogOptions?: OpenDialogOptions;
+	defaultPath?: string;
 
 	telemetryEventName?: string;
 	telemetryExtraData?: ITelemetryData;
@@ -31,7 +32,7 @@ export interface INativeOpenDialogOptions {
 
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
-	backupPath: string;
+	backupPath?: string;
 }
 
 export interface CrashReporterStartOptions {
@@ -84,6 +85,7 @@ export interface SaveDialogOptions {
 
 export interface INewWindowOptions {
 	remoteAuthority?: string;
+	reuseWindow?: boolean;
 }
 
 export interface IDevToolsOptions {
@@ -114,13 +116,11 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
 	toggleDevTools(windowId: number): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
-	enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined>;
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined>;
-	saveAndEnterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
-	addRecentlyOpened(files: URI[]): Promise<void>;
-	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	focusWindow(windowId: number): Promise<void>;
@@ -151,13 +151,13 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, paths: URI[], options?: IOpenSettings): Promise<void>;
+	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
-	showWindow(windowId: number): Promise<void>;
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;
-	showItemInFolder(path: string): Promise<void>;
+	showItemInFolder(path: URI): Promise<void>;
 	getActiveWindowId(): Promise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent
@@ -181,11 +181,42 @@ export interface IMessageBoxResult {
 export interface IOpenSettings {
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
-	forceOpenWorkspaceAsFile?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	noRecentEntry?: boolean;
+	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;
 }
+
+export type IURIToOpen = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
+
+export interface IWorkspaceToOpen {
+	workspaceUri: URI;
+	label?: string;
+}
+
+export interface IFolderToOpen {
+	folderUri: URI;
+	label?: string;
+}
+
+export interface IFileToOpen {
+	fileUri: URI;
+	label?: string;
+}
+
+export function isWorkspaceToOpen(uriToOpen: IURIToOpen): uriToOpen is IWorkspaceToOpen {
+	return !!uriToOpen['workspaceUri'];
+}
+
+export function isFolderToOpen(uriToOpen: IURIToOpen): uriToOpen is IFolderToOpen {
+	return !!uriToOpen['folderUri'];
+}
+
+export function isFileToOpen(uriToOpen: IURIToOpen): uriToOpen is IFileToOpen {
+	return !!uriToOpen['fileUri'];
+}
+
 
 export interface IWindowService {
 
@@ -196,8 +227,8 @@ export interface IWindowService {
 
 	readonly hasFocus: boolean;
 
-	getConfiguration(): IWindowConfiguration;
-	getCurrentWindowId(): number;
+	readonly windowId: number;
+
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
@@ -207,15 +238,13 @@ export interface IWindowService {
 	toggleDevTools(): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
-	enterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined>;
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined>;
-	saveAndEnterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(): Promise<void>;
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
-	openWindow(paths: URI[], options?: IOpenSettings): Promise<void>;
+	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 	setDocumentEdited(flag: boolean): Promise<void>;
 	isMaximized(): Promise<boolean>;
@@ -223,7 +252,6 @@ export interface IWindowService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 	onWindowTitleDoubleClick(): Promise<void>;
-	show(): Promise<void>;
 	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
 	showSaveDialog(options: SaveDialogOptions): Promise<string>;
 	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;
@@ -251,11 +279,14 @@ export interface IWindowSettings {
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
-	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
+	if (isWeb) {
+		return 'custom';
+	}
+
 	const configuration = configurationService.getValue<IWindowSettings>('window');
 
 	const isDev = !environment.isBuilt || isExtensionDevelopment;
@@ -274,18 +305,13 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
 		}
 
-		const smoothScrollingWorkaround = isWindows && configuration.smoothScrollingWorkaround === true;
-		if (smoothScrollingWorkaround) {
-			return 'native'; // smooth scrolling workaround does not work with custom title style
-		}
-
 		const style = configuration.titleBarStyle;
-		if (style === 'native') {
-			return 'native';
+		if (style === 'native' || style === 'custom') {
+			return style;
 		}
 	}
 
-	return 'custom'; // default to custom on all OS
+	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
 export const enum OpenContext {
@@ -334,22 +360,23 @@ export const enum ReadyState {
 
 export interface IPath extends IPathData {
 
-	// the file path to open within a Code instance
+	// the file path to open within the instance
 	fileUri?: URI;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
 	paths: IPath[];
+	waitMarkerFileUri: URI;
 }
 
 export interface IPathsToWaitForData {
 	paths: IPathData[];
-	waitMarkerFilePath: string;
+	waitMarkerFileUri: UriComponents;
 }
 
 export interface IPathData {
 
-	// the file path to open within a Code instance
+	// the file path to open within the instance
 	fileUri?: UriComponents;
 
 	// the line number in the file path to open
@@ -357,11 +384,15 @@ export interface IPathData {
 
 	// the column number in the file path to open
 	columnNumber?: number;
+
+	// a hint that the file exists. if true, the
+	// file exists, if false it does not. with
+	// undefined the state is unknown.
+	exists?: boolean;
 }
 
 export interface IOpenFileRequest {
-	filesToOpen?: IPathData[];
-	filesToCreate?: IPathData[];
+	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
 	filesToWait?: IPathsToWaitForData;
 	termProgram?: string;
@@ -383,7 +414,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	isInitialStartup?: boolean;
 
 	userEnv: IProcessEnvironment;
-	nodeCachedDataDir: string;
+	nodeCachedDataDir?: string;
 
 	backupPath?: string;
 
@@ -398,15 +429,14 @@ export interface IWindowConfiguration extends ParsedArgs {
 	highContrast?: boolean;
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
-	partsSplashData?: string;
+	partsSplashPath?: string;
 
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
 	perfEntries: ExportData;
 
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
+	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
@@ -422,37 +452,36 @@ export interface IRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
 }
 
-export class ActiveWindowManager implements IDisposable {
+export class ActiveWindowManager extends Disposable {
 
-	private disposables: IDisposable[] = [];
-	private firstActiveWindowIdPromise: Promise<any> | null;
-	private _activeWindowId: number | undefined;
+	private readonly disposables = this._register(new DisposableStore());
+	private firstActiveWindowIdPromise: CancelablePromise<number | undefined> | undefined;
+	private activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
+		super();
+
 		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
-		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
-			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
+		this.firstActiveWindowIdPromise = createCancelablePromise(_ => windowsService.getActiveWindowId());
+		this.firstActiveWindowIdPromise
+			.then(id => this.activeWindowId = typeof this.activeWindowId === 'number' ? this.activeWindowId : id)
+			.finally(this.firstActiveWindowIdPromise = undefined);
 	}
 
 	private setActiveWindow(windowId: number | undefined) {
 		if (this.firstActiveWindowIdPromise) {
-			this.firstActiveWindowIdPromise = null;
+			this.firstActiveWindowIdPromise.cancel();
+			this.firstActiveWindowIdPromise = undefined;
 		}
 
-		this._activeWindowId = windowId;
+		this.activeWindowId = windowId;
 	}
 
-	getActiveClientId(): Promise<string> {
-		if (this.firstActiveWindowIdPromise) {
-			return this.firstActiveWindowIdPromise;
-		}
+	async getActiveClientId(): Promise<string | undefined> {
+		const id = this.firstActiveWindowIdPromise ? (await this.firstActiveWindowIdPromise) : this.activeWindowId;
 
-		return Promise.resolve(`window:${this._activeWindowId}`);
-	}
-
-	dispose() {
-		this.disposables = dispose(this.disposables);
+		return `window:${id}`;
 	}
 }

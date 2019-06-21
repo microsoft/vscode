@@ -8,7 +8,8 @@ import { getMachineId } from 'vs/base/node/id';
 
 suite('ID', () => {
 
-	test('getMachineId', () => {
+	test('getMachineId', function () {
+		this.timeout(20000);
 		return getMachineId().then(id => {
 			assert.ok(id);
 		});

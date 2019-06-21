@@ -6,11 +6,17 @@
 import { ITextModel, IModelDecoration } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMarker } from 'vs/platform/markers/common/markers';
+import { Event } from 'vs/base/common/event';
+import { Range } from 'vs/editor/common/core/range';
 
 export const IMarkerDecorationsService = createDecorator<IMarkerDecorationsService>('markerDecorationsService');
 
 export interface IMarkerDecorationsService {
 	_serviceBrand: any;
 
+	onDidChangeMarker: Event<ITextModel>;
+
 	getMarker(model: ITextModel, decoration: IModelDecoration): IMarker | null;
+
+	getLiveMarkers(model: ITextModel): [Range, IMarker][];
 }

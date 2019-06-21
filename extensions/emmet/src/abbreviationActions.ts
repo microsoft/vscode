@@ -54,7 +54,11 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = 'html';
+	args = args || {};
+	if (!args['language']) {
+		args['language'] = editor.document.languageId;
+	}
+	const syntax = getSyntaxFromArgs(args) || 'html';
 	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;
@@ -487,7 +491,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	}
 
 	let valid = true;
-	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. Eg: <div|
+	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. E.g.: <div|
 	let i = textToBackTrack.length - 1;
 	if (textToBackTrack[i] === startAngle) {
 		return false;

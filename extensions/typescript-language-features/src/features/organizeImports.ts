@@ -46,7 +46,7 @@ class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const response = await this.client.execute('organizeImports', args, nulToken);
+		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
 			return false;
 		}
@@ -57,6 +57,8 @@ class OrganizeImportsCommand implements Command {
 }
 
 export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v280;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager,
@@ -82,7 +84,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
-		if (!context.only || !vscode.CodeActionKind.SourceOrganizeImports.intersects(context.only)) {
+		if (!context.only || !context.only.contains(vscode.CodeActionKind.SourceOrganizeImports)) {
 			return [];
 		}
 
@@ -103,7 +105,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, API.v280, () => {
+	return new VersionDependentRegistration(client, OrganizeImportsCodeActionProvider.minVersion, () => {
 		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerCodeActionsProvider(selector,
 			organizeImportsProvider,

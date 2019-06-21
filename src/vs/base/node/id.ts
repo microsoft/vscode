@@ -11,7 +11,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
 // Microsoft Hyper-V, Virtual Server, Virtual PC	00-03-FF
-// Parallells Desktop, Workstation, Server, Virtuozzo	00-1C-42
+// Parallels Desktop, Workstation, Server, Virtuozzo	00-1C-42
 // Virtual Iron 4	00-0F-4B
 // Red Hat Xen	00-16-3E
 // Oracle VM	00-16-3E
@@ -20,8 +20,8 @@ import { TernarySearchTree } from 'vs/base/common/map';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs: TernarySearchTree<boolean>;
-	private _value: number;
+	private _virtualMachineOUIs?: TernarySearchTree<boolean>;
+	private _value?: number;
 
 	private _isVirtualMachineMacAdress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
@@ -97,7 +97,7 @@ function getMacMachineId(): Promise<string> {
 				// TODO@sbatten: Remove this when getmac is patched
 				setTimeout(() => {
 					resolve(undefined);
-				}, 1000);
+				}, 10000);
 			} catch (err) {
 				errors.onUnexpectedError(err);
 				resolve(undefined);
