@@ -36,7 +36,11 @@ import { RemoteAuthorityResolverError, ExtensionExecutionContext, ExtensionKind 
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
+	// Old test runner spec, shipped in vscode/lib/testrunner
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
+
+	// New test runner spec
+	runTests(): Promise<boolean>;
 }
 
 export interface IHostUtils {
@@ -534,7 +538,26 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			requireError = error;
 		}
 
-		// Execute the runner if it follows our spec
+		// Execute the runner following the new `runTests` spec
+		if (testRunner && typeof testRunner.runTests === 'function') {
+			return new Promise<void>((c, e) => {
+				testRunner!.runTests()
+					.then((succeeded) => {
+						if (succeeded) {
+							c(undefined);
+							this._gracefulExit(0);
+						} else {
+							this._gracefulExit(1);
+						}
+					})
+					.catch(err => {
+						e(err);
+						this._gracefulExit(1);
+					});
+			});
+		}
+
+		// Execute the runner if it follows the old `run` spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
 				testRunner!.run(extensionTestsPath, (error, failures) => {
