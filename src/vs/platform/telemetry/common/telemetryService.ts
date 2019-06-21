@@ -13,7 +13,7 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
@@ -132,7 +132,7 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean): Promise<any> {
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
 		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 

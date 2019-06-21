@@ -50,7 +50,7 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 //#region Backup File
 
@@ -660,7 +660,7 @@ export class SimpleTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>) {
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
 

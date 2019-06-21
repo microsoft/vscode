@@ -8,14 +8,14 @@ import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>) {
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
 	setEnabled() { }

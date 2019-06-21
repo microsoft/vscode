@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -30,7 +30,7 @@ export interface ITelemetryService {
 	 */
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean): Promise<void>;
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
 
 	setEnabled(value: boolean): void;
 
