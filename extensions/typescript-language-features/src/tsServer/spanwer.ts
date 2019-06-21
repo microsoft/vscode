@@ -36,30 +36,30 @@ export class TypeScriptServerSpawner {
 		pluginManager: PluginManager
 	): ITypeScriptServer {
 		if (this.shouldUseSeparateSyntaxServer(version)) {
-			const syntaxServer = this.spawnProcessBasedTsServer('syntax', version, configuration, pluginManager, ['--syntaxOnly', '--disableAutomaticTypingAcquisition']);
-			const semanticServer = this.spawnProcessBasedTsServer('semantic', version, configuration, pluginManager, []);
+			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager, ['--syntaxOnly', '--disableAutomaticTypingAcquisition']);
+			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager, []);
 			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
 		}
 
-		return this.spawnProcessBasedTsServer('main', version, configuration, pluginManager, []);
+		return this.spawnTsServer('main', version, configuration, pluginManager, []);
 	}
 
 	private shouldUseSeparateSyntaxServer(version: TypeScriptVersion): boolean {
-		if (!version.version || version.version.lt(API.v340)) {
+		if (!version.apiVersion || version.apiVersion.lt(API.v340)) {
 			return false;
 		}
 		return vscode.workspace.getConfiguration('typescript')
 			.get<boolean>('experimental.useSeparateSyntaxServer', false);
 	}
 
-	private spawnProcessBasedTsServer(
+	private spawnTsServer(
 		serverId: string,
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager,
 		extraForkArgs: readonly string[],
 	): ITypeScriptServer {
-		const apiVersion = version.version || API.defaultVersion;
+		const apiVersion = version.apiVersion || API.defaultVersion;
 
 		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
 
