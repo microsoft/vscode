@@ -28,17 +28,16 @@ import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationN
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 
-export class BrowserKeyboardMapperFactory {
-	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
+export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper
-	private _initialized: boolean;
-	private _keyboardMapper: IKeyboardMapper | null;
+	protected _initialized: boolean;
+	protected _keyboardMapper: IKeyboardMapper | null;
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	// keymap infos
-	private _keymapInfos: KeymapInfo[];
-	private _mru: KeymapInfo[];
+	protected _keymapInfos: KeymapInfo[];
+	protected _mru: KeymapInfo[];
 	private _activeKeymapInfo: KeymapInfo | null;
 
 	get activeKeymap(): KeymapInfo | null {
@@ -69,22 +68,12 @@ export class BrowserKeyboardMapperFactory {
 		return this._keymapInfos.map(keymapInfo => keymapInfo.layout);
 	}
 
-	private constructor() {
+	protected constructor() {
 		this._keyboardMapper = null;
 		this._initialized = false;
 		this._keymapInfos = [];
 		this._mru = [];
 		this._activeKeymapInfo = null;
-
-		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
-
-		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
-			let keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
-			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
-			this._mru = this._keymapInfos;
-			this._initialized = true;
-			this.onKeyboardLayoutChanged();
-		});
 
 		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
 			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
@@ -369,6 +358,25 @@ export class BrowserKeyboardMapperFactory {
 	}
 
 	//#endregion
+}
+
+export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
+	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
+	// keyboard mapper
+
+	private constructor() {
+		super();
+
+		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
+
+		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
+			let keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
+			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
+			this._mru = this._keymapInfos;
+			this._initialized = true;
+			this.onKeyboardLayoutChanged();
+		});
+	}
 }
 
 class UserKeyboardLayout extends Disposable {
