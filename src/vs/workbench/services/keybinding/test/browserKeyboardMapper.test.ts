@@ -8,7 +8,6 @@ import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 import { BrowserKeyboardMapperFactoryBase } from '../browser/keymapService';
 import { KeymapInfo, IKeymapInfo } from '../common/keymapInfo';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	public static readonly INSTANCE = new TestKeyboardMapperFactory();
