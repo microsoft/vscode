@@ -225,7 +225,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		terminalFocusContextKey: IContextKey<boolean>,
 		configHelper: ITerminalConfigHelper,
 		private _container: HTMLElement,
-		shellLaunchConfig: IShellLaunchConfig,
+		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
 	) {
@@ -233,12 +233,17 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onDisposed = new Emitter<ITerminalTab>();
 		this._onInstancesChanged = new Emitter<void>();
 
-		const instance = this._terminalService.createInstance(
-			terminalFocusContextKey,
-			configHelper,
-			undefined,
-			shellLaunchConfig,
-			true);
+		let instance: ITerminalInstance;
+		if ('id' in shellLaunchConfigOrInstance) {
+			instance = shellLaunchConfigOrInstance;
+		} else {
+			instance = this._terminalService.createInstance(
+				terminalFocusContextKey,
+				configHelper,
+				undefined,
+				shellLaunchConfigOrInstance,
+				true);
+		}
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
 		this._activeInstanceIndex = 0;

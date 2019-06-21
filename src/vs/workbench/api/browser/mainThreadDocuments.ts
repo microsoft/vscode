@@ -228,10 +228,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): Promise<URI> {
+	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
 		return this._untitledEditorService.loadOrCreate({
 			resource,
-			modeId,
+			mode,
 			initialValue,
 			useResourcePath: Boolean(resource && resource.path)
 		}).then(model => {

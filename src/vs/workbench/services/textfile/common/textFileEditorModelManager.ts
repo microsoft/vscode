@@ -153,7 +153,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model does not exist
 		else {
-			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
+			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
 			modelPromise = model.load(options);
 
 			// Install state change listener
@@ -203,6 +203,11 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
+
+			// Apply mode if provided
+			if (options && options.mode) {
+				resolvedModel.setMode(options.mode);
+			}
 
 			return resolvedModel;
 		} catch (error) {

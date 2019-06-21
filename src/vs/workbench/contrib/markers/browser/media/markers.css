@@ -160,31 +160,6 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-	width: 16px;
-}
-
-.markers-panel .marker-icon.warning {
-	background: url('status-warning.svg') center center no-repeat;
-}
-
-.markers-panel .marker-icon.error {
-	background: url('status-error.svg') center center no-repeat;
-}
-
-.markers-panel .marker-icon.info {
-	background: url('status-info.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.warning {
-	background: url('status-warning-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.error {
-	background: url('status-error-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.info {
-	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {

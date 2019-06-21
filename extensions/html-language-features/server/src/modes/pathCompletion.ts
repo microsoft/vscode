@@ -7,7 +7,7 @@ import { TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Posi
 import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { ICompletionParticipant } from 'vscode-html-languageservice';
 import { startsWith } from '../utils/strings';
 import { contains } from '../utils/arrays';
@@ -160,6 +160,7 @@ function shiftRange(range: Range, startOffset: number, endOffset: number): Range
 const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	// HTML 4
 	a: 'href',
+	area: 'href',
 	body: 'background',
 	del: 'cite',
 	form: 'action',
@@ -176,7 +177,7 @@ const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	command: 'icon',
 	embed: 'src',
 	html: 'manifest',
-	input: 'formaction',
+	input: ['src', 'formaction'],
 	source: 'src',
 	track: 'src',
 	video: ['src', 'poster']

@@ -5,13 +5,12 @@
 
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
-import * as env from 'vs/base/common/platform';
 import * as DOM from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -69,11 +68,11 @@ export class EmptyView extends ViewletPanel {
 		this.button = new Button(messageContainer);
 		attachButtonStyler(this.button, this.themeService);
 
-		this.disposables.push(this.button.onDidClick(() => {
+		this._register(this.button.onDidClick(() => {
 			if (!this.actionRunner) {
 				return;
 			}
-			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner.run(action).then(() => {
 				action.dispose();
@@ -83,7 +82,7 @@ export class EmptyView extends ViewletPanel {
 			});
 		}));
 
-		this.disposables.push(new DragAndDropObserver(container, {
+		this._register(new DragAndDropObserver(container, {
 			onDrop: e => {
 				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';

@@ -214,6 +214,7 @@ export interface IPreferencesService {
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
 	switch (target) {
+		case ConfigurationTarget.USER:
 		case ConfigurationTarget.USER_LOCAL:
 			return localize('userSettingsTarget', "User Settings");
 		case ConfigurationTarget.WORKSPACE:

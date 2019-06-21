@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal, TerminalDimensionsChangeEvent } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -518,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -568,7 +569,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	suite('Terminal', () => {
+	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/75689 */ : suite)('Terminal', () => {
 		test('sendText immediately after createTerminal should not throw', () => {
 			const terminal = window.createTerminal();
 			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
@@ -585,14 +586,14 @@ suite('window namespace tests', () => {
 			terminal.dispose();
 		});
 
-		// test('processId immediately after createTerminal should fetch the pid', (done) => {
-		// 	const terminal = window.createTerminal();
-		// 	terminal.processId.then(id => {
-		// 		assert.ok(id > 0);
-		// 		terminal.dispose();
-		// 		done();
-		// 	});
-		// });
+		test('processId immediately after createTerminal should fetch the pid', (done) => {
+			const terminal = window.createTerminal();
+			terminal.processId.then(id => {
+				assert.ok(id > 0);
+				terminal.dispose();
+				done();
+			});
+		});
 
 		test('name in constructor should set terminal.name', () => {
 			const terminal = window.createTerminal('a');
@@ -680,62 +681,85 @@ suite('window namespace tests', () => {
 			const renderer = window.createTerminalRenderer('foo');
 		});
 
-		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
-		// 	const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-		// 		assert.equal(active, terminal);
-		// 		assert.equal(active, window.activeTerminal);
-		// 		reg1.dispose();
-		// 		const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-		// 			assert.equal(active, undefined);
-		// 			assert.equal(active, window.activeTerminal);
-		// 			reg2.dispose();
-		// 			done();
-		// 		});
-		// 		terminal.dispose();
-		// 	});
-		// 	const terminal = window.createTerminal();
-		// 	terminal.show();
-		// });
+		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
+			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+				assert.equal(active, terminal);
+				assert.equal(active, window.activeTerminal);
+				reg1.dispose();
+				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+					assert.equal(active, undefined);
+					assert.equal(active, window.activeTerminal);
+					reg2.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+			const terminal = window.createTerminal();
+			terminal.show();
+		});
 
-		// test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-		// 	const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
-		// 		assert.equal(event.terminal, terminal1);
-		// 		assert.equal(typeof event.dimensions.columns, 'number');
-		// 		assert.equal(typeof event.dimensions.rows, 'number');
-		// 		assert.ok(event.dimensions.columns > 0);
-		// 		assert.ok(event.dimensions.rows > 0);
-		// 		reg1.dispose();
-		// 		let terminal2: Terminal;
-		// 		const reg2 = window.onDidOpenTerminal((newTerminal) => {
-		// 			// This is guarantees to fire before dimensions change event
-		// 			if (newTerminal !== terminal1) {
-		// 				terminal2 = newTerminal;
-		// 				reg2.dispose();
-		// 			}
-		// 		});
-		// 		let firstCalled = false;
-		// 		let secondCalled = false;
-		// 		const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
-		// 			if (event.terminal === terminal1) {
-		// 				// The original terminal should fire dimension change after a split
-		// 				firstCalled = true;
-		// 			} else if (event.terminal !== terminal1) {
-		// 				// The new split terminal should fire dimension change
-		// 				secondCalled = true;
-		// 			}
-		// 			if (firstCalled && secondCalled) {
-		// 				terminal1.dispose();
-		// 				terminal2.dispose();
-		// 				reg3.dispose();
-		// 				done();
-		// 			}
-		// 		});
-		// 		await timeout(500);
-		// 		commands.executeCommand('workbench.action.terminal.split');
-		// 	});
-		// 	const terminal1 = window.createTerminal({ name: 'test' });
-		// 	terminal1.show();
-		// });
+		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
+			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
+				assert.equal(event.terminal, terminal1);
+				assert.equal(typeof event.dimensions.columns, 'number');
+				assert.equal(typeof event.dimensions.rows, 'number');
+				assert.ok(event.dimensions.columns > 0);
+				assert.ok(event.dimensions.rows > 0);
+				reg1.dispose();
+				let terminal2: Terminal;
+				const reg2 = window.onDidOpenTerminal((newTerminal) => {
+					// This is guarantees to fire before dimensions change event
+					if (newTerminal !== terminal1) {
+						terminal2 = newTerminal;
+						reg2.dispose();
+					}
+				});
+				let firstCalled = false;
+				let secondCalled = false;
+				const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
+					if (event.terminal === terminal1) {
+						// The original terminal should fire dimension change after a split
+						firstCalled = true;
+					} else if (event.terminal !== terminal1) {
+						// The new split terminal should fire dimension change
+						secondCalled = true;
+					}
+					if (firstCalled && secondCalled) {
+						terminal1.dispose();
+						terminal2.dispose();
+						reg3.dispose();
+						done();
+					}
+				});
+				await timeout(500);
+				commands.executeCommand('workbench.action.terminal.split');
+			});
+			const terminal1 = window.createTerminal({ name: 'test' });
+			terminal1.show();
+		});
+
+		test('runInBackground terminal: onDidWriteData should work', done => {
+			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+			let data = '';
+			terminal.onDidWriteData(e => {
+				data += e;
+				if (data.indexOf('foo') !== -1) {
+					terminal.dispose();
+					done();
+				}
+			});
+			terminal.sendText('foo');
+		});
+
+		test('runInBackground terminal: should be available to terminals API', done => {
+			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+			window.onDidOpenTerminal(t => {
+				assert.equal(t, terminal);
+				assert.equal(t.name, 'bg');
+				assert.ok(window.terminals.indexOf(terminal) !== -1);
+				done();
+			});
+		});
 	});
 });
 

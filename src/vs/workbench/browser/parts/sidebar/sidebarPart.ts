@@ -189,19 +189,18 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
-			return Promise.resolve(this.doOpenViewlet(id, focus));
+			return this.doOpenViewlet(id, focus);
 		}
 
-		return this.extensionService.whenInstalledExtensionsRegistered()
-			.then(() => {
-				if (typeof id === 'string' && this.getViewlet(id)) {
-					return this.doOpenViewlet(id, focus);
-				}
+		await this.extensionService.whenInstalledExtensionsRegistered();
 
-				return null;
-			});
+		if (typeof id === 'string' && this.getViewlet(id)) {
+			return this.doOpenViewlet(id, focus);
+		}
+
+		return null;
 	}
 
 	getViewlets(): ViewletDescriptor[] {
@@ -248,7 +247,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => contextMenuActions,
-					getActionItem: action => this.actionItemProvider(action as Action),
+					getActionViewItem: action => this.actionViewItemProvider(action as Action),
 					actionRunner: activeViewlet.getActionRunner()
 				});
 			}

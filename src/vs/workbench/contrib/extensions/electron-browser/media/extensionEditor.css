@@ -41,11 +41,13 @@
 	line-height: 38px;
 	border-radius: 20px;
 	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .extension-editor > .header > .icon-container .extension-remote-badge .octicon {
-	font-size: 32px;
-	vertical-align: middle;
+	font-size: 28px;
 }
 
 .extension-editor > .header > .details {
@@ -145,6 +147,9 @@
 	padding: 1px 6px;
 }
 
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+	max-width: 300px;
+}
 
 .extension-editor > .header > .details > .subtext-container {
 	display: block;

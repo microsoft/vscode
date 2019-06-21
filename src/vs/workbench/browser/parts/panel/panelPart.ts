@@ -30,7 +30,7 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -70,7 +70,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private panelFocusContextKey: IContextKey<boolean>;
 
 	private compositeBar: CompositeBar;
-	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
 
 	private blockOpeningPanel: boolean;
 	private dimension: Dimension;
@@ -229,8 +229,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
-	private getPanel(panelId: string): IPanelIdentifier | undefined {
-		return this.getPanels().filter(p => p.id === panelId).pop();
+	getPanel(panelId: string): IPanelIdentifier | undefined {
+		return withNullAsUndefined(Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(panelId));
 	}
 
 	getPanels(): PanelDescriptor[] {
@@ -245,7 +245,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
 	}
 
-	protected getActions(): IAction[] {
+	protected getActions(): ReadonlyArray<IAction> {
 		return [
 			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
 			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
@@ -261,6 +261,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	hideActivePanel(): void {
+		// First check if panel is visible and hide if so
+		if (this.layoutService.isVisible(Parts.PANEL_PART)) {
+			this.layoutService.setPanelHidden(true);
+		}
+
 		this.hideActiveComposite();
 	}
 
@@ -311,13 +316,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } {
-		let compositeActions = this.compositeActions[compositeId];
+		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			compositeActions = {
 				activityAction: this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
 				pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
 			};
-			this.compositeActions[compositeId] = compositeActions;
+
+			this.compositeActions.set(compositeId, compositeActions);
 		}
 
 		return compositeActions;
@@ -325,11 +331,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	protected removeComposite(compositeId: string): boolean {
 		if (super.removeComposite(compositeId)) {
-			const compositeActions = this.compositeActions[compositeId];
+			const compositeActions = this.compositeActions.get(compositeId);
 			if (compositeActions) {
 				compositeActions.activityAction.dispose();
 				compositeActions.pinnedAction.dispose();
-				delete this.compositeActions[compositeId];
+				this.compositeActions.delete(compositeId);
 			}
 
 			return true;
@@ -394,9 +400,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private getCachedPanels(): ICachedPanel[] {
 		const registeredPanels = this.getPanels();
 
-		const storedStates = <Array<string | ICachedPanel>>JSON.parse(this.cachedPanelsValue);
-		const cachedPanels = <ICachedPanel[]>storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedPanel>{ id: c, pinned: true, order: undefined, visible: true } : c;
+		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
+		const cachedPanels = storedStates.map(c => {
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
 			const registered = registeredPanels.some(p => p.id === serialized.id);
 			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;

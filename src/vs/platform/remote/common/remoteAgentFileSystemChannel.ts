@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -50,7 +50,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 
 	setCaseSensitive(isCaseSensitive: boolean) {
 		let capabilities = (
-			FileSystemProviderCapabilities.FileReadWrite
+			FileSystemProviderCapabilities.FileOpenReadWriteClose
 			| FileSystemProviderCapabilities.FileFolderCopy
 		);
 
@@ -68,14 +68,28 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 		return this.channel.call('stat', [resource]);
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		const buff = <VSBuffer>await this.channel.call('readFile', [resource]);
-
-		return buff.buffer;
+	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		return this.channel.call('open', [resource, opts]);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
+	close(fd: number): Promise<void> {
+		return this.channel.call('close', [fd]);
+	}
+
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const [bytes, bytesRead]: [VSBuffer, number] = await this.channel.call('read', [fd, pos, length]);
+
+		// copy back the data that was written into the buffer on the remote
+		// side. we need to do this because buffers are not referenced by
+		// pointer, but only by value and as such cannot be directly written
+		// to from the other process.
+		data.set(bytes.buffer.slice(0, bytesRead), offset);
+
+		return bytesRead;
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return this.channel.call('write', [fd, pos, VSBuffer.wrap(data), offset, length]);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {

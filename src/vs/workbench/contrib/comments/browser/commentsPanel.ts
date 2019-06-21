@@ -19,11 +19,12 @@ import { ReviewController } from 'vs/workbench/contrib/comments/browser/comments
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -266,3 +267,14 @@ export class CommentsPanel extends Panel {
 		}
 	}
 }
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.focusCommentsPanel',
+	handler: (accessor) => {
+		const panelService = accessor.get(IPanelService);
+		const panels = panelService.getPanels();
+		if (panels.some(panelIdentifier => panelIdentifier.id === COMMENTS_PANEL_ID)) {
+			panelService.openPanel(COMMENTS_PANEL_ID, true);
+		}
+	}
+});

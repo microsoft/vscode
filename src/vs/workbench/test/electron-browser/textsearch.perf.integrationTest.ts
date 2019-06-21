@@ -15,7 +15,7 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'vs/base/common/path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -68,7 +68,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUntil, PauseableEmitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
 
@@ -73,6 +73,27 @@ suite('Event', function () {
 		while (bucket.length) {
 			bucket.pop()!.dispose();
 		}
+		doc.setText('boo');
+
+		// noop
+		subscription.dispose();
+
+		doc.setText('boo');
+		assert.equal(counter.count, 2);
+	});
+
+	test('Emitter, store', function () {
+
+		let bucket = new DisposableStore();
+		let doc = new Samples.Document3();
+		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
+
+		doc.setText('far');
+		doc.setText('boo');
+
+		// unhook listener
+		bucket.clear();
+		doc.setText('boo');
 
 		// noop
 		subscription.dispose();

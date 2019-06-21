@@ -39,10 +39,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/codeinset",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/callHierarchy",
 			"project": "vscode-workbench"
 		},
@@ -108,6 +104,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/quickopen",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/remote",
 			"project": "vscode-workbench"
 		},
 		{

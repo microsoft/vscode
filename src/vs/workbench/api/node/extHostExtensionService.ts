@@ -30,10 +30,10 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
-import { RemoteAuthorityResolverError } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionExecutionContext, ExtensionKind } from 'vs/workbench/api/common/extHostTypes';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
@@ -83,8 +83,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostConfiguration: ExtHostConfiguration,
 		environment: IEnvironment,
 		extHostLogService: ExtHostLogService,
-		schemeTransformer: ISchemeTransformer | null,
-		outputChannelName: string
+		uriTransformer: IURITransformer | null
 	) {
 		this._hostUtils = hostUtils;
 		this._initData = initData;
@@ -134,8 +133,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this,
 			this._extHostLogService,
 			this._storage,
-			schemeTransformer,
-			outputChannelName
+			uriTransformer
 		);
 
 		this._resolvers = Object.create(null);
@@ -155,7 +153,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
 			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
-			if (this._initData.remoteAuthority) {
+			if (this._initData.remote.isRemote) {
 				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(
 					this._extHostContext.getProxy(MainContext.MainThreadWindow),
 					this._extHostContext.getProxy(MainContext.MainThreadTelemetry),
@@ -342,7 +340,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<IExtensionContext> {
+	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
 		const globalState = new ExtensionMemento(extensionDescription.identifier.value, true, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
@@ -362,7 +360,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				storagePath: this._storagePath.workspaceValue(extensionDescription),
 				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier)
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
+				executionContext: this._initData.remote.isRemote ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local,
+				extensionKind: this._initData.remote.isRemote ? ExtensionKind.Workspace : ExtensionKind.UI
 			});
 		});
 	}
@@ -563,7 +563,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// messages to the main process, we delay the exit() by some time
 		setTimeout(() => {
 			// If extension tests are running, give the exit code to the renderer
-			if (this._initData.remoteAuthority && !!this._initData.environment.extensionTestsLocationURI) {
+			if (this._initData.remote.isRemote && !!this._initData.environment.extensionTestsLocationURI) {
 				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
 				return;
 			}
@@ -610,7 +610,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		const resolver = this._resolvers[authorityPrefix];
 		if (!resolver) {
-			throw new Error(`No resolver available for ${authorityPrefix}`);
+			throw new Error(`No remote extension installed to resolve ${authorityPrefix}.`);
 		}
 
 		try {

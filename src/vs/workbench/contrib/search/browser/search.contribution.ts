@@ -478,6 +478,14 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	1
 ));
 
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+	SearchPanel,
+	PANEL_ID,
+	nls.localize('name', "Search"),
+	'search',
+	10
+));
+
 class RegisterSearchViewContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -580,7 +588,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseDeepestExpande
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ShowAllSymbolsAction.ID, ShowAllSymbolsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
 
 
 // Register Quick Open Handler

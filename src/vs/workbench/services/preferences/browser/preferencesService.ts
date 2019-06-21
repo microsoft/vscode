@@ -137,7 +137,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
-			const defaultRawSettingsEditorModel = this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER));
+			const defaultRawSettingsEditorModel = this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this._register(this.modelService.createModel(defaultRawSettingsEditorModel.content, languageSelection, uri));
 			return Promise.resolve(model);
@@ -159,7 +159,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (this.userSettingsResource.toString() === uri.toString()) {
-			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER, uri);
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_LOCAL, uri);
 		}
 
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
@@ -209,8 +209,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			jsonEditor;
 
 		return jsonEditor ?
-			this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, group) :
-			this.openOrSwitchSettings2(ConfigurationTarget.USER, undefined, options, group);
+			this.openOrSwitchSettings(ConfigurationTarget.USER_LOCAL, this.userSettingsResource, options, group) :
+			this.openOrSwitchSettings2(ConfigurationTarget.USER_LOCAL, undefined, options, group);
 	}
 
 	async openRemoteSettings(): Promise<IEditor | null> {
@@ -273,7 +273,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+			const editableKeybindings = this.environmentService.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
@@ -377,7 +377,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	public createSettings2EditorModel(): Settings2EditorModel {
-		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER));
+		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
 	}
 
 	private doOpenSettings2(target: ConfigurationTarget, folderUri: URI | undefined, options?: IEditorOptions, group?: IEditorGroup): Promise<IEditor | null> {
@@ -419,7 +419,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getConfigurationTargetFromSettingsResource(resource: URI): ConfigurationTarget {
 		if (this.userSettingsResource.toString() === resource.toString()) {
-			return ConfigurationTarget.USER;
+			return ConfigurationTarget.USER_LOCAL;
 		}
 
 		const workspaceSettingsResource = this.workspaceSettingsResource;
@@ -432,11 +432,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		}
 
-		return ConfigurationTarget.USER;
+		return ConfigurationTarget.USER_LOCAL;
 	}
 
 	private getConfigurationTargetFromDefaultSettingsResource(uri: URI) {
-		return this.isDefaultWorkspaceSettingsResource(uri) ? ConfigurationTarget.WORKSPACE : this.isDefaultFolderSettingsResource(uri) ? ConfigurationTarget.WORKSPACE_FOLDER : ConfigurationTarget.USER;
+		return this.isDefaultWorkspaceSettingsResource(uri) ?
+			ConfigurationTarget.WORKSPACE :
+			this.isDefaultFolderSettingsResource(uri) ?
+				ConfigurationTarget.WORKSPACE_FOLDER :
+				ConfigurationTarget.USER_LOCAL;
 	}
 
 	private isDefaultSettingsResource(uri: URI): boolean {
@@ -520,9 +524,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
-				return URI.file(this.environmentService.appSettingsPath);
+				return this.environmentService.settingsResource;
 			case ConfigurationTarget.USER_REMOTE:
-				return URI.file(this.environmentService.appSettingsPath);
+				return this.environmentService.settingsResource;
 			case ConfigurationTarget.WORKSPACE:
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return null;

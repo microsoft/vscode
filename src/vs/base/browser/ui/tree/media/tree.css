@@ -7,6 +7,33 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 14px;
+	pointer-events: none;
+}
+
+.hide-arrows .monaco-tl-indent {
+	left: 10px;
+}
+
+/* TODO @misolori remove before shipping stable */
+body:not([data-exploration="icon-exploration"]) .monaco-tl-indent {
+	left: 16px;
+}
+
+/* TODO @misolori remove before shipping stable */
+body:not([data-exploration="icon-exploration"]) .hide-arrows .monaco-tl-indent {
+	left: 10px;
+}
+
+.monaco-tl-indent > svg {
+	overflow: visible;
 }
 
 .monaco-tl-twistie,
@@ -66,4 +93,13 @@
 
 .hc-black .monaco-tl-twistie.loading {
 	background-image: url("loading-hc.svg");
+}
+
+.monaco-list .monaco-tl-indent > svg {
+	height: 100%;
+}
+
+.monaco-list .monaco-tl-indent > svg > line {
+	stroke: transparent;
+	transition: stroke 0.1s linear;
 }

@@ -17,7 +17,7 @@ class InspectKeyMap extends EditorAction {
 			id: 'workbench.action.inspectKeyMappings',
 			label: nls.localize('workbench.action.inspectKeyMap', "Developer: Inspect Key Mappings"),
 			alias: 'Developer: Inspect Key Mappings',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -30,3 +30,24 @@ class InspectKeyMap extends EditorAction {
 }
 
 registerEditorAction(InspectKeyMap);
+
+class InspectKeyMapJSON extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.inspectKeyMappingsJSON',
+			label: nls.localize('workbench.action.inspectKeyMapJSON', "Developer: Inspect Key Mappings (JSON)"),
+			alias: 'Developer: Inspect Key Mappings (JSON)',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const keybindingService = accessor.get(IKeybindingService);
+		const editorService = accessor.get(IEditorService);
+
+		editorService.openEditor({ contents: keybindingService._dumpDebugInfoJSON(), options: { pinned: true } } as IUntitledResourceInput);
+	}
+}
+
+registerEditorAction(InspectKeyMapJSON);

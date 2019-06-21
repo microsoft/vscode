@@ -857,6 +857,7 @@ export interface IListStyles {
 	listFilterWidgetOutline?: Color;
 	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
+	treeIndentGuidesStroke?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -867,7 +868,8 @@ const defaultStyles: IListStyles = {
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
-	listDropBackground: Color.fromHex('#383B3D')
+	listDropBackground: Color.fromHex('#383B3D'),
+	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
 };
 
 const DefaultOptions = {
@@ -979,20 +981,20 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
+	renderElement(element: T, index: number, templateData: any[], height: number | undefined): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++], dynamicHeightProbing);
+			renderer.renderElement(element, index, templateData[i++], height);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
+	disposeElement(element: T, index: number, templateData: any[], height: number | undefined): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
 			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i], dynamicHeightProbing);
+				renderer.disposeElement(element, index, templateData[i], height);
 			}
 
 			i += 1;
@@ -1112,6 +1114,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
+	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }

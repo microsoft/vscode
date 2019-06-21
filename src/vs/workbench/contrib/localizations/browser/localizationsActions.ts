@@ -6,8 +6,6 @@
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -18,6 +16,7 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { joinPath } from 'vs/base/common/resources';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -67,7 +66,7 @@ export class ConfigureLocaleAction extends Action {
 			}
 
 			if (selectedLanguage) {
-				const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
+				const file = joinPath(this.environmentService.appSettingsHome, 'locale.json');
 				await this.jsonEditingService.write(file, { key: 'locale', value: selectedLanguage.label }, true);
 				const restart = await this.dialogService.confirm({
 					type: 'info',

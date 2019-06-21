@@ -20,8 +20,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -30,6 +28,7 @@ import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/bro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { joinPath } from 'vs/base/common/resources';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -82,7 +81,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					[{
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
-							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
+							const file = joinPath(this.environmentService.appSettingsHome, 'locale.json');
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}

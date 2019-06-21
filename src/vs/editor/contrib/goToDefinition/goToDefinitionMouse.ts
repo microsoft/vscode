@@ -10,7 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -150,7 +150,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						return;
 					}
 
-					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
+					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
 
 					let wordRange: Range;
 					if (result.originSelectionRange) {
@@ -159,7 +159,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath);
+					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
 						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
@@ -170,8 +170,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}).then(undefined, onUnexpectedError);
 	}
 
-	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
-		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
+		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
 		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
@@ -181,7 +181,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return previewValue;
 	}
 
-	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: Range) {
+	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: IRange) {
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let minIndent = startIndent;
 
@@ -294,7 +294,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
 		this.editor.setPosition(target.position!);
-		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: null });
+		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 

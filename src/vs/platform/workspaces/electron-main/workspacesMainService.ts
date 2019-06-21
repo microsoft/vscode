@@ -61,7 +61,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private isWorkspacePath(uri: URI): boolean {
-		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri.path);
+		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri);
 	}
 
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {
@@ -103,13 +103,14 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return isEqualOrParent(path, this.environmentService.untitledWorkspacesHome);
 	}
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
+	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		return mkdirp(dirname(configPath)).then(() => {
-			return writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
-		});
+		await mkdirp(dirname(configPath));
+		await writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
+
+		return workspace;
 	}
 
 	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): IWorkspaceIdentifier {
