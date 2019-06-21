@@ -1530,8 +1530,8 @@ declare module 'vscode' {
 		readFile(uri: Uri): Thenable<Uint8Array>;
 		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
 		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
-		rename(oldUri: Uri, newUri: Uri, options?: { overwrite: boolean }): Thenable<void>;
-		copy(source: Uri, destination: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
 	}
 
 	export namespace workspace {
