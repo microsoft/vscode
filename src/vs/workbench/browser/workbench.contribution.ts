@@ -298,7 +298,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
-				'included': isWindows || isLinux || isWeb
+				'included': isWindows || isLinux
 			},
 			'window.disableCustomMenuBarAltFocus': {
 				'type': 'boolean',
@@ -306,6 +306,18 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': nls.localize('disableCustomMenuBarAltFocus', "If enabled, disables the ability to focus the menu bar with the Alt-key when not set to toggle."),
 				'included': isWindows || isLinux || isWeb
+			},
+			'window.openFoldersInNewWindow': {
+				'type': 'string',
+				'enum': ['on', 'off', 'default'],
+				'enumDescriptions': [
+					nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window."),
+					nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window."),
+					nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).")
+				],
+				'default': 'default',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			}
 		}
 	});

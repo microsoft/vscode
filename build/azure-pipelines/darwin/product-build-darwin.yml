@@ -26,18 +26,38 @@ steps:
 
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
+  displayName: Prepare tooling
+
+- script: |
+    set -e
     git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
     git fetch distro
     git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
 
+- script: |
+    set -e
     yarn
+  displayName: Install dependencies
+
+- script: |
+    set -e
     yarn gulp mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
     yarn gulp hygiene
     yarn monaco-compile-check
+  displayName: Run hygiene checks
+  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+
+- script: |
+    set -e
     node build/azure-pipelines/common/installDistroDependencies.js
     node build/azure-pipelines/common/installDistroDependencies.js remote
     node build/lib/builtInExtensions.js
-  displayName: Prepare build
+  displayName: Install distro dependencies and extensions
 
 - script: |
     set -e
@@ -52,11 +72,13 @@ steps:
     # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
   displayName: Run unit tests
+  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
 
 - script: |
     set -e
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests
+  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
 
 - script: |
     set -e

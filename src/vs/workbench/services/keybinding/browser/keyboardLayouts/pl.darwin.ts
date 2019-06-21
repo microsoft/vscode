@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.PolishPro', lang: 'pl' },
+	{ id: 'com.apple.keylayout.PolishPro', lang: 'pl', localizedName: 'Polish - Pro' },
 	[],
 	{
 		KeyA: ['a', 'A', 'ą', 'Ą', 0],

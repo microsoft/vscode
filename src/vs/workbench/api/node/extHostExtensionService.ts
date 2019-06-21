@@ -32,7 +32,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
-import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionExecutionContext, ExtensionKind } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
@@ -153,7 +153,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
 			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
-			if (this._initData.remoteAuthority) {
+			if (this._initData.remote.isRemote) {
 				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(
 					this._extHostContext.getProxy(MainContext.MainThreadWindow),
 					this._extHostContext.getProxy(MainContext.MainThreadTelemetry),
@@ -340,7 +340,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<IExtensionContext> {
+	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
 		const globalState = new ExtensionMemento(extensionDescription.identifier.value, true, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
@@ -361,7 +361,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
-				executionContext: this._initData.remoteAuthority ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local
+				executionContext: this._initData.remote.isRemote ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local,
+				extensionKind: this._initData.remote.isRemote ? ExtensionKind.Workspace : ExtensionKind.UI
 			});
 		});
 	}
@@ -562,7 +563,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// messages to the main process, we delay the exit() by some time
 		setTimeout(() => {
 			// If extension tests are running, give the exit code to the renderer
-			if (this._initData.remoteAuthority && !!this._initData.environment.extensionTestsLocationURI) {
+			if (this._initData.remote.isRemote && !!this._initData.environment.extensionTestsLocationURI) {
 				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
 				return;
 			}

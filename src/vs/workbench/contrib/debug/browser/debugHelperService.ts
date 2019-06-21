@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceIdentifier, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalLauncher, IDebugHelperService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debug';
+import { ITerminalLauncher, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -15,10 +15,6 @@ export class BrowserDebugHelperService implements IDebugHelperService {
 
 	createTerminalLauncher(instantiationService: IInstantiationService): ITerminalLauncher {
 		throw new Error('Method createTerminalLauncher not implemented.');
-	}
-
-	launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<number> {
-		throw new Error('Method launchVsCode not implemented.');
 	}
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {

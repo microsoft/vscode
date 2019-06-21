@@ -403,6 +403,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						name: this._labelService.getWorkspaceLabel(workspace),
 						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
 					},
+					remote: {
+						authority: this._environmentService.configuration.remoteAuthority,
+						isRemote: false
+					},
 					resolvedExtensions: [],
 					hostExtensions: [],
 					extensions: extensionDescriptions,

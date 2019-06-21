@@ -233,7 +233,7 @@ export class Model {
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this.globalState);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this.globalState, this.outputChannel);
 
 			this.open(repository);
 		} catch (err) {

@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ model: 'pc105', layout: 'us', variant: '', options: '', rules: 'evdev' },
+	{ model: 'pc105', layout: 'us', variant: '', options: '', rules: 'evdev', isUSStandard: true },
 	[
 		{ model: 'pc105', layout: 'cn', variant: '', options: '', rules: 'evdev' },
 	],

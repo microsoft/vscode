@@ -9,10 +9,28 @@ import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger, IDebugHelperService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debug';
+import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { URI } from 'vs/base/common/uri';
+
+/**
+ * This interface represents a single command line argument split into a "prefix" and a "path" half.
+ * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
+ * Concatenating both results in the original command line argument.
+ */
+interface ILaunchVSCodeArgument {
+	prefix?: string;
+	path?: string;
+}
+
+interface ILaunchVSCodeArguments {
+	args: ILaunchVSCodeArgument[];
+	env?: { [key: string]: string | null; };
+}
 
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
@@ -56,7 +74,8 @@ export class RawDebugSession {
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly signService: ISignService,
-		private readonly debugUIService: IDebugHelperService
+		private readonly windowsService: IWindowsService
+
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
@@ -503,9 +522,9 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.debugUIService.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(pid => {
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(_ => {
 					response.body = {
-						processId: pid
+						//processId: pid
 					};
 					safeSendResponse(response);
 				}, err => {
@@ -547,6 +566,47 @@ export class RawDebugSession {
 				safeSendResponse(response);
 				break;
 		}
+	}
+
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<void> {
+
+		let args: ParsedArgs = {
+			_: []
+		};
+
+		for (let arg of vscodeArgs.args) {
+			if (arg.prefix) {
+				const a2 = (arg.prefix || '') + (arg.path || '');
+				const match = /^--(.+)=(.+)$/.exec(a2);
+				if (match && match.length === 3) {
+					const key = match[1];
+					let value = match[2];
+
+					if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
+						value = URI.file(value).toString();
+
+						const v = args[key];
+						if (v) {
+							if (Array.isArray(v)) {
+								v.push(value);
+							} else {
+								args[key] = [v, value];
+							}
+						} else {
+							args[key] = value;
+						}
+
+					} else {
+						args[key] = value;
+					}
+
+				} else {
+					args._.push(a2);
+				}
+			}
+		}
+
+		return this.windowsService.openExtensionDevelopmentHostWindow(args);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {
