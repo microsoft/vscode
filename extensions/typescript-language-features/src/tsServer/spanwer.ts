@@ -18,7 +18,7 @@ import { PluginManager } from '../utils/plugins';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
-import { ITypeScriptServer, TsServerProcess, ProcessBasedTsServer, PipeRequestCanceller } from './server';
+import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess } from './server';
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -35,26 +35,51 @@ export class TypeScriptServerSpawner {
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager
 	): ITypeScriptServer {
+		if (this.shouldUserSeparateSyntaxServer(version)) {
+			const syntaxServer = this.spawnProcessBasedTsServer('syntax', version, configuration, pluginManager, ['--syntaxOnly', '--disableAutomaticTypingAcquisition']);
+			const semanticServer = this.spawnProcessBasedTsServer('semantic', version, configuration, pluginManager, []);
+			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
+		}
+
+		return this.spawnProcessBasedTsServer('main', version, configuration, pluginManager, []);
+	}
+
+	private shouldUserSeparateSyntaxServer(version: TypeScriptVersion): boolean {
+		if (!version.version || version.version.lt(API.v340)) {
+			return false;
+		}
+		return vscode.workspace.getConfiguration('typescript')
+			.get<boolean>('experimental.useSeparateSyntaxServer', false);
+	}
+
+	private spawnProcessBasedTsServer(
+		serverId: string,
+		version: TypeScriptVersion,
+		configuration: TypeScriptServiceConfiguration,
+		pluginManager: PluginManager,
+		extraForkArgs: readonly string[],
+	): ITypeScriptServer {
 		const apiVersion = version.version || API.defaultVersion;
 
 		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
-				this._logger.info(`TSServer log file: ${tsServerLogFile}`);
+				this._logger.info(`<${serverId}>  Log file: ${tsServerLogFile}`);
 			} else {
-				this._logger.error('Could not create TSServer log directory');
+				this._logger.error(`<${serverId}> Could not create log directory`);
 			}
 		}
 
-		this._logger.info('Forking TSServer');
-		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
-		this._logger.info('Started TSServer');
+		this._logger.info(`<${serverId}> Forking...`);
+		const childProcess = electron.fork(version.tsServerPath, [...args, ...extraForkArgs], this.getForkOptions());
+		this._logger.info(`<${serverId}> Starting...`);
 
 		return new ProcessBasedTsServer(
+			serverId,
 			new ChildServerProcess(childProcess),
 			tsServerLogFile,
-			new PipeRequestCanceller(cancellationPipeName, this._tracer),
+			new PipeRequestCanceller(serverId, cancellationPipeName, this._tracer),
 			version,
 			this._telemetryReporter,
 			this._tracer);

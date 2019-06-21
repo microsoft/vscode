@@ -62,7 +62,7 @@ suite('Server', () => {
 
 	test('should send requests with increasing sequence numbers', async () => {
 		const process = new FakeServerProcess();
-		const server = new ProcessBasedTsServer(process, undefined, new PipeRequestCanceller(undefined, tracer), undefined!, NoopTelemetryReporter, tracer);
+		const server = new ProcessBasedTsServer('semantic', process, undefined, new PipeRequestCanceller('semantic', undefined, tracer), undefined!, NoopTelemetryReporter, tracer);
 
 		const onWrite1 = process.onWrite();
 		server.executeImpl('geterr', {}, { isAsync: false, token: nulToken, expectsResult: true });
