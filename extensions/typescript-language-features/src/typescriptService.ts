@@ -75,6 +75,10 @@ interface AsyncTsServerRequests {
 
 export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRequests & AsyncTsServerRequests;
 
+export type ExecConfig = {
+	lowPriority?: boolean;
+};
+
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
@@ -120,7 +124,7 @@ export interface ITypeScriptServiceClient {
 		command: K,
 		args: StandardTsServerRequests[K][0],
 		token: vscode.CancellationToken,
-		lowPriority?: boolean
+		config?: ExecConfig
 	): Promise<ServerResponse.Response<StandardTsServerRequests[K][1]>>;
 
 	executeWithoutWaitingForResponse<K extends keyof NoResponseTsServerRequests>(
