@@ -105,7 +105,7 @@
         {
             type: 'comment',
             name: 'a11ymas',
-            allowUsers: ['AccessibilityTestingTeam-TCS'],
+            allowUsers: ['AccessibilityTestingTeam-TCS', 'dixitsonali95', 'Mohini78', 'ChitrarupaSharma', 'mspatil110', 'umasarath52', 'v-umnaik'],
             action: 'updateLabels',
             addLabel: 'a11ymas'
         },

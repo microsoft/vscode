@@ -796,9 +796,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[][]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.equal(value.length, 1);
-		assert.ok(value[0].length >= 2);
+		assert.ok(value[0].parent);
 	});
 
 });

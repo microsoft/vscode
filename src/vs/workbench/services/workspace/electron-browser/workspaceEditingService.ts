@@ -57,14 +57,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@ILifecycleService readonly lifecycleService: ILifecycleService,
 		@ILabelService readonly labelService: ILabelService
 	) {
+		this.registerListeners();
+	}
 
-		lifecycleService.onBeforeShutdown(async e => {
+	private registerListeners(): void {
+		this.lifecycleService.onBeforeShutdown(async e => {
 			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
 			if (saveOperation) {
 				e.veto(saveOperation);
 			}
 		});
-
 	}
 
 	private async saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> {

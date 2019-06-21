@@ -59,7 +59,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			}
 		}
 
-		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
+		return this.windowsService.openExternal(uri.toString());
 	}
 
 	private getLocalhostPort(uri: URI): number | undefined {

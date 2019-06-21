@@ -50,7 +50,7 @@ import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateServ
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
-import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -530,7 +530,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);

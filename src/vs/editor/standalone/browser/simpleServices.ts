@@ -390,6 +390,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public _dumpDebugInfo(): string {
 		return '';
 	}
+
+	public _dumpDebugInfoJSON(): string {
+		return '';
+	}
 }
 
 function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {

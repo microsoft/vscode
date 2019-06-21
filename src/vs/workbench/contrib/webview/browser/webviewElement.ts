@@ -6,17 +6,17 @@
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 interface WebviewContent {
 	readonly html: string;
@@ -25,26 +25,37 @@ interface WebviewContent {
 }
 
 export class IFrameWebview extends Disposable implements Webview {
-	private element: HTMLIFrameElement;
+	private element?: HTMLIFrameElement;
 
-	private _ready: Promise<void>;
+	private readonly _ready: Promise<void>;
 
 	private content: WebviewContent;
 	private _focused = false;
 
 	private readonly id: string;
 
+	private readonly _portMappingManager: WebviewPortMappingManager;
+
 	constructor(
 		private _options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITunnelService tunnelService: ITunnelService,
 		@IFileService private readonly fileService: IFileService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		if (typeof environmentService.webviewEndpoint !== 'string') {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		}
+
+		this._portMappingManager = this._register(new WebviewPortMappingManager(
+			this._options.extension ? this._options.extension.location : undefined,
+			() => this.content.options.portMappings || [],
+			tunnelService
+		));
+
 		this.content = {
 			html: '',
 			options: contentOptions,
@@ -54,9 +65,8 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.id = `webview-${Date.now()}`;
 
 		this.element = document.createElement('iframe');
-		this.element.sandbox.add('allow-scripts');
-		this.element.sandbox.add('allow-same-origin');
-		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`); // TODO: get this from env service
+		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
+		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -74,20 +84,13 @@ export class IFrameWebview extends Disposable implements Webview {
 					return;
 
 				case 'did-click-link':
-					let [uri] = e.data.data;
+					const [uri] = e.data.data;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
-				case 'did-set-content':
-					// this._webview.style.flex = '';
-					// this._webview.style.width = '100%';
-					// this._webview.style.height = '100%';
-					// this.layout();
-					return;
-
 				case 'did-scroll':
-					// if (event.args && typeof event.args[0] === 'number') {
-					// 	this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					// if (e.args && typeof e.args[0] === 'number') {
+					// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
 					// }
 					return;
 
@@ -111,9 +114,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const path = e.data.data.path;
-						const uri = URI.file(path);
+						const uri = URI.file(e.data.data.path);
 						this.loadResource(uri);
+						return;
+					}
+
+				case 'load-localhost':
+					{
+						this.localLocalhost(e.data.data.origin);
 						return;
 					}
 			}
@@ -122,7 +130,9 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._ready = new Promise(resolve => {
 			const subscription = this._register(addDisposableListener(window, 'message', (e) => {
 				if (e.data && e.data.target === this.id && e.data.channel === 'webview-ready') {
-					addClass(this.element, 'ready');
+					if (this.element) {
+						addClass(this.element, 'ready');
+					}
 					subscription.dispose();
 					resolve();
 				}
@@ -134,7 +144,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this.element);
+		if (this.element) {
+			parent.appendChild(this.element);
+		}
 	}
 
 	public set options(options: WebviewContentOptions) {
@@ -191,7 +203,6 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	initialScrollProgress: number;
-	state: string | undefined;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
@@ -217,7 +228,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	focus(): void {
-		this.element.focus();
+		if (this.element) {
+			this.element.focus();
+		}
 	}
 
 	dispose(): void {
@@ -259,15 +272,27 @@ export class IFrameWebview extends Disposable implements Webview {
 		throw new Error('Method not implemented.');
 	}
 
-	private _send(channel: string, data: any): void {
-		this._ready
-			.then(() => this.element.contentWindow!.postMessage({
-				channel: channel,
-				args: data
-			}, '*'))
-			.catch(err => console.error(err));
+	public set state(state: string | undefined) {
+		this.content = {
+			html: this.content.html,
+			options: this.content.options,
+			state,
+		};
 	}
 
+	private _send(channel: string, data: any): void {
+		this._ready
+			.then(() => {
+				if (!this.element) {
+					return;
+				}
+				this.element.contentWindow!.postMessage({
+					channel: channel,
+					args: data
+				}, '*');
+			})
+			.catch(err => console.error(err));
+	}
 
 	private style(theme: ITheme): void {
 		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
@@ -280,7 +305,7 @@ export class IFrameWebview extends Disposable implements Webview {
 				() => (this.content.options.localResourceRoots || []));
 
 			if (result.type === 'success') {
-				return this._send('loaded-resource', {
+				return this._send('did-load-resource', {
 					status: 200,
 					path: uri.path,
 					mime: result.mimeType,
@@ -291,9 +316,17 @@ export class IFrameWebview extends Disposable implements Webview {
 			// noop
 		}
 
-		return this._send('loaded-resource', {
+		return this._send('did-load-resource', {
 			status: 404,
 			path: uri.path
+		});
+	}
+
+	private async localLocalhost(origin: string) {
+		const redirect = await this._portMappingManager.getRedirect(origin);
+		return this._send('did-load-localhost', {
+			origin,
+			location: redirect
 		});
 	}
 }

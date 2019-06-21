@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, toDisposable } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, toDisposable, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -447,6 +447,39 @@ class ProgressManager {
 	}
 }
 
+class FileEventLogger {
+
+	private eventDisposable: IDisposable = EmptyDisposable;
+	private logLevelDisposable: IDisposable = EmptyDisposable;
+
+	constructor(
+		private onWorkspaceWorkingTreeFileChange: Event<Uri>,
+		private onDotGitFileChange: Event<Uri>,
+		private outputChannel: OutputChannel
+	) {
+		this.logLevelDisposable = env.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
+		this.onDidChangeLogLevel(env.logLevel);
+	}
+
+	private onDidChangeLogLevel(level: LogLevel): void {
+		this.eventDisposable.dispose();
+
+		if (level > LogLevel.Debug) {
+			return;
+		}
+
+		this.eventDisposable = combinedDisposable([
+			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`[debug] [wt] Change: ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`[debug] [.git] Change: ${uri.fsPath}`))
+		]);
+	}
+
+	dispose(): void {
+		this.eventDisposable.dispose();
+		this.logLevelDisposable.dispose();
+	}
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -547,34 +580,39 @@ export class Repository implements Disposable {
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
 	private isFreshRepository: boolean | undefined = undefined;
+
+
 	private disposables: Disposable[] = [];
 
 	constructor(
 		private readonly repository: BaseRepository,
-		globalState: Memento
+		globalState: Memento,
+		outputChannel: OutputChannel
 	) {
 		const workspaceWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(workspaceWatcher);
 
-		const onWorkspaceFileChanges = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
-		const onWorkspaceRepositoryFileChanges = filterEvent(onWorkspaceFileChanges, uri => isDescendant(repository.root, uri.fsPath));
-		const onWorkspaceWorkingTreeFileChanges = filterEvent(onWorkspaceRepositoryFileChanges, uri => !/\/\.git($|\/)/.test(uri.path));
+		const onWorkspaceFileChange = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
+		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
+		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
 		const dotGitWatcher = fs.watch(repository.dotGit);
-		const onRepositoryFileEmitter = new EventEmitter<Uri>();
-		dotGitWatcher.on('change', (_, e) => onRepositoryFileEmitter.fire(Uri.file(path.join(repository.dotGit, e as string))));
+		const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
+		dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(path.join(repository.dotGit, e as string))));
 		dotGitWatcher.on('error', err => console.error(err));
 		this.disposables.push(toDisposable(() => dotGitWatcher.close()));
-		const onRelevantRepositoryChanges = filterEvent(onRepositoryFileEmitter.event, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
+		const onDotGitFileChange = filterEvent(onDotGitFileChangeEmitter.event, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
 		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
-		const onFSChange = anyEvent(onWorkspaceWorkingTreeFileChanges, onRelevantRepositoryChanges);
-		onFSChange(this.onFSChange, this, this.disposables);
+		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, onDotGitFileChange);
+		onFileChange(this.onFileChange, this, this.disposables);
 
 		// Relevate repository changes should trigger virtual document change events
-		onRelevantRepositoryChanges(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+		onDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+
+		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
@@ -1454,7 +1492,7 @@ export class Repository implements Disposable {
 		return result;
 	}
 
-	private onFSChange(_uri: Uri): void {
+	private onFileChange(_uri: Uri): void {
 		const config = workspace.getConfiguration('git');
 		const autorefresh = config.get<boolean>('autorefresh');
 

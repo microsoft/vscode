@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ id: 'com.apple.keylayout.US', lang: 'en' },
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
+	{ id: 'com.apple.keylayout.US', lang: 'en', localizedName: 'U.S.', isUSStandard: true },
 	[
-		{ id: 'com.apple.keylayout.ABC', lang: 'en' },
-		{ id: 'com.sogou.inputmethod.sogou.pinyin', lang: 'zh-Hans' },
-		{ id: 'com.apple.inputmethod.Kotoeri.Roman', lang: 'en' },
-		{ id: 'com.apple.inputmethod.Kotoeri.Japanese', lang: 'ja' },
-		{ id: 'com.apple.keylayout.Australian', lang: 'en' },
-		{ id: 'com.apple.keylayout.Canadian', lang: 'en' },
-		{ id: 'com.apple.keylayout.Brazilian', lang: 'pt' },
+		{ id: 'com.apple.keylayout.ABC', lang: 'en', localizedName: 'ABC' },
+		{ id: 'com.sogou.inputmethod.sogou.pinyin', lang: 'zh-Hans', localizedName: 'Pinyin - Simplified' },
+		{ id: 'com.apple.inputmethod.Kotoeri.Roman', lang: 'en', localizedName: 'Romaji' },
+		{ id: 'com.apple.inputmethod.Kotoeri.Japanese', lang: 'ja', localizedName: 'Hiragana' },
+		{ id: 'com.apple.keylayout.Australian', lang: 'en', localizedName: 'Australian' },
+		{ id: 'com.apple.keylayout.Canadian', lang: 'en', localizedName: 'Canadian English' },
+		{ id: 'com.apple.keylayout.Brazilian', lang: 'pt', localizedName: 'Brazilian' },
 	],
 	{
 		KeyA: ['a', 'A', 'å', 'Å', 0],

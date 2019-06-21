@@ -13,41 +13,7 @@
 
 <body style="margin: 0; overflow: hidden; width: 100%; height: 100%">
 	<script src="main.js"></script>
-	<script>
-		(function () {
-			const id = document.location.search.match(/\bid=([\w\-]+)/)[1];
-			const handlers = {};
-
-			const postMessageToVsCode = (channel, data) => {
-				window.parent.postMessage({ target: id, channel, data }, '*');
-			};
-
-			window.addEventListener('message', (e) => {
-				if (e.data && (e.data.command === 'onmessage' || e.data.command === 'do-update-state')) {
-					// Came from inner iframe
-					postMessageToVsCode(e.data.command, e.data.data);
-					return;
-				}
-
-				const channel = e.data.channel;
-				const handler = handlers[channel];
-				if (handler) {
-					handler(e, e.data.args);
-				} else {
-					console.log('no handler for ', e);
-				}
-			});
-
-			createWebviewManager({
-				origin: document.location.href,
-				postMessage: (channel, data) => {
-					postMessageToVsCode(channel, data);
-				},
-				onMessage: (channel, handler) => {
-					handlers[channel] = handler;
-				}
-			});
-		}());
-	</script>
+	<script src="host.js"></script>
 </body>
+
 </html>

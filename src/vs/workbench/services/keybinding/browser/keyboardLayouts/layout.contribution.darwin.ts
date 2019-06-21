@@ -18,3 +18,5 @@ import 'vs/workbench/services/keybinding/browser/keyboardLayouts/it.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/ru.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/pt.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/ko.darwin';
+
+export { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';

@@ -309,13 +309,13 @@ class Extensions extends Disposable {
 	private readonly _onChange: Emitter<Extension | undefined> = new Emitter<Extension | undefined>();
 	get onChange(): Event<Extension | undefined> { return this._onChange.event; }
 
-	private readonly stateProvider: IExtensionStateProvider<ExtensionState>;
 	private installing: Extension[] = [];
 	private uninstalling: Extension[] = [];
 	private installed: Extension[] = [];
 
 	constructor(
 		private readonly server: IExtensionManagementServer,
+		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -323,7 +323,6 @@ class Extensions extends Disposable {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super();
-		this.stateProvider = ext => this.getExtensionState(ext);
 		this._register(server.extensionManagementService.onInstallExtension(e => this.onInstallExtension(e)));
 		this._register(server.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e)));
@@ -484,6 +483,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
 	private _extensionAllowedBadgeProviders: string[];
+	private installing: IExtension[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -504,10 +504,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IModeService private readonly modeService: IModeService
 	) {
 		super();
-		this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer));
+		this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
 		this._register(this.localExtensions.onChange(e => this._onChange.fire(e)));
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer));
+			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext)));
 			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e)));
 		} else {
 			this.remoteExtensions = null;
@@ -672,6 +672,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
+		const isInstalling = this.installing.some(i => areSameExtensions(i.identifier, extension.identifier));
+		if (extension.server) {
+			const state = (extension.server === this.extensionManagementServerService.localExtensionManagementServer ? this.localExtensions : this.remoteExtensions!).getExtensionState(extension);
+			return state === ExtensionState.Uninstalled && isInstalling ? ExtensionState.Installing : state;
+		} else if (isInstalling) {
+			return ExtensionState.Installing;
+		}
 		if (this.remoteExtensions) {
 			const state = this.remoteExtensions.getExtensionState(extension);
 			if (state !== ExtensionState.Uninstalled) {
@@ -771,8 +778,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(async () => {
-			const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
-			await extensionService.installFromGallery(gallery);
+			await this.installFromGallery(extension, gallery);
 			this.checkAndEnableDisabledDependencies(gallery.identifier);
 			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
 		}, gallery.displayName);
@@ -790,8 +796,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!toUninstall) {
 			return Promise.reject(new Error('Missing local'));
 		}
-
-		this.logService.info(`Requested uninstalling the extension ${extension.identifier.id} from window ${this.windowService.windowId}`);
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
@@ -811,11 +815,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.galleryService.getCompatibleExtension(extension.gallery.identifier, version)
 			.then(gallery => {
 				if (!gallery) {
-					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' with version '{1}' as it is not compatible with VS Code.", extension.gallery!.identifier.id, version)));
+					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.gallery!.identifier.id, version)));
 				}
 				return this.installWithProgress(async () => {
-					const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
-					await extensionService.installFromGallery(gallery);
+					await this.installFromGallery(extension, gallery);
 					if (extension.latestVersion !== version) {
 						this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 					}
@@ -845,6 +848,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			location: ProgressLocation.Extensions,
 			title
 		}, () => installTask());
+	}
+
+	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension): Promise<void> {
+		this.installing.push(extension);
+		this._onChange.fire(extension);
+		try {
+			const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
+			await extensionService.installFromGallery(gallery);
+			const ids: string[] | undefined = extension.identifier.uuid ? [extension.identifier.uuid] : undefined;
+			const names: string[] | undefined = extension.identifier.uuid ? undefined : [extension.identifier.id];
+			this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
+		} finally {
+			this.installing = this.installing.filter(e => e !== extension);
+			this._onChange.fire(extension);
+		}
 	}
 
 	private checkAndEnableDisabledDependencies(extensionIdentifier: IExtensionIdentifier): Promise<void> {

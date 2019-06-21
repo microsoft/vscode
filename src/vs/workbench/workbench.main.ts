@@ -20,6 +20,7 @@ import 'vs/workbench/electron-browser/main';
 //#region --- workbench actions
 
 import 'vs/workbench/browser/actions/layoutActions';
+import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
@@ -89,8 +90,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
@@ -135,6 +134,7 @@ import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
+import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -162,7 +162,6 @@ registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
@@ -202,6 +201,7 @@ registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
+import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 
 // Quick Open Handlers
 import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
@@ -275,6 +275,7 @@ import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 registerSingleton(ITaskService, TaskService, true);
 
 // Remote
+import 'vs/workbench/contrib/remote/common/remote.contribution';
 import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 
 // Emmet

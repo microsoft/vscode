@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
 import { posix } from 'vs/base/common/path';
 import { rtrim, endsWith } from 'vs/base/common/strings';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export class FileWatcher extends Disposable {
-	private isDisposed: boolean;
+export class FileWatcher implements IDisposable {
+
 	private folder: { path: string, excludes: string[] };
+	private service: OutOfProcessWin32FolderWatcher | undefined = undefined;
 
 	constructor(
 		folders: { path: string, excludes: string[] }[],
 		private onFileChanges: (changes: IDiskFileChange[]) => void,
-		private errorLogger: (msg: string) => void,
+		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
-		super();
-
 		this.folder = folders[0];
 
 		if (this.folder.path.indexOf('\\\\') === 0 && endsWith(this.folder.path, posix.sep)) {
@@ -31,17 +30,29 @@ export class FileWatcher extends Disposable {
 			this.folder.path = rtrim(this.folder.path, posix.sep);
 		}
 
-		this.startWatching();
+		this.service = this.startWatching();
 	}
 
-	private startWatching(): void {
-		this._register(new OutOfProcessWin32FolderWatcher(
+	private get isDisposed(): boolean {
+		return !this.service;
+	}
+
+	private startWatching(): OutOfProcessWin32FolderWatcher {
+		return new OutOfProcessWin32FolderWatcher(
 			this.folder.path,
 			this.folder.excludes,
 			events => this.onFileEvents(events),
-			error => this.onError(error),
+			message => this.onLogMessage(message),
 			this.verboseLogging
-		));
+		);
+	}
+
+	setVerboseLogging(verboseLogging: boolean): void {
+		this.verboseLogging = verboseLogging;
+		if (this.service) {
+			this.service.dispose();
+			this.service = this.startWatching();
+		}
 	}
 
 	private onFileEvents(events: IDiskFileChange[]): void {
@@ -55,15 +66,10 @@ export class FileWatcher extends Disposable {
 		}
 	}
 
-	private onError(error: string): void {
-		if (!this.isDisposed) {
-			this.errorLogger(error);
-		}
-	}
-
 	dispose(): void {
-		this.isDisposed = true;
-
-		super.dispose();
+		if (this.service) {
+			this.service.dispose();
+			this.service = undefined;
+		}
 	}
 }

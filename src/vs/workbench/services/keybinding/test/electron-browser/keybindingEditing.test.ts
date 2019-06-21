@@ -40,7 +40,7 @@ import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/comm
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestLogService, TestTextFileService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestTextFileService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
@@ -79,7 +79,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(IEditorService, new TestEditorService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
-			instantiationService.stub(ILogService, new TestLogService());
+			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());

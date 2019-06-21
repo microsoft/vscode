@@ -153,6 +153,7 @@ export interface IWindowsService {
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;
@@ -238,7 +239,7 @@ export interface IWindowService {
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	focusWindow(): Promise<void>;

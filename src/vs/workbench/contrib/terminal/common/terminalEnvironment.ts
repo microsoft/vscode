@@ -192,7 +192,7 @@ export function getDefaultShell(
 	return executable;
 }
 
-function getDefaultShellArgs(
+export function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
 	platformOverride: platform.Platform = platform.platform
@@ -201,19 +201,6 @@ function getDefaultShellArgs(
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
 	const args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
 	return args;
-}
-
-export function mergeDefaultShellPathAndArgs(
-	shell: IShellLaunchConfig,
-	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
-	isWorkspaceShellAllowed: boolean,
-	defaultShell: string,
-	isWoW64: boolean,
-	windir: string | undefined,
-	platformOverride: platform.Platform = platform.platform
-): void {
-	shell.executable = getDefaultShell(fetchSetting, isWorkspaceShellAllowed, defaultShell, isWoW64, windir, platformOverride);
-	shell.args = getDefaultShellArgs(fetchSetting, isWorkspaceShellAllowed, platformOverride);
 }
 
 export function createTerminalEnvironment(

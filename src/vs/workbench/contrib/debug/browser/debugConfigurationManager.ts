@@ -73,8 +73,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.toDispose = [];
-		this.registerListeners(lifecycleService);
 		this.initLaunches();
+		this.registerListeners(lifecycleService);
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);

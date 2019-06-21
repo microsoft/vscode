@@ -31,7 +31,7 @@ import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';

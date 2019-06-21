@@ -9,7 +9,7 @@ import { EventType, addDisposableListener, addClass, removeClass, isAncestor, ge
 import { onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh, isWeb, isNative } from 'vs/base/common/platform';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -229,7 +229,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 	}
@@ -535,7 +535,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return false;
 				} else if (!this.state.fullscreen) {
 					return true;
-				} else if (isMacintosh) {
+				} else if (isMacintosh && isNative) {
 					return false;
 				} else if (this.state.menuBar.visibility === 'visible') {
 					return true;

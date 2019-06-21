@@ -9,6 +9,7 @@ resources:
 jobs:
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -18,6 +19,7 @@ jobs:
 
 - job: Windows32
   condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -27,6 +29,7 @@ jobs:
 
 - job: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -37,6 +40,7 @@ jobs:
 
 - job: LinuxSnap
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -48,6 +52,7 @@ jobs:
 
 - job: LinuxArmhf
   condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -55,12 +60,38 @@ jobs:
   steps:
   - template: linux/product-build-linux-arm.yml
 
+- job: LinuxAlpine
+  condition: eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: alpine
+  steps:
+  - template: linux/product-build-linux-alpine.yml
+
 - job: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
   steps:
   - template: darwin/product-build-darwin.yml
+
+- job: Release
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-4.0.x'))))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - LinuxArmhf
+  - LinuxAlpine
+  - macOS
+  steps:
+  - template: release.yml
 
 - job: Mooncake
   pool:
@@ -72,6 +103,7 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxAlpine
   - macOS
   steps:
   - template: sync-mooncake.yml

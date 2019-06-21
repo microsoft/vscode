@@ -36,7 +36,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -85,15 +85,10 @@ export class NewFileAction extends Action {
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
-		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL);
 		this.class = 'explorer-action new-file';
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
 	}
 
 	run(): Promise<any> {
@@ -107,15 +102,10 @@ export class NewFolderAction extends Action {
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL);
 		this.class = 'explorer-action new-folder';
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
 	}
 
 	run(): Promise<any> {
@@ -609,10 +599,6 @@ export class CollapseExplorerView extends Action {
 		@IExplorerService readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action collapse-explorer');
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
 	}
 
 	run(): Promise<any> {
@@ -637,10 +623,6 @@ export class RefreshExplorerView extends Action {
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
 	}
 
 	public run(): Promise<any> {
@@ -982,18 +964,11 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const textFileService = accessor.get(ITextFileService);
-	const fileDialogService = accessor.get(IFileDialogService);
 
 	if (explorerContext.stat) {
 		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 		stats.forEach(async s => {
-			const resource = await fileDialogService.showSaveDialog({
-				availableFileSystems: [Schemas.file],
-				defaultFileName: basename(s.resource.path)
-			});
-			if (resource) {
-				await textFileService.saveAs(s.resource, resource);
-			}
+			await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
 		});
 	}
 };

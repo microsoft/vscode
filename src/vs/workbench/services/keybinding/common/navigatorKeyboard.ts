@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const cp = require('child_process');
+export interface IKeyboard {
+	getLayoutMap(): Promise<Object>;
+	lock(keyCodes?: string[]): Promise<void>;
+	unlock(): void;
+	addEventListener?(type: string, listener: () => void): void;
 
-function exec(cmdLine) {
-	console.log(cmdLine);
-	cp.execSync(cmdLine, {stdio: "inherit"});
 }
-
-exec('git fetch distro');
-exec(`git checkout ${process.env['npm_package_distro']} -- src/vs/server resources/server`);
-exec('git reset HEAD src/vs/server resources/server');
+export type INavigatorWithKeyboard = Navigator & {
+	keyboard: IKeyboard
+};

@@ -34,7 +34,6 @@ import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
@@ -262,7 +261,7 @@ class CodeMain {
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
 			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
-			if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
+			if (!environmentService.wait && !environmentService.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
 						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
@@ -290,16 +289,6 @@ class CodeMain {
 				});
 			}
 
-			// Log uploader
-			if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-				return instantiationService.invokeFunction(async accessor => {
-					await uploadLogs(launchClient, accessor.get(IRequestService), environmentService);
-
-					throw new ExpectedError();
-				});
-			}
-
-
 			// Windows: allow to set foreground
 			if (platform.isWindows) {
 				await this.windowsAllowSetForegroundWindow(launchClient, logService);
@@ -323,13 +312,6 @@ class CodeMain {
 		// Print --status usage info
 		if (environmentService.args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
-
-			throw new ExpectedError('Terminating...');
-		}
-
-		// Log uploader usage info
-		if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-			logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
 
 			throw new ExpectedError('Terminating...');
 		}

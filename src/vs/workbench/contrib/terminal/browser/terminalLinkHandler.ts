@@ -137,6 +137,9 @@ export class TerminalLinkHandler {
 
 	public registerWebLinkHandler(): void {
 		this._terminalInstanceService.getXtermWebLinksConstructor().then((WebLinksAddon) => {
+			if (!this._xterm) {
+				return;
+			}
 			const wrappedHandler = this._wrapLinkHandler(uri => {
 				this._handleHypertextLink(uri);
 			});

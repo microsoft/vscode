@@ -427,7 +427,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._acceptInputCommand = acceptInputCommand;
 
-		const internal = this._commands.converter.toInternal2(acceptInputCommand, this._acceptInputDisposables.value);
+		const internal = this._commands.converter.toInternal(acceptInputCommand, this._acceptInputDisposables.value);
 		this._proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
@@ -447,7 +447,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal2(c, this._statusBarDisposables.value!)) as CommandDto[];
+		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables.value!)) as CommandDto[];
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 

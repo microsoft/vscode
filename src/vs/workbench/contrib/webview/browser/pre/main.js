@@ -99,7 +99,8 @@
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
 	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   focusIframeOnCreate?: boolean
+	 *   focusIframeOnCreate?: boolean,
+	 *   ready?: Promise<void>
 	 * }} HostCommunications
 	 */
 
@@ -119,23 +120,6 @@
 
 		// Service worker for resource loading
 		const FAKE_LOAD = !!navigator.serviceWorker;
-		if (navigator.serviceWorker) {
-			navigator.serviceWorker.register('service-worker.js');
-
-			navigator.serviceWorker.ready.then(registration => {
-				host.onMessage('loaded-resource', event => {
-					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
-				});
-			});
-
-			navigator.serviceWorker.addEventListener('message', event => {
-				switch (event.data.channel) {
-					case 'load-resource':
-						host.postMessage('load-resource', { path: event.data.path });
-						return;
-				}
-			});
-		}
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -232,7 +216,6 @@
 		document.addEventListener('DOMContentLoaded', () => {
 			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
 			const ID = idMatch ? idMatch[1] : undefined;
-
 			if (!document.body) {
 				return;
 			}
@@ -259,8 +242,16 @@
 				}
 			});
 
+
 			// update iframe-contents
-			host.onMessage('content', (_event, data) => {
+			let updateId = 0;
+			host.onMessage('content', async (_event, data) => {
+				const currentUpdateId = ++updateId;
+				await host.ready;
+				if (currentUpdateId !== updateId) {
+					return;
+				}
+
 				const options = data.options;
 
 				const text = data.contents;

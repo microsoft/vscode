@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ShutdownReason, StartupKind, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -12,12 +12,13 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class LifecycleService extends AbstractLifecycleService {
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILifecycleService>;
 
 	private shutdownReason: ShutdownReason;
 

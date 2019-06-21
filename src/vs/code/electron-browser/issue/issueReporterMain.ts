@@ -33,7 +33,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
