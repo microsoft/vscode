@@ -45,6 +45,7 @@ import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -729,7 +730,7 @@ registerSingleton(IURLService, SimpleURLService);
 
 //#region Window
 
-export class SimpleWindowService implements IWindowService {
+export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
@@ -745,6 +746,15 @@ export class SimpleWindowService implements IWindowService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
+		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
 	}
 
 	isFocused(): Promise<boolean> {
@@ -800,17 +810,13 @@ export class SimpleWindowService implements IWindowService {
 		if ((<any>document).fullscreen !== undefined) {
 			if (!(<any>document).fullscreen) {
 
-				return (<any>target).requestFullscreen().then(() => {
-					browser.setFullscreen(true);
-				}).catch(() => {
+				return (<any>target).requestFullscreen().catch(() => {
 					// if it fails, chromium throws an exception with error undefined.
 					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 					console.warn('Toggle Full Screen failed');
 				});
 			} else {
-				return document.exitFullscreen().then(() => {
-					browser.setFullscreen(false);
-				}).catch(() => {
+				return document.exitFullscreen().catch(() => {
 					console.warn('Exit Full Screen failed');
 				});
 			}
@@ -821,7 +827,7 @@ export class SimpleWindowService implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true);
+					browser.setFullscreen(true); // we have to set this proactively because Safari doesn't emit fullscreenchange event.
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 					browser.setFullscreen(false);
