@@ -46,7 +46,9 @@ steps:
     cd vscode-telemetry-extractor
     npm install
     ./node_modules/typescript/bin/tsc
-    npm run setup-repos && npm run extract-all
+    npm run setup-extension-repos
+    node ./out/cli-extract.js --sourceDir ../s --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
+    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources/ --outputDir . --applyEndpoints --includeIsMeasurement
     mv declarations-resolved.json ../s/src/telemetry-core.json
     mv declarations-extensions-resolved.json ../s/src/telemetry-extensions.json
     echo 'Moved Files'
