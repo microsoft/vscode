@@ -46,6 +46,7 @@ import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHi
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -508,6 +509,7 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
+	$publicLog2<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
