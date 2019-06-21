@@ -9,20 +9,22 @@ import { TypeScriptVersion } from '../utils/versionProvider';
 
 export class TypeScriptServerError extends Error {
 	public static create(
+		serverId: string,
 		version: TypeScriptVersion,
 		response: Proto.Response
 	): TypeScriptServerError {
 		const parsedResult = TypeScriptServerError.parseErrorText(version, response);
-		return new TypeScriptServerError(version, response, parsedResult ? parsedResult.message : undefined, parsedResult ? parsedResult.stack : undefined);
+		return new TypeScriptServerError(serverId, version, response, parsedResult ? parsedResult.message : undefined, parsedResult ? parsedResult.stack : undefined);
 	}
 
 	private constructor(
+		serverId: string,
 		version: TypeScriptVersion,
 		private readonly response: Proto.Response,
 		public readonly serverMessage: string | undefined,
 		public readonly serverStack: string | undefined
 	) {
-		super(`TypeScript Server Error (${version.versionString})\n${serverMessage}\n${serverStack}`);
+		super(`<${serverId}> TypeScript Server Error (${version.versionString})\n${serverMessage}\n${serverStack}`);
 	}
 
 	public get serverErrorText() { return this.response.message; }

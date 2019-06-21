@@ -189,7 +189,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			// Special case where response itself is successful but there is not any data to return.
 			callback.onSuccess(ServerResponse.NoContent);
 		} else {
-			callback.onError(TypeScriptServerError.create(this._version, response));
+			callback.onError(TypeScriptServerError.create(this._serverId, this._version, response));
 		}
 	}
 
