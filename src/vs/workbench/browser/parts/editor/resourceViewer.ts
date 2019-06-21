@@ -239,9 +239,8 @@ export class ZoomStatusbarItem extends Disposable {
 
 	private statusbarItem?: IStatusbarEntryAccessor;
 
-	onSelectScale?: (scale: Scale) => void;
-
 	constructor(
+		private readonly onSelectScale: (scale: Scale) => void,
 		@IEditorService editorService: IEditorService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -255,14 +254,10 @@ export class ZoomStatusbarItem extends Disposable {
 		}));
 	}
 
-	updateStatusbar(scale: Scale, onSelectScale?: (scale: Scale) => void): void {
+	updateStatusbar(scale: Scale): void {
 		const entry: IStatusbarEntry = {
 			text: this.zoomLabel(scale)
 		};
-
-		if (onSelectScale) {
-			this.onSelectScale = onSelectScale;
-		}
 
 		if (!this.statusbarItem) {
 			this.statusbarItem = this.statusbarService.addEntry(entry, 'status.imageZoom', nls.localize('status.imageZoom', "Image Zoom"), StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */);
@@ -354,7 +349,8 @@ class InlineImageView {
 	) {
 		const disposables = new DisposableStore();
 
-		const zoomStatusbarItem = disposables.add(instantiationService.createInstance(ZoomStatusbarItem));
+		const zoomStatusbarItem = disposables.add(instantiationService.createInstance(ZoomStatusbarItem,
+			newScale => updateScale(newScale)));
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
@@ -414,7 +410,7 @@ class InlineImageView {
 				InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
 			}
 
-			zoomStatusbarItem.updateStatusbar(scale, updateScale);
+			zoomStatusbarItem.updateStatusbar(scale);
 			scrollbar.scanDomNode();
 		}
 
