@@ -125,7 +125,8 @@ export function createApiFactory(
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(LogOutputChannelFactory, initData.logsLocation, rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
-	if (initData.remote.authority) {
+
+	if (initData.remote.isRemote && initData.remote.authority) {
 		extHostTask.registerTaskSystem(Schemas.vscodeRemote, {
 			scheme: Schemas.vscodeRemote,
 			authority: initData.remote.authority,
