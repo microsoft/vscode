@@ -20,6 +20,8 @@ import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { ITypeScriptServer, PipeRequestCanceller, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerProcess } from './server';
 
+type ServerKind = 'main' | 'syntax' | 'semantic';
+
 export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: TypeScriptVersionProvider,
@@ -36,12 +38,12 @@ export class TypeScriptServerSpawner {
 		pluginManager: PluginManager
 	): ITypeScriptServer {
 		if (this.shouldUseSeparateSyntaxServer(version)) {
-			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager, ['--syntaxOnly', '--disableAutomaticTypingAcquisition']);
-			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager, []);
+			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
+			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
 			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
 		}
 
-		return this.spawnTsServer('main', version, configuration, pluginManager, []);
+		return this.spawnTsServer('main', version, configuration, pluginManager);
 	}
 
 	private shouldUseSeparateSyntaxServer(version: TypeScriptVersion): boolean {
@@ -53,40 +55,39 @@ export class TypeScriptServerSpawner {
 	}
 
 	private spawnTsServer(
-		serverId: string,
+		kind: ServerKind,
 		version: TypeScriptVersion,
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager,
-		extraForkArgs: readonly string[],
 	): ITypeScriptServer {
 		const apiVersion = version.apiVersion || API.defaultVersion;
 
-		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
+		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
-				this._logger.info(`<${serverId}>  Log file: ${tsServerLogFile}`);
+				this._logger.info(`<${kind}>  Log file: ${tsServerLogFile}`);
 			} else {
-				this._logger.error(`<${serverId}> Could not create log directory`);
+				this._logger.error(`<${kind}> Could not create log directory`);
 			}
 		}
 
-		this._logger.info(`<${serverId}> Forking...`);
-		const childProcess = electron.fork(version.tsServerPath, [...args, ...extraForkArgs], this.getForkOptions());
-		this._logger.info(`<${serverId}> Starting...`);
+		this._logger.info(`<${kind}> Forking...`);
+		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions(kind));
+		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
-			serverId,
+			kind,
 			new ChildServerProcess(childProcess),
 			tsServerLogFile,
-			new PipeRequestCanceller(serverId, cancellationPipeName, this._tracer),
+			new PipeRequestCanceller(kind, cancellationPipeName, this._tracer),
 			version,
 			this._telemetryReporter,
 			this._tracer);
 	}
 
-	private getForkOptions() {
-		const debugPort = TypeScriptServerSpawner.getDebugPort();
+	private getForkOptions(kind: ServerKind) {
+		const debugPort = TypeScriptServerSpawner.getDebugPort(kind);
 		const tsServerForkOptions: electron.ForkOptions = {
 			execArgv: debugPort ? [`--inspect=${debugPort}`] : [],
 		};
@@ -94,6 +95,7 @@ export class TypeScriptServerSpawner {
 	}
 
 	private getTsServerArgs(
+		kind: ServerKind,
 		configuration: TypeScriptServiceConfiguration,
 		currentVersion: TypeScriptVersion,
 		apiVersion: API,
@@ -103,6 +105,10 @@ export class TypeScriptServerSpawner {
 		let cancellationPipeName: string | undefined;
 		let tsServerLogFile: string | undefined;
 
+		if (kind === 'syntax') {
+			args.push('--syntaxOnly');
+		}
+
 		if (apiVersion.gte(API.v206)) {
 			if (apiVersion.gte(API.v250)) {
 				args.push('--useInferredProjectPerProjectRoot');
@@ -110,12 +116,12 @@ export class TypeScriptServerSpawner {
 				args.push('--useSingleInferredProject');
 			}
 
-			if (configuration.disableAutomaticTypeAcquisition) {
+			if (configuration.disableAutomaticTypeAcquisition || kind === 'syntax') {
 				args.push('--disableAutomaticTypingAcquisition');
 			}
 		}
 
-		if (apiVersion.gte(API.v208)) {
+		if (apiVersion.gte(API.v208) && kind !== 'syntax') {
 			args.push('--enableTelemetry');
 		}
 
@@ -173,7 +179,11 @@ export class TypeScriptServerSpawner {
 		return { args, cancellationPipeName, tsServerLogFile };
 	}
 
-	private static getDebugPort(): number | undefined {
+	private static getDebugPort(kind: ServerKind): number | undefined {
+		if (kind === 'syntax') {
+			// We typically only want to debug the main semantic server
+			return undefined;
+		}
 		const value = process.env['TSS_DEBUG'];
 		if (value) {
 			const port = parseInt(value);
