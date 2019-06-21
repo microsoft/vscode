@@ -333,18 +333,32 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		this.semanticServer.kill();
 	}
 
-	private static readonly syntaxCommands = new Set<keyof TypeScriptRequests>(['navtree', 'getOutliningSpans', 'jsxClosingTag', 'selectionRange']);
-	private static readonly sharedCommands = new Set<keyof TypeScriptRequests>(['change', 'close', 'open', 'updateOpen', 'configure', 'configurePlugin']);
+	private static readonly syntaxCommands = new Set<keyof TypeScriptRequests>([
+		'navtree',
+		'getOutliningSpans',
+		'jsxClosingTag',
+		'selectionRange',
+		'format',
+		'formatonkey',
+	]);
+	private static readonly sharedCommands = new Set<keyof TypeScriptRequests>([
+		'change',
+		'close',
+		'open',
+		'updateOpen',
+		'configure',
+		'configurePlugin',
+	]);
 
 	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
 	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
 	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
-
 		if (SyntaxRoutingTsServer.syntaxCommands.has(command)) {
 			return this.syntaxServer.executeImpl(command, args, executeInfo);
 		} else if (SyntaxRoutingTsServer.sharedCommands.has(command)) {
-			this.syntaxServer.executeImpl(command, args, executeInfo);
-			return this.semanticServer.executeImpl(command, args, executeInfo);
+			// Dispatch to both server but only return from syntax one
+			this.semanticServer.executeImpl(command, args, executeInfo);
+			return this.syntaxServer.executeImpl(command, args, executeInfo);
 		} else {
 			return this.semanticServer.executeImpl(command, args, executeInfo);
 		}
