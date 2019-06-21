@@ -7,7 +7,7 @@ import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/
 import { ITerminalInstance, IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows, platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows, platform, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
@@ -68,18 +68,20 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 	}
 
-	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
+	public getDefaultShellAndArgs(platformOverride: Platform = platform): Promise<{ shell: string, args: string[] | undefined }> {
 		const isWorkspaceShellAllowed = this._isWorkspaceShellAllowed();
 		const shell = getDefaultShell(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
-			getSystemShell(platform),
+			getSystemShell(platformOverride),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
-			process.env.windir
+			process.env.windir,
+			platformOverride
 		);
 		const args = getDefaultShellArgs(
 			(key) => this._configurationService.inspect(key),
-			isWorkspaceShellAllowed
+			isWorkspaceShellAllowed,
+			platformOverride
 		);
 		return Promise.resolve({ shell, args });
 	}
