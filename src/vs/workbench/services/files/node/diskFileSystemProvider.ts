@@ -5,7 +5,7 @@
 
 import { mkdir, open, close, read, write, fdatasync } from 'fs';
 import { promisify } from 'util';
-import { IDisposable, Disposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -17,7 +17,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { retry, ThrottledDelayer } from 'vs/base/common/async';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { IDiskFileChange, toFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, toFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
@@ -80,16 +80,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			const children = await readdir(this.toFilePath(resource));
 
 			const result: [string, FileType][] = [];
-			for (let i = 0; i < children.length; i++) {
-				const child = children[i];
-
+			await Promise.all(children.map(async child => {
 				try {
 					const stat = await this.stat(joinPath(resource, child));
 					result.push([child, stat.type]);
 				} catch (error) {
 					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
 				}
-			}
+			}));
 
 			return result;
 		} catch (error) {
@@ -349,6 +347,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
 	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
 
+	private recursiveWatcherLogLevelListener: IDisposable | undefined;
+
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
 			return this.watchRecursive(resource, opts.excludes);
@@ -399,6 +399,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 			// Dispose old
 			dispose(this.recursiveWatcher);
+			this.recursiveWatcher = undefined;
 
 			// Create new if we actually have folders to watch
 			if (this.recursiveFoldersToWatch.length > 0) {
@@ -406,7 +407,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 					new(
 						folders: { path: string, excludes: string[] }[],
 						onChange: (changes: IDiskFileChange[]) => void,
-						onError: (msg: string) => void,
+						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
@@ -429,21 +430,43 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				this.recursiveWatcher = new watcherImpl(
 					this.recursiveFoldersToWatch,
 					event => this._onDidChangeFile.fire(toFileChanges(event)),
-					error => this._onDidWatchErrorOccur.fire(new Error(error)),
+					msg => {
+						if (msg.type === 'error') {
+							this._onDidWatchErrorOccur.fire(new Error(msg.message));
+						}
+						this.logService[msg.type](msg.message);
+					},
 					this.logService.getLevel() === LogLevel.Trace
 				);
+
+				if (!this.recursiveWatcherLogLevelListener) {
+					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(_ => {
+						if (this.recursiveWatcher) {
+							this.recursiveWatcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+						}
+					});
+				}
 			}
 		}
 	}
 
 	private watchNonRecursive(resource: URI): IDisposable {
-		return new NodeJSWatcherService(
+		const watcherService = new NodeJSWatcherService(
 			this.toFilePath(resource),
 			changes => this._onDidChangeFile.fire(toFileChanges(changes)),
-			error => this._onDidWatchErrorOccur.fire(new Error(error)),
-			info => this.logService.trace(info),
+			msg => {
+				if (msg.type === 'error') {
+					this._onDidWatchErrorOccur.fire(new Error(msg.message));
+				}
+				this.logService[msg.type](msg.message);
+			},
 			this.logService.getLevel() === LogLevel.Trace
 		);
+		const logLevelListener = this.logService.onDidChangeLogLevel(_ => {
+			watcherService.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+		});
+
+		return combinedDisposable(watcherService, logLevelListener);
 	}
 
 	//#endregion
@@ -488,5 +511,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 		dispose(this.recursiveWatcher);
 		this.recursiveWatcher = undefined;
+
+		dispose(this.recursiveWatcherLogLevelListener);
+		this.recursiveWatcherLogLevelListener = undefined;
 	}
 }

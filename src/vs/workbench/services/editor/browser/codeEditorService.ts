@@ -62,17 +62,16 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		return this.doOpenCodeEditor(input, source, sideBySide);
 	}
 
-	private doOpenCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		return this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(control => {
-			if (control) {
-				const widget = control.getControl();
-				if (isCodeEditor(widget)) {
-					return widget;
-				}
+	private async doOpenCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+		const control = await this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		if (control) {
+			const widget = control.getControl();
+			if (isCodeEditor(widget)) {
+				return widget;
 			}
+		}
 
-			return null;
-		});
+		return null;
 	}
 }
 

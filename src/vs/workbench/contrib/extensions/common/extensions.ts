@@ -67,14 +67,6 @@ export interface IExtension {
 	readonly isMalicious: boolean;
 }
 
-export interface IExtensionDependencies {
-	dependencies: IExtensionDependencies[];
-	hasDependencies: boolean;
-	identifier: string;
-	extension: IExtension;
-	dependent: IExtensionDependencies | null;
-}
-
 export const SERVICE_ID = 'extensionsWorkbenchService';
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
@@ -83,6 +75,7 @@ export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
+	installed: IExtension[];
 	outdated: IExtension[];
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
@@ -94,7 +87,6 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
 	checkForUpdates(): Promise<void>;
 	allowedBadgeProviders: string[];
@@ -138,7 +130,7 @@ export class ExtensionContainers extends Disposable {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
-					if (!container.extension.server || container.extension.server === extension.server) {
+					if (!container.extension.server || !extension.server || container.extension.server === extension.server) {
 						container.extension = extension;
 					} else if (container.updateWhenCounterExtensionChanges) {
 						container.update();

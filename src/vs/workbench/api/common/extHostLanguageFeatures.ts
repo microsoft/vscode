@@ -10,12 +10,11 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto, LinksListDto, ChainedCacheId } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId, CodeLensListDto, CodeActionListDto, SignatureHelpDto, SignatureHelpContextDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -25,11 +24,10 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostWebview } from 'vs/workbench/api/common/extHostWebview';
-import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
-import { generateUuid } from 'vs/base/common/uuid';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { LRUCache } from 'vs/base/common/map';
+import { IURITransformer } from 'vs/base/common/uriIpc';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 
 // --- adapter
 
@@ -104,34 +102,48 @@ class CodeLensAdapter {
 
 	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
+	private readonly _cache = new Cache<vscode.CodeLens>();
+	private readonly _disposables = new Map<number, DisposableStore>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
-		private readonly _heapService: ExtHostHeapService,
 		private readonly _provider: vscode.CodeLensProvider
 	) { }
 
-	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensDto[]> {
+	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensListDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
-			const result: CodeLensDto[] = [];
-			if (isNonEmptyArray(lenses)) {
-				for (const lens of lenses) {
-					const id = this._heapService.keep(lens);
-					result.push(ObjectIdentifier.mixin({
-						range: typeConvert.Range.from(lens.range),
-						command: this._commands.toInternal(lens.command)
-					}, id));
-				}
+
+			if (!lenses || token.isCancellationRequested) {
+				return undefined;
 			}
+
+			const cacheId = this._cache.add(lenses);
+			const disposables = new DisposableStore();
+			this._disposables.set(cacheId, disposables);
+
+			const result: CodeLensListDto = {
+				cacheId,
+				lenses: [],
+			};
+
+			for (let i = 0; i < lenses.length; i++) {
+				result.lenses.push({
+					cacheId: [cacheId, i],
+					range: typeConvert.Range.from(lenses[i].range),
+					command: this._commands.toInternal(lenses[i].command, disposables)
+				});
+			}
+
 			return result;
 		});
 	}
 
 	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
-		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
+		const lens = symbol.cacheId && this._cache.get(...symbol.cacheId);
 		if (!lens) {
 			return Promise.resolve(undefined);
 		}
@@ -144,51 +156,26 @@ class CodeLensAdapter {
 		}
 
 		return resolve.then(newLens => {
-			newLens = newLens || lens;
-			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd);
-			return symbol;
-		});
-	}
-}
-
-class CodeInsetAdapter {
-
-	constructor(
-		private readonly _documents: ExtHostDocuments,
-		private readonly _heapService: ExtHostHeapService,
-		private readonly _provider: vscode.CodeInsetProvider
-	) { }
-
-	provideCodeInsets(resource: URI, token: CancellationToken): Promise<CodeInsetDto[] | undefined> {
-		const doc = this._documents.getDocument(resource);
-		return asPromise(() => this._provider.provideCodeInsets(doc, token)).then(insets => {
-			if (Array.isArray(insets)) {
-				return insets.map(inset => {
-					const $ident = this._heapService.keep(inset);
-					const id = generateUuid();
-					return {
-						$ident,
-						id,
-						range: typeConvert.Range.from(inset.range),
-						height: inset.height
-					};
-				});
+			if (token.isCancellationRequested) {
+				return undefined;
 			}
-			return undefined;
+
+			const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
+			if (!disposables) {
+				// We've already been disposed of
+				return undefined;
+			}
+
+			newLens = newLens || lens;
+			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd, disposables);
+			return symbol;
 		});
 	}
 
-	resolveCodeInset(symbol: CodeInsetDto, webview: vscode.Webview, token: CancellationToken): Promise<CodeInsetDto> {
-
-		const inset = this._heapService.get<vscode.CodeInset>(ObjectIdentifier.of(symbol));
-		if (!inset) {
-			return Promise.resolve(symbol);
-		}
-
-		return asPromise(() => this._provider.resolveCodeInset(inset, webview, token)).then(newInset => {
-			newInset = newInset || inset;
-			return symbol;
-		});
+	releaseCodeLenses(cachedId: number): void {
+		dispose(this._disposables.get(cachedId));
+		this._disposables.delete(cachedId);
+		this._cache.delete(cachedId);
 	}
 }
 
@@ -328,6 +315,9 @@ export interface CustomCodeAction extends CodeActionDto {
 class CodeActionAdapter {
 	private static readonly _maxCodeActionsPerFile: number = 1000;
 
+	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>();
+	private readonly _disposables = new Map<number, DisposableStore>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
@@ -337,7 +327,7 @@ class CodeActionAdapter {
 		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
-	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[] | undefined> {
+	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionListDto | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const ran = Selection.isISelection(rangeOrSelection)
@@ -360,34 +350,39 @@ class CodeActionAdapter {
 		};
 
 		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
-			if (!isNonEmptyArray(commandsOrActions)) {
+			if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 				return undefined;
 			}
-			const result: CustomCodeAction[] = [];
+
+			const cacheId = this._cache.add(commandsOrActions);
+			const disposables = new DisposableStore();
+			this._disposables.set(cacheId, disposables);
+
+			const actions: CustomCodeAction[] = [];
 			for (const candidate of commandsOrActions) {
 				if (!candidate) {
 					continue;
 				}
 				if (CodeActionAdapter._isCommand(candidate)) {
 					// old school: synthetic code action
-					result.push({
+					actions.push({
 						_isSynthetic: true,
 						title: candidate.title,
-						command: this._commands.toInternal(candidate),
+						command: this._commands.toInternal(candidate, disposables),
 					});
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
 							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							this._logService.warn(`${this._extensionId.value} -Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
 					// new school: convert code action
-					result.push({
+					actions.push({
 						title: candidate.title,
-						command: candidate.command && this._commands.toInternal(candidate.command),
+						command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
@@ -396,8 +391,14 @@ class CodeActionAdapter {
 				}
 			}
 
-			return result;
+			return <CodeActionListDto>{ cacheId, actions };
 		});
+	}
+
+	public releaseCodeActions(cachedId: number): void {
+		dispose(this._disposables.get(cachedId));
+		this._disposables.delete(cachedId);
+		this._cache.delete(cachedId);
 	}
 
 	private static _isCommand(thing: any): thing is vscode.Command {
@@ -624,6 +625,7 @@ class SuggestAdapter {
 	private _provider: vscode.CompletionItemProvider;
 
 	private _cache = new Cache<vscode.CompletionItem>();
+	private _disposables = new Map<number, DisposableStore>();
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -643,13 +645,18 @@ class SuggestAdapter {
 				return undefined;
 			}
 
-			let list = Array.isArray(value) ? new CompletionList(value) : value;
-			let pid: number | undefined;
+			if (token.isCancellationRequested) {
+				// cancelled -> return without further ado, esp no caching
+				// of results as they will leak
+				return undefined;
+			}
+
+			const list = Array.isArray(value) ? new CompletionList(value) : value;
 
 			// keep result for providers that support resolving
-			if (SuggestAdapter.supportsResolving(this._provider)) {
-				pid = this._cache.add(list.items);
-			}
+			const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
+			const disposables = new DisposableStore();
+			this._disposables.set(pid, disposables);
 
 			// the default text edit range
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
@@ -663,7 +670,7 @@ class SuggestAdapter {
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem(list.items[i], pos, pid && [pid, i] || undefined);
+				const suggestion = this._convertCompletionItem(list.items[i], pos, [pid, i]);
 				// check for bad completion item
 				// for the converter did warn
 				if (suggestion) {
@@ -698,13 +705,20 @@ class SuggestAdapter {
 	}
 
 	releaseCompletionItems(id: number): any {
+		dispose(this._disposables.get(id));
+		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: ChainedCacheId | undefined): SuggestDataDto | undefined {
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: ChainedCacheId): SuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
+		}
+
+		const disposables = this._disposables.get(id[0]);
+		if (!disposables) {
+			throw Error('DisposableStore is missing...');
 		}
 
 		const result: SuggestDataDto = {
@@ -721,7 +735,7 @@ class SuggestAdapter {
 			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			k: item.commitCharacters,
 			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			m: this._commands.toInternal(item.command),
+			m: this._commands.toInternal(item.command, disposables),
 		};
 
 		// 'insertText'-logic
@@ -756,31 +770,32 @@ class SuggestAdapter {
 
 class SignatureHelpAdapter {
 
+	private readonly _cache = new Cache<vscode.SignatureHelp>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.SignatureHelpProvider,
-		private readonly _heap: ExtHostHeapService,
 	) { }
 
-	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined> {
+	provideSignatureHelp(resource: URI, position: IPosition, context: SignatureHelpContextDto, token: CancellationToken): Promise<SignatureHelpDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 		const vscodeContext = this.reviveContext(context);
 
 		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
-				const id = this._heap.keep(value);
-				return ObjectIdentifier.mixin(typeConvert.SignatureHelp.from(value), id);
+				const id = this._cache.add([value]);
+				return { ...typeConvert.SignatureHelp.from(value), id };
 			}
 			return undefined;
 		});
 	}
 
-	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
+	private reviveContext(context: SignatureHelpContextDto): vscode.SignatureHelpContext {
 		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
 		if (context.activeSignatureHelp) {
 			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
-			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
+			const saved = this._cache.get(context.activeSignatureHelp.id, 0);
 			if (saved) {
 				activeSignatureHelp = saved;
 				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
@@ -791,14 +806,18 @@ class SignatureHelpAdapter {
 		}
 		return { ...context, activeSignatureHelp };
 	}
+
+	releaseSignatureHelp(id: number): any {
+		this._cache.delete(id);
+	}
 }
 
 class Cache<T> {
 
-	private _data = new Map<number, T[]>();
+	private _data = new Map<number, readonly T[]>();
 	private _idPool = 1;
 
-	add(item: T[]): number {
+	add(item: readonly T[]): number {
 		const id = this._idPool++;
 		this._data.set(id, item);
 		return id;
@@ -828,6 +847,12 @@ class LinkProviderAdapter {
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links) || links.length === 0) {
 				// bad result
+				return undefined;
+			}
+
+			if (token.isCancellationRequested) {
+				// cancelled -> return without further ado, esp no caching
+				// of results as they will leak
 				return undefined;
 			}
 
@@ -877,7 +902,7 @@ class ColorProviderAdapter {
 	provideColors(resource: URI, token: CancellationToken): Promise<IRawColorInfo[]> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (!Array.isArray(colors)) {
+			if (!Array.isArray<vscode.ColorInformation>(colors)) {
 				return [];
 			}
 
@@ -1027,7 +1052,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter | CodeInsetAdapter | DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
+	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
 
 class AdapterData {
 	constructor(
@@ -1036,41 +1061,32 @@ class AdapterData {
 	) { }
 }
 
-export interface ISchemeTransformer {
-	transformOutgoing(scheme: string): string;
-}
-
 export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
-	private readonly _schemeTransformer: ISchemeTransformer | null;
+	private readonly _uriTransformer: IURITransformer | null;
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
-	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, AdapterData>();
 	private readonly _logService: ILogService;
-	private _webviewProxy: MainThreadWebviewsShape;
 
 	constructor(
 		mainContext: IMainContext,
-		schemeTransformer: ISchemeTransformer | null,
+		uriTransformer: IURITransformer | null,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
-		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics,
 		logService: ILogService
 	) {
-		this._schemeTransformer = schemeTransformer;
+		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
-		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
 		this._logService = logService;
-		this._webviewProxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<ISerializedDocumentFilter> {
@@ -1099,8 +1115,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	private _transformScheme(scheme: string | undefined): string | undefined {
-		if (this._schemeTransformer && typeof scheme === 'string') {
-			return this._schemeTransformer.transformOutgoing(scheme);
+		if (this._uriTransformer && typeof scheme === 'string') {
+			return this._uriTransformer.transformOutgoingScheme(scheme);
 		}
 		return scheme;
 	}
@@ -1173,7 +1189,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, this._heapService, provider), extension));
+		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider), extension));
 		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector), eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -1185,43 +1201,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return result;
 	}
 
-	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.ICodeLensSymbol[]> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), []);
+	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensListDto | undefined> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), undefined);
 	}
 
-	$resolveCodeLens(handle: number, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
+	$resolveCodeLens(handle: number, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(symbol, token), undefined);
 	}
 
-	// --- code insets
-
-	registerCodeInsetProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeInsetProvider): vscode.Disposable {
-		const handle = this._nextHandle();
-		const eventHandle = typeof provider.onDidChangeCodeInsets === 'function' ? this._nextHandle() : undefined;
-
-		this._adapter.set(handle, new AdapterData(new CodeInsetAdapter(this._documents, this._heapService, provider), extension));
-		this._proxy.$registerCodeInsetSupport(handle, this._transformDocumentSelector(selector), eventHandle);
-		let result = this._createDisposable(handle);
-
-		if (eventHandle !== undefined && provider.onDidChangeCodeInsets) {
-			const subscription = provider.onDidChangeCodeInsets(_ => this._proxy.$emitCodeLensEvent(eventHandle));
-			result = Disposable.from(result, subscription);
-		}
-
-		return result;
-	}
-
-	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol[] | undefined> {
-		return this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.provideCodeInsets(URI.revive(resource), token), undefined);
-	}
-
-	$resolveCodeInset(handle: number, _resource: UriComponents, symbol: codeInset.ICodeInsetSymbol, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol> {
-		const webviewHandle = Math.random();
-		const webview = new ExtHostWebview(webviewHandle, this._webviewProxy, { enableScripts: true });
-		return this._withAdapter(handle, CodeInsetAdapter, async (adapter, extension) => {
-			await this._webviewProxy.$createWebviewCodeInset(webviewHandle, symbol.id, { enableCommandUris: true, enableScripts: true }, extension ? extension.identifier : undefined, extension ? extension.extensionLocation : undefined);
-			return adapter.resolveCodeInset(symbol, webview, token);
-		}, symbol);
+	$releaseCodeLenses(handle: number, cacheId: number): void {
+		this._withAdapter(handle, CodeLensAdapter, adapter => Promise.resolve(adapter.releaseCodeLenses(cacheId)), undefined);
 	}
 
 	// --- declaration
@@ -1311,8 +1300,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[] | undefined> {
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionListDto | undefined> {
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined);
+	}
+
+	$releaseCodeActions(handle: number, cacheId: number): void {
+		this._withAdapter(handle, CodeActionAdapter, adapter => Promise.resolve(adapter.releaseCodeActions(cacheId)), undefined);
 	}
 
 	// --- formatting
@@ -1410,13 +1403,17 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
 			: metadataOrTriggerChars;
 
-		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider, this._heapService), extension);
+		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
 		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
 
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined> {
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: SignatureHelpContextDto, token: CancellationToken): Promise<SignatureHelpDto | undefined> {
 		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token), undefined);
+	}
+
+	$releaseSignatureHelp(handle: number, id: number): void {
+		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
 	}
 
 	// --- links

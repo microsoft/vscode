@@ -15,10 +15,10 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
@@ -62,6 +62,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	totalBytesRead: number = 0;
 
+	private invalidStatSize: boolean;
+
 	private _testCapabilities: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {
@@ -80,6 +82,20 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	set capabilities(capabilities: FileSystemProviderCapabilities) {
 		this._testCapabilities = capabilities;
+	}
+
+	setInvalidStatSize(disabled: boolean): void {
+		this.invalidStatSize = disabled;
+	}
+
+	async stat(resource: URI): Promise<IStat> {
+		const res = await super.stat(resource);
+
+		if (this.invalidStatSize) {
+			res.size = String(res.size) as any; // for https://github.com/Microsoft/vscode/issues/72909
+		}
+
+		return res;
 	}
 
 	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
@@ -109,21 +125,21 @@ suite('Disk File Service', () => {
 	let testProvider: TestDiskFileSystemProvider;
 	let testDir: string;
 
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 
 	setup(async () => {
 		const logService = new NullLogService();
 
 		service = new FileService(logService);
-		disposables.push(service);
+		disposables.add(service);
 
 		fileProvider = new TestDiskFileSystemProvider(logService);
-		disposables.push(service.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
+		disposables.add(service.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		testProvider = new TestDiskFileSystemProvider(logService);
-		disposables.push(service.registerProvider(testSchema, testProvider));
-		disposables.push(testProvider);
+		disposables.add(service.registerProvider(testSchema, testProvider));
+		disposables.add(testProvider);
 
 		const id = generateUuid();
 		testDir = join(parentDir, id);
@@ -133,14 +149,14 @@ suite('Disk File Service', () => {
 	});
 
 	teardown(async () => {
-		disposables = dispose(disposables);
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 
 	test('createFolder', async () => {
 		let event: FileOperationEvent | undefined;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const parent = await service.resolve(URI.file(testDir));
 
@@ -160,7 +176,7 @@ suite('Disk File Service', () => {
 
 	test('createFolder: creating multiple folders at once', async function () {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
 		const parent = await service.resolve(URI.file(testDir));
@@ -355,7 +371,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - folder symbolic link', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'deep-link'));
@@ -369,7 +385,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - file symbolic link', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -382,7 +398,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - invalid symbolic link does not break', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'foo'));
@@ -395,7 +411,7 @@ suite('Disk File Service', () => {
 
 	test('deleteFile', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
 		const source = await service.resolve(resource);
@@ -410,7 +426,7 @@ suite('Disk File Service', () => {
 
 	test('deleteFolder (recursive)', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
@@ -430,15 +446,14 @@ suite('Disk File Service', () => {
 			await service.del(source.resource);
 
 			return Promise.reject(new Error('Unexpected'));
-		}
-		catch (error) {
+		} catch (error) {
 			return Promise.resolve(true);
 		}
 	});
 
 	test('move', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'index.html'));
 		const sourceContents = readFileSync(source.fsPath);
@@ -518,7 +533,7 @@ suite('Disk File Service', () => {
 
 	async function testMoveAcrossProviders(sourceFile = 'index.html'): Promise<void> {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, sourceFile));
 		const sourceContents = readFileSync(source.fsPath);
@@ -542,7 +557,7 @@ suite('Disk File Service', () => {
 
 	test('move - multi folder', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
 		const renameToPath = join(...multiFolderPaths, 'other.html');
@@ -561,7 +576,7 @@ suite('Disk File Service', () => {
 
 	test('move - directory', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'deep'));
 
@@ -605,7 +620,7 @@ suite('Disk File Service', () => {
 
 	async function testMoveFolderAcrossProviders(): Promise<void> {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'deep'));
 		const sourceChildren = readdirSync(source.fsPath);
@@ -630,7 +645,7 @@ suite('Disk File Service', () => {
 
 	test('move - MIX CASE', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'index.html'));
 		await service.resolve(source);
@@ -647,7 +662,7 @@ suite('Disk File Service', () => {
 
 	test('move - source parent of target', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		await service.resolve(URI.file(join(testDir, 'index.html')));
 		try {
@@ -660,7 +675,7 @@ suite('Disk File Service', () => {
 
 	test('move - FILE_MOVE_CONFLICT', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
 		try {
@@ -675,7 +690,7 @@ suite('Disk File Service', () => {
 		let createEvent: FileOperationEvent;
 		let moveEvent: FileOperationEvent;
 		let deleteEvent: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => {
+		disposables.add(service.onAfterOperation(e => {
 			if (e.operation === FileOperation.CREATE) {
 				createEvent = e;
 			} else if (e.operation === FileOperation.DELETE) {
@@ -739,7 +754,7 @@ suite('Disk File Service', () => {
 
 	async function doTestCopy(sourceName: string = 'index.html') {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = await service.resolve(URI.file(join(testDir, sourceName)));
 		const target = URI.file(join(testDir, 'other.html'));
@@ -764,7 +779,7 @@ suite('Disk File Service', () => {
 		let createEvent: FileOperationEvent;
 		let copyEvent: FileOperationEvent;
 		let deleteEvent: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => {
+		disposables.add(service.onAfterOperation(e => {
 			if (e.operation === FileOperation.CREATE) {
 				createEvent = e;
 			} else if (e.operation === FileOperation.DELETE) {
@@ -824,8 +839,20 @@ suite('Disk File Service', () => {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
 
+	test('readFile - small file - buffered / readonly', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
 	test('readFile - small file - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFile - small file - unbuffered / readonly', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
 
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
@@ -1037,6 +1064,24 @@ suite('Disk File Service', () => {
 		assert.equal(fileProvider.totalBytesRead, 0);
 	});
 
+	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/Microsoft/vscode/issues/72909', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+		fileProvider.setInvalidStatSize(true);
+
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		await service.readFile(resource);
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.readFile(resource, { etag: undefined });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
+	});
+
 	test('readFile - FILE_NOT_MODIFIED_SINCE - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
@@ -1123,7 +1168,7 @@ suite('Disk File Service', () => {
 
 	test('createFile', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
@@ -1154,7 +1199,7 @@ suite('Disk File Service', () => {
 
 	test('createFile (allows to overwrite existing)', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
@@ -1200,6 +1245,26 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
+	test('writeFile - buffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
+	});
+
 	test('writeFile - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
@@ -1226,6 +1291,26 @@ suite('Disk File Service', () => {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile - unbuffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
 	});
 
 	test('writeFile (large file) - multiple parallel writes queue up', async () => {
@@ -1336,20 +1421,25 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
-	test('writeFile (error when writing to file that has been updated meanwhile)', async () => {
+	test('writeFile - error when writing to file that has been updated meanwhile', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const stat = await service.resolve(resource);
 
-		const content = readFileSync(resource.fsPath);
+		const content = readFileSync(resource.fsPath).toString();
 		assert.equal(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
 		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
 
+		const newContentLeadingToError = newContent + newContent;
+
+		const fakeMtime = 1000;
+		const fakeSize = 1000;
+
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: etag(0, 0), mtime: 0 });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: etag({ mtime: fakeMtime, size: fakeSize }), mtime: fakeMtime });
 		} catch (err) {
 			error = err;
 		}
@@ -1357,6 +1447,32 @@ suite('Disk File Service', () => {
 		assert.ok(error);
 		assert.ok(error instanceof FileOperationError);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+	});
+
+	test('writeFile - no error when writing to file where size is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const stat = await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.equal(content, 'Small File');
+
+		const newContent = content; // same content
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+
+		const newContentLeadingToNoError = newContent; // writing the same content should be OK
+
+		const fakeMtime = 1000;
+		const actualSize = newContent.length;
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: etag({ mtime: fakeMtime, size: actualSize }), mtime: fakeMtime });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
 	});
 
 	test('watch - file', done => {
@@ -1370,7 +1486,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file symbolic link', async done => {
 		if (isWindows) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -1383,7 +1499,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file - multiple writes', done => {
 		if (isWindows) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
@@ -1406,6 +1522,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - file - rename file', done => {
+		if (isWindows) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'index-watch1-renamed.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -1446,6 +1566,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - change file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1458,6 +1582,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - add file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch4'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1469,6 +1597,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - delete file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch5'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1481,6 +1613,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - add folder', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch6'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1492,6 +1628,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - delete folder', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch7'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1504,8 +1644,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - symbolic link - change file', async done => {
-		if (isWindows) {
-			return done(); // not happy
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'deep-link'));
@@ -1521,7 +1661,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - rename file', done => {
 		if (!isLinux) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch8'));
@@ -1539,7 +1679,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - rename file (different case)', done => {
 		if (!isLinux) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch8'));

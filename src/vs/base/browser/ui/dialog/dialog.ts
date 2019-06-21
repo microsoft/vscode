@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -15,6 +15,7 @@ import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface IDialogOptions {
 	cancelId?: number;
@@ -30,6 +31,11 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogBorder?: Color;
 }
 
+interface ButtonMapEntry {
+	label: string;
+	index: number;
+}
+
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
@@ -39,6 +45,7 @@ export class Dialog extends Disposable {
 	private toolbarContainer: HTMLElement | undefined;
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
+	private focusToReturn: HTMLElement | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -72,6 +79,8 @@ export class Dialog extends Disposable {
 	}
 
 	async show(): Promise<number> {
+		this.focusToReturn = document.activeElement as HTMLElement;
+
 		return new Promise<number>((resolve) => {
 			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
 				resolve(0);
@@ -89,12 +98,13 @@ export class Dialog extends Disposable {
 
 			let focusedButton = 0;
 			this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
+			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 			this.buttonGroup.buttons.forEach((button, index) => {
-				button.label = mnemonicButtonLabel(this.buttons[index], true);
+				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
-					resolve(index);
+					resolve(buttonMap[index].index);
 				}));
 			});
 
@@ -132,6 +142,19 @@ export class Dialog extends Disposable {
 
 				if (evt.equals(KeyCode.Escape)) {
 					resolve(this.options.cancelId || 0);
+				}
+			}));
+
+			this._register(domEvent(this.element, 'focusout', false)((e: FocusEvent) => {
+				if (!!e.relatedTarget && !!this.element) {
+					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						this.focusToReturn = e.relatedTarget as HTMLElement;
+
+						if (e.target) {
+							(e.target as HTMLElement).focus();
+							EventHelper.stop(e, true);
+						}
+					}
 				}
 			}));
 
@@ -206,5 +229,28 @@ export class Dialog extends Disposable {
 			removeNode(this.modal);
 			this.modal = undefined;
 		}
+
+		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
+			this.focusToReturn.focus();
+			this.focusToReturn = undefined;
+		}
+	}
+
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+		const buttonMap: ButtonMapEntry[] = [];
+		// Maps each button to its current label and old index so that when we move them around it's not a problem
+		buttons.forEach((button, index) => {
+			buttonMap.push({ label: button, index: index });
+		});
+
+		if (isMacintosh) {
+			if (cancelId !== undefined) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.reverse();
+				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+			}
+		}
+
+		return buttonMap;
 	}
 }

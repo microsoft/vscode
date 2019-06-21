@@ -53,6 +53,7 @@ const ModulesToLookFor = [
 	// JS frameworks
 	'react',
 	'react-native',
+	'rnpm-plugin-windows',
 	'@angular/core',
 	'@ionic',
 	'vue',
@@ -246,8 +247,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	/* __GDPR__FRAGMENT__
 		"WorkspaceTags" : {
-			"workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workbench.filesToOpenOrCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workspace.roots" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -269,6 +269,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.rnpm-plugin-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -289,6 +290,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
+			"workspace.java.pom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -352,9 +354,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		tags['workspace.id'] = workspaceId;
 
-		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
-		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || 0;
-		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || 0;
+		const { filesToOpenOrCreate, filesToDiff } = configuration;
+		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
 
 		const isEmpty = state === WorkbenchState.EMPTY;
@@ -388,6 +389,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+
+			tags['workspace.java.pom'] = nameSet.has('pom.xml');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -455,7 +458,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (PyModulesToLookFor.indexOf(packageName) > -1) {
 					tags['workspace.py.' + packageName] = true;
 				}
-				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+				// cognitive services has a lot of tiny packages. e.g. 'azure-cognitiveservices-search-autosuggest'
 				if (packageName.indexOf('azure-cognitiveservices') > -1) {
 					tags['workspace.py.azure-cognitiveservices'] = true;
 				}
@@ -504,23 +507,24 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					if (packageJsonContents['dependencies']) {
-						for (let module of ModulesToLookFor) {
-							if ('react-native' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.reactNative'] = true;
-								}
-							} else if ('tns-core-modules' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.nativescript'] = true;
-								}
-							} else {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.' + module] = true;
-								}
+					let dependencies = packageJsonContents['dependencies'];
+					let devDependencies = packageJsonContents['devDependencies'];
+					for (let module of ModulesToLookFor) {
+						if ('react-native' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.reactNative'] = true;
+							}
+						} else if ('tns-core-modules' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.nativescript'] = true;
+							}
+						} else {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.npm.' + module] = true;
 							}
 						}
 					}
+
 				}
 				catch (e) {
 					// Ignore errors when resolving file or parsing file contents
@@ -586,11 +590,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
-		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(filesToOpen[0].fileUri);
-		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(filesToCreate[0].fileUri);
+	private findFolder({ filesToOpenOrCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
+		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
+			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
 			return this.parentURI(filesToDiff[0].fileUri);
 		}

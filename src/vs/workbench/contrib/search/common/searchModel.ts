@@ -18,7 +18,7 @@ import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, Tracke
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -736,10 +736,10 @@ export class SearchResult extends Disposable {
 		return this.getFolderMatch(match.resource()).replace(match);
 	}
 
-	replaceAll(progressRunner: IProgressRunner): Promise<any> {
+	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
 		this.replacingAll = true;
 
-		const promise = this.replaceService.replace(this.matches(), progressRunner);
+		const promise = this.replaceService.replace(this.matches(), progress);
 		const onDone = Event.stopwatch(Event.fromPromise(promise));
 		/* __GDPR__
 			"replaceAll.started" : {

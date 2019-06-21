@@ -92,7 +92,6 @@ export interface IWindowsMainService {
 	readonly onWindowClose: Event<number>;
 
 	// methods
-	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	closeWorkspace(win: ICodeWindow): void;

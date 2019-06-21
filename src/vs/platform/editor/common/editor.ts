@@ -49,12 +49,21 @@ export interface IBaseResourceInput {
 	 * looking at the scheme of the resource(s).
 	 */
 	readonly forceFile?: boolean;
+
+	/**
+	 * Hint to indicate that this input should be treated as a
+	 * untitled file.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	readonly forceUntitled?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {
 
 	/**
-	 * The resource URL of the resource to open.
+	 * The resource URI of the resource to open.
 	 */
 	resource: URI;
 
@@ -62,6 +71,12 @@ export interface IResourceInput extends IBaseResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	readonly encoding?: string;
+
+	/**
+	 * The identifier of the language mode of the text input
+	 * if known to use when displaying the contents.
+	 */
+	readonly mode?: string;
 }
 
 export interface IEditorOptions {
@@ -80,15 +95,17 @@ export interface IEditorOptions {
 	readonly forceReload?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note
-	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfVisible?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups. Note
-	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfOpened?: boolean;

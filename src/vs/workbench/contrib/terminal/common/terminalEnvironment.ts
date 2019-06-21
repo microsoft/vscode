@@ -9,6 +9,7 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -59,7 +60,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	}
 }
 
-export function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
+function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
 	if (!other) {
 		return;
 	}
@@ -71,7 +72,7 @@ export function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerm
 	}
 }
 
-export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
 		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
@@ -92,11 +93,13 @@ function _getLangEnvVariable(locale?: string) {
 		// app.getLocale can return just a language without a variant, fill in the variant for
 		// supported languages as many shells expect a 2-part locale.
 		const languageVariants = {
+			cs: 'CZ',
 			de: 'DE',
 			en: 'US',
 			es: 'ES',
 			fi: 'FI',
 			fr: 'FR',
+			hu: 'HU',
 			it: 'IT',
 			ja: 'JP',
 			ko: 'KR',
@@ -159,33 +162,90 @@ export function escapeNonWindowsPath(path: string): string {
 	return newPath;
 }
 
-export function mergeDefaultShellPathAndArgs(
-	shell: IShellLaunchConfig,
+export function getDefaultShell(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
+	defaultShell: string,
+	isWoW64: boolean,
+	windir: string | undefined,
 	platformOverride: platform.Platform = platform.platform
-): void {
+): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
-	// const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
-	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	// const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-
-	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || <string>shellConfigValue.default;
-	shell.args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	let executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default || defaultShell);
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
 	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
-		const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
-		if (shell.executable && shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
+	if ((platformOverride === platform.Platform.Windows) && !isWoW64 && windir) {
+		const sysnativePath = path.join(windir, 'Sysnative').toLowerCase();
+		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
+			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length));
 		}
 	}
 
 	// Convert / to \ on Windows for convenience
-	if (shell.executable && platformOverride === platform.Platform.Windows) {
-		shell.executable = shell.executable.replace(/\//g, '\\');
+	if (executable && platformOverride === platform.Platform.Windows) {
+		executable = executable.replace(/\//g, '\\');
 	}
+
+	return executable;
+}
+
+export function getDefaultShellArgs(
+	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	isWorkspaceShellAllowed: boolean,
+	platformOverride: platform.Platform = platform.platform
+): string[] {
+	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
+	const args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	return args;
+}
+
+export function createTerminalEnvironment(
+	shellLaunchConfig: IShellLaunchConfig,
+	lastActiveWorkspace: IWorkspaceFolder | null,
+	envFromConfig: { user: ITerminalEnvironment | undefined, value: ITerminalEnvironment | undefined, default: ITerminalEnvironment | undefined },
+	configurationResolverService: IConfigurationResolverService | undefined,
+	isWorkspaceShellAllowed: boolean,
+	version: string | undefined,
+	setLocaleVariables: boolean,
+	baseEnv: platform.IProcessEnvironment
+): platform.IProcessEnvironment {
+	// Create a terminal environment based on settings, launch config and permissions
+	let env: platform.IProcessEnvironment = {};
+	if (shellLaunchConfig.strictEnv) {
+		// strictEnv is true, only use the requested env (ignoring null entries)
+		mergeNonNullKeys(env, shellLaunchConfig.env);
+	} else {
+		// Merge process env with the env from config and from shellLaunchConfig
+		mergeNonNullKeys(env, baseEnv);
+
+		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		// const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+		const allowedEnvFromConfig = { ...(isWorkspaceShellAllowed ? envFromConfig.value : envFromConfig.user) };
+
+		// Resolve env vars from config and shell
+		if (configurationResolverService) {
+			if (allowedEnvFromConfig) {
+				resolveConfigurationVariables(configurationResolverService, allowedEnvFromConfig, lastActiveWorkspace);
+			}
+			if (shellLaunchConfig.env) {
+				resolveConfigurationVariables(configurationResolverService, shellLaunchConfig.env, lastActiveWorkspace);
+			}
+		}
+
+		// Merge config (settings) and ShellLaunchConfig environments
+		mergeEnvironments(env, allowedEnvFromConfig);
+		mergeEnvironments(env, shellLaunchConfig.env);
+
+		// Sanitize the environment, removing any undesirable VS Code and Electron environment
+		// variables
+		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+
+		// Adding other env keys necessary to create the process
+		addTerminalEnvironmentKeys(env, version, platform.locale, setLocaleVariables);
+	}
+	return env;
 }

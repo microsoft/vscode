@@ -6,19 +6,19 @@
 import { applyDragImage } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, IRunEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/titlecontrol';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { createActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ExecuteCommandAction, IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -33,13 +33,13 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { EDITOR_TITLE_HEIGHT, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, EditorPinnedContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IToolbarActions {
@@ -56,10 +56,13 @@ export abstract class TitleControl extends Themable {
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
+
 	protected editorActionsToolbar: ToolBar;
 
 	private resourceContext: ResourceContextKey;
-	private editorToolBarMenuDisposables: IDisposable[] = [];
+	private editorPinnedContext: IContextKey<boolean>;
+
+	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
 	private contextMenu: IMenu;
 
@@ -84,6 +87,8 @@ export abstract class TitleControl extends Themable {
 		super(themeService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.editorPinnedContext = EditorPinnedContext.bindTo(contextKeyService);
+
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
 		this.create(parent);
@@ -128,7 +133,7 @@ export abstract class TitleControl extends Themable {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
 
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
-			actionItemProvider: action => this.actionItemProvider(action),
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
@@ -158,21 +163,21 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	private actionItemProvider(action: IAction): IActionItem | undefined {
+	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
 		const activeControl = this.group.activeControl;
 
 		// Check Active Editor
-		let actionItem: IActionItem | undefined = undefined;
+		let actionViewItem: IActionViewItem | undefined = undefined;
 		if (activeControl instanceof BaseEditor) {
-			actionItem = activeControl.getActionItem(action);
+			actionViewItem = activeControl.getActionViewItem(action);
 		}
 
 		// Check extensions
-		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		if (!actionViewItem) {
+			actionViewItem = createActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
-		return actionItem;
+		return actionViewItem;
 	}
 
 	protected updateEditorActionsToolbar(): void {
@@ -218,10 +223,11 @@ export abstract class TitleControl extends Themable {
 		const secondary: IAction[] = [];
 
 		// Dispose previous listeners
-		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
+		this.editorToolBarMenuDisposables.clear();
 
-		// Update the resource context
-		this.resourceContext.set(this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null);
+		// Update contexts
+		this.resourceContext.set(this.group.activeEditor ? withUndefinedAsNull(toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.MASTER })) : null);
+		this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeControl = this.group.activeControl;
@@ -229,12 +235,12 @@ export abstract class TitleControl extends Themable {
 			const codeEditor = getCodeEditor(activeControl.getControl());
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
-			this.editorToolBarMenuDisposables.push(titleBarMenu);
-			this.editorToolBarMenuDisposables.push(titleBarMenu.onDidChange(() => {
+			this.editorToolBarMenuDisposables.add(titleBarMenu);
+			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
-			fillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary });
+			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }));
 		}
 
 		return { primary, secondary };
@@ -286,9 +292,11 @@ export abstract class TitleControl extends Themable {
 
 	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
 
-		// Update the resource context
-		const currentContext = this.resourceContext.get();
-		this.resourceContext.set(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }));
+		// Update contexts based on editor picked and remember previous to restore
+		const currentResourceContext = this.resourceContext.get();
+		this.resourceContext.set(withUndefinedAsNull(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER })));
+		const currentPinnedContext = !!this.editorPinnedContext.get();
+		this.editorPinnedContext.set(this.group.isPinned(editor));
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;
@@ -299,7 +307,7 @@ export abstract class TitleControl extends Themable {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions, this.contextMenuService);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -309,11 +317,15 @@ export abstract class TitleControl extends Themable {
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {
 
-				// restore previous context
-				this.resourceContext.set(currentContext || null);
+				// restore previous contexts
+				this.resourceContext.set(currentResourceContext || null);
+				this.editorPinnedContext.set(currentPinnedContext);
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
+
+				// Cleanup
+				dispose(actionsDisposable);
 			}
 		});
 	}
@@ -365,7 +377,6 @@ export abstract class TitleControl extends Themable {
 	dispose(): void {
 		dispose(this.breadcrumbsControl);
 		this.breadcrumbsControl = undefined;
-		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		super.dispose();
 	}
