@@ -737,50 +737,64 @@ export class Minimap extends ViewPart {
 			const lineHeightRatio = renderMinimap === RenderMinimap.LargeBlocks || renderMinimap === RenderMinimap.SmallBlocks ? 0.5 : 1;
 			const height = lineHeight * lineHeightRatio;
 
-			for (let i = 0; i < decorations.length; i++) {
-				if (decorations[i].options.minimap) {
-					this.renderDecoration(canvasContext, decorations[i], layout, height, lineHeight, tabSize, characterWidth);
+			// Loop over decorations, ignoring those that don't have the minimap property set and rendering those on the same line together
+			let i = 0;
+			for (; i < decorations.length; i++) {
+				if (!decorations[i].options.minimap) {
+					continue;
 				}
+
+				let decorationsForLine = [decorations[i]];
+				let currentLine = decorations[i].range.startLineNumber;
+				let j = i + 1;
+				while (j < decorations.length && decorations[j].range.startLineNumber === currentLine) {
+					if (decorations[j].options.minimap) {
+						decorationsForLine.push(decorations[j]);
+					}
+
+					j += 1;
+				}
+
+				i = j - 1;
+				this.renderDecorationsForLine(canvasContext, decorationsForLine, layout, currentLine, height, lineHeight, tabSize, characterWidth);
 			}
 		}
 	}
 
-	private renderDecoration(canvasContext: CanvasRenderingContext2D,
-		decoration: ViewModelDecoration,
+	private renderDecorationsForLine(canvasContext: CanvasRenderingContext2D,
+		decorations: ViewModelDecoration[],
 		layout: MinimapLayout,
+		startLineNumber: number,
 		height: number,
 		lineHeight: number,
 		tabSize: number,
 		charWidth: number) {
-		const { startLineNumber, startColumn, endColumn } = decoration.range;
-
-		const startIndex = startColumn - 1;
-		const endIndex = endColumn - 1;
-
 		const y = (startLineNumber - layout.startLineNumber) * lineHeight;
 
-		// Get the offset of the decoration in the line. Have to read line data to see how much space each character takes.
-		let x = 0;
-		let endPosition = 0;
 		const lineData = this._context.model.getLineContent(startLineNumber);
-		for (let i = 0; i < endIndex; i++) {
-			const charCode = lineData.charCodeAt(i);
+		const lineIndexToXOffset = [0];
+		for (let i = 1; i < lineData.length + 1; i++) {
+			const charCode = lineData.charCodeAt(i - 1);
 			const dx = charCode === CharCode.Tab
 				? tabSize * charWidth
 				: strings.isFullWidthCharacter(charCode)
 					? 2 * charWidth
 					: charWidth;
 
-			if (i < startIndex) {
-				x += dx;
-			}
-
-			endPosition += dx;
+			lineIndexToXOffset[i] = lineIndexToXOffset[i - 1] + dx;
 		}
 
-		const width = endPosition - x;
+		for (let i = 0; i < decorations.length; i++) {
+			const currentDecoration = decorations[i];
+			const { startColumn, endColumn } = currentDecoration.range;
+			const x = lineIndexToXOffset[startColumn - 1];
+			const width = lineIndexToXOffset[endColumn - 1] - x;
 
-		const minimapOptions = <ModelDecorationMinimapOptions>decoration.options.minimap;
+			this.renderADecoration(canvasContext, <ModelDecorationMinimapOptions>currentDecoration.options.minimap, x, y, width, height);
+		}
+	}
+
+	private renderADecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {
 		const decorationColor = minimapOptions.getColor(this._context.theme);
 
 		canvasContext.fillStyle = decorationColor;
