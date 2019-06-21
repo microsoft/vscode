@@ -35,7 +35,7 @@ export class TypeScriptServerSpawner {
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager
 	): ITypeScriptServer {
-		if (this.shouldUserSeparateSyntaxServer(version)) {
+		if (this.shouldUseSeparateSyntaxServer(version)) {
 			const syntaxServer = this.spawnProcessBasedTsServer('syntax', version, configuration, pluginManager, ['--syntaxOnly', '--disableAutomaticTypingAcquisition']);
 			const semanticServer = this.spawnProcessBasedTsServer('semantic', version, configuration, pluginManager, []);
 			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
@@ -44,7 +44,7 @@ export class TypeScriptServerSpawner {
 		return this.spawnProcessBasedTsServer('main', version, configuration, pluginManager, []);
 	}
 
-	private shouldUserSeparateSyntaxServer(version: TypeScriptVersion): boolean {
+	private shouldUseSeparateSyntaxServer(version: TypeScriptVersion): boolean {
 		if (!version.version || version.version.lt(API.v340)) {
 			return false;
 		}
