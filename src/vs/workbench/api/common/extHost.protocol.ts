@@ -592,6 +592,15 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
 	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
+
+	$stat(uri: UriComponents): Promise<files.IStat>;
+	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
+	$readFile(resource: UriComponents): Promise<VSBuffer>;
+	$writeFile(resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
+	$rename(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$mkdir(resource: UriComponents): Promise<void>;
+	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
 }
 
 export interface MainThreadSearchShape extends IDisposable {
