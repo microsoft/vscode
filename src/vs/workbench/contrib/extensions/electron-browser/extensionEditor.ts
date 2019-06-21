@@ -481,6 +481,13 @@ export class ExtensionEditor extends BaseEditor {
 		}));
 	}
 
+	clearInput(): void {
+		this.contentDisposables.clear();
+		this.transientDisposables.clear();
+
+		super.clearInput();
+	}
+
 	focus(): void {
 		if (this.activeElement) {
 			this.activeElement.focus();
