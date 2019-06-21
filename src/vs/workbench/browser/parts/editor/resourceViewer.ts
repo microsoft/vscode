@@ -19,6 +19,8 @@ import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
@@ -79,8 +81,7 @@ export class ResourceViewer {
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate,
-		statusbarService: IStatusbarService,
-		contextMenuService: IContextMenuService
+		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 
 		// Ensure CSS class
@@ -88,7 +89,7 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, fileService, scrollbar, delegate, statusbarService, contextMenuService);
+			return ImageView.create(container, descriptor, fileService, scrollbar, delegate, instantiationService);
 		}
 
 		// Large Files
@@ -120,11 +121,10 @@ class ImageView {
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate,
-		statusbarService: IStatusbarService,
-		contextMenuService: IContextMenuService
+		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate, statusbarService, contextMenuService);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate, instantiationService);
 		}
 
 		return LargeImageView.create(container, descriptor, delegate);
@@ -237,15 +237,22 @@ type Scale = number | 'fit';
 
 export class ZoomStatusbarItem extends Disposable {
 
-	private statusbarItem: IStatusbarEntryAccessor;
+	private statusbarItem?: IStatusbarEntryAccessor;
 
 	onSelectScale?: (scale: Scale) => void;
 
 	constructor(
-		private readonly contextMenuService: IContextMenuService,
-		private readonly statusbarService: IStatusbarService
+		@IEditorService editorService: IEditorService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
+		this._register(editorService.onDidActiveEditorChange(() => {
+			if (this.statusbarItem) {
+				this.statusbarItem.dispose();
+				this.statusbarItem = undefined;
+			}
+		}));
 	}
 
 	updateStatusbar(scale: Scale, onSelectScale?: (scale: Scale) => void): void {
@@ -263,7 +270,6 @@ export class ZoomStatusbarItem extends Disposable {
 			this._register(this.statusbarItem);
 
 			const element = document.getElementById('status.imageZoom')!;
-
 			this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, (e: MouseEvent) => {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => element,
@@ -344,13 +350,11 @@ class InlineImageView {
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate,
-		statusbarService: IStatusbarService,
-		contextMenuService: IContextMenuService
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const disposables = new DisposableStore();
 
-		const zoomStatusbarItem = new ZoomStatusbarItem(contextMenuService, statusbarService);
-		disposables.add(zoomStatusbarItem);
+		const zoomStatusbarItem = disposables.add(instantiationService.createInstance(ZoomStatusbarItem));
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
@@ -408,8 +412,8 @@ class InlineImageView {
 				});
 
 				InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
-
 			}
+
 			zoomStatusbarItem.updateStatusbar(scale, updateScale);
 			scrollbar.scanDomNode();
 		}
