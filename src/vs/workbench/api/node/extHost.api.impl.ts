@@ -678,6 +678,10 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
+			get fs() {
+				checkProposedApiEnabled(extension);
+				return extHostFileSystem.fileSystem;
+			},
 			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
