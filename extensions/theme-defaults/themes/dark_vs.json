@@ -33,15 +33,6 @@
 		{
 			"scope": "comment",
 			"settings": {
-				"foreground": "#6A9955"
-			}
-		},
-		{
-			"scope": [
-				"comment.cpp",
-				"comment.c"
-			],
-			"settings": {
 				"foreground": "#57A64A"
 			}
 		},
@@ -294,15 +285,6 @@
 		{
 			"scope": "keyword.operator",
 			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
-			"scope": [
-				"keyword.operator.cpp",
-				"keyword.operator.c"
-			],
-			"settings": {
 				"foreground": "#B4B4B4"
 			}
 		},
@@ -365,190 +347,130 @@
 			}
 		},
 		{
-			"scope": [
-				"keyword.control.directive.cpp",
-				"keyword.control.directive.c"
-			],
+			"scope": "keyword.control.directive",
 			"settings": {
 				"foreground": "#9B9B9B"
 			}
 		},
 		{
-			"scope": [
-				"variable.cpp",
-				"variable.c"
-			],
+			"scope": "variable",
 			"settings": {
 				"foreground": "#C8C8C8"
 			}
 		},
 		{
-			"scope": [
-				"string.quoted.cpp",
-				"string-quoted.c"
-			],
+			"scope": "string.quoted",
 			"settings": {
 				"foreground": "#D69D85"
 			}
 		},
 		{
-			"scope": [
-				"comment.xml.doc.cpp",
-				"comment.xml.doc.c"
-			],
+			"scope": "comment.xml.doc",
 			"settings": {
 				"foreground": "#57A64A"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.function.preprocessor.cpp",
-				"entity.name.function.preprocessor.c"
-			],
+			"scope": "entity.name.function.preprocessor",
 			"settings": {
 				"foreground": "#BD63C5"
 			}
 		},
 		{
-			"scope": [
-				"variable.other.enummember.cpp",
-				"variable.other.enummember.c"
-			],
+			"scope": "variable.other.enummember",
 			"settings": {
 				"foreground": "#B8D7A3"
 			}
 		},
 		{
-			"scope": [
-				"variable.parameter.cpp",
-				"variable.parameter.c"
-			],
+			"scope":"variable.parameter",
 			"settings": {
 				"foreground": "#7F7F7F"
 			}
 		},
 		{
 			"scope": [
-				"entity.name.type.cpp",
-				"entity.name.type.c"
+				"entity.name.type",
+				"entity.name.class"
 			],
 			"settings": {
 				"foreground": "#4EC9B0"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.class.reference.cpp",
-				"entity.name.class.reference.c"
-			],
+			"scope": "entity.name.class.reference",
 			"settings": {
 				"foreground": "#4EC9B0"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.class.value.cpp",
-				"entity.name.class.value.c"
-			],
+			"scope": "entity.name.class.value",
 			"settings": {
 				"foreground": "#4EC9B0"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.function.cpp",
-				"entity.name.function.c"
-			],
+			"scope": "entity.name.function",
 			"settings": {
 				"foreground": "#C8C8C8"
 			}
 		},
 		{
-			"scope": [
-				"variable.other.member.cpp",
-				"variable.other.member.c"
-			],
+			"scope": "variable.other.member",
 			"settings": {
 				"foreground": "#DADADA"
 			}
 		},
 		{
-			"scope": [
-				"variable.other.event.cpp",
-				"variable.other.event.c"
-			],
+			"scope": "variable.other.event",
 			"settings": {
 				"foreground": "#C8C8C8"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.class.template.cpp",
-				"entity.name.class.template.c"
-			],
+			"scope": "entity.name.class.template",
 			"settings": {
 				"foreground": "#4EC9B0"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.class.generic.cpp",
-				"entity.name.class.generic.c"
-			],
+			"scope": "entity.name.class.generic",
 			"settings": {
 				"foreground": "#4EC9B0"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.namespace.cpp",
-				"entity.name.namespace.c"
-			],
+			"scope": "entity.name.type.namespace",
 			"settings": {
 				"foreground": "#c8c8c8"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.label.cpp",
-				"entity.name.label.c"
-			],
+			"scope": "entity.name.label",
 			"settings": {
 				"foreground": "#c8c8c8"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.user-defined-literal.cpp",
-				"entity.name.user-defined-literal.c"
-			],
+			"scope": "entity.name.user-defined-literal",
 			"settings": {
 				"foreground": "#DADADA"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.user-defined-literal.string.cpp",
-				"entity.name.user-defined-literal.string.c"
-			],
+			"scope": "entity.name.user-defined-literal.string",
 			"settings": {
 				"foreground": "#D69D85"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.user-defined-literal.number.cpp",
-				"entity.name.user-defined-literal.number.c"
-			],
+			"scope": "entity.name.user-defined-literal.number",
 			"settings": {
 				"foreground": "#B5CEA8"
 			}
 		},
 		{
-			"scope": [
-				"entity.name.function.operator.cpp",
-				"entity.name.function.operator.c"
-			],
+			"scope": "entity.name.function.operator",
 			"settings": {
 				"foreground": "#B4B4B4"
 			}
