@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event, Emitter } from 'vs/base/common/event';
 
-export class UserDataFileProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
+export class UserDataFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	constructor(private readonly userDataService: IUserDataService) { super(); }
 
