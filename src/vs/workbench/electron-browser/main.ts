@@ -52,7 +52,7 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
-import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileProvider';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
 
 class CodeRendererMain extends Disposable {
 

@@ -37,7 +37,7 @@ import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
 import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
-import { UserDataFileSystemProvider } from 'vs/workbench//services/userData/common/userDataFileProvider';
+import { UserDataFileSystemProvider } from 'vs/workbench//services/userData/common/userDataFileSystemProvider';
 
 class CodeRendererMain extends Disposable {
 
