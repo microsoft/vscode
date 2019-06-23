@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataService, IUserDataChangesEvent } from './userDataService';
+import { IUserDataService, IUserDataChangesEvent } from 'vs/workbench/services/userData/common/userData';
 import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';

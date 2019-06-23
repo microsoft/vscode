@@ -23,7 +23,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
-import { IUserDataService } from 'vs/workbench/services/userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 
 export class UserConfiguration extends Disposable {
 

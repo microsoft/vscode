@@ -50,9 +50,9 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/node/con
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { IUserDataService } from '../services/userData/common/userDataService';
-import { FileUserDataService } from '../services/userData/common/fileUserDataService';
-import { UserDataFileProvider } from '../services/userData/common/userDataFileProvider';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
+import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
+import { UserDataFileProvider } from 'vs/workbench/services/userData/common/userDataFileProvider';
 
 class CodeRendererMain extends Disposable {
 

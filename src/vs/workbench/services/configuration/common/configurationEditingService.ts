@@ -27,7 +27,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IUserDataService } from '../../userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';

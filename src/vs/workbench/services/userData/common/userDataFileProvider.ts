@@ -5,7 +5,7 @@
 
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, FileWriteOptions, IStat, FileType, FileDeleteOptions, IWatchOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileChange, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { IUserDataService } from './userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event, Emitter } from 'vs/base/common/event';

@@ -46,7 +46,7 @@ import { IConfigurationCache } from 'vs/workbench/services/configuration/common/
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
-import { IUserDataService } from 'vs/workbench/services/userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 

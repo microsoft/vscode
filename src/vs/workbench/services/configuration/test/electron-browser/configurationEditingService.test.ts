@@ -40,7 +40,7 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFil
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
-import { IUserDataService } from 'vs/workbench/services/userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { dirname } from 'vs/base/common/resources';
 
 class SettingsTestEnvironmentService extends EnvironmentService {

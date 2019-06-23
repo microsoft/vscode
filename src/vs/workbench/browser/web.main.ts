@@ -36,7 +36,7 @@ import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
-import { IUserDataService } from 'vs/workbench//services/userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { UserDataFileProvider } from 'vs/workbench//services/userData/common/userDataFileProvider';
 
 class CodeRendererMain extends Disposable {
