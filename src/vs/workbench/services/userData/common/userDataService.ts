@@ -5,7 +5,9 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
+export const schme: string = 'vscode-userdata';
 export const IUserDataService = createDecorator<IUserDataService>('userDataService');
 
 export interface IUserDataChangesEvent {
@@ -17,6 +19,10 @@ export interface IUserDataService {
 	_serviceBrand: any;
 
 	onDidChange: Event<IUserDataChangesEvent>;
+
+	toResource(key: string): URI;
+
+	toKey(resource: URI): string | undefined;
 
 	read(key: string): Promise<string>;
 

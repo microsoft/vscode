@@ -97,7 +97,6 @@ export interface IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
-	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 

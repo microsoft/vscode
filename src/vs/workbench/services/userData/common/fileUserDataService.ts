@@ -12,6 +12,7 @@ import * as resources from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileUserDataService extends Disposable implements IUserDataService {
 	_serviceBrand: any;
@@ -36,9 +37,11 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 	private handleFileChanges(event: FileChangesEvent): void {
 		const changedKeys: string[] = [];
 		for (const change of event.changes) {
-			const key = resources.relativePath(this.settingsHome, change.resource);
-			if (key) {
-				changedKeys.push(key);
+			if (change.resource.scheme !== Schemas.userData) {
+				const key = this.toKey(change.resource.with({ scheme: Schemas.userData }));
+				if (key) {
+					changedKeys.push(key);
+				}
 			}
 		}
 		if (changedKeys.length) {
@@ -47,7 +50,7 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 	}
 
 	async read(key: string): Promise<string> {
-		const resource = this.toResource(key);
+		const resource = this.toFileResource(key);
 		try {
 			const content = await this.fileService.readFile(resource);
 			return content.value.toString();
@@ -61,11 +64,19 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 	}
 
 	write(key: string, value: string): Promise<void> {
-		return this.fileService.writeFile(this.toResource(key), VSBuffer.fromString(value)).then(() => undefined);
+		return this.fileService.writeFile(this.toFileResource(key), VSBuffer.fromString(value)).then(() => undefined);
 	}
 
-	private toResource(key: string): URI {
+	private toFileResource(key: string): URI {
 		return resources.joinPath(this.settingsHome, ...key.split('/'));
+	}
+
+	toResource(key: string): URI {
+		return this.toFileResource(key).with({ scheme: Schemas.userData });
+	}
+
+	toKey(resource: URI): string | undefined {
+		return resources.relativePath(this.settingsHome.with({ scheme: Schemas.userData }), resource);
 	}
 
 }

@@ -342,6 +342,9 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		if (path.scheme === Schemas.file) {
 			shell.showItemInFolder(path.fsPath);
 		}
+		if (path.scheme === Schemas.userData) {
+			shell.showItemInFolder(path.path);
+		}
 	}
 
 	async getActiveWindowId(): Promise<number | undefined> {

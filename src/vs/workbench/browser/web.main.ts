@@ -35,8 +35,9 @@ import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
-import { FileUserDataService } from '../services/userData/common/fileUserDataService';
-import { IUserDataService } from '../services/userData/common/userDataService';
+import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
+import { IUserDataService } from 'vs/workbench//services/userData/common/userDataService';
+import { UserDataFileProvider } from 'vs/workbench//services/userData/common/userDataFileProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -122,6 +123,7 @@ class CodeRendererMain extends Disposable {
 		// User Data Service
 		const userDataService = this._register(new FileUserDataService(environmentService, fileService));
 		serviceCollection.set(IUserDataService, userDataService);
+		fileService.registerProvider(Schemas.userData, new UserDataFileProvider(userDataService));
 
 		const payload = await this.resolveWorkspaceInitializationPayload();
 

@@ -52,6 +52,7 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IUserDataService } from '../services/userData/common/userDataService';
 import { FileUserDataService } from '../services/userData/common/fileUserDataService';
+import { UserDataFileProvider } from '../services/userData/common/userDataFileProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -210,6 +211,7 @@ class CodeRendererMain extends Disposable {
 		// User Data Service
 		const userDataService = this._register(new FileUserDataService(environmentService, fileService));
 		serviceCollection.set(IUserDataService, userDataService);
+		fileService.registerProvider(Schemas.userData, new UserDataFileProvider(userDataService));
 
 		const payload = await this.resolveWorkspaceInitializationPayload(environmentService);
 

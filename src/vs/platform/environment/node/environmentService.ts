@@ -115,9 +115,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
-	get settingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'settings.json'); }
-
-	@memoize
 	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
 
 	@memoize

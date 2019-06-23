@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI as uri, URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -494,6 +494,7 @@ suite('Configuration Resolver Service', () => {
 class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
+	userSettingsResource = URI.file('settings.json');
 	public constructor(private configuration: any = {}) { }
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
 	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }

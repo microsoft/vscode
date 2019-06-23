@@ -11,6 +11,7 @@ import * as Errors from 'vs/base/common/errors';
 import * as sinon from 'sinon';
 import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { URI } from 'vs/base/common/uri';
 
 class TestTelemetryAppender implements ITelemetryAppender {
 
@@ -769,6 +770,7 @@ suite('TelemetryService', () => {
 			appender: testAppender
 		}, {
 				_serviceBrand: undefined,
+				userSettingsResource: URI.file('settings.json'),
 				getValue() {
 					return {
 						enableTelemetry: enableTelemetry

@@ -413,6 +413,8 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	private readonly _configuration: Configuration;
 
+	userSettingsResource = URI.file('settings.json');
+
 	constructor() {
 		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 	}

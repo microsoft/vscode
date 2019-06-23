@@ -49,8 +49,7 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 		super(args, _execPath);
 	}
 
-	get appSettingsHome(): URI { return dirname(this.settingsResource); }
-	get settingsResource(): URI { return URI.file(this._settingsPath); }
+	get appSettingsHome(): URI { return dirname(URI.file(this._settingsPath)); }
 }
 
 suite('ConfigurationEditingService', () => {

@@ -34,6 +34,7 @@ import { Emitter } from 'vs/base/common/event';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Schemas } from 'vs/base/common/network';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -439,7 +440,7 @@ class UserConfigurationEditOperation extends ConfigurationEditOperation {
 	private async _resolve(): Promise<ITextModel> {
 		const content = (await this.userDataService.read(USER_CONFIGURATION_KEY)) || '{}';
 		const languageIdentifier = this.modeService.getLanguageIdentifier('jsonc');
-		const model = this.modelService.createModel(content, languageIdentifier ? { languageIdentifier, onDidChange: new Emitter<LanguageIdentifier>().event, dispose: () => { } } : null);
+		const model = this.modelService.createModel(content, languageIdentifier ? { languageIdentifier, onDidChange: new Emitter<LanguageIdentifier>().event, dispose: () => { } } : null, this.configurationService.userSettingsResource.with({ scheme: Schemas.vscode }));
 		this._register(toDisposable(() => {
 			model.dispose();
 			this.modelService.destroyModel(model.uri);

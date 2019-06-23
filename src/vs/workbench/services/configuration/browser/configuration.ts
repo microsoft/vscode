@@ -23,9 +23,11 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
-import { IUserDataService } from '../../userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userDataService';
 
 export class UserConfiguration extends Disposable {
+
+	readonly resource: URI;
 
 	private readonly parser: ConfigurationModelParser;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
@@ -38,6 +40,7 @@ export class UserConfiguration extends Disposable {
 	) {
 		super();
 
+		this.resource = userDataService.toResource(USER_CONFIGURATION_KEY);
 		this.parser = new ConfigurationModelParser(USER_CONFIGURATION_KEY, this.scopes);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 		this._register(Event.filter(this.userDataService.onDidChange, e => e.contains(USER_CONFIGURATION_KEY))(() => this.reloadConfigurationScheduler.schedule()));
