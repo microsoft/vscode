@@ -21,7 +21,6 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -45,6 +44,8 @@ import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { URI } from 'vs/base/common/uri';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
+import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -66,7 +67,6 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
-			instantiationService.stub(IEnvironmentService, <IEnvironmentService>{ keybindingsResource: URI.file(keybindingsFile) });
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
@@ -85,6 +85,7 @@ suite('KeybindingsEditing', () => {
 			const fileService = new FileService(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IUserDataService, new FileUserDataService(URI.file(testDir), fileService));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -139,16 +140,6 @@ suite('KeybindingsEditing', () => {
 
 	test('edit a default keybinding to an empty file', () => {
 		fs.writeFileSync(keybindingsFile, '');
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
-			.then(() => assert.deepEqual(getUserKeybindings(), expected));
-	});
-
-	test('edit a default keybinding to a non existing keybindings file', () => {
-		keybindingsFile = path.join(testDir, 'nonExistingFile.json');
-		instantiationService.get(IEnvironmentService).keybindingsResource = URI.file(keybindingsFile);
-		testObject = instantiationService.createInstance(KeybindingsEditingService);
-
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
 		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));

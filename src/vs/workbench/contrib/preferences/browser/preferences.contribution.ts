@@ -40,6 +40,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
@@ -371,6 +372,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IKeybindingEditingService keybindingEditingService: IKeybindingEditingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWorkspaceContextService private readonly workpsaceContextService: IWorkspaceContextService,
@@ -387,7 +389,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
 				}
 			},
-			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
+			when: ResourceContextKey.Resource.isEqualTo(keybindingEditingService.userKeybindingsResource.toString()),
 			group: 'navigation',
 			order: 1
 		});

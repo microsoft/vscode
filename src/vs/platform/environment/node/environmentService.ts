@@ -133,9 +133,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
 
 	@memoize
-	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
-
-	@memoize
 	get keyboardLayoutResource(): URI { return resources.joinPath(this.appSettingsHome, 'keyboardLayout.json'); }
 
 	@memoize

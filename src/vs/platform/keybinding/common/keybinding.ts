@@ -10,6 +10,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
+export const USER_KEYBINDINGS_KEY = 'keybindings.json';
+
 export interface IUserFriendlyKeybinding {
 	key: string;
 	command: string;

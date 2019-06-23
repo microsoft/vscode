@@ -71,7 +71,6 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		this.configuration.remoteAuthority = configuration.remoteAuthority;
 
 		this.appSettingsHome = joinPath(URI.revive(JSON.parse(document.getElementById('vscode-remote-user-data-uri')!.getAttribute('data-settings')!)), 'User');
-		this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.appSettingsHome, 'keyboardLayout.json');
 
 		this.logsPath = '/web/logs';
@@ -96,7 +95,6 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
