@@ -8,9 +8,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserDataService, IUserDataChangesEvent, IUserDataProvider, UserDataChangesEvent } from 'vs/workbench/services/userData/common/userData';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { joinPath, relativePath } from 'vs/base/common/resources';
 
 export class CustomUserDataService extends Disposable implements IUserDataService {
 	_serviceBrand: any;
+
+	private readonly userDataHome: URI;
 
 	private _onDidChange: Emitter<IUserDataChangesEvent> = this._register(new Emitter<IUserDataChangesEvent>());
 	readonly onDidChange: Event<IUserDataChangesEvent> = this._onDidChange.event;
@@ -19,6 +22,7 @@ export class CustomUserDataService extends Disposable implements IUserDataServic
 		private readonly userDataProvider: IUserDataProvider
 	) {
 		super();
+		this.userDataHome = URI.file('/User').with({ scheme: Schemas.userData });
 		this._register(this.userDataProvider.onDidChange(key => this._onDidChange.fire(new UserDataChangesEvent([key]))));
 	}
 
@@ -31,11 +35,11 @@ export class CustomUserDataService extends Disposable implements IUserDataServic
 	}
 
 	toResource(key: string): URI {
-		return URI.from({ scheme: Schemas.userData, path: key });
+		return joinPath(this.userDataHome, key);
 	}
 
 	toKey(resource: URI): string | undefined {
-		return resource.scheme === Schemas.userData ? resource.path : undefined;
+		return relativePath(this.userDataHome, resource);
 	}
 
 }
