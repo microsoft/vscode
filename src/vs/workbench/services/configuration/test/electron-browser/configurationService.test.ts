@@ -47,6 +47,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
 import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
+import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -762,6 +763,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
 					instantiationService.stub(IFileService, fileService);
+					instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
@@ -1092,6 +1094,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 					instantiationService.stub(IFileService, fileService);
+					instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);

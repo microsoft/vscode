@@ -31,8 +31,7 @@ import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/c
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataService } from '../../userData/common/userData';
-import { USER_KEYBINDINGS_KEY } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 
 export interface IBackupMetaData {
 	mtime: number;
@@ -109,7 +108,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataService private readonly userDataService: IUserDataService
+		@IKeybindingEditingService private readonly keybindingEditingService: IKeybindingEditingService
 	) {
 		super(modelService, modeService);
 
@@ -785,7 +784,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for keybindings file
-		if (isEqual(this.resource, this.userDataService.toResource(USER_KEYBINDINGS_KEY), !isLinux)) {
+		if (isEqual(this.resource, this.keybindingEditingService.userKeybindingsResource, !isLinux)) {
 			return 'keybindings';
 		}
 

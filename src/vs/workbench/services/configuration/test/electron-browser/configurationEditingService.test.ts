@@ -42,6 +42,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/node/con
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
 import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { dirname } from 'vs/base/common/resources';
+import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -116,6 +117,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
+			instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(ICommandService, CommandService);
