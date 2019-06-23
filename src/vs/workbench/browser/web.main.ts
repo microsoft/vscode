@@ -38,6 +38,9 @@ import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
 import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { UserDataFileSystemProvider } from 'vs/workbench//services/userData/common/userDataFileSystemProvider';
+import { CustomUserDataService } from '../services/userData/common/customUserDataService';
+import { joinPath } from 'vs/base/common/resources';
+import { InMemoryUserDataProvider } from '../services/userData/common/inMemoryUserDataProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -121,7 +124,7 @@ class CodeRendererMain extends Disposable {
 		}
 
 		// User Data Service
-		const userDataService = this._register(new FileUserDataService(environmentService, fileService));
+		const userDataService = this.createUserDataService(fileService);
 		serviceCollection.set(IUserDataService, userDataService);
 		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(userDataService));
 
@@ -171,6 +174,29 @@ class CodeRendererMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
+	}
+
+	private createUserDataService(fileService: IFileService): IUserDataService {
+		if (this.configuration.userDataProvider) {
+			return this._register(new CustomUserDataService(this.configuration.userDataProvider));
+		} else if (this.configuration.remoteAuthority) {
+			const remoteUserDataUri = this.getRemoteUserDataUri();
+			if (remoteUserDataUri) {
+				return this._register(new FileUserDataService(remoteUserDataUri, fileService));
+			}
+		}
+		return this._register(new CustomUserDataService(new InMemoryUserDataProvider()));
+	}
+
+	private getRemoteUserDataUri(): URI | null {
+		const element = document.getElementById('vscode-remote-user-data-uri');
+		if (element) {
+			const remoteUserDataPath = element.getAttribute('data-settings');
+			if (remoteUserDataPath) {
+				return joinPath(URI.revive(JSON.parse(remoteUserDataPath)), 'User');
+			}
+		}
+		return null;
 	}
 }
 

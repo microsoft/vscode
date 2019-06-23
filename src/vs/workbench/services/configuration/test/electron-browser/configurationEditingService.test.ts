@@ -110,7 +110,7 @@ suite('ConfigurationEditingService', () => {
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const userDataService = new FileUserDataService(environmentService, fileService);
+		const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 		instantiationService.stub(IUserDataService, userDataService);
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);

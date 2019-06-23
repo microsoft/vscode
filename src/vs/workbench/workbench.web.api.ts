@@ -6,7 +6,7 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { IUserDataProvider } from './services/userData/common/userData';
 
 export interface IWorkbenchConstructionOptions {
 	remoteAuthority: string;
@@ -16,11 +16,7 @@ export interface IWorkbenchConstructionOptions {
 	folderUri?: UriComponents;
 	workspaceUri?: UriComponents;
 
-	userData?: {
-		read(key: string): Promise<string>;
-		write(key: string, value: string): Promise<void>;
-		onDidChange: Event<string>;
-	};
+	userDataProvider?: IUserDataProvider;
 }
 
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {

@@ -209,7 +209,7 @@ class CodeRendererMain extends Disposable {
 		}
 
 		// User Data Service
-		const userDataService = this._register(new FileUserDataService(environmentService, fileService));
+		const userDataService = this._register(new FileUserDataService(environmentService.appSettingsHome, fileService));
 		serviceCollection.set(IUserDataService, userDataService);
 		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(userDataService));
 

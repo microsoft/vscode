@@ -5,31 +5,26 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataService, IUserDataChangesEvent } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataService, IUserDataChangesEvent, UserDataChangesEvent } from 'vs/workbench/services/userData/common/userData';
 import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 
 export class FileUserDataService extends Disposable implements IUserDataService {
 	_serviceBrand: any;
 
-	private readonly settingsHome: URI;
-
 	private _onDidChange: Emitter<IUserDataChangesEvent> = this._register(new Emitter<IUserDataChangesEvent>());
 	readonly onDidChange: Event<IUserDataChangesEvent> = this._onDidChange.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		private readonly userDataHome: URI,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 		// Assumption: This path always exists
-		this.settingsHome = environmentService.appSettingsHome;
-		this.fileService.watch(this.settingsHome);
+		this.fileService.watch(this.userDataHome);
 
 		this._register(this.fileService.onFileChanges(e => this.handleFileChanges(e)));
 	}
@@ -68,7 +63,7 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 	}
 
 	private toFileResource(key: string): URI {
-		return resources.joinPath(this.settingsHome, ...key.split('/'));
+		return resources.joinPath(this.userDataHome, ...key.split('/'));
 	}
 
 	toResource(key: string): URI {
@@ -76,29 +71,7 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 	}
 
 	toKey(resource: URI): string | undefined {
-		return resources.relativePath(this.settingsHome.with({ scheme: Schemas.userData }), resource);
-	}
-
-}
-
-class UserDataChangesEvent implements IUserDataChangesEvent {
-
-	private _keysTree: TernarySearchTree<string> | undefined = undefined;
-
-	constructor(readonly keys: string[]) { }
-
-	private get keysTree(): TernarySearchTree<string> {
-		if (!this._keysTree) {
-			this._keysTree = TernarySearchTree.forPaths<string>();
-			for (const key of this.keys) {
-				this._keysTree.set(key, key);
-			}
-		}
-		return this._keysTree;
-	}
-
-	contains(keyOrSegment: string): boolean {
-		return this.keysTree.findSubstr(keyOrSegment) !== undefined;
+		return resources.relativePath(this.userDataHome.with({ scheme: Schemas.userData }), resource);
 	}
 
 }

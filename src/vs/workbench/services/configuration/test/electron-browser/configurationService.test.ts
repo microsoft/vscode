@@ -106,7 +106,7 @@ suite('WorkspaceContextService - Folder', () => {
 				const globalSettingsFile = path.join(parentDir, 'settings.json');
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 				const fileService = new FileService(new NullLogService());
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService(), new SignService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
@@ -171,7 +171,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -230,7 +230,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -490,7 +490,7 @@ suite('WorkspaceService - Initialization', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
@@ -753,7 +753,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				instantiationService.stub(IUserDataService, userDataService);
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -1082,7 +1082,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				instantiationService.stub(IUserDataService, userDataService);
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 
@@ -1485,7 +1485,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve() };
-				const userDataService = new FileUserDataService(environmentService, fileService);
+				const userDataService = new FileUserDataService(environmentService.appSettingsHome, fileService);
 				testObject = new WorkspaceService({ configurationCache, remoteAuthority }, fileService, userDataService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, testObject);
 				instantiationService.stub(IConfigurationService, testObject);
