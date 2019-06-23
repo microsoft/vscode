@@ -29,7 +29,7 @@ import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataService } from '../../userData/common/userDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userDataService';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 

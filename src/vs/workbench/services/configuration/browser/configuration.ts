@@ -49,7 +49,7 @@ export class UserConfiguration extends Disposable {
 
 	async reload(): Promise<ConfigurationModel> {
 		try {
-			const content = await this.userDataService.read(USER_CONFIGURATION_KEY);
+			const content = (await this.userDataService.read(USER_CONFIGURATION_KEY)) || '{}';
 			this.parser.parseContent(content);
 			return this.parser.configurationModel;
 		} catch (e) {
