@@ -40,14 +40,17 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFil
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
+import { IUserDataService } from 'vs/workbench/services/userData/common/userDataService';
+import { dirname } from 'vs/base/common/resources';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome: string) {
+	constructor(args: ParsedArgs, _execPath: string, private _settingsPath: string) {
 		super(args, _execPath);
 	}
 
-	get settingsResource(): URI { return URI.file(this.customAppSettingsHome); }
+	get appSettingsHome(): URI { return dirname(this.settingsResource); }
+	get settingsResource(): URI { return URI.file(this._settingsPath); }
 }
 
 suite('ConfigurationEditingService', () => {
@@ -90,7 +93,7 @@ suite('ConfigurationEditingService', () => {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
-		globalSettingsFile = path.join(workspaceDir, 'config.json');
+		globalSettingsFile = path.join(workspaceDir, 'settings.json');
 		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
 
 		return await mkdirp(workspaceSettingsDir, 493);
@@ -109,6 +112,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		const userDataService = new FileUserDataService(environmentService, fileService);
+		instantiationService.stub(IUserDataService, userDataService);
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, fileService, userDataService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
@@ -145,6 +149,12 @@ suite('ConfigurationEditingService', () => {
 		}).then(() => parentDir = null!);
 	}
 
+	test('errors cases - invalid key (user)', () => {
+		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'unknown.key', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_UNKNOWN_KEY'),
+				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY));
+	});
+
 	test('errors cases - invalid key', () => {
 		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_UNKNOWN_KEY'),
@@ -169,31 +179,6 @@ suite('ConfigurationEditingService', () => {
 		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_INVALID_CONFIGURATION'),
 				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
-	});
-
-	test('errors cases - dirty', () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' })
-			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
-				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY));
-	});
-
-	test('dirty error is not thrown if not asked to save', () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotSave: true })
-			.then(() => null, error => assert.fail('Should not fail.'));
-	});
-
-	test('do not notify error', () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
-		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
-			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
-				(error: ConfigurationEditingError) => {
-					assert.equal(false, target.calledOnce);
-					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
-				});
 	});
 
 	test('write one setting - empty file', () => {
@@ -236,6 +221,38 @@ suite('ConfigurationEditingService', () => {
 				assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
 			});
+	});
+
+	test('errors cases - invalid configuration (workspace_', () => {
+		fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
+		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_INVALID_CONFIGURATION'),
+				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
+	});
+
+	test('errors cases - dirty', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
+				(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY));
+	});
+
+	test('dirty error is not thrown if not asked to save', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' }, { donotSave: true })
+			.then(() => null, error => assert.fail('Should not fail.'));
+	});
+
+	test('do not notify error', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		const target = sinon.stub();
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' }, { donotNotifyError: true })
+			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
+				(error: ConfigurationEditingError) => {
+					assert.equal(false, target.calledOnce);
+					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+				});
 	});
 
 	test('write workspace standalone setting - empty file', () => {
