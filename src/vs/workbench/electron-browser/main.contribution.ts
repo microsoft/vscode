@@ -560,7 +560,7 @@ import product from 'vs/platform/product/node/product';
 				'default': true,
 				'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 				'scope': ConfigurationScope.APPLICATION,
-				'included': isMacintosh
+				'included': false /* isMacintosh */
 			},
 			'window.clickThroughInactive': {
 				'type': 'boolean',
