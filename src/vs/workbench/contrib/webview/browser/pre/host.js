@@ -80,8 +80,8 @@
 			}
 		});
 	});
-	var createWebviewManager;
-	createWebviewManager({
+
+	window.createWebviewManager({
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
