@@ -14,7 +14,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges, ILogMessage, isWSL1 } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 
@@ -36,6 +36,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	private _watcherCount: number;
 
 	private _pollingInterval?: number;
+	private _usePolling?: boolean;
 	private _verboseLogging: boolean;
 
 	private spamCheckStartTime: number;
@@ -50,6 +51,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	public watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
 		this._pollingInterval = options.pollingInterval;
+		this._usePolling = options.usePolling;
 		this._watchers = Object.create(null);
 		this._watcherCount = 0;
 		return this.onWatchEvent;
@@ -102,9 +104,9 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		const pollingInterval = this._pollingInterval || 1000;
-		const usePolling = isWSL1();
+		const usePolling = this._usePolling;
 		if (usePolling && this._verboseLogging) {
-			this.log(`Use polling instead of fs.watch.`);
+			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
 		}
 
 		const watcherOpts: chokidar.IOptions = {
