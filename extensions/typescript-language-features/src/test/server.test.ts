@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as stream from 'stream';
-import { PipeRequestCanceller, ServerProcess, TypeScriptServer } from '../tsServer/server';
+import { PipeRequestCanceller, TsServerProcess, ProcessBasedTsServer } from '../tsServer/server';
 import { nulToken } from '../utils/cancellation';
 import Logger from '../utils/logger';
 import TelemetryReporter from '../utils/telemetry';
@@ -19,7 +19,7 @@ const NoopTelemetryReporter = new class implements TelemetryReporter {
 	dispose(): void { /* noop */ }
 };
 
-class FakeServerProcess implements ServerProcess {
+class FakeServerProcess implements TsServerProcess {
 	private readonly _out: stream.PassThrough;
 
 	private readonly writeListeners = new Set<(data: Buffer) => void>();
@@ -62,7 +62,7 @@ suite('Server', () => {
 
 	test('should send requests with increasing sequence numbers', async () => {
 		const process = new FakeServerProcess();
-		const server = new TypeScriptServer(process, undefined, new PipeRequestCanceller(undefined, tracer), undefined!, NoopTelemetryReporter, tracer);
+		const server = new ProcessBasedTsServer('semantic', process, undefined, new PipeRequestCanceller('semantic', undefined, tracer), undefined!, NoopTelemetryReporter, tracer);
 
 		const onWrite1 = process.onWrite();
 		server.executeImpl('geterr', {}, { isAsync: false, token: nulToken, expectsResult: true });

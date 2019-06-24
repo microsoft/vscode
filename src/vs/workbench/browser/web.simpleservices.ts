@@ -26,7 +26,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -45,6 +45,13 @@ import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { pathsToEditors } from 'vs/workbench/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 //#region Backup File
 
@@ -654,6 +661,10 @@ export class SimpleTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
+	}
+
 	setEnabled(value: boolean): void {
 	}
 
@@ -724,7 +735,7 @@ registerSingleton(IURLService, SimpleURLService);
 
 //#region Window
 
-export class SimpleWindowService implements IWindowService {
+export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
@@ -734,6 +745,22 @@ export class SimpleWindowService implements IWindowService {
 	readonly hasFocus = true;
 
 	readonly windowId = 0;
+
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super();
+
+		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
+	}
 
 	isFocused(): Promise<boolean> {
 		return Promise.resolve(this.hasFocus);
@@ -788,17 +815,13 @@ export class SimpleWindowService implements IWindowService {
 		if ((<any>document).fullscreen !== undefined) {
 			if (!(<any>document).fullscreen) {
 
-				return (<any>target).requestFullscreen().then(() => {
-					browser.setFullscreen(true);
-				}).catch(() => {
+				return (<any>target).requestFullscreen().catch(() => {
 					// if it fails, chromium throws an exception with error undefined.
 					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 					console.warn('Toggle Full Screen failed');
 				});
 			} else {
-				return document.exitFullscreen().then(() => {
-					browser.setFullscreen(false);
-				}).catch(() => {
+				return document.exitFullscreen().catch(() => {
 					console.warn('Exit Full Screen failed');
 				});
 			}
@@ -809,7 +832,7 @@ export class SimpleWindowService implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true);
+					browser.setFullscreen(true); // we have to set this proactively because Safari doesn't emit fullscreenchange event.
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 					browser.setFullscreen(false);
@@ -849,8 +872,42 @@ export class SimpleWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
+	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
+		const { openFolderInNewWindow } = this.shouldOpenNewWindow(_options);
+		for (let i = 0; i < _uris.length; i++) {
+			const uri = _uris[i];
+			if ('folderUri' in uri) {
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				if (openFolderInNewWindow) {
+					window.open(newAddress);
+				} else {
+					window.location.href = newAddress;
+				}
+			}
+			if ('workspaceUri' in uri) {
+				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
+				if (openFolderInNewWindow) {
+					window.open(newAddress);
+				} else {
+					window.location.href = newAddress;
+				}
+			}
+			if ('fileUri' in uri) {
+				const inputs: IResourceEditor[] = await pathsToEditors([uri], this.fileService);
+				this.editorService.openEditors(inputs);
+			}
+		}
 		return Promise.resolve();
+	}
+
+	private shouldOpenNewWindow(_options: IOpenSettings = {}): { openFolderInNewWindow: boolean } {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
+		let openFolderInNewWindow = !!_options.forceNewWindow && !_options.forceReuseWindow;
+		if (!_options.forceNewWindow && !_options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
+			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
+		}
+		return { openFolderInNewWindow };
 	}
 
 	closeWindow(): Promise<void> {
@@ -1049,6 +1106,10 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openNewWindow(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
 		return Promise.resolve();
 	}
 

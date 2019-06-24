@@ -64,7 +64,6 @@ export const options: Option[] = [
 	{ id: 'inspect-extensions', type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	{ id: 'disable-gpu', type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	{ id: 'upload-logs', type: 'string', cat: 't', description: localize('uploadLogs', "Uploads logs from current session to a secure endpoint.") },
 	{ id: 'max-memory', type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
 
 	{ id: 'remote', type: 'string' },

@@ -5,7 +5,7 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapService';
+import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -151,6 +151,10 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 
 	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
 		return KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+	}
+
+	getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
+		return [];
 	}
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {

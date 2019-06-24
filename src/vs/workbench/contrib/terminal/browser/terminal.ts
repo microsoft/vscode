@@ -6,9 +6,10 @@
 import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
+import { Event } from 'vs/base/common/event';
 
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
@@ -20,16 +21,16 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
 export interface ITerminalInstanceService {
 	_serviceBrand: any;
 
+	// These events are optional as the requests they make are only needed on the browser side
+	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
+
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
-	getDefaultShell(p: Platform): string;
-	/**
-	 * Merges the default shell path and args into the provided launch configuration
-	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, configHelper: ITerminalConfigHelper, platformOverride?: Platform): void;
+
+	getDefaultShellAndArgs(platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 

@@ -60,6 +60,16 @@ jobs:
   steps:
   - template: linux/product-build-linux-arm.yml
 
+- job: LinuxAlpine
+  condition: eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: alpine
+  steps:
+  - template: linux/product-build-linux-alpine.yml
+
 - job: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
   timeoutInMinutes: 120
@@ -68,8 +78,22 @@ jobs:
   steps:
   - template: darwin/product-build-darwin.yml
 
+- job: Release
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-4.0.x'))))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - LinuxArmhf
+  - LinuxAlpine
+  - macOS
+  steps:
+  - template: release.yml
+
 - job: Mooncake
-  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   condition: true
@@ -79,6 +103,7 @@ jobs:
   - Linux
   - LinuxSnap
   - LinuxArmhf
+  - LinuxAlpine
   - macOS
   steps:
   - template: sync-mooncake.yml

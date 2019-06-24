@@ -22,23 +22,48 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     "machine monacotools.visualstudio.com`npassword $(devops-pat)`nmachine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
-    $env:npm_config_arch="$(VSCODE_ARCH)"
-    $env:CHILD_CONCURRENCY="1"
 
     exec { git config user.email "vscode@microsoft.com" }
     exec { git config user.name "VSCode" }
+  displayName: Prepare tooling
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git" }
     exec { git fetch distro }
     exec { git merge $(node -p "require('./package.json').distro") }
+  displayName: Merge distro
 
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    $env:npm_config_arch="$(VSCODE_ARCH)"
+    $env:CHILD_CONCURRENCY="1"
     exec { yarn }
+  displayName: Install dependencies
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { yarn gulp mixin }
+  displayName: Mix in quality
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { yarn gulp hygiene }
     exec { yarn monaco-compile-check }
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { node build/azure-pipelines/common/installDistroDependencies.js }
     exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
     exec { node build/lib/builtInExtensions.js }
-  displayName: Prepare build
+  displayName: Install distro dependencies and extensions
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -52,8 +77,8 @@ steps:
     $ErrorActionPreference = "Stop"
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
-    # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
   displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -61,6 +86,7 @@ steps:
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
   displayName: Run integration tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:

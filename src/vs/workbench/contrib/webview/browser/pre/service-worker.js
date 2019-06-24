@@ -2,10 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+const VERSION = 1;
+
 /**
  * Root path for resources
  */
 const resourceRoot = '/vscode-resource';
+
+const resolveTimeout = 30000;
 
 /**
  * @template T
@@ -27,24 +31,37 @@ class RequestStore {
 	/**
 	 * @param {string} webviewId
 	 * @param {string} path
-	 * @return {RequestStoreEntry<T> | undefined}
+	 * @return {Promise<T> | undefined}
 	 */
 	get(webviewId, path) {
-		return this.map.get(this._key(webviewId, path));
+		const entry = this.map.get(this._key(webviewId, path));
+		return entry && entry.promise;
 	}
 
 	/**
 	 * @param {string} webviewId
 	 * @param {string} path
+	 * @returns {Promise<T>}
 	 */
 	create(webviewId, path) {
 		const existing = this.get(webviewId, path);
 		if (existing) {
-			return existing.promise;
+			return existing;
 		}
 		let resolve;
 		const promise = new Promise(r => resolve = r);
-		this.map.set(this._key(webviewId, path), { resolve, promise });
+		const entry = { resolve, promise };
+		const key = this._key(webviewId, path);
+		this.map.set(key, entry);
+
+		const dispose = () => {
+			clearTimeout(timeout);
+			const existingEntry = this.map.get(key);
+			if (existingEntry === entry) {
+				return this.map.delete(key);
+			}
+		};
+		const timeout = setTimeout(dispose, resolveTimeout);
 		return promise;
 	}
 
@@ -55,7 +72,7 @@ class RequestStore {
 	 * @return {boolean}
 	 */
 	resolve(webviewId, path, result) {
-		const entry = this.get(webviewId, path);
+		const entry = this.map.get(this._key(webviewId, path));
 		if (!entry) {
 			return false;
 		}
@@ -87,13 +104,23 @@ const resourceRequestStore = new RequestStore();
  */
 const localhostRequestStore = new RequestStore();
 
-const notFoundResponse = new Response('Not Found', {
-	status: 404,
-});
+const notFound = () =>
+	new Response('Not Found', { status: 404, });
 
-
-self.addEventListener('message', (event) => {
+self.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
+		case 'version':
+			{
+				self.clients.get(event.source.id).then(client => {
+					if (client) {
+						client.postMessage({
+							channel: 'version',
+							version: VERSION
+						});
+					}
+				});
+				return;
+			}
 		case 'did-load-resource':
 			{
 				const webviewId = getWebviewIdForClient(event.source);
@@ -148,7 +175,7 @@ async function processResourceRequest(event, requestUrl) {
 	const client = await self.clients.get(event.clientId);
 	if (!client) {
 		console.log('Could not find inner client for request');
-		return notFoundResponse.clone();
+		return notFound();
 	}
 
 	const webviewId = getWebviewIdForClient(client);
@@ -156,7 +183,7 @@ async function processResourceRequest(event, requestUrl) {
 
 	function resolveResourceEntry(entry) {
 		if (!entry) {
-			return notFoundResponse.clone();
+			return notFound();
 		}
 		return new Response(entry.body, {
 			status: 200,
@@ -167,13 +194,13 @@ async function processResourceRequest(event, requestUrl) {
 	const parentClient = await getOuterIframeClient(webviewId);
 	if (!parentClient) {
 		console.log('Could not find parent client for request');
-		return notFoundResponse.clone();
+		return notFound();
 	}
 
 	// Check if we've already resolved this request
 	const existing = resourceRequestStore.get(webviewId, resourcePath);
 	if (existing) {
-		return existing.promise.then(resolveResourceEntry);
+		return existing.then(resolveResourceEntry);
 	}
 
 	parentClient.postMessage({
@@ -215,13 +242,13 @@ async function processLocalhostRequest(event, requestUrl) {
 	const parentClient = await getOuterIframeClient(webviewId);
 	if (!parentClient) {
 		console.log('Could not find parent client for request');
-		return notFoundResponse.clone();
+		return notFound();
 	}
 
 	// Check if we've already resolved this request
 	const existing = localhostRequestStore.get(webviewId, origin);
 	if (existing) {
-		return existing.promise.then(resolveRedirect);
+		return existing.then(resolveRedirect);
 	}
 
 	parentClient.postMessage({

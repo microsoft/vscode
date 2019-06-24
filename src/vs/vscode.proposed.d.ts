@@ -17,22 +17,15 @@
 declare module 'vscode' {
 
 	//#region Joh - ExecutionContext
-
+	// THIS is a deprecated proposal
 	export enum ExtensionExecutionContext {
 		Local = 1,
 		Remote = 2
 	}
-
 	export interface ExtensionContext {
-		/**
-		 * Describes the context in which this extension is executed, e.g.
-		 * a Node.js-context on the same machine or on a remote machine
-		 */
 		executionContext: ExtensionExecutionContext;
 	}
-
 	//#endregion
-
 
 	//#region Joh - call hierarchy
 
@@ -139,14 +132,15 @@ declare module 'vscode' {
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
-		readonly range: Range;
+		readonly line: number;
+		readonly height: number;
 		readonly webview: Webview;
 		readonly onDidDispose: Event<void>;
 		dispose(): void;
 	}
 
 	export namespace window {
-		export function createWebviewTextEditorInset(editor: TextEditor, range: Range, options?: WebviewOptions): WebviewEditorInset;
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
@@ -1475,6 +1469,27 @@ declare module 'vscode' {
 		 * on the web, this points to a server endpoint.
 		 */
 		export const webviewResourceRoot: string;
+	}
+
+	//#endregion
+
+
+	//#region Joh - read/write files of any scheme
+
+	export interface FileSystem {
+		stat(uri: Uri): Thenable<FileStat>;
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		createDirectory(uri: Uri): Thenable<void>;
+		readFile(uri: Uri): Thenable<Uint8Array>;
+		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+	}
+
+	export namespace workspace {
+
+		export const fs: FileSystem;
 	}
 
 	//#endregion

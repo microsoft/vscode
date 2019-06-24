@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -22,10 +23,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
+
+		// ITerminalService listeners
 		this._toDispose.push(_terminalService.onInstanceCreated((instance) => {
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
@@ -38,11 +42,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.push(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.push(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
+		this._toDispose.push(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._toDispose.push(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.push(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 		this._toDispose.push(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
-		this._toDispose.push(_terminalService.onRequestAvailableShells(r => this._onRequestAvailableShells(r)));
+		this._toDispose.push(_terminalService.onRequestAvailableShells(r => this._proxy.$requestAvailableShells().then(e => r(e))));
+
+		// ITerminalInstanceService listeners
+		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
+			this._toDispose.push(terminalInstanceService.onRequestDefaultShellAndArgs(r => this._proxy.$requestDefaultShellAndArgs().then(e => r(e.shell, e.args))));
+		}
 
 		// Set initial ext host state
 		this._terminalService.terminalInstances.forEach(t => {
@@ -217,6 +227,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalDimensions(instance.id, instance.cols, instance.rows);
 	}
 
+	private _onInstanceMaximumDimensionsChanged(instance: ITerminalInstance): void {
+		this._proxy.$acceptTerminalMaximumDimensions(instance.id, instance.maxCols, instance.maxRows);
+	}
+
 	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
 		// Only allow processes on remote ext hosts
 		if (!this._remoteAuthority) {
@@ -275,9 +289,5 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			sum += sw.elapsed();
 		}
 		this._terminalProcesses[terminalId].emitLatency(sum / COUNT);
-	}
-
-	private _onRequestAvailableShells(resolve: (shells: IShellDefinition[]) => void): void {
-		this._proxy.$requestAvailableShells().then(shells => resolve(shells));
 	}
 }

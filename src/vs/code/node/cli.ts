@@ -126,7 +126,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
 
-		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
+		const verbose = args.verbose || args.status;
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -351,9 +351,7 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== 'undefined') {
-			options['stdio'] = ['pipe', 'pipe', 'pipe'];
-		} else if (!verbose) {
+		if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 

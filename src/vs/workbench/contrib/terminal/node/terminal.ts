@@ -11,10 +11,15 @@ import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/com
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 
-export function getDefaultShell(p: platform.Platform): string {
+/**
+ * Gets the detected default shell for the _system_, not to be confused with VS Code's _default_
+ * shell that the terminal uses by default.
+ * @param p The platform to detect the shell of.
+ */
+export function getSystemShell(p: platform.Platform): string {
 	if (p === platform.Platform.Windows) {
 		if (platform.isWindows) {
-			return getTerminalDefaultShellWindows();
+			return getSystemShellWindows();
 		}
 		// Don't detect Windows shell when not on Windows
 		return processes.getWindowsShell();
@@ -23,11 +28,11 @@ export function getDefaultShell(p: platform.Platform): string {
 	if (platform.isLinux && p === platform.Platform.Mac || platform.isMacintosh && p === platform.Platform.Linux) {
 		return '/bin/bash';
 	}
-	return getTerminalDefaultShellUnixLike();
+	return getSystemShellUnixLike();
 }
 
 let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
-function getTerminalDefaultShellUnixLike(): string {
+function getSystemShellUnixLike(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
 		let unixLikeTerminal = 'sh';
 		if (!platform.isWindows && process.env.SHELL) {
@@ -46,7 +51,7 @@ function getTerminalDefaultShellUnixLike(): string {
 }
 
 let _TERMINAL_DEFAULT_SHELL_WINDOWS: string | null = null;
-function getTerminalDefaultShellWindows(): string {
+function getSystemShellWindows(): string {
 	if (!_TERMINAL_DEFAULT_SHELL_WINDOWS) {
 		const isAtLeastWindows10 = platform.isWindows && parseFloat(os.release()) >= 10;
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
