@@ -37,7 +37,7 @@
 
 	const workerReady = new Promise(async (resolveWorkerReady) => {
 		if (!navigator.serviceWorker) {
-			resolveWorkerReady();
+			return resolveWorkerReady();
 		}
 
 		const expectedWorkerVersion = 1;
