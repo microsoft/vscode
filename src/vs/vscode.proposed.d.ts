@@ -65,7 +65,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that the value is `undefined` when there is no remote extension host but that the
 		 * value is defined in all extension hosts (local and remote) in case a remote extension host
-		 * exists. Use [`ExtensionContext#extensionKind`](#ExtensionContext.extensionKind) to know if
+		 * exists. Use [`Extension#extensionKind`](#Extension.extensionKind) to know if
 		 * a specific extension runs remote or not.
 		 */
 		export const remoteName: string | undefined;
