@@ -215,7 +215,7 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // Stats
-import 'vs/workbench/contrib/stats/node/stats.contribution';
+import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
