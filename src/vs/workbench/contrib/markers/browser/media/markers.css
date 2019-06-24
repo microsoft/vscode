@@ -167,7 +167,7 @@
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-light.svg') center/80% no-repeat;
+	background: url('lightbulb-light.svg') center no-repeat;
 	margin-right: 0px;
 }
 
@@ -176,11 +176,11 @@
 }
 
 .vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-dark.svg') center/80% no-repeat;
+	background: url('lightbulb-dark.svg') center no-repeat;
 }
 
 .hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-hc.svg') center/80% no-repeat;
+	background: url('lightbulb-hc.svg') center no-repeat;
 }
 
 .vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {

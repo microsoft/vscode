@@ -109,13 +109,13 @@
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
-	background-image: url('./close.svg');
+	background-image: url('./close-light.svg');
 	float: right;
 	margin-right: 5px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
-	background-image: url('./info.svg');
+	background-image: url('./info-light.svg');
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,

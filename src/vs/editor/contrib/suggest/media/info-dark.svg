@@ -1,0 +1,8 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="8.5" cy="7.5" r="6" transform="rotate(-180 8.5 7.5)" stroke="#75BEFF"/>
+<mask id="path-2-inside-1" fill="white">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8 5L8 4L9 4L9 5L8 5ZM8 10L8 6L9 6L9 10L8 10Z"/>
+</mask>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8 5L8 4L9 4L9 5L8 5ZM8 10L8 6L9 6L9 10L8 10Z" fill="#75BEFF"/>
+<path d="M8 5L7 5L7 6L8 6L8 5ZM8 4L8 3L7 3L7 4L8 4ZM9 4L10 4L10 3L9 3L9 4ZM9 5L9 6L10 6L10 5L9 5ZM8 10L7 10L7 11L8 11L8 10ZM8 6L8 5L7 5L7 6L8 6ZM9 6L10 6L10 5L9 5L9 6ZM9 10L9 11L10 11L10 10L9 10ZM9 5L9 4L7 4L7 5L9 5ZM8 5L9 5L9 3L8 3L8 5ZM8 4L8 5L10 5L10 4L8 4ZM9 4L8 4L8 6L9 6L9 4ZM9 10L9 6L7 6L7 10L9 10ZM8 7L9 7L9 5L8 5L8 7ZM8 6L8 10L10 10L10 6L8 6ZM9 9L8 9L8 11L9 11L9 9Z" fill="#75BEFF" mask="url(#path-2-inside-1)"/>
+</svg>
