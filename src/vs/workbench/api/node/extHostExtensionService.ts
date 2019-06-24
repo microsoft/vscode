@@ -36,11 +36,13 @@ import { RemoteAuthorityResolverError, ExtensionExecutionContext, ExtensionKind 
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
-	// Old test runner spec, shipped in vscode/lib/testrunner
+	/** Old test runner API, as exported from `vscode/lib/testrunner` */
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
+}
 
-	// New test runner spec
-	runTests(): Promise<boolean>;
+interface INewTestRunner {
+	/** New test runner API, as explained in the extension test doc */
+	run(): Promise<void>;
 }
 
 export interface IHostUtils {
@@ -530,7 +532,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner | undefined;
+		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
 			testRunner = <any>require.__$__nodeRequire(extensionTestsPath);
@@ -538,29 +540,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			requireError = error;
 		}
 
-		// Execute the runner following the new `runTests` spec
-		if (testRunner && typeof testRunner.runTests === 'function') {
-			return new Promise<void>((c, e) => {
-				testRunner!.runTests()
-					.then((succeeded) => {
-						if (succeeded) {
-							c(undefined);
-							this._gracefulExit(0);
-						} else {
-							this._gracefulExit(1);
-						}
-					})
-					.catch(err => {
-						e(err);
-						this._gracefulExit(1);
-					});
-			});
-		}
-
 		// Execute the runner if it follows the old `run` spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(extensionTestsPath, (error, failures) => {
+				const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -569,7 +552,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 					// after tests have run, we shutdown the host
 					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
-				});
+				};
+
+				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
+
+				// Using the new API `run(): Promise<void>`
+				if (runResult && runResult.then) {
+					runResult
+						.then(() => {
+							c();
+							this._gracefulExit(0);
+						})
+						.catch((err) => {
+							e(err);
+							this._gracefulExit(1);
+						});
+				}
 			});
 		}
 
