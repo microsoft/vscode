@@ -265,6 +265,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	async installFromGallery(extension: IGalleryExtension): Promise<void> {
+		if (!this.galleryService.isEnabled()) {
+			return Promise.reject(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
+		}
 		const startTime = new Date().getTime();
 
 		const onDidInstallExtensionSuccess = (extension: IGalleryExtension, operation: InstallOperation, local: ILocalExtension) => {
