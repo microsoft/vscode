@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mkdir, open, close, read, write, fdatasync } from 'fs';
+import * as os from 'os';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
@@ -408,22 +409,30 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						folders: { path: string, excludes: string[] }[],
 						onChange: (changes: IDiskFileChange[]) => void,
 						onLogMessage: (msg: ILogMessage) => void,
-						verboseLogging: boolean
+						verboseLogging: boolean,
+						watcherOptions?: { [key: string]: boolean | number | string }
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
+				let watcherOptions = undefined;
 
-				// Single Folder Watcher
-				if (this.recursiveFoldersToWatch.length === 1) {
-					if (isWindows) {
-						watcherImpl = WindowsWatcherService;
-					} else {
-						watcherImpl = UnixWatcherService;
+				if (this.forcePolling()) {
+					// WSL needs a polling watcher
+					watcherImpl = UnixWatcherService;
+					watcherOptions = { usePolling: true };
+				} else {
+					// Single Folder Watcher
+					if (this.recursiveFoldersToWatch.length === 1) {
+						if (isWindows) {
+							watcherImpl = WindowsWatcherService;
+						} else {
+							watcherImpl = UnixWatcherService;
+						}
 					}
-				}
 
-				// Multi Folder Watcher
-				else {
-					watcherImpl = NsfwWatcherService;
+					// Multi Folder Watcher
+					else {
+						watcherImpl = NsfwWatcherService;
+					}
 				}
 
 				// Create and start watching
@@ -436,7 +445,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						}
 						this.logService[msg.type](msg.message);
 					},
-					this.logService.getLevel() === LogLevel.Trace
+					this.logService.getLevel() === LogLevel.Trace,
+					watcherOptions
 				);
 
 				if (!this.recursiveWatcherLogLevelListener) {
@@ -502,6 +512,12 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 
 		return createFileSystemProviderError(error, code);
+	}
+
+
+	forcePolling(): boolean {
+		// wsl1 needs polling
+		return isLinux && /^[\.\-0-9]+-Microsoft/.test(os.release());
 	}
 
 	//#endregion

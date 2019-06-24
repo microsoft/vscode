@@ -14,17 +14,13 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage, isWSL1 } from 'vs/workbench/services/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
 	stop(): any;
-}
-
-export interface IChockidarWatcherOptions {
-	pollingInterval?: number;
 }
 
 interface ExtendedWatcherRequest extends IWatcherRequest {
@@ -52,7 +48,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	private _onLogMessage = new Emitter<ILogMessage>();
 	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
 
-	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<IDiskFileChange[]> {
+	public watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
 		this._pollingInterval = options.pollingInterval;
 		this._watchers = Object.create(null);
 		this._watcherCount = 0;
@@ -106,6 +102,10 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		const pollingInterval = this._pollingInterval || 1000;
+		const usePolling = isWSL1();
+		if (usePolling && this._verboseLogging) {
+			this.log(`Use polling instead of fs.watch.`);
+		}
 
 		const watcherOpts: chokidar.IOptions = {
 			ignoreInitial: true,
@@ -113,6 +113,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
 			interval: pollingInterval, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
 			binaryInterval: pollingInterval,
+			usePolling: usePolling,
 			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
