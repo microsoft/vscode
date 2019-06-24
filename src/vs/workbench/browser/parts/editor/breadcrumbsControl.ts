@@ -282,7 +282,8 @@ export class BreadcrumbsControl {
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {
-			return this._widget.setSelection(event.item);
+			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+			this._widget.setSelection(event.item);
 		}
 	}
 
