@@ -51,7 +51,7 @@ steps:
     yarn gulp hygiene
     yarn monaco-compile-check
   displayName: Run hygiene checks
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -76,7 +76,7 @@ steps:
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
   displayName: Run unit tests
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
