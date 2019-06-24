@@ -26,7 +26,7 @@ import { IPCServer, ClientConnectionEvent, StaticRouter, IMessagePassingProtocol
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { FollowerLogService, LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -149,24 +149,23 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 		// TODO: @Sandy @Joao need dynamic context based router
 		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
-		const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', router));
-		const logService = new FollowerLogService(logLevelClient, this._logService);
+		server.registerChannel('loglevel', new LogLevelSetterChannel(this._logService));
 
 		services.set(IEnvironmentService, this._environmentService);
-		services.set(ILogService, logService);
+		services.set(ILogService, this._logService);
 		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsResource]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
 		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService);
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, this._logService);
 				this._register(appInsightsAppender);
 			}
 
 			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
+				appender: combinedAppender(appInsightsAppender, new LogAppender(this._logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
@@ -190,10 +189,10 @@ export class RemoteExtensionManagementServer extends Disposable {
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 		instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService, accessor.get(ITelemetryService));
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, this._logService, accessor.get(ITelemetryService));
 			server.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(logService, this._environmentService);
+			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(this._logService, this._environmentService);
 			server.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
