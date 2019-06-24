@@ -33,7 +33,7 @@
 		{
 			"scope": "comment",
 			"settings": {
-				"foreground": "#57A64A"
+				"foreground": "#6A9955"
 			}
 		},
 		{
@@ -285,7 +285,7 @@
 		{
 			"scope": "keyword.operator",
 			"settings": {
-				"foreground": "#B4B4B4"
+				"foreground": "#d4d4d4"
 			}
 		},
 		{
