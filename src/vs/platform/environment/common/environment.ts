@@ -69,6 +69,7 @@ export interface ParsedArgs {
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
 	'enable-remote-auto-shutdown'?: boolean;
+	'disable-inspect'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
