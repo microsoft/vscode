@@ -17,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
@@ -549,7 +549,14 @@ export abstract class TerminalService implements ITerminalService {
 					return undefined;
 				}
 				const shell = value.description;
-				await this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
+				const env = await this._remoteAgentService.getEnvironment();
+				let platformKey: string;
+				if (env) {
+					platformKey = env.os === OperatingSystem.Windows ? 'windows' : (OperatingSystem.Macintosh ? 'osx' : 'linux');
+				} else {
+					platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+				}
+				await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER).then(() => shell);
 				return Promise.resolve();
 			});
 		});
