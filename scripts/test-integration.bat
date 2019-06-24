@@ -23,8 +23,8 @@ call .\scripts\code.bat $%~dp0\..\extensions\emmet\test-fixtures --extensionDeve
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in commonJS (HTML, CSS, JSON language server tests...)
-REM call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\*\server\out\test\**\*.test.js
-REM if %errorlevel% neq 0 exit /b %errorlevel%
+call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\*\server\out\test\**\*.test.js
+if %errorlevel% neq 0 exit /b %errorlevel%
 
 REM if exist ".\resources\server\test\test-remote-integration.bat" (
 REM 	call .\resources\server\test\test-remote-integration.bat
