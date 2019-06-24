@@ -27,53 +27,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Joh - ExtensionKind, vscode.env.remoteKind
-
-	/**
-	 * In a remote window the extension kind describes if an extension
-	 * runs where the UI (window) runs or if an extension runs remotely.
-	 */
-	export enum ExtensionKind {
-
-		/**
-		 * Extension runs where the UI runs.
-		 */
-		UI = 1,
-
-		/**
-		 * Extension runs where the remote extension host runs.
-		 */
-		Workspace = 2
-	}
-
-	export interface ExtensionContext {
-
-		/**
-		 * The extension kind describes if an extension runs where the UI runs
-		 * or if an extension runs where the remote extension host runs. The extension kind
-		 * if defined in the `package.json` file of extensions but can also be refined
-		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
-		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
-		 */
-		extensionKind: ExtensionKind;
-	}
-
-	export namespace env {
-		/**
-		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
-		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
-		 *
-		 * *Note* that the value is `undefined` when there is no remote extension host but that the
-		 * value is defined in all extension hosts (local and remote) in case a remote extension host
-		 * exists. Use [`ExtensionContext#extensionKind`](#ExtensionContext.extensionKind) to know if
-		 * a specific extension runs remote or not.
-		 */
-		export const remoteName: string | undefined;
-	}
-
-	//#endregion
-
-
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
@@ -1516,6 +1469,27 @@ declare module 'vscode' {
 		 * on the web, this points to a server endpoint.
 		 */
 		export const webviewResourceRoot: string;
+	}
+
+	//#endregion
+
+
+	//#region Joh - read/write files of any scheme
+
+	export interface FileSystem {
+		stat(uri: Uri): Thenable<FileStat>;
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		createDirectory(uri: Uri): Thenable<void>;
+		readFile(uri: Uri): Thenable<Uint8Array>;
+		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+	}
+
+	export namespace workspace {
+
+		export const fs: FileSystem;
 	}
 
 	//#endregion

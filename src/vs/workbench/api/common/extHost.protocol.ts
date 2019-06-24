@@ -46,6 +46,7 @@ import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHi
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -508,6 +509,7 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
+	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
@@ -592,6 +594,15 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
 	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
+
+	$stat(uri: UriComponents): Promise<files.IStat>;
+	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
+	$readFile(resource: UriComponents): Promise<VSBuffer>;
+	$writeFile(resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
+	$rename(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$mkdir(resource: UriComponents): Promise<void>;
+	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
 }
 
 export interface MainThreadSearchShape extends IDisposable {

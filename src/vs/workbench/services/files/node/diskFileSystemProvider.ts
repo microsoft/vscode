@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mkdir, open, close, read, write, fdatasync } from 'fs';
+import * as os from 'os';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
@@ -337,8 +338,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur: Emitter<Error> = this._register(new Emitter<Error>());
-	get onDidErrorOccur(): Event<Error> { return this._onDidWatchErrorOccur.event; }
+	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
+	get onDidErrorOccur(): Event<string> { return this._onDidWatchErrorOccur.event; }
 
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
@@ -408,22 +409,30 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						folders: { path: string, excludes: string[] }[],
 						onChange: (changes: IDiskFileChange[]) => void,
 						onLogMessage: (msg: ILogMessage) => void,
-						verboseLogging: boolean
+						verboseLogging: boolean,
+						watcherOptions?: { [key: string]: boolean | number | string }
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
+				let watcherOptions = undefined;
 
-				// Single Folder Watcher
-				if (this.recursiveFoldersToWatch.length === 1) {
-					if (isWindows) {
-						watcherImpl = WindowsWatcherService;
-					} else {
-						watcherImpl = UnixWatcherService;
+				if (this.forcePolling()) {
+					// WSL needs a polling watcher
+					watcherImpl = UnixWatcherService;
+					watcherOptions = { usePolling: true };
+				} else {
+					// Single Folder Watcher
+					if (this.recursiveFoldersToWatch.length === 1) {
+						if (isWindows) {
+							watcherImpl = WindowsWatcherService;
+						} else {
+							watcherImpl = UnixWatcherService;
+						}
 					}
-				}
 
-				// Multi Folder Watcher
-				else {
-					watcherImpl = NsfwWatcherService;
+					// Multi Folder Watcher
+					else {
+						watcherImpl = NsfwWatcherService;
+					}
 				}
 
 				// Create and start watching
@@ -432,11 +441,12 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 					event => this._onDidChangeFile.fire(toFileChanges(event)),
 					msg => {
 						if (msg.type === 'error') {
-							this._onDidWatchErrorOccur.fire(new Error(msg.message));
+							this._onDidWatchErrorOccur.fire(msg.message);
 						}
 						this.logService[msg.type](msg.message);
 					},
-					this.logService.getLevel() === LogLevel.Trace
+					this.logService.getLevel() === LogLevel.Trace,
+					watcherOptions
 				);
 
 				if (!this.recursiveWatcherLogLevelListener) {
@@ -456,7 +466,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			changes => this._onDidChangeFile.fire(toFileChanges(changes)),
 			msg => {
 				if (msg.type === 'error') {
-					this._onDidWatchErrorOccur.fire(new Error(msg.message));
+					this._onDidWatchErrorOccur.fire(msg.message);
 				}
 				this.logService[msg.type](msg.message);
 			},
@@ -502,6 +512,12 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 
 		return createFileSystemProviderError(error, code);
+	}
+
+
+	forcePolling(): boolean {
+		// wsl1 needs polling
+		return isLinux && /^[\.\-0-9]+-Microsoft/.test(os.release());
 	}
 
 	//#endregion

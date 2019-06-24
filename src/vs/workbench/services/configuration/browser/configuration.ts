@@ -12,7 +12,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, USER_CONFIGURATION_KEY, ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -23,51 +23,12 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
-import { IUserDataService } from '../../userData/common/userDataService';
-
-export class UserConfiguration extends Disposable {
-
-	private readonly parser: ConfigurationModelParser;
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
-
-	constructor(
-		private readonly scopes: ConfigurationScope[] | undefined,
-		private readonly userDataService: IUserDataService
-	) {
-		super();
-
-		this.parser = new ConfigurationModelParser(USER_CONFIGURATION_KEY, this.scopes);
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-		this._register(Event.filter(this.userDataService.onDidChange, e => e.contains(USER_CONFIGURATION_KEY))(() => this.reloadConfigurationScheduler.schedule()));
-	}
-
-	async initialize(): Promise<ConfigurationModel> {
-		return this.reload();
-	}
-
-	async reload(): Promise<ConfigurationModel> {
-		try {
-			const content = await this.userDataService.read(USER_CONFIGURATION_KEY);
-			this.parser.parseContent(content);
-			return this.parser.configurationModel;
-		} catch (e) {
-			return new ConfigurationModel();
-		}
-	}
-
-	reprocess(): ConfigurationModel {
-		this.parser.parse();
-		return this.parser.configurationModel;
-	}
-}
 
 export class RemoteUserConfiguration extends Disposable {
 
-	private readonly _cachedConfiguration: CachedRemoteUserConfiguration;
+	private readonly _cachedConfiguration: CachedUserConfiguration;
 	private readonly _configurationFileService: ConfigurationFileService;
-	private _userConfiguration: FileServiceBasedRemoteUserConfiguration | CachedRemoteUserConfiguration;
+	private _userConfiguration: UserConfiguration | CachedUserConfiguration;
 	private _userConfigurationInitializationPromise: Promise<ConfigurationModel> | null = null;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
@@ -81,10 +42,10 @@ export class RemoteUserConfiguration extends Disposable {
 	) {
 		super();
 		this._configurationFileService = configurationFileService;
-		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache);
+		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, configurationCache);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._configurationFileService));
+				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._configurationFileService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfigurationInitializationPromise = userConfiguration.initialize();
 				const configurationModel = await this._userConfigurationInitializationPromise;
@@ -96,7 +57,7 @@ export class RemoteUserConfiguration extends Disposable {
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
-		if (this._userConfiguration instanceof FileServiceBasedRemoteUserConfiguration) {
+		if (this._userConfiguration instanceof UserConfiguration) {
 			return this._userConfiguration.initialize();
 		}
 
@@ -129,7 +90,7 @@ export class RemoteUserConfiguration extends Disposable {
 	}
 }
 
-class FileServiceBasedRemoteUserConfiguration extends Disposable {
+export class UserConfiguration extends Disposable {
 
 	private readonly parser: ConfigurationModelParser;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
@@ -229,7 +190,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 }
 
-class CachedRemoteUserConfiguration extends Disposable {
+class CachedUserConfiguration extends Disposable {
 
 	private readonly _onDidChange: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChange: Event<ConfigurationModel> = this._onDidChange.event;

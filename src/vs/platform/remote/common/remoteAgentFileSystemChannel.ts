@@ -27,6 +27,9 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	private readonly _onDidChange = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
 
+	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
+	get onDidErrorOccur(): Event<string> { return this._onDidWatchErrorOccur.event; }
+
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
@@ -43,8 +46,14 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	}
 
 	private registerListeners(): void {
-		this._register(this.channel.listen<IFileChangeDto[]>('filechange', [this.session])((events) => {
-			this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
+		this._register(this.channel.listen<IFileChangeDto[] | string>('filechange', [this.session])((eventsOrError) => {
+			if (Array.isArray(eventsOrError)) {
+				const events = eventsOrError;
+				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
+			} else {
+				const error = eventsOrError;
+				this._onDidWatchErrorOccur.fire(error);
+			}
 		}));
 	}
 

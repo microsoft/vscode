@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
-	{ name: '0000080A', id: '', text: 'Latin American' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '0000080A', id: '', text: 'Latin American' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['a', 'A', '', '', 0, 'VK_A'],
@@ -167,4 +167,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
 		BrowserFavorites: []
 	}
 
-)));
+});

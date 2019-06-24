@@ -857,6 +857,7 @@ export const EventType = {
 	ERROR: 'error',
 	RESIZE: 'resize',
 	SCROLL: 'scroll',
+	FULLSCREEN_CHANGE: 'fullscreenchange',
 	// Form
 	SELECT: 'select',
 	CHANGE: 'change',
