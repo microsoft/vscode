@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
-import { ILaunchService } from 'vs/platform/launch/common/launchService';
+import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { PerformanceInfo, IDiagnosticsService, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';

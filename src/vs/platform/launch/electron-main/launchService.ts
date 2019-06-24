@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
@@ -20,11 +20,19 @@ import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
-import { ILaunchService, IMainProcessInfo, IRemoteDiagnosticOptions, IWindowInfo } from 'vs/platform/launch/common/launchService';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
+
+export const ID = 'launchService';
+export const ILaunchService = createDecorator<ILaunchService>(ID);
 
 export interface IStartArguments {
 	args: ParsedArgs;
 	userEnv: IProcessEnvironment;
+}
+
+export interface IRemoteDiagnosticOptions {
+	includeProcesses?: boolean;
+	includeWorkspaceMetadata?: boolean;
 }
 
 function parseOpenUrl(args: ParsedArgs): URI[] {
@@ -44,7 +52,14 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 	return [];
 }
 
-
+export interface ILaunchService {
+	_serviceBrand: any;
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+	getMainProcessId(): Promise<number>;
+	getMainProcessInfo(): Promise<IMainProcessInfo>;
+	getLogsPath(): Promise<string>;
+	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
+}
 
 export class LaunchChannel implements IServerChannel {
 

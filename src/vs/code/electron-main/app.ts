@@ -17,7 +17,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchService, LaunchChannel } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -81,7 +81,6 @@ import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFacto
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { ILaunchService } from 'vs/platform/launch/common/launchService';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 
