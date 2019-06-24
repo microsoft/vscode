@@ -251,6 +251,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				'/',
 				'/fake.html',
 				'/main.js',
+				'/host.js',
 				'/service-worker.js'
 			]);
 			try {

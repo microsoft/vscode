@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
-	{ name: '0000041E', id: '', text: 'Thai Kedmanee' },
-	[],
-	{
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '0000041E', id: '', text: 'Thai Kedmanee' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['ฟ', 'ฤ', '', '', 0, 'VK_A'],
@@ -166,4 +165,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-)));
+});

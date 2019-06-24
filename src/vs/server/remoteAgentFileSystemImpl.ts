@@ -23,15 +23,15 @@ class SessionFileWatcher extends Disposable {
 	private readonly _fileWatcher: DiskFileSystemProvider;
 	private readonly _environmentService: IEnvironmentService;
 
-	constructor(logService: ILogService, environmentService: IEnvironmentService, uriTransformer: IURITransformer, emitter: Emitter<IFileChange[]>) {
+	constructor(logService: ILogService, environmentService: IEnvironmentService, uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>) {
 		super();
 		this._uriTransformer = uriTransformer;
 		this._environmentService = environmentService;
 		this._watcherRequests = new Map();
 
-		const localEmitter = this._register(new Emitter<IFileChange[]>());
+		const localChangeEmitter = this._register(new Emitter<IFileChange[]>());
 		this._fileWatcher = this._register(new DiskFileSystemProvider(logService));
-		this._register(localEmitter.event((events) => {
+		this._register(localChangeEmitter.event((events) => {
 			emitter.fire(
 				events.map(e => ({
 					resource: this._uriTransformer.transformOutgoingURI(e.resource),
@@ -40,7 +40,8 @@ class SessionFileWatcher extends Disposable {
 			);
 		}));
 
-		this._register(this._fileWatcher.onDidChangeFile(events => localEmitter.fire(events)));
+		this._register(this._fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
+		this._register(this._fileWatcher.onDidErrorOccur(error => emitter.fire(error)));
 	}
 
 	watch(req: number, _resource: UriComponents, opts: IWatchOptions): IDisposable {
@@ -114,7 +115,7 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 
 		if (event === 'filechange') {
 			const session = arg[0];
-			const emitter = new Emitter<IFileChange[]>({
+			const emitter = new Emitter<IFileChange[] | string>({
 				onFirstListenerAdd: () => {
 					this._fileWatchers.set(session, new SessionFileWatcher(this._logService, this._environmentService, uriTransformer, emitter));
 				},

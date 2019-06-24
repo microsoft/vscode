@@ -46,7 +46,7 @@ declare module 'vscode' {
 		Workspace = 2
 	}
 
-	export interface ExtensionContext {
+	export interface Extension<T> {
 
 		/**
 		 * The extension kind describes if an extension runs where the UI runs
@@ -65,7 +65,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that the value is `undefined` when there is no remote extension host but that the
 		 * value is defined in all extension hosts (local and remote) in case a remote extension host
-		 * exists. Use [`ExtensionContext#extensionKind`](#ExtensionContext.extensionKind) to know if
+		 * exists. Use [`Extension#extensionKind`](#Extension.extensionKind) to know if
 		 * a specific extension runs remote or not.
 		 */
 		export const remoteName: string | undefined;
@@ -1516,6 +1516,27 @@ declare module 'vscode' {
 		 * on the web, this points to a server endpoint.
 		 */
 		export const webviewResourceRoot: string;
+	}
+
+	//#endregion
+
+
+	//#region Joh - read/write files of any scheme
+
+	export interface FileSystem {
+		stat(uri: Uri): Thenable<FileStat>;
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		createDirectory(uri: Uri): Thenable<void>;
+		readFile(uri: Uri): Thenable<Uint8Array>;
+		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+	}
+
+	export namespace workspace {
+
+		export const fs: FileSystem;
 	}
 
 	//#endregion

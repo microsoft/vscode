@@ -29,7 +29,6 @@ import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataService } from '../../userData/common/userDataService';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
@@ -68,10 +67,9 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private cyclicDependency = new Promise<void>(resolve => this.cyclicDependencyReady = resolve);
 
 	constructor(
-		{ remoteAuthority, configurationCache }: { remoteAuthority?: string, configurationCache: IConfigurationCache },
+		{ userSettingsResource, remoteAuthority, configurationCache }: { userSettingsResource: URI, remoteAuthority?: string, configurationCache: IConfigurationCache },
 		fileService: IFileService,
-		userDataService: IUserDataService,
-		remoteAgentService: IRemoteAgentService
+		remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -81,7 +79,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.configurationFileService = new ConfigurationFileService(fileService);
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
-		this.localUserConfiguration = this._register(new UserConfiguration(remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, userDataService));
+		this.localUserConfiguration = this._register(new UserConfiguration(userSettingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, this.configurationFileService));
 		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (remoteAuthority) {
 			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, this.configurationFileService, remoteAgentService));
