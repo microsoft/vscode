@@ -437,6 +437,20 @@ export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeade
 }, nls.localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search."));
 
 
+// < --- Quick Input -- >
+
+export const QUICK_OPEN_BACKGROUND = registerColor('quickOpen.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hc: SIDE_BAR_BACKGROUND
+}, nls.localize('quickOpenBackground', "Quick open background color. The quick open palette is the container for views like the command palette and file quick picker"));
+
+export const QUICK_OPEN_FOREGROUND = registerColor('quickOpen.foreground', {
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
+}, nls.localize('quickOpenForeground', "Quick open foreground color. The quick open palette is the container for views like the command palette and file quick picker"));
+
 // < --- Title Bar --- >
 
 export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {
