@@ -41,8 +41,8 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 					// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
-				'status.editor.screenReaderMode',
-				nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"),
+				'status.workbench.keyboardLayout',
+				nls.localize('status.workbench.keyboardLayout', "Current keyboard layout"),
 				StatusbarAlignment.RIGHT
 			);
 		}
