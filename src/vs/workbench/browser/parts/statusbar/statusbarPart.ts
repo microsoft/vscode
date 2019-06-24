@@ -661,6 +661,7 @@ class StatusbarEntryItem extends Disposable {
 
 		// Label Container
 		this.labelContainer = document.createElement('a');
+		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
 		// Label
 		this.label = new OcticonLabel(this.labelContainer);
@@ -718,7 +719,7 @@ class StatusbarEntryItem extends Disposable {
 			this.applyColor(this.labelContainer, entry.color);
 		}
 
-		// Update: Backgroud
+		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
 			if (entry.backgroundColor) {
 				this.applyColor(this.container, entry.backgroundColor, true);
