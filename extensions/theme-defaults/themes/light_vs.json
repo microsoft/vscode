@@ -366,36 +366,6 @@
 			}
 		},
 		{
-			"scope": "keyword.control.directive",
-			"settings": {
-				"foreground": "#808080"
-			}
-		},
-		{
-			"scope": "variable",
-			"settings": {
-				"foreground": "#000000"
-			}
-		},
-		{
-			"scope": "string.quoted",
-			"settings": {
-				"foreground": "#A31515"
-			}
-		},
-		{
-			"scope": "comment.xml.doc",
-			"settings": {
-				"foreground": "#006400"
-			}
-		},
-		{
-			"scope": "comment.xml.doc.tag",
-			"settings": {
-				"foreground": "#A9A9A9"
-			}
-		},
-		{
 			"scope": "entity.name.function.preprocessor",
 			"settings": {
 				"foreground": "#6F0026"

@@ -347,30 +347,6 @@
 			}
 		},
 		{
-			"scope": "keyword.control.directive",
-			"settings": {
-				"foreground": "#9B9B9B"
-			}
-		},
-		{
-			"scope": "variable",
-			"settings": {
-				"foreground": "#C8C8C8"
-			}
-		},
-		{
-			"scope": "string.quoted",
-			"settings": {
-				"foreground": "#D69D85"
-			}
-		},
-		{
-			"scope": "comment.xml.doc",
-			"settings": {
-				"foreground": "#57A64A"
-			}
-		},
-		{
 			"scope": "entity.name.function.preprocessor",
 			"settings": {
 				"foreground": "#BD63C5"
