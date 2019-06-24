@@ -79,7 +79,7 @@ export interface ILinuxKeyboardLayoutInfo {
 /* __GDPR__FRAGMENT__
 	"IKeyboardLayoutInfo" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"localizedName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
