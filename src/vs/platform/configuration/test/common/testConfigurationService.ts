@@ -14,8 +14,6 @@ export class TestConfigurationService implements IConfigurationService {
 
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
-	userSettingsResource = URI.file('settings.json');
-
 	public reloadConfiguration<T>(): Promise<T> {
 		return Promise.resolve(this.getValue());
 	}
