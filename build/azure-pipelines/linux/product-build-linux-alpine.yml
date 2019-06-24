@@ -64,7 +64,7 @@ steps:
 - script: |
     set -e
     ./build/azure-pipelines/linux/prebuild-alpine.sh
-  displayName: Prepare builds
+  displayName: Prepare build
 
 - script: |
     set -e
