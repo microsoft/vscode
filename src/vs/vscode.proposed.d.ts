@@ -1461,14 +1461,14 @@ declare module 'vscode' {
 
 	//#region Webview Resource Roots
 
-	export namespace env {
+	export interface Webview {
 		/**
 		 * Root url from which local resources are loaded inside of webviews.
 		 *
 		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
 		 * on the web, this points to a server endpoint.
 		 */
-		export const webviewResourceRoot: string;
+		readonly resourceRoot: Thenable<string>;
 	}
 
 	//#endregion
