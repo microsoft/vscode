@@ -112,9 +112,9 @@ if (process.env['VSCODE_WEB_BUILD']) {
 	const buildfile = require('../src/buildfile');
 
 	entryPoints.push(
-		buildfile.entrypoint('vs/workbench/workbench.web.api'),
-		buildfile.base,
-		buildfile.workbenchWeb
+		buildfile.workbenchWeb,
+		buildfile.keyboardMaps,
+		buildfile.base
 	);
 }
 
