@@ -14,15 +14,14 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { testFile } from 'vs/base/test/node/utils';
 import { URI } from 'vs/base/common/uri';
-import { dirname } from 'vs/base/common/resources';
 
 suite('ConfigurationService - Node', () => {
 
 	test('simple', async () => {
-		const res = await testFile('config', 'settings.json');
+		const res = await testFile('config', 'config.json');
 		fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
 
-		const service = new ConfigurationService(dirname(URI.file(res.testFile)));
+		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		const config = service.getValue<{
 			foo: string;
@@ -36,11 +35,11 @@ suite('ConfigurationService - Node', () => {
 	});
 
 	test('config gets flattened', async () => {
-		const res = await testFile('config', 'settings.json');
+		const res = await testFile('config', 'config.json');
 
 		fs.writeFileSync(res.testFile, '{ "testworkbench.editor.tabs": true }');
 
-		const service = new ConfigurationService(dirname(URI.file(res.testFile)));
+		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		const config = service.getValue<{
 			testworkbench: {
@@ -59,11 +58,11 @@ suite('ConfigurationService - Node', () => {
 	});
 
 	test('error case does not explode', async () => {
-		const res = await testFile('config', 'settings.json');
+		const res = await testFile('config', 'config.json');
 
 		fs.writeFileSync(res.testFile, ',,,,');
 
-		const service = new ConfigurationService(dirname(URI.file(res.testFile)));
+		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		const config = service.getValue<{
 			foo: string;
@@ -78,9 +77,9 @@ suite('ConfigurationService - Node', () => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'config', id);
-		const testFile = path.join(newDir, 'settings.json');
+		const testFile = path.join(newDir, 'config.json');
 
-		const service = new ConfigurationService(dirname(URI.file(testFile)));
+		const service = new ConfigurationService(URI.file(testFile));
 		await service.initialize();
 
 		const config = service.getValue<{ foo: string }>();
@@ -90,9 +89,9 @@ suite('ConfigurationService - Node', () => {
 	});
 
 	test('trigger configuration change event', async () => {
-		const res = await testFile('config', 'settings.json');
+		const res = await testFile('config', 'config.json');
 
-		const service = new ConfigurationService(dirname(URI.file(res.testFile)));
+		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		return new Promise((c, e) => {
 			service.onDidChangeConfiguration(() => {
@@ -106,11 +105,11 @@ suite('ConfigurationService - Node', () => {
 	});
 
 	test('reloadConfiguration', async () => {
-		const res = await testFile('config', 'settings.json');
+		const res = await testFile('config', 'config.json');
 
 		fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
 
-		const service = new ConfigurationService(dirname(URI.file(res.testFile)));
+		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		let config = service.getValue<{
 			foo: string;
@@ -159,17 +158,17 @@ suite('ConfigurationService - Node', () => {
 			}
 		});
 
-		let serviceWithoutFile = new ConfigurationService(dirname(URI.file('__testFile')));
+		let serviceWithoutFile = new ConfigurationService(URI.file('__testFile'));
 		await serviceWithoutFile.initialize();
 		let setting = serviceWithoutFile.getValue<ITestSetting>();
 
 		assert.ok(setting);
 		assert.equal(setting.configuration.service.testSetting, 'isSet');
 
-		return testFile('config', 'settings.json').then(async res => {
+		return testFile('config', 'config.json').then(async res => {
 			fs.writeFileSync(res.testFile, '{ "testworkbench.editor.tabs": true }');
 
-			const service = new ConfigurationService(dirname(URI.file(res.testFile)));
+			const service = new ConfigurationService(URI.file(res.testFile));
 
 			let setting = service.getValue<ITestSetting>();
 
@@ -201,8 +200,8 @@ suite('ConfigurationService - Node', () => {
 			}
 		});
 
-		const r = await testFile('config', 'settings.json');
-		const service = new ConfigurationService(dirname(URI.file(r.testFile)));
+		const r = await testFile('config', 'config.json');
+		const service = new ConfigurationService(URI.file(r.testFile));
 		service.initialize();
 
 		let res = service.inspect('something.missing');
@@ -239,8 +238,8 @@ suite('ConfigurationService - Node', () => {
 			}
 		});
 
-		const r = await testFile('config', 'settings.json');
-		const service = new ConfigurationService(dirname(URI.file(r.testFile)));
+		const r = await testFile('config', 'config.json');
+		const service = new ConfigurationService(URI.file(r.testFile));
 		service.initialize();
 
 		let res = service.inspect('lookup.service.testNullSetting');

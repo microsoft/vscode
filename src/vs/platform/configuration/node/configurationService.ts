@@ -14,13 +14,10 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
 	_serviceBrand: any;
-
-	readonly userSettingsResource: URI;
 
 	private configuration: Configuration;
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModelParser> | undefined;
@@ -29,10 +26,9 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		appSettingsHome: URI
+		private readonly settingsResource: URI
 	) {
 		super();
-		this.userSettingsResource = joinPath(appSettingsHome, 'settings.json');
 		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
 	}
@@ -42,13 +38,13 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 			this.userConfigModelWatcher.dispose();
 		}
 
-		if (this.userSettingsResource.scheme !== Schemas.file) {
+		if (this.settingsResource.scheme !== Schemas.file) {
 			return Promise.resolve();
 		}
 		return new Promise<void>((c, e) => {
-			this.userConfigModelWatcher = this._register(new ConfigWatcher(this.userSettingsResource.fsPath, {
-				changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new ConfigurationModelParser(this.userSettingsResource.fsPath), parse: (content: string, parseErrors: any[]) => {
-					const userConfigModelParser = new ConfigurationModelParser(this.userSettingsResource.fsPath);
+			this.userConfigModelWatcher = this._register(new ConfigWatcher(this.settingsResource.fsPath, {
+				changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new ConfigurationModelParser(this.settingsResource.fsPath), parse: (content: string, parseErrors: any[]) => {
+					const userConfigModelParser = new ConfigurationModelParser(this.settingsResource.fsPath);
 					userConfigModelParser.parseContent(content);
 					parseErrors = [...userConfigModelParser.errors];
 					return userConfigModelParser;

@@ -285,7 +285,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 	await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(p => mkdirp(p)));
 
-	const configurationService = new ConfigurationService(environmentService.appSettingsHome);
+	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
