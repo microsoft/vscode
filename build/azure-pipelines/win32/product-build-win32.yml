@@ -22,8 +22,6 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     "machine monacotools.visualstudio.com`npassword $(devops-pat)`nmachine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
-    $env:npm_config_arch="$(VSCODE_ARCH)"
-    $env:CHILD_CONCURRENCY="1"
 
     exec { git config user.email "vscode@microsoft.com" }
     exec { git config user.name "VSCode" }
@@ -40,6 +38,8 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
+    $env:npm_config_arch="$(VSCODE_ARCH)"
+    $env:CHILD_CONCURRENCY="1"
     exec { yarn }
   displayName: Install dependencies
 
@@ -55,7 +55,7 @@ steps:
     exec { yarn gulp hygiene }
     exec { yarn monaco-compile-check }
   displayName: Run hygiene checks
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -78,7 +78,7 @@ steps:
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
   displayName: Run unit tests
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -86,7 +86,7 @@ steps:
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
   displayName: Run integration tests
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:

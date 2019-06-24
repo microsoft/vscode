@@ -273,5 +273,12 @@ function runTests(opts) {
 
 ipcRenderer.on('run', (e, opts) => {
 	initLoader(opts);
-	runTests(opts).catch(err => console.error(typeof err === 'string' ? err : JSON.stringify(err)));
+	runTests(opts).catch(err => {
+		if (!(typeof err !== 'string')) {
+			err = JSON.stringify(err);
+		}
+
+		console.error(err);
+		ipcRenderer.send('error', err);
+	});
 });

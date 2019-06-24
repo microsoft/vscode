@@ -50,7 +50,7 @@ steps:
     yarn gulp hygiene
     yarn monaco-compile-check
   displayName: Run hygiene checks
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -72,13 +72,13 @@ steps:
     # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
   displayName: Run unit tests
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
