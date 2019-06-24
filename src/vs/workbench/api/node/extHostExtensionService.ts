@@ -32,7 +32,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
-import { RemoteAuthorityResolverError, ExtensionExecutionContext, ExtensionKind } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
@@ -362,7 +362,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
 				executionContext: this._initData.remote.isRemote ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local,
-				extensionKind: this._initData.remote.isRemote ? ExtensionKind.Workspace : ExtensionKind.UI
 			});
 		});
 	}
