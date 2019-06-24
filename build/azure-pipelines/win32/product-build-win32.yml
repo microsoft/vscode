@@ -22,8 +22,6 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     "machine monacotools.visualstudio.com`npassword $(devops-pat)`nmachine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
-    $env:npm_config_arch="$(VSCODE_ARCH)"
-    $env:CHILD_CONCURRENCY="1"
 
     exec { git config user.email "vscode@microsoft.com" }
     exec { git config user.name "VSCode" }
@@ -40,6 +38,8 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
+    $env:npm_config_arch="$(VSCODE_ARCH)"
+    $env:CHILD_CONCURRENCY="1"
     exec { yarn }
   displayName: Install dependencies
 
