@@ -181,10 +181,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// TODO@Ben (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
 		// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
-		// However, when running with native tabs we cannot use this workaround because there is a potential
-		// that the new window will be added as native tab instead of being a window on its own. In that
-		// case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-		if (isMacintosh && hasMultipleDisplays && !useNativeTabs) {
+		//
+		// However, when running with native tabs with multiple windows we cannot use this workaround
+		// because there is a potential that the new window will be added as native tab instead of being
+		// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+		if (isMacintosh && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
 			if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
 				this._win.setBounds({
 					width: this.windowState.width!,
