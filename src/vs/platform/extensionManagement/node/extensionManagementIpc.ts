@@ -101,13 +101,14 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('unzip', [zipLocation, type]));
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call('install', [vsix]));
+	install(vsix: URI): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix])).then(local => transformIncomingExtension(local, null));
 	}
 
-	async installFromGallery(extension: IGalleryExtension): Promise<void> {
+	async installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
 		try {
-			await Promise.resolve(this.channel.call('installFromGallery', [extension]));
+			const local = await Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension]));
+			return transformIncomingExtension(local, null);
 		} catch (error) {
 			if (this.remote) {
 				try {
@@ -117,9 +118,9 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 					if (compatible) {
 						const installed = await this.getInstalled(ExtensionType.User);
 						const location = await this.galleryService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
-						await this.install(URI.file(location));
+						const local = await this.install(URI.file(location));
 						this.logService.info(`Successfully installed '${extension.identifier.id}' extension`);
-						return;
+						return local;
 					}
 				} catch (e) {
 					this.logService.error(e);

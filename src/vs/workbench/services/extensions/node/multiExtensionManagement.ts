@@ -134,13 +134,13 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
-	async install(vsix: URI): Promise<IExtensionIdentifier> {
+	async install(vsix: URI): Promise<ILocalExtension> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await getManifest(vsix.fsPath);
 			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
-				const [extensionIdentifier] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
-				return extensionIdentifier;
+				const [local] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
+				return local;
 			}
 			if (isUIExtension(manifest, this.productService, this.configurationService)) {
 				// Install only on local server
@@ -155,13 +155,13 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
 	}
 
-	async installFromGallery(gallery: IGalleryExtension): Promise<void> {
+	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 			if (manifest) {
 				if (isLanguagePackExtension(manifest)) {
 					// Install on both servers
-					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(() => undefined);
+					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(([local]) => local);
 				}
 				if (isUIExtension(manifest, this.productService, this.configurationService)) {
 					// Install only on local server

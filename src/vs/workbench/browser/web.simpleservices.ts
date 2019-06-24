@@ -401,12 +401,13 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -488,12 +489,13 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
