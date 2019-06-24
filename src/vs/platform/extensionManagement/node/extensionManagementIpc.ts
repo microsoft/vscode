@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IExtensionGalleryService, InstallOperation } from '../common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
 	return URI.revive(transformer ? transformer.transformIncoming(uri) : uri);
@@ -83,9 +80,6 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	constructor(
 		private readonly channel: IChannel,
-		private readonly remote: boolean,
-		private readonly galleryService: IExtensionGalleryService,
-		private readonly logService: ILogService
 	) { }
 
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
@@ -105,29 +99,8 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix])).then(local => transformIncomingExtension(local, null));
 	}
 
-	async installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
-		try {
-			const local = await Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension]));
-			return transformIncomingExtension(local, null);
-		} catch (error) {
-			if (this.remote) {
-				try {
-					this.logService.error(`Error while installing '${extension.identifier.id}' extension in the remote server.`, toErrorMessage(error));
-					this.logService.info(`Trying to download '${extension.identifier.id}' extension locally and install`);
-					const compatible = await this.galleryService.getCompatibleExtension(extension);
-					if (compatible) {
-						const installed = await this.getInstalled(ExtensionType.User);
-						const location = await this.galleryService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
-						const local = await this.install(URI.file(location));
-						this.logService.info(`Successfully installed '${extension.identifier.id}' extension`);
-						return local;
-					}
-				} catch (e) {
-					this.logService.error(e);
-				}
-			}
-			throw error;
-		}
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension])).then(local => transformIncomingExtension(local, null));
 	}
 
 	uninstall(extension: ILocalExtension, force = false): Promise<void> {
