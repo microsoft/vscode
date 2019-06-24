@@ -14,7 +14,7 @@ const getRootTempDir = (() => {
 	let dir: string | undefined;
 	return () => {
 		if (!dir) {
-			dir = temp.getTempFile(`vscode-typescript${process.getuid ? process.getuid() : ''}`);
+			dir = temp.getTempFile(`vscode-typescript${process.platform !== 'win32' && process.getuid ? process.getuid() : ''}`);
 		}
 		if (!fs.existsSync(dir)) {
 			fs.mkdirSync(dir);
