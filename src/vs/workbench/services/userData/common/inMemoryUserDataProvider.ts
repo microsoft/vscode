@@ -6,12 +6,13 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class InMemoryUserDataProvider extends Disposable implements IUserDataProvider {
 	_serviceBrand: any;
 
-	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChange: Event<string> = this._onDidChange.event;
+	private _onDidChangeFile: Emitter<string[]> = this._register(new Emitter<string[]>());
+	readonly onDidChangeFile: Event<string[]> = this._onDidChangeFile.event;
 
 	private readonly store: Map<string, string> = new Map<string, string>();
 
@@ -20,18 +21,30 @@ export class InMemoryUserDataProvider extends Disposable implements IUserDataPro
 		this._register(toDisposable(() => this.store.clear()));
 	}
 
-	async read(key: string): Promise<string> {
-		return this.getValue(key);
+	async readDirectory(path: string): Promise<string[]> {
+		return [];
 	}
 
-	async write(key: string, value: string): Promise<void> {
-		if (value !== this.getValue(key)) {
-			if (value) {
-				this.store.set(key, value);
+	async readFile(path: string): Promise<VSBuffer> {
+		return VSBuffer.fromString(this.getValue(path));
+	}
+
+	async writeFile(path: string, value: VSBuffer): Promise<void> {
+		const content = value.toString();
+		if (content !== this.getValue(path)) {
+			if (content) {
+				this.store.set(path, content);
+				this._onDidChangeFile.fire([path]);
 			} else {
-				this.store.delete(key);
+				this.delete(path);
 			}
-			this._onDidChange.fire(key);
+		}
+	}
+
+	async delete(path: string): Promise<void> {
+		if (this.store.has(path)) {
+			this.store.delete(path);
+			this._onDidChangeFile.fire([path]);
 		}
 	}
 

@@ -5,18 +5,16 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataService, IUserDataChangesEvent, UserDataChangesEvent } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
 
-export class FileUserDataService extends Disposable implements IUserDataService {
-	_serviceBrand: any;
+export class FileUserDataProvider extends Disposable implements IUserDataProvider {
 
-	private _onDidChange: Emitter<IUserDataChangesEvent> = this._register(new Emitter<IUserDataChangesEvent>());
-	readonly onDidChange: Event<IUserDataChangesEvent> = this._onDidChange.event;
+	private _onDidChangeFile: Emitter<string[]> = this._register(new Emitter<string[]>());
+	readonly onDidChangeFile: Event<string[]> = this._onDidChangeFile.event;
 
 	constructor(
 		private readonly userDataHome: URI,
@@ -32,46 +30,50 @@ export class FileUserDataService extends Disposable implements IUserDataService 
 	private handleFileChanges(event: FileChangesEvent): void {
 		const changedKeys: string[] = [];
 		for (const change of event.changes) {
-			if (change.resource.scheme !== Schemas.userData) {
-				const key = this.toKey(change.resource.with({ scheme: Schemas.userData }));
+			if (change.resource.scheme !== this.userDataHome.scheme) {
+				const key = this.toKey(change.resource);
 				if (key) {
 					changedKeys.push(key);
 				}
 			}
 		}
 		if (changedKeys.length) {
-			this._onDidChange.fire(new UserDataChangesEvent(changedKeys));
+			this._onDidChangeFile.fire(changedKeys);
 		}
 	}
 
-	async read(key: string): Promise<string> {
-		const resource = this.toFileResource(key);
+	async readFile(path: string): Promise<VSBuffer> {
+		const resource = this.toResource(path);
 		try {
 			const content = await this.fileService.readFile(resource);
-			return content.value.toString();
+			return content.value;
 		} catch (e) {
 			const exists = await this.fileService.exists(resource);
 			if (exists) {
 				throw e;
 			}
 		}
-		return '';
+		return VSBuffer.fromString('');
 	}
 
-	write(key: string, value: string): Promise<void> {
-		return this.fileService.writeFile(this.toFileResource(key), VSBuffer.fromString(value)).then(() => undefined);
+	writeFile(path: string, value: VSBuffer): Promise<void> {
+		return this.fileService.writeFile(this.toResource(path), value).then(() => undefined);
 	}
 
-	private toFileResource(key: string): URI {
+	async readDirectory(path: string): Promise<string[]> {
+		const result = await this.fileService.resolve(this.toResource(path));
+		return result.children ? result.children.map(c => this.toKey(c.resource)!) : [];
+	}
+
+	delete(path: string): Promise<void> {
+		return this.fileService.del(this.toResource(path));
+	}
+
+	private toResource(key: string): URI {
 		return resources.joinPath(this.userDataHome, ...key.split('/'));
 	}
 
-	toResource(key: string): URI {
-		return this.toFileResource(key).with({ scheme: Schemas.userData });
+	private toKey(resource: URI): string | undefined {
+		return resources.relativePath(this.userDataHome, resource);
 	}
-
-	toKey(resource: URI): string | undefined {
-		return resources.relativePath(this.userDataHome.with({ scheme: Schemas.userData }), resource);
-	}
-
 }

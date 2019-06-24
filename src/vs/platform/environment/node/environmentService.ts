@@ -115,6 +115,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
+	get settingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'settings.json'); }
+
+	@memoize
 	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
 
 	@memoize
@@ -131,6 +134,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
+
+	@memoize
+	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return resources.joinPath(this.appSettingsHome, 'keyboardLayout.json'); }

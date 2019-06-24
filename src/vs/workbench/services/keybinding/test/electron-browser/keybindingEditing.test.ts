@@ -21,6 +21,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -44,14 +45,26 @@ import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { URI } from 'vs/base/common/uri';
-import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
-import { FileUserDataService } from 'vs/workbench/services/userData/common/fileUserDataService';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import { dirname } from 'vs/base/common/resources';
 
 interface Modifiers {
 	metaKey?: boolean;
 	ctrlKey?: boolean;
 	altKey?: boolean;
 	shiftKey?: boolean;
+}
+
+class SettingsTestEnvironmentService extends WorkbenchEnvironmentService {
+	constructor(args: ParsedArgs, _execPath: string, private _appSettingsHome: URI) {
+		super(<IWindowConfiguration>args, _execPath);
+	}
+
+	get appSettingsHome(): URI { return this._appSettingsHome; }
 }
 
 suite('KeybindingsEditing', () => {
@@ -67,6 +80,8 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
+			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, URI.file(testDir));
+			instantiationService.stub(IEnvironmentService, environmentService);
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
@@ -84,8 +99,8 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+			fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.keybindingsResource), new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
 			instantiationService.stub(IFileService, fileService);
-			instantiationService.stub(IUserDataService, new FileUserDataService(URI.file(testDir), fileService));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -122,6 +137,13 @@ suite('KeybindingsEditing', () => {
 		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
 			.then(() => assert.fail('Should fail with parse errors'),
 				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
+	});
+
+	test('errors cases - dirty', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
+			.then(() => assert.fail('Should fail with dirty error'),
+				error => assert.equal(error.message, 'Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.'));
 	});
 
 	test('errors cases - did not find an array', () => {

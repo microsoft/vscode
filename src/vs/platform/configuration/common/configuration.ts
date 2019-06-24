@@ -65,7 +65,6 @@ export interface IConfigurationChangeEvent {
 export interface IConfigurationService {
 	_serviceBrand: any;
 
-	userSettingsResource: URI;
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
 	getConfigurationData(): IConfigurationData | null;

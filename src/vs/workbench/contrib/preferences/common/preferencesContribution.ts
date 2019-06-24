@@ -14,6 +14,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -35,6 +36,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IModeService private readonly modeService: IModeService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -77,7 +79,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (isEqual(resource, this.configurationService.userSettingsResource, !isLinux)) {
+		if (isEqual(resource, this.environmentService.settingsResource, !isLinux)) {
 			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 

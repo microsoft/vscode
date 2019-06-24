@@ -63,14 +63,23 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(configuration: IWorkbenchConstructionOptions) {
+	constructor(configuration: IWorkbenchConstructionOptions, remoteUserDataUri: URI | null) {
 		this.args = { _: [] };
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
 		this.configuration.remoteAuthority = configuration.remoteAuthority;
 
-		this.appSettingsHome = joinPath(URI.revive(JSON.parse(document.getElementById('vscode-remote-user-data-uri')!.getAttribute('data-settings')!)), 'User');
+		if (remoteUserDataUri) {
+			this.appSettingsHome = remoteUserDataUri || URI.file('/User').with({ scheme: Schemas.userData });
+			this.settingsResource = joinPath(this.appSettingsHome, 'settings.json').with({ scheme: Schemas.userData });
+			this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json').with({ scheme: Schemas.userData });
+		} else {
+			const appSettingsHome = URI.file('/User').with({ scheme: Schemas.userData });
+			this.settingsResource = joinPath(appSettingsHome, 'settings.json');
+			this.keybindingsResource = joinPath(appSettingsHome, 'keybindings.json');
+		}
+
 		this.keyboardLayoutResource = joinPath(this.appSettingsHome, 'keyboardLayout.json');
 
 		this.logsPath = '/web/logs';
@@ -95,6 +104,8 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;

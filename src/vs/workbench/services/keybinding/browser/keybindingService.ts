@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent, USER_KEYBINDINGS_KEY } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -36,15 +36,17 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 // tslint:disable-next-line: import-patterns
 import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { dirname, isEqual } from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
-import { IUserDataService } from 'vs/workbench/services/userData/common/userData';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -156,8 +158,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IExtensionService extensionService: IExtensionService,
-		@IKeymapService private readonly keymapService: IKeymapService,
-		@IUserDataService userDataService: IUserDataService,
+		@IFileService fileService: IFileService,
+		@IKeymapService private readonly keymapService: IKeymapService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService);
 
@@ -183,7 +185,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(userDataService));
+		this.userKeybindings = this._register(new UserKeybindings(environmentService.keybindingsResource, fileService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
 				this.updateResolver({ source: KeybindingSource.User });
@@ -550,39 +552,99 @@ class UserKeybindings extends Disposable {
 
 	private _keybindings: IUserFriendlyKeybinding[] = [];
 	get keybindings(): IUserFriendlyKeybinding[] { return this._keybindings; }
-
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private fileWatcherDisposable: IDisposable = Disposable.None;
+	private directoryWatcherDisposable: IDisposable = Disposable.None;
+
 	constructor(
-		private readonly userDataService: IUserDataService
+		private readonly keybindingsResource: URI,
+		private readonly fileService: IFileService
 	) {
 		super();
 
-		this._register(Event.filter(this.userDataService.onDidChange, e => e.contains(USER_KEYBINDINGS_KEY))(() => this.reloadConfigurationScheduler.schedule()));
+		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
+		this._register(toDisposable(() => {
+			this.stopWatchingResource();
+			this.stopWatchingDirectory();
+		}));
+	}
+
+	private watchResource(): void {
+		this.fileWatcherDisposable = this.fileService.watch(this.keybindingsResource);
+	}
+
+	private stopWatchingResource(): void {
+		this.fileWatcherDisposable.dispose();
+		this.fileWatcherDisposable = Disposable.None;
+	}
+
+	private watchDirectory(): void {
+		const directory = dirname(this.keybindingsResource);
+		this.directoryWatcherDisposable = this.fileService.watch(directory);
+	}
+
+	private stopWatchingDirectory(): void {
+		this.directoryWatcherDisposable.dispose();
+		this.directoryWatcherDisposable = Disposable.None;
 	}
 
 	async initialize(): Promise<void> {
+		const exists = await this.fileService.exists(this.keybindingsResource);
+		this.onResourceExists(exists);
 		await this.reload();
 	}
 
 	private async reload(): Promise<boolean> {
 		const existing = this._keybindings;
 		try {
-			const content = (await this.userDataService.read(USER_KEYBINDINGS_KEY)) || '[]';
-			const value = parse(content);
+			const content = await this.fileService.readFile(this.keybindingsResource);
+			const value = parse(content.value.toString());
 			this._keybindings = isArray(value) ? value : [];
 		} catch (e) {
 			this._keybindings = [];
 		}
 		return existing ? !objects.equals(existing, this._keybindings) : true;
+	}
+
+	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
+		const events = event.changes;
+
+		let affectedByChanges = false;
+
+		// Find changes that affect the resource
+		for (const event of events) {
+			affectedByChanges = isEqual(this.keybindingsResource, event.resource);
+			if (affectedByChanges) {
+				if (event.type === FileChangeType.ADDED) {
+					this.onResourceExists(true);
+				} else if (event.type === FileChangeType.DELETED) {
+					this.onResourceExists(false);
+				}
+				break;
+			}
+		}
+
+		if (affectedByChanges) {
+			this.reloadConfigurationScheduler.schedule();
+		}
+	}
+
+	private onResourceExists(exists: boolean): void {
+		if (exists) {
+			this.stopWatchingDirectory();
+			this.watchResource();
+		} else {
+			this.stopWatchingResource();
+			this.watchDirectory();
+		}
 	}
 }
 
