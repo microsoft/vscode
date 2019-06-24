@@ -21,9 +21,9 @@ cd $ROOT
 ./scripts/code.sh $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out --disable-extensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
 ./scripts/code.sh $ROOT/extensions/markdown-language-features/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/markdown-language-features --extensionTestsPath=$ROOT/extensions/markdown-language-features/out/test --disable-extensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
 
-# mkdir -p $ROOT/extensions/emmet/test-fixtures
-# ./scripts/code.sh $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-extensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
-# rm -rf $ROOT/extensions/emmet/test-fixtures
+mkdir -p $ROOT/extensions/emmet/test-fixtures
+./scripts/code.sh $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-extensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
+rm -rf $ROOT/extensions/emmet/test-fixtures
 
 if [ -f ./resources/server/test/test-remote-integration.sh ]; then
 	./resources/server/test/test-remote-integration.sh

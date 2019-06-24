@@ -46,7 +46,7 @@ declare module 'vscode' {
 		Workspace = 2
 	}
 
-	export interface ExtensionContext {
+	export interface Extension<T> {
 
 		/**
 		 * The extension kind describes if an extension runs where the UI runs

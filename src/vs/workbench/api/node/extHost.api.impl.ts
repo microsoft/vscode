@@ -284,17 +284,21 @@ export function createApiFactory(
 			Object.freeze(env);
 		}
 
+		const extensionKind = initData.remote.isRemote
+			? extHostTypes.ExtensionKind.Workspace
+			: extHostTypes.ExtensionKind.UI;
+
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
 			getExtension(extensionId: string): Extension<any> | undefined {
 				const desc = extensionRegistry.getExtensionDescription(extensionId);
 				if (desc) {
-					return new Extension(extensionService, desc);
+					return new Extension(extensionService, desc, extensionKind);
 				}
 				return undefined;
 			},
 			get all(): Extension<any>[] {
-				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
+				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc, extensionKind));
 			},
 			get onDidChange() {
 				return extensionRegistry.onDidChange;
@@ -906,16 +910,18 @@ class Extension<T> implements vscode.Extension<T> {
 	private _extensionService: ExtHostExtensionService;
 	private _identifier: ExtensionIdentifier;
 
-	public id: string;
-	public extensionPath: string;
-	public packageJSON: IExtensionDescription;
+	readonly id: string;
+	readonly extensionPath: string;
+	readonly packageJSON: IExtensionDescription;
+	readonly extensionKind: vscode.ExtensionKind;
 
-	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
+	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription, kind: extHostTypes.ExtensionKind) {
 		this._extensionService = extensionService;
 		this._identifier = description.identifier;
 		this.id = description.identifier.value;
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
 		this.packageJSON = description;
+		this.extensionKind = kind;
 	}
 
 	get isActive(): boolean {
