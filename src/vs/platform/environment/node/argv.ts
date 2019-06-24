@@ -5,7 +5,6 @@
 
 import * as minimist from 'minimist';
 import * as os from 'os';
-import * as path from 'path';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
@@ -221,31 +220,30 @@ export function buildVersionMessage(version: string | undefined, commit: string 
 }
 
 export function buildTelemetryMessage(appRoot: string, extensionsPath: string): string {
-	// const contents = readFileSync('./telemetry.json');
-	// Gets all the directories inside the extension directory
-	const dirs = readdirSync(extensionsPath).filter(files => statSync(join(extensionsPath, files)).isDirectory());
-	const telemetryJsonFolders: string[] = [];
-	dirs.forEach((dir) => {
-		const files = readdirSync(join(extensionsPath, dir)).filter(file => file === 'telemetry.json');
-		// We know it contains a telemetry.json file so we add it to the list of folders which have one
-		if (files.length === 1) {
-			telemetryJsonFolders.push(dir);
-		}
-	});
-	const mergedTelemetry = Object.create(null);
-	// Simple function to merge the telemetry into one json object
-	const mergeTelemetry = (contents: string, dirName: string) => {
-		const telemetryData = JSON.parse(contents);
-		mergedTelemetry[dirName] = telemetryData;
-	};
-	telemetryJsonFolders.forEach((folder) => {
-		const contents = readFileSync(join(extensionsPath, folder, 'telemetry.json')).toString();
-		mergeTelemetry(contents, folder);
-	});
 	try {
-		let contents = readFileSync(path.join(appRoot, 'out/', 'telemetry-core.json')).toString();
+		// Gets all the directories inside the extension directory
+		const dirs = readdirSync(extensionsPath).filter(files => statSync(join(extensionsPath, files)).isDirectory());
+		const telemetryJsonFolders: string[] = [];
+		dirs.forEach((dir) => {
+			const files = readdirSync(join(extensionsPath, dir)).filter(file => file === 'telemetry.json');
+			// We know it contains a telemetry.json file so we add it to the list of folders which have one
+			if (files.length === 1) {
+				telemetryJsonFolders.push(dir);
+			}
+		});
+		const mergedTelemetry = Object.create(null);
+		// Simple function to merge the telemetry into one json object
+		const mergeTelemetry = (contents: string, dirName: string) => {
+			const telemetryData = JSON.parse(contents);
+			mergedTelemetry[dirName] = telemetryData;
+		};
+		telemetryJsonFolders.forEach((folder) => {
+			const contents = readFileSync(join(extensionsPath, folder, 'telemetry.json')).toString();
+			mergeTelemetry(contents, folder);
+		});
+		let contents = readFileSync(join(appRoot, 'out/', 'telemetry-core.json')).toString();
 		mergeTelemetry(contents, 'vscode-core');
-		contents = readFileSync(path.join(appRoot, 'out/', 'telemetry-extensions.json')).toString();
+		contents = readFileSync(join(appRoot, 'out/', 'telemetry-extensions.json')).toString();
 		mergeTelemetry(contents, 'vscode-extensions');
 		return JSON.stringify(mergedTelemetry, null, 4);
 	} catch (err) {
