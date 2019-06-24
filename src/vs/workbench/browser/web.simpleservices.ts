@@ -760,6 +760,14 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				browser.setFullscreen(false);
 			}
 		}));
+
+		this._register(addDisposableListener(document, EventType.WK_FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
 	}
 
 	isFocused(): Promise<boolean> {
@@ -832,10 +840,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true); // we have to set this proactively because Safari doesn't emit fullscreenchange event.
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(false);
 				}
 			} catch {
 				console.warn('Enter/Exit Full Screen failed');
