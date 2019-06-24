@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { join } from 'path';
+import { posix } from 'path';
 
 suite('workspace-fs', () => {
 
@@ -54,7 +54,7 @@ suite('workspace-fs', () => {
 
 	test('fs.write/stat/delete', async function () {
 
-		const uri = root.with({ path: join(root.path, 'new.file') });
+		const uri = root.with({ path: posix.join(root.path, 'new.file') });
 		await vscode.workspace.fs.writeFile(uri, Buffer.from('HELLO'));
 
 		const stat = await vscode.workspace.fs.stat(uri);
@@ -72,8 +72,8 @@ suite('workspace-fs', () => {
 
 	test('fs.delete folder', async function () {
 
-		const folder = root.with({ path: join(root.path, 'folder') });
-		const file = root.with({ path: join(root.path, 'folder/file') });
+		const folder = root.with({ path: posix.join(root.path, 'folder') });
+		const file = root.with({ path: posix.join(root.path, 'folder/file') });
 
 		await vscode.workspace.fs.createDirectory(folder);
 		await vscode.workspace.fs.writeFile(file, Buffer.from('FOO'));
