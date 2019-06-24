@@ -117,7 +117,7 @@
 }
 
 .explorer-viewlet .explorer-open-editors .close-editor-action {
-	background: url("action-close.svg") center center no-repeat;
+	background: url("action-close-light.svg") center center no-repeat;
 }
 
 .explorer-viewlet .explorer-open-editors .focused .monaco-list-row.selected:not(.highlighted) .close-editor-action {
