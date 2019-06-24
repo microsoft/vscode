@@ -38,7 +38,9 @@ export class ExtensionMemento implements IExtensionMemento {
 		return this._init;
 	}
 
-	get<T>(key: string, defaultValue: T): T {
+	get<T>(key: string): T | undefined;
+	get<T>(key: string, defaultValue: T): T;
+	get<T>(key: string, defaultValue?: T): T {
 		let value = this._value[key];
 		if (typeof value === 'undefined') {
 			value = defaultValue;
@@ -46,11 +48,9 @@ export class ExtensionMemento implements IExtensionMemento {
 		return value;
 	}
 
-	update(key: string, value: any): Promise<boolean> {
+	update(key: string, value: any): Promise<void> {
 		this._value[key] = value;
-		return this._storage
-			.setValue(this._shared, this._id, this._value)
-			.then(() => true);
+		return this._storage.setValue(this._shared, this._id, this._value);
 	}
 
 	dispose(): void {

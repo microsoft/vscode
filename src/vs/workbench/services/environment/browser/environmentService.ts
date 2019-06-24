@@ -13,6 +13,7 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { Schemas } from 'vs/base/common/network';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -58,7 +59,6 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 }
 
 export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
-
 	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
@@ -73,6 +73,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		this.appSettingsHome = joinPath(URI.revive(JSON.parse(document.getElementById('vscode-remote-user-data-uri')!.getAttribute('data-settings')!)), 'User');
 		this.settingsResource = joinPath(this.appSettingsHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json');
+		this.keyboardLayoutResource = joinPath(this.appSettingsHome, 'keyboardLayout.json');
 
 		this.logsPath = '/web/logs';
 
@@ -82,6 +83,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		};
 
 		this.webviewEndpoint = configuration.webviewEndpoint;
+		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 	}
 
 	untitledWorkspacesHome: URI;
@@ -97,6 +99,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	appSettingsHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 	settingsSearchBuildId?: number;
@@ -133,4 +136,8 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 	webviewEndpoint?: string;
+
+	get webviewResourceRoot(): string {
+		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource' : 'vscode-resource:';
+	}
 }

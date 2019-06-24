@@ -857,6 +857,8 @@ export const EventType = {
 	ERROR: 'error',
 	RESIZE: 'resize',
 	SCROLL: 'scroll',
+	FULLSCREEN_CHANGE: 'fullscreenchange',
+	WK_FULLSCREEN_CHANGE: 'webkitfullscreenchange',
 	// Form
 	SELECT: 'select',
 	CHANGE: 'change',

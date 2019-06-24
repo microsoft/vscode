@@ -2319,3 +2319,8 @@ export enum ExtensionExecutionContext {
 	Local = 1,
 	Remote = 2
 }
+
+export enum ExtensionKind {
+	UI = 1,
+	Workspace = 2
+}

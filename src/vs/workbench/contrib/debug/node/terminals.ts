@@ -10,7 +10,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -315,13 +315,13 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 	let shell: string;
 	const shell_config = config.integrated.shell;
 	if (env.isWindows) {
-		shell = shell_config.windows || getDefaultShell(env.Platform.Windows);
+		shell = shell_config.windows || getSystemShell(env.Platform.Windows);
 		shellType = ShellType.cmd;
 	} else if (env.isLinux) {
-		shell = shell_config.linux || getDefaultShell(env.Platform.Linux);
+		shell = shell_config.linux || getSystemShell(env.Platform.Linux);
 		shellType = ShellType.bash;
 	} else if (env.isMacintosh) {
-		shell = shell_config.osx || getDefaultShell(env.Platform.Mac);
+		shell = shell_config.osx || getSystemShell(env.Platform.Mac);
 		shellType = ShellType.bash;
 	} else {
 		throw new Error('Unknown platform');

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout((new KeyboardLayoutInfo(
-	{ name: '0000041D', id: '', text: 'Swedish' },
-	[
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '0000041D', id: '', text: 'Swedish' },
+	secondaryLayouts: [
 		{ name: '0000040B', id: '', text: 'Finnish' }
 	],
-	{
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['a', 'A', '', '', 0, 'VK_A'],
@@ -167,5 +168,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout((new KeyboardLayoutInfo(
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-
-)));
+});

@@ -221,6 +221,7 @@ export interface ITerminalService {
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
+	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
@@ -377,6 +378,8 @@ export interface ITerminalInstance {
 
 	readonly cols: number;
 	readonly rows: number;
+	readonly maxCols: number;
+	readonly maxRows: number;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -395,12 +398,10 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onFocused: Event<ITerminalInstance>;
-
 	onProcessIdReady: Event<ITerminalInstance>;
-
 	onRequestExtHostProcess: Event<ITerminalInstance>;
-
 	onDimensionsChanged: Event<void>;
+	onMaximumDimensionsChanged: Event<void>;
 
 	onFocus: Event<ITerminalInstance>;
 
@@ -789,4 +790,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+}
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
 }

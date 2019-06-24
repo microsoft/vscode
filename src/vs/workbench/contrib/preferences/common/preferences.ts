@@ -111,3 +111,5 @@ export const MODIFIED_SETTING_TAG = 'modified';
 export const EXTENSION_SETTING_TAG = 'ext:';
 
 export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+
+export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';

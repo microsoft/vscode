@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout((new KeyboardLayoutInfo(
-	{ name: '00020409', id: '0001', text: 'United States-International' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '00020409', id: '0001', text: 'United States-International' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['a', 'A', 'á', 'Á', 0, 'VK_A'],
@@ -165,4 +166,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout((new KeyboardLayoutInfo(
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-)));
+});

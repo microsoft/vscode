@@ -21,6 +21,9 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
 
 export class EmptyView extends ViewletPanel {
 
@@ -38,10 +41,13 @@ export class EmptyView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
-		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -117,7 +123,12 @@ export class EmptyView extends ViewletPanel {
 			}
 			this.titleElement.textContent = EmptyView.NAME;
 		} else {
-			this.messageElement.textContent = nls.localize('noFolderHelp', "You have not yet opened a folder.");
+			if (this.environmentService.configuration.remoteAuthority) {
+				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
+				this.messageElement.textContent = hostLabel ? nls.localize('remoteNoFolderHelp', "Connected to {0}", hostLabel) : nls.localize('connecting', "Connecting...");
+			} else {
+				this.messageElement.textContent = nls.localize('noFolderHelp', "You have not yet opened a folder.");
+			}
 			if (this.button) {
 				this.button.label = nls.localize('openFolder', "Open Folder");
 			}

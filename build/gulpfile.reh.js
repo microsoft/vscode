@@ -30,6 +30,7 @@ gulp.task('vscode-reh-win32-x64-min', noop);
 gulp.task('vscode-reh-darwin-min', noop);
 gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
+gulp.task('vscode-reh-linux-alpine-min', noop);
 
 
 function getNodeVersion() {
@@ -84,6 +85,18 @@ function nodejs(platform, arch) {
 					}));
 				}))
 		);
+	}
+
+	if (arch === 'alpine') {
+		return es.readArray([
+			new File({
+				path: 'node',
+				contents: cp.execSync(`docker run --rm node:${VERSION}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' }),
+				stat: {
+					mode: parseInt('755', 8)
+				}
+			})
+		]);
 	}
 
 	if (platform === 'darwin') {
