@@ -338,8 +338,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur: Emitter<Error> = this._register(new Emitter<Error>());
-	get onDidErrorOccur(): Event<Error> { return this._onDidWatchErrorOccur.event; }
+	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
+	get onDidErrorOccur(): Event<string> { return this._onDidWatchErrorOccur.event; }
 
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
@@ -441,7 +441,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 					event => this._onDidChangeFile.fire(toFileChanges(event)),
 					msg => {
 						if (msg.type === 'error') {
-							this._onDidWatchErrorOccur.fire(new Error(msg.message));
+							this._onDidWatchErrorOccur.fire(msg.message);
 						}
 						this.logService[msg.type](msg.message);
 					},
@@ -466,7 +466,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			changes => this._onDidChangeFile.fire(toFileChanges(changes)),
 			msg => {
 				if (msg.type === 'error') {
-					this._onDidWatchErrorOccur.fire(new Error(msg.message));
+					this._onDidWatchErrorOccur.fire(msg.message);
 				}
 				this.logService[msg.type](msg.message);
 			},
