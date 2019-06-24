@@ -409,6 +409,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 					});
 				}
 			}
+		});
+	}
+
+	public $acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void {
+		this._getTerminalByIdEventually(id).then(() => {
 			// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
 			const renderer = this._getTerminalRendererById(id);
 			if (renderer) {

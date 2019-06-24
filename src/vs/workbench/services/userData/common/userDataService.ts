@@ -8,10 +8,15 @@ import { Event } from 'vs/base/common/event';
 
 export const IUserDataService = createDecorator<IUserDataService>('userDataService');
 
+export interface IUserDataChangesEvent {
+	keys: string[];
+	contains(keyOrSegment: string): boolean;
+}
+
 export interface IUserDataService {
 	_serviceBrand: any;
 
-	onDidChange: Event<string>;
+	onDidChange: Event<IUserDataChangesEvent>;
 
 	read(key: string): Promise<string>;
 

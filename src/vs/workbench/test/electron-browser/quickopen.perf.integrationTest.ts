@@ -29,6 +29,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -170,6 +171,10 @@ class TestTelemetryService implements ITelemetryService {
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		this.events.push({ name: eventName, data: data });
 		return Promise.resolve(undefined);
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

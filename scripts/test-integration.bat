@@ -26,9 +26,9 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\*\server\out\test\**\*.test.js
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-if exist ".\resources\server\test\test-remote-integration.bat" (
-	call .\resources\server\test\test-remote-integration.bat
-)
+REM if exist ".\resources\server\test\test-remote-integration.bat" (
+REM 	call .\resources\server\test\test-remote-integration.bat
+REM )
 
 rmdir /s /q %VSCODEUSERDATADIR%
 

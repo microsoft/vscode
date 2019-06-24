@@ -43,7 +43,7 @@ import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/file
 import { dirname, isEqual } from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
-import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
+import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';

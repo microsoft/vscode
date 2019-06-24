@@ -14,26 +14,23 @@
 	height: 100%;
 	position: absolute;
 	top: 0;
-	left: 14px;
+	left: 18px;
 	pointer-events: none;
 }
 
 .hide-arrows .monaco-tl-indent {
-	left: 10px;
+	left: 12px;
 }
 
-/* TODO @misolori remove before shipping stable */
-body:not([data-exploration="icon-exploration"]) .monaco-tl-indent {
-	left: 16px;
+.monaco-tl-indent > .indent-guide {
+	display: inline-block;
+	box-sizing: border-box;
+	height: 100%;
+	border-left: 1px solid transparent;
 }
 
-/* TODO @misolori remove before shipping stable */
-body:not([data-exploration="icon-exploration"]) .hide-arrows .monaco-tl-indent {
-	left: 10px;
-}
-
-.monaco-tl-indent > svg {
-	overflow: visible;
+.monaco-tl-indent > .indent-guide {
+	transition: border-color 0.1s linear;
 }
 
 .monaco-tl-twistie,
@@ -93,13 +90,4 @@ body:not([data-exploration="icon-exploration"]) .hide-arrows .monaco-tl-indent {
 
 .hc-black .monaco-tl-twistie.loading {
 	background-image: url("loading-hc.svg");
-}
-
-.monaco-list .monaco-tl-indent > svg {
-	height: 100%;
-}
-
-.monaco-list .monaco-tl-indent > svg > line {
-	stroke: transparent;
-	transition: stroke 0.1s linear;
 }

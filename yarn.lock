@@ -5951,10 +5951,10 @@ native-is-elevated@^0.2.1:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
   integrity sha1-cKISOoV1ufYko+9GXZjLdK4Bc4U=
 
-native-keymap@1.2.5:
-  version "1.2.5"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
-  integrity sha1-EDWpQXuak0DPgJd2OkPHbViBZaU=
+native-keymap@1.2.6:
+  version "1.2.6"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.6.tgz#93d1b4c4ae0e9136bc14538cafe02c0bbe95bebf"
+  integrity sha512-8hEr6wNkb7OmGPFLFk1cAsnOt2Y3F4mtBffr8uOyX0kKOjr2JVetSt9TKjk0xyJw/B/HcEgMhXmjFKzGN+9JjA==
 
 native-watchdog@1.0.0:
   version "1.0.0"
@@ -9802,10 +9802,10 @@ xterm-addon-web-links@0.1.0-beta10:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta42:
-  version "3.15.0-beta42"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta42.tgz#8ed1f2928d46cb5f941dc39e4116782787a4b8a6"
-  integrity sha512-1hXcdnrhAsvmyTrcR+cz/B3O/Bv9oRRg4lPrOVoJkW+0otRfljJ5CHMfaL0uiZwphNoWpkHXrzApsY5GzS8o5Q==
+xterm@3.15.0-beta50:
+  version "3.15.0-beta50"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta50.tgz#6413057fe36ff5808a41eba337f83076144d5c10"
+  integrity sha512-LAJ8kP3U8oXnVR3uaL4NxNFKcFDt3Zoec53hgYppwW8P5LdmL/dc0eDpgqiEsPLx4GgD37d8J92EcoMzKs2vVw==
 
 y18n@^3.2.1:
   version "3.2.1"
