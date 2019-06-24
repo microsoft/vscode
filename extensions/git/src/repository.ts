@@ -5,7 +5,7 @@
 
 import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, toDisposable, combinedDisposable } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, watch, IFileWatcher } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -480,6 +480,49 @@ class FileEventLogger {
 	}
 }
 
+class DotGitWatcher implements IFileWatcher {
+
+	readonly event: Event<Uri>;
+
+	private emitter = new EventEmitter<Uri>();
+	private transientDisposables: IDisposable[] = [];
+	private disposables: IDisposable[] = [];
+
+	constructor(private repository: Repository) {
+		const rootWatcher = watch(repository.dotGit);
+		this.disposables.push(rootWatcher);
+
+		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
+		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
+
+		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
+		this.updateTransientWatchers();
+	}
+
+	private updateTransientWatchers() {
+		this.transientDisposables = dispose(this.transientDisposables);
+
+		if (!this.repository.HEAD || !this.repository.HEAD.upstream) {
+			return;
+		}
+
+		this.transientDisposables = dispose(this.transientDisposables);
+
+		const { name, remote } = this.repository.HEAD.upstream;
+		const upstreamPath = path.join(this.repository.dotGit, 'refs', 'remotes', remote, name);
+
+		const upstreamWatcher = watch(upstreamPath);
+		this.transientDisposables.push(upstreamWatcher);
+		upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
+	}
+
+	dispose() {
+		this.emitter.dispose();
+		this.transientDisposables = dispose(this.transientDisposables);
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -577,10 +620,13 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get dotGit(): string {
+		return this.repository.dotGit;
+	}
+
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
 	private isFreshRepository: boolean | undefined = undefined;
-
 
 	private disposables: Disposable[] = [];
 
@@ -596,23 +642,19 @@ export class Repository implements Disposable {
 		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
 		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
-		const dotGitWatcher = fs.watch(repository.dotGit);
-		const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
-		dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(path.join(repository.dotGit, e as string))));
-		dotGitWatcher.on('error', err => console.error(err));
-		this.disposables.push(toDisposable(() => dotGitWatcher.close()));
-		const onDotGitFileChange = filterEvent(onDotGitFileChangeEmitter.event, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
+		const dotGitFileWatcher = new DotGitWatcher(this);
+		this.disposables.push(dotGitFileWatcher);
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
 		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
-		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, onDotGitFileChange);
+		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event);
 		onFileChange(this.onFileChange, this, this.disposables);
 
 		// Relevate repository changes should trigger virtual document change events
-		onDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+		dotGitFileWatcher.event(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
+		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event, outputChannel));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);

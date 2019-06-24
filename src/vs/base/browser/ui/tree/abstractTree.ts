@@ -243,7 +243,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	private indent: number = TreeRenderer.DefaultIndent;
 
 	private _renderIndentGuides: RenderIndentGuides = RenderIndentGuides.None;
-	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, SVGLineElement>();
+	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
 	private activeParentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
@@ -312,7 +312,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		this.renderTwistie(node, templateData);
 
 		if (typeof height === 'number') {
-			this.renderIndentGuides(node, templateData, height);
+			this.renderIndentGuides(node, templateData);
 		}
 
 		this.renderer.renderElement(node, index, templateData.templateData, height);
@@ -353,7 +353,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 
 		this.renderTwistie(node, data.templateData);
-		this.renderIndentGuides(node, data.templateData, data.height);
+		this.renderIndentGuides(node, data.templateData);
 	}
 
 	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
@@ -371,51 +371,35 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 	}
 
-	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
+	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
+		clearNode(templateData.indent);
+		templateData.indentGuidesDisposable.dispose();
+
 		if (this._renderIndentGuides === RenderIndentGuides.None) {
-			clearNode(templateData.indent);
 			return;
 		}
 
-		templateData.indentGuidesDisposable.dispose();
-
 		const disposableStore = new DisposableStore();
-		const width = this.indent * target.depth;
-		const virtualWidth = width * window.devicePixelRatio;
-		const virtualHeight = height * window.devicePixelRatio;
-
-		const svg = $.SVG('svg', {
-			preserveAspectRatio: 'none',
-			width: `${width}`,
-			height: `${height}`,
-			viewBox: `0 0 ${virtualWidth} ${virtualHeight}`
-		});
-
 		let node = target;
-		let i = 1;
 
 		while (node.parent && node.parent.parent) {
 			const parent = node.parent;
-			const x = Math.floor((target.depth - i - 1) * this.indent * window.devicePixelRatio) + 2.5;
-			const line = $.SVG<SVGLineElement>('line', { x1: x, y1: 0, x2: x, y2: virtualHeight });
+			const guide = $<HTMLDivElement>('.indent-guide', { style: `width: ${this.indent}px` });
 
 			if (this.activeParentNodes.has(parent)) {
-				addClass(line, 'active');
+				addClass(guide, 'active');
 			}
 
-			svg.appendChild(line);
+			if (templateData.indent.childElementCount === 0) {
+				templateData.indent.appendChild(guide);
+			} else {
+				templateData.indent.insertBefore(guide, templateData.indent.firstElementChild);
+			}
 
-			this.renderedIndentGuides.add(parent, line);
-			disposableStore.add(toDisposable(() => this.renderedIndentGuides.delete(parent, line)));
+			this.renderedIndentGuides.add(parent, guide);
+			disposableStore.add(toDisposable(() => this.renderedIndentGuides.delete(parent, guide)));
 
 			node = parent;
-			i++;
-		}
-
-		clearNode(templateData.indent);
-
-		if (svg.firstChild) {
-			templateData.indent.appendChild(svg);
 		}
 
 		templateData.indentGuidesDisposable = disposableStore;
@@ -1358,8 +1342,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const content: string[] = [];
 
 		if (styles.treeIndentGuidesStroke) {
-			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > svg > line, .monaco-list${suffix}.always .monaco-tl-indent > svg > line  { stroke: ${styles.treeIndentGuidesStroke.transparent(0.4)}; }`);
-			content.push(`.monaco-list${suffix} .monaco-tl-indent > svg > line.active { stroke: ${styles.treeIndentGuidesStroke}; }`);
+			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > .indent-guide, .monaco-list${suffix}.always .monaco-tl-indent > .indent-guide  { border-color: ${styles.treeIndentGuidesStroke.transparent(0.4)}; }`);
+			content.push(`.monaco-list${suffix} .monaco-tl-indent > .indent-guide.active { border-color: ${styles.treeIndentGuidesStroke}; }`);
 		}
 
 		const newStyles = content.join('\n');

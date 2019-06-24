@@ -12,10 +12,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -44,15 +45,18 @@ export class LabelContribution implements IWorkbenchContribution {
 	}
 }
 
-class RemoteChannelsContribution implements IWorkbenchContribution {
+class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 	) {
+		super();
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+			const logLevelClient = new LogLevelSetterChannelClient(connection.getChannel('loglevel'));
+			logLevelClient.setLevel(logService.getLevel());
+			this._register(logService.onDidChangeLogLevel(level => logLevelClient.setLevel(level)));
 		}
 	}
 }
