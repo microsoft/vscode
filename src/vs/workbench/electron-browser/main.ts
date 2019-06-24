@@ -194,7 +194,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
-		const fileService = this._register(new FileService(logService));
+		const fileService = this._register(new FileService(logService, remoteAgentService));
 		serviceCollection.set(IFileService, fileService);
 
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));

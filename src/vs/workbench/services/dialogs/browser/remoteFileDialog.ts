@@ -23,11 +23,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction, SaveLocalFileAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction, SaveLocalFileAction } from 'vs/workbench/common/actions/workspaceActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
-import { RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
+import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 

@@ -42,8 +42,6 @@ export const WorkbenchStateContext = new RawContextKey<string>('workbenchState',
 
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0);
 
-export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
-
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
 
 export class WorkbenchContextKeysHandler extends Disposable {

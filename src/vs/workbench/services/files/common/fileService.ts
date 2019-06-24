@@ -18,6 +18,14 @@ import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamT
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { isWeb, isMacintosh } from 'vs/base/common/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
+import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
+import { SaveLocalFileAction, OpenLocalFileFolderAction, OpenLocalFileAction, OpenLocalFolderAction } from 'vs/workbench/common/actions/workspaceActions';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -25,8 +33,25 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 
-	constructor(@ILogService private logService: ILogService) {
+	constructor(
+		@ILogService private logService: ILogService,
+		@IRemoteAgentService remoteAgentService?: IRemoteAgentService) {
 		super();
+		if (!isWeb && remoteAgentService) {
+			const connection = remoteAgentService.getConnection();
+			if (connection && connection.remoteAuthority) {
+				const fileCategory = localize('file', "File");
+				const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+				registry.registerWorkbenchAction(new SyncActionDescriptor(SaveLocalFileAction, SaveLocalFileAction.ID, SaveLocalFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }, RemoteFileDialogContext), 'File: Save Local File...', fileCategory);
+
+				if (isMacintosh) {
+					registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileFolderAction, OpenLocalFileFolderAction.ID, OpenLocalFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local...', fileCategory);
+				} else {
+					registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileAction, OpenLocalFileAction.ID, OpenLocalFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local File...', fileCategory);
+					registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFolderAction, OpenLocalFolderAction.ID, OpenLocalFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, RemoteFileDialogContext), 'File: Open Local Folder...', fileCategory);
+				}
+			}
+		}
 	}
 
 	//#region File System Provider
