@@ -188,6 +188,10 @@ const hockeyAppToken = process.argv[3];
 const is64 = process.argv[4] === 'x64';
 const hockeyAppId = process.argv[5];
 
+if (process.argv.length !== 6) {
+	throw new Error(`HockeyApp: Unexpected number of arguments. Got ${process.argv}`);
+}
+
 let platform: Platform;
 if (process.platform === 'darwin') {
 	platform = Platform.MAC_OS;
@@ -216,6 +220,8 @@ if (repository && codeVersion && electronVersion && (product.quality === 'stable
 		console.log('HockeyApp: done');
 	}).catch(error => {
 		console.error(`HockeyApp: error ${error} (AppID: ${hockeyAppId})`);
+
+		return process.exit(1);
 	});
 } else {
 	console.log(`HockeyApp: skipping due to unexpected context (repository: ${repository}, codeVersion: ${codeVersion}, electronVersion: ${electronVersion}, quality: ${product.quality})`);
