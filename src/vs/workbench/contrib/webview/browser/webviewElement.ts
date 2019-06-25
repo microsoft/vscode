@@ -246,8 +246,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	reload(): void {
-		throw new Error('Method not implemented.');
+		this.doUpdateContent();
 	}
+
 	selectAll(): void {
 		throw new Error('Method not implemented.');
 	}
