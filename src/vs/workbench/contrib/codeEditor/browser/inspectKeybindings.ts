@@ -37,7 +37,7 @@ registerEditorAction(InspectKeyMap);
 
 class InspectKeyMapJSON extends Action {
 	public static readonly ID = 'workbench.action.inspectKeyMappingsJSON';
-	public static readonly LABEL = nls.localize('workbench.action.inspectKeyMapJSON', "Developer: Inspect Key Mappings (JSON)");
+	public static readonly LABEL = nls.localize('workbench.action.inspectKeyMapJSON', "Inspect Key Mappings (JSON)");
 
 	constructor(
 		id: string,
@@ -54,4 +54,4 @@ class InspectKeyMapJSON extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(InspectKeyMapJSON, InspectKeyMapJSON.ID, InspectKeyMapJSON.LABEL), 'Developer: Inspect Key Mappings (JSON)');
+registry.registerWorkbenchAction(new SyncActionDescriptor(InspectKeyMapJSON, InspectKeyMapJSON.ID, InspectKeyMapJSON.LABEL), 'Developer: Inspect Key Mappings (JSON)', nls.localize('developer', "Developer"));
