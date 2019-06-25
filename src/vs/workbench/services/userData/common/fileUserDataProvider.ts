@@ -30,7 +30,7 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	private handleFileChanges(event: FileChangesEvent): void {
 		const changedKeys: string[] = [];
 		for (const change of event.changes) {
-			if (change.resource.scheme !== this.userDataHome.scheme) {
+			if (change.resource.scheme === this.userDataHome.scheme) {
 				const key = this.toKey(change.resource);
 				if (key) {
 					changedKeys.push(key);
