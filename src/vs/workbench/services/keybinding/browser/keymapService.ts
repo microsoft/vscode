@@ -521,6 +521,7 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 					BrowserKeyboardMapperFactory.INSTANCE.onKeyboardLayoutChanged();
 				} else {
 					BrowserKeyboardMapperFactory.INSTANCE.setKeyboardLayout(layout);
+					this.layoutChangeListener.clear();
 				}
 			}
 		}));
