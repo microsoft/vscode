@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.apple.keylayout.Italian-Pro', lang: 'it', localizedName: 'Italian' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.apple.keylayout.Italian-Pro', lang: 'it', localizedName: 'Italian' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['a', 'A', 'å', 'Å', 0],
 		KeyB: ['b', 'B', '∫', 'Í', 0],
 		KeyC: ['c', 'C', '©', 'Á', 0],
@@ -129,4 +129,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

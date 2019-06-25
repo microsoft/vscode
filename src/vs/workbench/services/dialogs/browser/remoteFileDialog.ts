@@ -23,7 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction, SaveLocalFileAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenLocalFileCommand, OpenLocalFileFolderCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
@@ -217,9 +217,9 @@ export class RemoteFileDialog {
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
 				let action;
 				if (isSave) {
-					action = SaveLocalFileAction;
+					action = SaveLocalFileCommand;
 				} else {
-					action = this.allowFileSelection ? (this.allowFolderSelection ? OpenLocalFileFolderAction : OpenLocalFileAction) : OpenLocalFolderAction;
+					action = this.allowFileSelection ? (this.allowFolderSelection ? OpenLocalFileFolderCommand : OpenLocalFileCommand) : OpenLocalFolderCommand;
 				}
 				const keybinding = this.keybindingService.lookupKeybinding(action.ID);
 				if (keybinding) {

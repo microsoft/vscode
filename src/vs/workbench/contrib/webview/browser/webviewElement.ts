@@ -40,8 +40,8 @@ export class IFrameWebview extends Disposable implements Webview {
 		private _options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITunnelService tunnelService: ITunnelService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -172,7 +172,8 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private preprocessHtml(value: string): string {
-		return value.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/vscode-resource$1');
+		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
+			`${startQuote}${this.environmentService.webviewEndpoint}/vscode-resource${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -245,8 +246,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	reload(): void {
-		throw new Error('Method not implemented.');
+		this.doUpdateContent();
 	}
+
 	selectAll(): void {
 		throw new Error('Method not implemented.');
 	}

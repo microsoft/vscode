@@ -761,9 +761,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	install(extension: string | IExtension): Promise<IExtension> {
 		if (typeof extension === 'string') {
 			return this.installWithProgress(async () => {
-				const extensionIdentifier = await this.extensionService.install(URI.file(extension));
-				this.checkAndEnableDisabledDependencies(extensionIdentifier);
-				return this.local.filter(local => areSameExtensions(local.identifier, extensionIdentifier))[0];
+				const { identifier } = await this.extensionService.install(URI.file(extension));
+				this.checkAndEnableDisabledDependencies(identifier);
+				return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
 			});
 		}
 

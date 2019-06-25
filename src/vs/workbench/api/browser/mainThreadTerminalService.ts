@@ -74,7 +74,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean, runInBackground?: boolean): Promise<{ id: number, name: string }> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean, hideFromUser?: boolean): Promise<{ id: number, name: string }> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -84,7 +84,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			ignoreConfigurationCwd: true,
 			env,
 			strictEnv,
-			runInBackground
+			hideFromUser
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		return Promise.resolve({

@@ -12,16 +12,15 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
-import { Themable } from 'vs/workbench/common/theme';
-import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Action } from 'vs/base/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
@@ -81,7 +80,8 @@ export class ResourceViewer {
 		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
-		delegate: ResourceViewerDelegate
+		delegate: ResourceViewerDelegate,
+		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 
 		// Ensure CSS class
@@ -89,7 +89,7 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, fileService, scrollbar, delegate);
+			return ImageView.create(container, descriptor, fileService, scrollbar, delegate, instantiationService);
 		}
 
 		// Large Files
@@ -120,10 +120,11 @@ class ImageView {
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		delegate: ResourceViewerDelegate
+		delegate: ResourceViewerDelegate,
+		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate, instantiationService);
 		}
 
 		return LargeImageView.create(container, descriptor, delegate);
@@ -234,71 +235,53 @@ class FileSeemsBinaryFileView {
 
 type Scale = number | 'fit';
 
-export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+export class ZoomStatusbarItem extends Disposable {
 
-	static instance: ZoomStatusbarItem;
-
-	private showTimeout: any;
-
-	private statusBarItem: HTMLElement;
-	private onSelectScale?: (scale: Scale) => void;
+	private statusbarItem?: IStatusbarEntryAccessor;
 
 	constructor(
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		private readonly onSelectScale: (scale: Scale) => void,
 		@IEditorService editorService: IEditorService,
-		@IThemeService themeService: IThemeService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
-		super(themeService);
-
-		ZoomStatusbarItem.instance = this;
-
-		this._register(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+		super();
+		this._register(editorService.onDidActiveEditorChange(() => {
+			if (this.statusbarItem) {
+				this.statusbarItem.dispose();
+				this.statusbarItem = undefined;
+			}
+		}));
 	}
 
-	private onActiveEditorChanged(): void {
-		this.hide();
-		this.onSelectScale = undefined;
-	}
+	updateStatusbar(scale: Scale): void {
+		const entry: IStatusbarEntry = {
+			text: this.zoomLabel(scale)
+		};
 
-	show(scale: Scale, onSelectScale: (scale: number) => void) {
-		clearTimeout(this.showTimeout);
-		this.showTimeout = setTimeout(() => {
-			this.onSelectScale = onSelectScale;
-			this.statusBarItem.style.display = 'block';
-			this.updateLabel(scale);
-		}, 0);
-	}
+		if (!this.statusbarItem) {
+			this.statusbarItem = this.statusbarService.addEntry(entry, 'status.imageZoom', nls.localize('status.imageZoom', "Image Zoom"), StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */);
 
-	hide() {
-		this.statusBarItem.style.display = 'none';
-	}
+			this._register(this.statusbarItem);
 
-	render(container: HTMLElement): IDisposable {
-		if (!this.statusBarItem && container) {
-			this.statusBarItem = DOM.append(container, DOM.$('a.zoom-statusbar-item'));
-			this.statusBarItem.setAttribute('role', 'button');
-			this.statusBarItem.style.display = 'none';
-
-			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
+			const element = document.getElementById('status.imageZoom')!;
+			this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, (e: MouseEvent) => {
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => container,
+					getAnchor: () => element,
 					getActions: () => this.zoomActions
 				});
-			});
+			}));
+		} else {
+			this.statusbarItem.update(entry);
 		}
-
-		return this;
-	}
-
-	private updateLabel(scale: Scale) {
-		this.statusBarItem.textContent = ZoomStatusbarItem.zoomLabel(scale);
 	}
 
 	@memoize
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
+			new Action(`zoom.${scale}`, this.zoomLabel(scale), undefined, undefined, () => {
+				this.updateStatusbar(scale);
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
@@ -307,7 +290,7 @@ export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			}));
 	}
 
-	private static zoomLabel(scale: Scale): string {
+	private zoomLabel(scale: Scale): string {
 		return scale === 'fit'
 			? nls.localize('zoom.action.fit.label', 'Whole Image')
 			: `${Math.round(scale * 100)}%`;
@@ -361,9 +344,13 @@ class InlineImageView {
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		delegate: ResourceViewerDelegate
+		delegate: ResourceViewerDelegate,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const disposables = new DisposableStore();
+
+		const zoomStatusbarItem = disposables.add(instantiationService.createInstance(ZoomStatusbarItem,
+			newScale => updateScale(newScale)));
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
@@ -421,9 +408,9 @@ class InlineImageView {
 				});
 
 				InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
-
 			}
-			ZoomStatusbarItem.instance.show(scale, updateScale);
+
+			zoomStatusbarItem.updateStatusbar(scale);
 			scrollbar.scanDomNode();
 		}
 

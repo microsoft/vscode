@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
-	{ name: '00000419', id: '', text: 'Russian' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { name: '00000419', id: '', text: 'Russian' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['ф', 'Ф', '', '', 0, 'VK_A'],
@@ -166,4 +166,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout((new KeymapInfo(
 		BrowserRefresh: [],
 		BrowserFavorites: []
 	}
-)));
+});

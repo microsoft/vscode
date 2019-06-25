@@ -79,7 +79,7 @@ export interface ILinuxKeyboardLayoutInfo {
 /* __GDPR__FRAGMENT__
 	"IKeyboardLayoutInfo" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"localizedName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
@@ -246,6 +246,13 @@ export interface IRawMixedKeyboardMapping {
 
 interface ISerializedMapping {
 	[key: string]: (string | number)[];
+}
+
+export interface IKeymapInfo {
+	layout: IKeyboardLayoutInfo;
+	secondaryLayouts: IKeyboardLayoutInfo[];
+	mapping: ISerializedMapping;
+	isUserKeyboardLayout?: boolean;
 }
 
 export class KeymapInfo {

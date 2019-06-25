@@ -41,8 +41,8 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 					// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
-				'status.editor.screenReaderMode',
-				nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"),
+				'status.workbench.keyboardLayout',
+				nls.localize('status.workbench.keyboardLayout', "Current keyboard layout"),
 				StatusbarAlignment.RIGHT
 			);
 		}
@@ -85,7 +85,7 @@ export class KeyboardLayoutPickerAction extends Action {
 
 	private static DEFAULT_CONTENT: string = [
 		`// ${nls.localize('displayLanguage', 'Defines the keyboard layout used in VS Code in the browser environment.')}`,
-		`// ${nls.localize('doc', 'See {0} for how to generate keyboard layout information.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
+		`// ${nls.localize('doc', 'Open VS Code and run "Developer: Inspect Key Mappings (JSON)" from Command Palette.')}`,
 		``,
 		`// Once you have the keyboard layout info, please paste it below.`,
 		'\n'

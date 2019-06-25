@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ id: 'com.google.inputmethod.Japanese.Roman', lang: 'en', localizedName: 'Alphanumeric (Google)' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.google.inputmethod.Japanese.Roman', lang: 'en', localizedName: 'Alphanumeric (Google)' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['a', 'A', '¯', '̄', 4],
 		KeyB: ['b', 'B', '˘', '̆', 4],
 		KeyC: ['c', 'C', '¸', '̧', 4],
@@ -129,4 +129,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});
