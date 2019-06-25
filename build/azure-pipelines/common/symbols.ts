@@ -146,6 +146,10 @@ async function ensureVersionAndSymbols(options: IOptions) {
 	// Check version does not exist
 	console.log(`HockeyApp: checking for existing version ${options.versions.code} (${options.platform})`);
 	const versions = await getVersions({ accessToken: options.access.hockeyAppToken, appId: options.access.hockeyAppId });
+	if (!Array.isArray(versions.app_versions)) {
+		throw new Error(`Unexpected response: ${JSON.stringify(versions)}`);
+	}
+
 	if (versions.app_versions.some(v => v.version === options.versions.code)) {
 		console.log(`HockeyApp: Returning without uploading symbols because version ${options.versions.code} (${options.platform}) was already found`);
 		return;
@@ -211,7 +215,7 @@ if (repository && codeVersion && electronVersion && (product.quality === 'stable
 	}).then(() => {
 		console.log('HockeyApp: done');
 	}).catch(error => {
-		console.error(`HockeyApp: error (${error})`);
+		console.error(`HockeyApp: error ${error} (AppID: ${hockeyAppId})`);
 	});
 } else {
 	console.log(`HockeyApp: skipping due to unexpected context (repository: ${repository}, codeVersion: ${codeVersion}, electronVersion: ${electronVersion}, quality: ${product.quality})`);
