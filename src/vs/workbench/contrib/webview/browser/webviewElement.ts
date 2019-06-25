@@ -172,7 +172,8 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private preprocessHtml(value: string): string {
-		return value.replace(/(?<=["'])vscode-resource:([^\s'"]+)(?=["'])/gi, `${this.environmentService.webviewEndpoint}/vscode-resource$1`);
+		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
+			`${startQuote}${this.environmentService.webviewEndpoint}/vscode-resource${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
