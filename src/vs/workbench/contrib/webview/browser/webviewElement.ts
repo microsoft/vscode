@@ -84,7 +84,7 @@ export class IFrameWebview extends Disposable implements Webview {
 					return;
 
 				case 'did-click-link':
-					const [uri] = e.data.data;
+					const uri = e.data.data;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
