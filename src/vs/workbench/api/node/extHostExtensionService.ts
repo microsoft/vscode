@@ -562,8 +562,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 							c();
 							this._gracefulExit(0);
 						})
-						.catch((err) => {
-							e(err);
+						.catch((err: Error) => {
+							e(err.toString());
 							this._gracefulExit(1);
 						});
 				}
