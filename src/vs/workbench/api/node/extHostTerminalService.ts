@@ -115,9 +115,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		env?: { [key: string]: string | null },
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
-		runInBackground?: boolean
+		hideFromUser?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, runInBackground).then(terminal => {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});
@@ -312,7 +312,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.runInBackground);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		this._terminals.push(terminal);
 		return terminal;
 	}

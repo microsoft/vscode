@@ -282,9 +282,9 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
-		// If this was a runInBackground terminal created by the API this was triggered by show,
+		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal tab
-		if (terminalInstance.shellLaunchConfig.runInBackground) {
+		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));

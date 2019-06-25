@@ -7042,7 +7042,7 @@ declare module 'vscode' {
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
 		 * as normal.
 		 */
-		runInBackground?: boolean;
+		hideFromUser?: boolean;
 	}
 
 	/**
