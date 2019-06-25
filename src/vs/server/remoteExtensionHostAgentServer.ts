@@ -116,18 +116,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 				let filePath: string;
 				if (pathname === '/') {
+					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 
 					const remoteAuthority = req.headers.host!; // TODO@web this is localhost when opening 127.0.0.1 and is possibly undefined, does it matter?
 					if (!transformer) {
 						transformer = createRemoteURITransformer(remoteAuthority);
 					}
 
-					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
-					const _data = await util.promisify(fs.readFile)(filePath);
-					const queryFolder = this._getQueryValue(req.url, 'folder');
-					const folder = queryFolder ? queryFolder : sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd());
-					const queryWorkspace = this._getQueryValue(req.url, 'workspace');
-					const workspace = queryWorkspace ? queryWorkspace : this._environmentService.args['workspace'];
+					const { workspacePath, isFolder } = await this._getWorkspace(req.url);
 
 					const webviewServerAddress = webviewServer.address();
 					const webviewEndpoint = 'http://' + (typeof webviewServerAddress === 'string'
@@ -138,10 +134,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						return value.replace(/"/g, '&quot;');
 					}
 
-					const data = _data.toString()
+					const data = (await util.promisify(fs.readFile)(filePath)).toString()
 						.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
-							folderUri: folder ? transformer.transformOutgoing(URI.file(folder)) : undefined,
-							workspaceUri: workspace ? transformer.transformOutgoing(URI.file(workspace)) : undefined,
+							folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
+							workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 							remoteAuthority,
 							webviewEndpoint,
 						})))
@@ -301,6 +297,31 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
 		await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
+	}
+
+	private async _getWorkspace(url: string | undefined): Promise<{ workspacePath?: string, isFolder?: boolean }> {
+		const cwd = process.env['VSCODE_CWD'] || process.cwd();
+
+		// check for workspace argument
+		const workspaceCandidate: string = this._getQueryValue(url, 'workspace') || this._environmentService.args['workspace'];
+		if (workspaceCandidate && workspaceCandidate.length > 0) {
+			const workspace = sanitizeFilePath(workspaceCandidate, cwd);
+			if (await util.promisify(fs.exists)(workspace)) {
+				return { workspacePath: workspace };
+			}
+		}
+
+		// check for folder argument
+		const folderCandidate: string = this._getQueryValue(url, 'folder') || this._environmentService.args['folder'];
+		if (folderCandidate && folderCandidate.length > 0) {
+			const folder = sanitizeFilePath(folderCandidate, cwd);
+			if (await util.promisify(fs.exists)(folder)) {
+				return { workspacePath: folder, isFolder: true };
+			}
+		}
+
+		// empty window otherwise
+		return {};
 	}
 
 	private _getQueryValue(url: string | undefined, key: string): string | undefined {
