@@ -70,6 +70,10 @@ const vscodeResources = [
 	// Uri transformer
 	'out-build/vs/server/uriTransformer.js',
 
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
+
+	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
 
