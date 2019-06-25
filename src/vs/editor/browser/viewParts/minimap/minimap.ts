@@ -472,16 +472,17 @@ export class Minimap extends ViewPart {
 		this._shadow.setClassName('minimap-shadow-hidden');
 		this._domNode.appendChild(this._shadow);
 
-		this._canvas = createFastDomNode(document.createElement('canvas'));
-		this._canvas.setPosition('absolute');
-		this._canvas.setLeft(0);
-		this._domNode.appendChild(this._canvas);
-
 		this._decorationsCanvas = createFastDomNode(document.createElement('canvas'));
 		this._decorationsCanvas.setPosition('absolute');
 		this._decorationsCanvas.setClassName('minimap-decorations-layer');
 		this._decorationsCanvas.setLeft(0);
 		this._domNode.appendChild(this._decorationsCanvas);
+
+		// text are rendered at the top, similar to editor view lines.
+		this._canvas = createFastDomNode(document.createElement('canvas'));
+		this._canvas.setPosition('absolute');
+		this._canvas.setLeft(0);
+		this._domNode.appendChild(this._canvas);
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
