@@ -41,7 +41,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
 				'status.workbench.keyboardLayout',
-				nls.localize('status.workbench.keyboardLayout', "Current Keyboard Layout"),
+				nls.localize('status.workbench.keyboardLayout', "Keyboard Layout"),
 				StatusbarAlignment.RIGHT
 			);
 		}
@@ -62,7 +62,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 						command: KEYBOARD_LAYOUT_OPEN_PICKER
 					},
 					'status.workbench.keyboardLayout',
-					nls.localize('status.workbench.keyboardLayout', "Current Keyboard Layout"),
+					nls.localize('status.workbench.keyboardLayout', "Keyboard Layout"),
 					StatusbarAlignment.RIGHT
 				);
 			}
