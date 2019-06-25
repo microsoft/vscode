@@ -370,8 +370,7 @@
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
 					if (FAKE_LOAD) {
 						newFrame.contentDocument.open();
-						newFrame.contentDocument.write('<!DOCTYPE html>');
-						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+						newFrame.contentDocument.write('<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML);
 						newFrame.contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
 					}
