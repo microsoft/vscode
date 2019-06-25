@@ -145,9 +145,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 	};
 
 	private static osShellQuotes: IStringDictionary<ShellQuotingOptions> = {
-		'linux': TerminalTaskSystem.shellQuotes['bash'],
-		'darwin': TerminalTaskSystem.shellQuotes['bash'],
-		'win32': TerminalTaskSystem.shellQuotes['powershell']
+		'Linux': TerminalTaskSystem.shellQuotes['bash'],
+		'Mac': TerminalTaskSystem.shellQuotes['bash'],
+		'Windows': TerminalTaskSystem.shellQuotes['powershell']
 	};
 
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
@@ -1123,7 +1123,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (shellOptions && shellOptions.quoting) {
 			return shellOptions.quoting;
 		}
-		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[platform];
+		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[Platform.PlatformToString(platform)];
 	}
 
 	private collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {
