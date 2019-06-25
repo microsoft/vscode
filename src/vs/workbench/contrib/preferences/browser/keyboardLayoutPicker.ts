@@ -37,12 +37,11 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
 			this.pickerElement.value = this.statusbarService.addEntry(
 				{
-					text: `Layout: ${layoutInfo.label}`,
-					// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
+					text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
 				'status.workbench.keyboardLayout',
-				nls.localize('status.workbench.keyboardLayout', "Current keyboard layout"),
+				nls.localize('status.workbench.keyboardLayout', "Keyboard Layout"),
 				StatusbarAlignment.RIGHT
 			);
 		}
@@ -53,18 +52,17 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 
 			if (this.pickerElement.value) {
 				this.pickerElement.value.update({
-					text: `Layout: ${layoutInfo.label}`,
+					text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				});
 			} else {
 				this.pickerElement.value = this.statusbarService.addEntry(
 					{
-						text: `Layout: ${layoutInfo}`,
-						// tooltip: nls.localize('keyboard.layout.tooltip', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
+						text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
 						command: KEYBOARD_LAYOUT_OPEN_PICKER
 					},
 					'status.workbench.keyboardLayout',
-					nls.localize('status.workbench.keyboardLayout', "Current keyboard layout"),
+					nls.localize('status.workbench.keyboardLayout', "Keyboard Layout"),
 					StatusbarAlignment.RIGHT
 				);
 			}
@@ -81,7 +79,7 @@ interface LayoutQuickPickItem extends IQuickPickItem {
 
 export class KeyboardLayoutPickerAction extends Action {
 	static readonly ID = KEYBOARD_LAYOUT_OPEN_PICKER;
-	static readonly LABEL = nls.localize('keyboard.chooseLayout', "Change keyboard layout");
+	static readonly LABEL = nls.localize('keyboard.chooseLayout', "Change Keyboard Layout");
 
 	private static DEFAULT_CONTENT: string = [
 		`// ${nls.localize('displayLanguage', 'Defines the keyboard layout used in VS Code in the browser environment.')}`,
@@ -180,4 +178,4 @@ export class KeyboardLayoutPickerAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(KeyboardLayoutPickerAction, KeyboardLayoutPickerAction.ID, KeyboardLayoutPickerAction.LABEL, {}), 'Change Language Mode');
+registry.registerWorkbenchAction(new SyncActionDescriptor(KeyboardLayoutPickerAction, KeyboardLayoutPickerAction.ID, KeyboardLayoutPickerAction.LABEL, {}), 'Preferences: Change Keyboard Layout', nls.localize('preferences', "Preferences"));
