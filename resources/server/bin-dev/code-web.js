@@ -12,11 +12,6 @@ const rimraf = require('rimraf');
 const https = require('https');
 const util = require('util');
 
-const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
-const HAS_PORT = process.argv.indexOf('--port') !== -1;
-const INSIDERS = process.argv.indexOf('--insiders') !== -1;
-const UPDATE = process.argv.indexOf('--update') !== -1;
-
 const RUNTIMES = {
 	'win32': {
 		folder: 'vscode-server-win32-x64-web',
@@ -34,6 +29,17 @@ const RUNTIMES = {
 		download: 'https://update.code.visualstudio.com/latest/server-linux-x64-web/insider'
 	}
 };
+
+const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
+const HAS_PORT = process.argv.indexOf('--port') !== -1;
+const INSIDERS = process.argv.indexOf('--insiders') !== -1;
+const UPDATE = process.argv.indexOf('--update') !== -1;
+const HAS_WORKSPACE = process.argv.indexOf('--folder') !== -1 || process.argv.indexOf('--workspace') !== -1;
+
+// Workspace Config
+if (!HAS_WORKSPACE && SELFHOST) {
+	process.argv.push('--folder', process.cwd());
+}
 
 // Port Config
 let PORT = SELFHOST ? 9777 : 9888;
@@ -148,7 +154,7 @@ function unzip(source) {
 		if (!fs.existsSync(destination)) {
 			fs.mkdirSync(destination);
 		}
-		
+
 		cp.spawnSync('tar', ['-xzf', source, '-C', destination]);
 	}
 }
