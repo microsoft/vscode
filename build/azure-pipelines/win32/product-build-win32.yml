@@ -71,7 +71,7 @@ steps:
     cd ..
     git clone https://github.com/microsoft/vscode-telemetry-extractor.git
     cd vscode-telemetry-extractor
-    git checkout $(node -p "require('./package.json').telemetrytool")
+    git checkout 30113aed1f14c06237c887843b4b5cbce33dbc36
     npm install
     npm install -g typescript
     tsc

@@ -2,7 +2,6 @@
   "name": "code-oss-dev",
   "version": "1.36.0",
   "distro": "6c2ce7fb06420d7125d7a021201b137ce51a13ec",
-  "telemetrytool": "30113aed1f14c06237c887843b4b5cbce33dbc36",
   "author": {
     "name": "Microsoft Corporation"
   },
