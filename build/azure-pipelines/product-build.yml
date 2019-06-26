@@ -61,7 +61,7 @@ jobs:
   - template: linux/product-build-linux-arm.yml
 
 - job: LinuxAlpine
-  condition: and(eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable')))
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
