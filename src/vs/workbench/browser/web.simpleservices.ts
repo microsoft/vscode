@@ -797,6 +797,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	reloadWindow(): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
