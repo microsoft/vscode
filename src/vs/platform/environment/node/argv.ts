@@ -240,9 +240,9 @@ export function buildTelemetryMessage(appRoot: string, extensionsPath: string): 
 		const contents = readFileSync(join(extensionsPath, folder, 'telemetry.json')).toString();
 		mergeTelemetry(contents, folder);
 	});
-	let contents = readFileSync(join(appRoot, 'out/', 'telemetry-core.json')).toString();
+	let contents = readFileSync(join(appRoot, 'telemetry-core.json')).toString();
 	mergeTelemetry(contents, 'vscode-core');
-	contents = readFileSync(join(appRoot, 'out/', 'telemetry-extensions.json')).toString();
+	contents = readFileSync(join(appRoot, 'telemetry-extensions.json')).toString();
 	mergeTelemetry(contents, 'vscode-extensions');
 	return JSON.stringify(mergedTelemetry, null, 4);
 }
