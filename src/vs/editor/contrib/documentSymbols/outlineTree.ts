@@ -22,6 +22,7 @@ import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -38,7 +39,7 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		return this._keybindingService.mightProducePrintableCharacter(event);
+		return event.keyCode !== KeyCode.Escape && this._keybindingService.mightProducePrintableCharacter(event);
 	}
 }
 
