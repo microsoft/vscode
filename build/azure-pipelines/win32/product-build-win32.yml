@@ -40,7 +40,7 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:npm_config_arch="$(VSCODE_ARCH)"
     $env:CHILD_CONCURRENCY="1"
-    exec { yarn }
+    exec { yarn --frozen-lockfile }
   displayName: Install dependencies
 
 - powershell: |

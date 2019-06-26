@@ -15,7 +15,7 @@ steps:
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: '$(ArtifactFeed)'
 - powershell: |
-    yarn
+    yarn --frozen-lockfile
   displayName: Install Dependencies
   condition: ne(variables['CacheRestored'], 'true')
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
