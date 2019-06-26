@@ -221,7 +221,14 @@ export function buildVersionMessage(version: string | undefined, commit: string 
 
 export function buildTelemetryMessage(appRoot: string, extensionsPath: string): string {
 	// Gets all the directories inside the extension directory
-	const dirs = readdirSync(extensionsPath).filter(files => statSync(join(extensionsPath, files)).isDirectory());
+	const dirs = readdirSync(extensionsPath).filter(files => {
+		// This handles case where broken symbolic links can cause statSync to throw and error
+		try {
+			return statSync(join(extensionsPath, files)).isDirectory();
+		} catch {
+			return false;
+		}
+	});
 	const telemetryJsonFolders: string[] = [];
 	dirs.forEach((dir) => {
 		const files = readdirSync(join(extensionsPath, dir)).filter(file => file === 'telemetry.json');
