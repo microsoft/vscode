@@ -70,10 +70,12 @@ export class RemoteExtensionManagementChannelClient extends ExtensionManagementC
 		if (!compatible) {
 			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.version)));
 		}
-		const local = await this.downloadAndInstall(extension, installed);
-		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(local.manifest, CancellationToken.None);
-		await Promise.all(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
-		return local;
+		const manifest = await this.galleryService.getManifest(compatible, CancellationToken.None);
+		if (manifest) {
+			const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(manifest, CancellationToken.None);
+			await Promise.all(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
+		}
+		return this.downloadAndInstall(extension, installed);
 	}
 
 	private async downloadAndInstall(extension: IGalleryExtension, installed: ILocalExtension[]): Promise<ILocalExtension> {
