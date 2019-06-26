@@ -21,6 +21,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -522,6 +523,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
 		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
+		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
 			lastActiveWorkspace,
@@ -530,9 +532,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			isWorkspaceShellAllowed,
 			pkg.version,
 			terminalConfig.get<boolean>('setLocaleVariables', false),
-			// Always inherit the environment as we need to be running in a login shell, this may
-			// change when macOS servers are supported
-			process.env as platform.IProcessEnvironment
+			baseEnv
 		);
 
 		// Fork the process and listen for messages
