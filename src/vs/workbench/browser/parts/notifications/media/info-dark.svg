@@ -1,4 +1,3 @@
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="8.5" cy="7.5" r="6" transform="rotate(-180 8.5 7.5)" stroke="#75BEFF"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M8 5L8 4L9 4L9 5L8 5ZM8 10L8 6L9 6L9 10L8 10Z" fill="#75BEFF"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M3 7.5C3 4.46243 5.46243 2 8.5 2C11.5376 2 14 4.46243 14 7.5C14 10.5376 11.5376 13 8.5 13C5.46243 13 3 10.5376 3 7.5ZM2 7.5C2 3.91015 4.91015 1 8.5 1C12.0899 1 15 3.91015 15 7.5C15 11.0899 12.0899 14 8.5 14C4.91015 14 2 11.0899 2 7.5ZM8 4V5H9V4H8ZM8 6L8 10H9L9 6H8Z" fill="#75BEFF"/>
 </svg>
