@@ -552,7 +552,7 @@ export abstract class TerminalService implements ITerminalService {
 				const env = await this._remoteAgentService.getEnvironment();
 				let platformKey: string;
 				if (env) {
-					platformKey = env.os === OperatingSystem.Windows ? 'windows' : (OperatingSystem.Macintosh ? 'osx' : 'linux');
+					platformKey = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
 				} else {
 					platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 				}
