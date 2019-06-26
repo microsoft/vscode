@@ -226,7 +226,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	onRequestAvailableShells: Event<(shells: IShellDefinition[]) => void>;
+	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 
 	/**
 	 * Creates a terminal.
@@ -755,6 +755,11 @@ export interface ITerminalProcessExtHostRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+}
+
+export interface IAvailableShellsRequest {
+	remoteAuthority: string | null;
+	callback: (shells: IShellDefinition[]) => void;
 }
 
 export enum LinuxDistro {
