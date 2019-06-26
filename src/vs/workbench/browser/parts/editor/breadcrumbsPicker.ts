@@ -459,7 +459,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				multipleSelectionSupport: false,
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
 			}
 		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 	}

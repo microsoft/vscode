@@ -531,6 +531,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			// ignore ctrl/cmd-combination but not shift/alt-combinatios
 			return false;
 		}
+		if (event.keyCode === KeyCode.Escape) {
+			// https://github.com/microsoft/vscode/issues/74934
+			return false;
+		}
 		// consult the KeyboardMapperFactory to check the given event for
 		// a printable value.
 		const mapping = this.keymapService.getRawKeyboardMapping();
