@@ -8,7 +8,7 @@ import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,8 +18,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { values } from 'vs/base/common/map';
 import { IProductService } from 'vs/platform/product/common/product';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
@@ -134,56 +132,43 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
-	async install(vsix: URI): Promise<IExtensionIdentifier> {
+	async install(vsix: URI): Promise<ILocalExtension> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await getManifest(vsix.fsPath);
 			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
-				const [extensionIdentifier] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
-				return extensionIdentifier;
+				const [local] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
+				return local;
 			}
 			if (isUIExtension(manifest, this.productService, this.configurationService)) {
 				// Install only on local server
 				return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
 			}
 			// Install only on remote server
-			const promise = this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
-			// Install UI Dependencies on local server
-			await this.installUIDependenciesAndPackedExtensions(manifest);
-			return promise;
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
 		}
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
 	}
 
-	async installFromGallery(gallery: IGalleryExtension): Promise<void> {
+	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 			if (manifest) {
 				if (isLanguagePackExtension(manifest)) {
 					// Install on both servers
-					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(() => undefined);
+					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(([local]) => local);
 				}
 				if (isUIExtension(manifest, this.productService, this.configurationService)) {
 					// Install only on local server
 					return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 				}
 				// Install only on remote server
-				const promise = this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
-				// Install UI dependencies and packed extensions on local server
-				await this.installUIDependenciesAndPackedExtensions(manifest);
-				return promise;
+				return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 			} else {
 				return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
 			}
 		}
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
-	}
-
-	private async installUIDependenciesAndPackedExtensions(manifest: IExtensionManifest): Promise<void> {
-		const uiExtensions = await this.getAllUIDependenciesAndPackedExtensions(manifest, CancellationToken.None);
-		const installed = await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled();
-		const toInstall = uiExtensions.filter(e => installed.every(i => !areSameExtensions(i.identifier, e.identifier)));
-		await Promise.all(toInstall.map(d => this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(d)));
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
@@ -192,49 +177,6 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
-	}
-
-	private async getAllUIDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancellationToken): Promise<IGalleryExtension[]> {
-		const result = new Map<string, IGalleryExtension>();
-		const extensions = [...(manifest.extensionPack || []), ...(manifest.extensionDependencies || [])];
-		await this.getAllUIDependenciesAndPackedExtensionsRecursively(extensions, result, token);
-		return values(result);
-	}
-
-	private async getAllUIDependenciesAndPackedExtensionsRecursively(toGet: string[], result: Map<string, IGalleryExtension>, token: CancellationToken): Promise<void> {
-		if (toGet.length === 0) {
-			return Promise.resolve();
-		}
-
-		const extensions = (await this.extensionGalleryService.query({ names: toGet, pageSize: toGet.length }, token)).firstPage;
-		const manifests = await Promise.all(extensions.map(e => this.extensionGalleryService.getManifest(e, token)));
-		const uiExtensionsManifests: IExtensionManifest[] = [];
-		for (let idx = 0; idx < extensions.length; idx++) {
-			const extension = extensions[idx];
-			const manifest = manifests[idx];
-			if (manifest && isUIExtension(manifest, this.productService, this.configurationService)) {
-				result.set(extension.identifier.id.toLowerCase(), extension);
-				uiExtensionsManifests.push(manifest);
-			}
-		}
-		toGet = [];
-		for (const uiExtensionManifest of uiExtensionsManifests) {
-			if (isNonEmptyArray(uiExtensionManifest.extensionDependencies)) {
-				for (const id of uiExtensionManifest.extensionDependencies) {
-					if (!result.has(id.toLowerCase())) {
-						toGet.push(id);
-					}
-				}
-			}
-			if (isNonEmptyArray(uiExtensionManifest.extensionPack)) {
-				for (const id of uiExtensionManifest.extensionPack) {
-					if (!result.has(id.toLowerCase())) {
-						toGet.push(id);
-					}
-				}
-			}
-		}
-		return this.getAllUIDependenciesAndPackedExtensionsRecursively(toGet, result, token);
 	}
 }
 

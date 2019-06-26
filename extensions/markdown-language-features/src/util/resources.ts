@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 
-const rootUri = vscode.Uri.parse(vscode.env.webviewResourceRoot);
 
-export function toResoruceUri(uri: vscode.Uri): vscode.Uri {
+export function toResoruceUri(webviewResourceRoot: string, uri: vscode.Uri): vscode.Uri {
+	const rootUri = vscode.Uri.parse(webviewResourceRoot);
 	return rootUri.with({
 		path: rootUri.path + uri.path,
 		query: uri.query,

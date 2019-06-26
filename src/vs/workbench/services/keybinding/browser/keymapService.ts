@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -28,17 +28,16 @@ import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationN
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 
-export class BrowserKeyboardMapperFactory {
-	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
+export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper
-	private _initialized: boolean;
-	private _keyboardMapper: IKeyboardMapper | null;
+	protected _initialized: boolean;
+	protected _keyboardMapper: IKeyboardMapper | null;
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	// keymap infos
-	private _keymapInfos: KeymapInfo[];
-	private _mru: KeymapInfo[];
+	protected _keymapInfos: KeymapInfo[];
+	protected _mru: KeymapInfo[];
 	private _activeKeymapInfo: KeymapInfo | null;
 
 	get activeKeymap(): KeymapInfo | null {
@@ -69,21 +68,12 @@ export class BrowserKeyboardMapperFactory {
 		return this._keymapInfos.map(keymapInfo => keymapInfo.layout);
 	}
 
-	private constructor() {
+	protected constructor() {
 		this._keyboardMapper = null;
 		this._initialized = false;
 		this._keymapInfos = [];
 		this._mru = [];
 		this._activeKeymapInfo = null;
-
-		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
-
-		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
-			this._keymapInfos.push(...m.KeyboardLayoutContribution.INSTANCE.layoutInfos);
-			this._mru = this._keymapInfos;
-			this._initialized = true;
-			this.onKeyboardLayoutChanged();
-		});
 
 		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
 			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
@@ -163,8 +153,25 @@ export class BrowserKeyboardMapperFactory {
 		return this._activeKeymapInfo && keymap && this._activeKeymapInfo.fuzzyEqual(keymap);
 	}
 
+	setUSKeyboardLayout() {
+		this._activeKeymapInfo = this.getUSStandardLayout();
+	}
+
 	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
-		this._activeKeymapInfo = this.getMatchedKeymapInfo(keymap) || this.getUSStandardLayout();
+		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
+		if (matchedKeyboardLayout) {
+			if (!this._activeKeymapInfo) {
+				this._activeKeymapInfo = matchedKeyboardLayout;
+			} else if (keymap) {
+				if (matchedKeyboardLayout.getScore(keymap) > this._activeKeymapInfo.getScore(keymap)) {
+					this._activeKeymapInfo = matchedKeyboardLayout;
+				}
+			}
+		}
+
+		if (!this._activeKeymapInfo) {
+			this._activeKeymapInfo = this.getUSStandardLayout();
+		}
 
 		if (!this._activeKeymapInfo) {
 			return;
@@ -358,7 +365,7 @@ export class BrowserKeyboardMapperFactory {
 			const matchedKeyboardLayout = this.getMatchedKeymapInfo(ret);
 
 			if (matchedKeyboardLayout) {
-				return matchedKeyboardLayout.mapping;
+				return ret;
 			}
 
 			return null;
@@ -368,6 +375,25 @@ export class BrowserKeyboardMapperFactory {
 	}
 
 	//#endregion
+}
+
+export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
+	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
+	// keyboard mapper
+
+	private constructor() {
+		super();
+
+		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
+
+		import('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform).then((m) => {
+			let keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
+			this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
+			this._mru = this._keymapInfos;
+			this._initialized = true;
+			this.onKeyboardLayoutChanged();
+		});
+	}
 }
 
 class UserKeyboardLayout extends Disposable {
@@ -512,6 +538,7 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 					BrowserKeyboardMapperFactory.INSTANCE.onKeyboardLayoutChanged();
 				} else {
 					BrowserKeyboardMapperFactory.INSTANCE.setKeyboardLayout(layout);
+					this.layoutChangeListener.clear();
 				}
 			}
 		}));

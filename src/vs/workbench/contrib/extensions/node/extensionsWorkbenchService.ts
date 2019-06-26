@@ -761,9 +761,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	install(extension: string | IExtension): Promise<IExtension> {
 		if (typeof extension === 'string') {
 			return this.installWithProgress(async () => {
-				const extensionIdentifier = await this.extensionService.install(URI.file(extension));
-				this.checkAndEnableDisabledDependencies(extensionIdentifier);
-				return this.local.filter(local => areSameExtensions(local.identifier, extensionIdentifier))[0];
+				const { identifier } = await this.extensionService.install(URI.file(extension));
+				this.checkAndEnableDisabledDependencies(identifier);
+				return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
 			});
 		}
 
@@ -861,7 +861,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
 		} finally {
 			this.installing = this.installing.filter(e => e !== extension);
-			this._onChange.fire(extension);
+			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
 		}
 	}
 

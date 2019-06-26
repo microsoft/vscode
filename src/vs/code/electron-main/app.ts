@@ -81,6 +81,8 @@ import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFacto
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 
 export class CodeApplication extends Disposable {
 
@@ -407,6 +409,10 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+
+		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
+
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 

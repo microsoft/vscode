@@ -5,13 +5,13 @@
 
 import { Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { MainThreadEditorInsetsShape } from './extHost.protocol';
+import { MainThreadEditorInsetsShape, ExtHostEditorInsetsShape } from './extHost.protocol';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
-export class ExtHostEditorInsets implements ExtHostEditorInsets {
+export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 	private _handlePool = 0;
 	private _disposables = new DisposableStore();
@@ -60,6 +60,10 @@ export class ExtHostEditorInsets implements ExtHostEditorInsets {
 
 			private _html: string = '';
 			private _options: vscode.WebviewOptions;
+
+			get resourceRoot(): Promise<string> {
+				return that._proxy.$getResourceRoot(handle);
+			}
 
 			set options(value: vscode.WebviewOptions) {
 				this._options = value;

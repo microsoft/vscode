@@ -46,7 +46,7 @@ steps:
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 yarn
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install dependencies
 
 - script: |
@@ -59,7 +59,7 @@ steps:
     yarn gulp hygiene
     yarn monaco-compile-check
   displayName: Run hygiene checks
-  condition: eq(variables['VSCODE_STEP_ON_IT'], 'false')
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

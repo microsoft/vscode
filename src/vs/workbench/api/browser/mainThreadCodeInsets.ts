@@ -12,6 +12,7 @@ import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/we
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // todo@joh move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -90,6 +91,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	constructor(
 		context: IExtHostContext,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
@@ -192,6 +194,10 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 			return Promise.resolve(true);
 		}
 		return Promise.resolve(false);
+	}
+
+	async $getResourceRoot(_handle: number): Promise<string> {
+		return this._environmentService.webviewResourceRoot;
 	}
 }
 

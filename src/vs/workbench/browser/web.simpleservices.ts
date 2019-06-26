@@ -45,11 +45,13 @@ import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 //#region Backup File
 
@@ -399,12 +401,13 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -486,12 +489,13 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -659,6 +663,10 @@ export class SimpleTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
+	}
+
 	setEnabled(value: boolean): void {
 	}
 
@@ -729,7 +737,7 @@ registerSingleton(IURLService, SimpleURLService);
 
 //#region Window
 
-export class SimpleWindowService implements IWindowService {
+export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
@@ -745,6 +753,23 @@ export class SimpleWindowService implements IWindowService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
+		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
+
+		this._register(addDisposableListener(document, EventType.WK_FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
 	}
 
 	isFocused(): Promise<boolean> {
@@ -772,6 +797,8 @@ export class SimpleWindowService implements IWindowService {
 	}
 
 	reloadWindow(): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
@@ -800,17 +827,13 @@ export class SimpleWindowService implements IWindowService {
 		if ((<any>document).fullscreen !== undefined) {
 			if (!(<any>document).fullscreen) {
 
-				return (<any>target).requestFullscreen().then(() => {
-					browser.setFullscreen(true);
-				}).catch(() => {
+				return (<any>target).requestFullscreen().catch(() => {
 					// if it fails, chromium throws an exception with error undefined.
 					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 					console.warn('Toggle Full Screen failed');
 				});
 			} else {
-				return document.exitFullscreen().then(() => {
-					browser.setFullscreen(false);
-				}).catch(() => {
+				return document.exitFullscreen().catch(() => {
 					console.warn('Exit Full Screen failed');
 				});
 			}
@@ -821,10 +844,8 @@ export class SimpleWindowService implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true);
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(false);
 				}
 			} catch {
 				console.warn('Enter/Exit Full Screen failed');

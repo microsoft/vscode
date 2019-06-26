@@ -37,7 +37,7 @@
 
 	const workerReady = new Promise(async (resolveWorkerReady) => {
 		if (!navigator.serviceWorker) {
-			resolveWorkerReady();
+			return resolveWorkerReady();
 		}
 
 		const expectedWorkerVersion = 1;
@@ -80,8 +80,8 @@
 			}
 		});
 	});
-	var createWebviewManager;
-	createWebviewManager({
+
+	window.createWebviewManager({
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,

@@ -175,6 +175,17 @@ gulp.task('tslint', () => {
 function hygiene(some) {
 	let errorCount = 0;
 
+	const productJson = es.through(function (file) {
+		const product = JSON.parse(file.contents.toString('utf8'));
+
+		if (product.extensionsGallery) {
+			console.error('product.json: Contains "extensionsGallery"');
+			errorCount++;
+		}
+
+		this.emit('data', file);
+	});
+
 	const indentation = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
@@ -258,8 +269,13 @@ function hygiene(some) {
 		input = some;
 	}
 
+	const productJsonFilter = filter('product.json', { restore: true });
+
 	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
+		.pipe(productJsonFilter)
+		.pipe(productJson)
+		.pipe(productJsonFilter.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))

@@ -27,26 +27,26 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.mac', "Cmd + click to follow link")
-		: nls.localize('links.navigate', "Ctrl + click to follow link")
+		? nls.localize('links.navigate.mac', "Follow link (cmd + click)")
+		: nls.localize('links.navigate', "Follow link (ctrl + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.mac', "Cmd + click to execute command")
-		: nls.localize('links.command', "Ctrl + click to execute command")
+		? nls.localize('links.command.mac', "Execute command (cmd + click)")
+		: nls.localize('links.command', "Execute command (ctrl + click)")
 );
 
 const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.al.mac', "Option + click to follow link")
-		: nls.localize('links.navigate.al', "Alt + click to follow link")
+		? nls.localize('links.navigate.al.mac', "Follow link (option + click)")
+		: nls.localize('links.navigate.al', "Follow link (alt + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.al.mac', "Option + click to execute command")
-		: nls.localize('links.command.al', "Alt + click to execute command")
+		? nls.localize('links.command.al.mac', "Execute command (option + click)")
+		: nls.localize('links.command.al', "Execute command (alt + click)")
 );
 
 const decoration = {
@@ -116,11 +116,11 @@ class LinkOccurrence {
 			const message = new MarkdownString().appendText(
 				platform.isMacintosh
 					? useMetaKey
-						? nls.localize('links.custom.mac', "Cmd + click to {0}", link.tooltip)
-						: nls.localize('links.custom.mac.al', "Option + click to {0}", link.tooltip)
+						? nls.localize('links.custom.mac', "{0} (cmd + click)", link.tooltip)
+						: nls.localize('links.custom.mac.al', "{0} (option + click)", link.tooltip)
 					: useMetaKey
-						? nls.localize('links.custom', "Ctrl + click to {0}", link.tooltip)
-						: nls.localize('links.custom.al', "Alt + click to {0}", link.tooltip)
+						? nls.localize('links.custom', "{0} (ctrl + click)", link.tooltip)
+						: nls.localize('links.custom.al', "{0} (alt + click)", link.tooltip)
 			);
 			options.hoverMessage = message;
 		}

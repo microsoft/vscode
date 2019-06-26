@@ -204,7 +204,7 @@ export interface IShellLaunchConfig {
 	 * interaction is needed. Note that the terminals will still be exposed to all extensions
 	 * as normal.
 	 */
-	runInBackground?: boolean;
+	hideFromUser?: boolean;
 }
 
 export interface ITerminalService {
@@ -701,7 +701,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<void>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
