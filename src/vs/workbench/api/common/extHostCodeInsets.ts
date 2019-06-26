@@ -93,8 +93,9 @@ export class ExtHostEditorInsets implements ExtHostEditorInsets {
 			readonly editor: vscode.TextEditor = editor;
 			readonly line: number = line;
 			readonly height: number = height;
-			readonly webview: vscode.Webview = webview;
 			readonly onDidDispose: vscode.Event<void> = onDidDispose.event;
+			private _html: string;
+			private _isLightweight: boolean;
 
 			dispose(): void {
 				if (that._insets.has(handle)) {
@@ -107,6 +108,15 @@ export class ExtHostEditorInsets implements ExtHostEditorInsets {
 					onDidReceiveMessage.dispose();
 				}
 			}
+
+			public get html() { return this._html; }
+
+			public set html(value: string) {
+				this._html = value;
+				this._isLightweight = that._proxy.$setHtml(handle, value);
+			}
+
+			public get webview() { return this._isLightweight ? undefined : webview; }
 		};
 
 		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);

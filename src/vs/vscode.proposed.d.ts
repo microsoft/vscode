@@ -181,8 +181,9 @@ declare module 'vscode' {
 		readonly editor: TextEditor;
 		readonly line: number;
 		readonly height: number;
-		readonly webview: Webview;
+		readonly webview: Webview | undefined;
 		readonly onDidDispose: Event<void>;
+		html: string;
 		dispose(): void;
 	}
 
