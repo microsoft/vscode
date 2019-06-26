@@ -274,7 +274,7 @@ function hygiene(some) {
 	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(productJsonFilter)
-		.pipe(productJson)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
