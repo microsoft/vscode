@@ -28,13 +28,13 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
 		? nls.localize('links.navigate.mac', "Follow link (cmd + click)")
-		: nls.localize('links.navigate', "Follow link (cmd + click)")
+		: nls.localize('links.navigate', "Follow link (ctrl + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 	platform.isMacintosh
 		? nls.localize('links.command.mac', "Execute command (cmd + click)")
-		: nls.localize('links.command', "Execute command (cmd + click)")
+		: nls.localize('links.command', "Execute command (ctrl + click)")
 );
 
 const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
