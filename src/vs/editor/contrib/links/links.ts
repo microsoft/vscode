@@ -39,13 +39,13 @@ const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 
 const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.al.mac', "Follow link (cption + click)")
+		? nls.localize('links.navigate.al.mac', "Follow link (option + click)")
 		: nls.localize('links.navigate.al', "Follow link (alt + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.al.mac', "Execute command (cption + click)")
+		? nls.localize('links.command.al.mac', "Execute command (option + click)")
 		: nls.localize('links.command.al', "Execute command (alt + click)")
 );
 
