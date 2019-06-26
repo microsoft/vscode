@@ -410,6 +410,9 @@
 					}
 				};
 
+				/**
+				 * @param {HTMLIFrameElement} newFrame
+				 */
 				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
@@ -442,6 +445,29 @@
 
 					// Bubble out link clicks
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+
+					// Electron 4 eats mouseup events from inside webviews
+					// https://github.com/microsoft/vscode/issues/75090
+					// Try to fix this by rebroadcasting mouse moves and mouseups so that we can
+					// emulate these on the main window
+					if (!FAKE_LOAD) {
+						let isMouseDown = false;
+
+						newFrame.contentWindow.addEventListener('mousedown', () => {
+							isMouseDown = true;
+						});
+
+						const tryDispatchSyntheticMouseEvent = (e) => {
+							if (!isMouseDown) {
+								host.postMessage('synthetic-mouse-event', { type: e.type, screenX: e.screenX, screenY: e.screenY, clientX: e.clientX, clientY: e.clientY });
+							}
+						};
+						newFrame.contentWindow.addEventListener('mouseup', e => {
+							tryDispatchSyntheticMouseEvent(e);
+							isMouseDown = false;
+						});
+						newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
+					}
 				}
 
 				if (!FAKE_LOAD) {
