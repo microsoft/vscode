@@ -15,17 +15,17 @@ const util = require('util');
 const RUNTIMES = {
 	'win32': {
 		folder: 'vscode-server-win32-x64-web',
-		command: 'server.cmd',
+		node: 'node.exe',
 		download: 'https://update.code.visualstudio.com/latest/server-win32-x64-web/insider'
 	},
 	'darwin': {
 		folder: 'vscode-server-darwin-web',
-		command: 'server.sh',
+		node: 'node',
 		download: 'https://update.code.visualstudio.com/latest/server-darwin-web/insider'
 	},
 	'linux': {
 		folder: 'vscode-server-linux-x64-web',
-		command: 'server.sh',
+		node: 'node',
 		download: 'https://update.code.visualstudio.com/latest/server-linux-x64-web/insider'
 	}
 };
@@ -67,28 +67,29 @@ process.argv.forEach((arg, idx) => {
 	}
 });
 
-let executable;
+let node, entryPoint;
 let waitForUpdate = Promise.resolve();
 if (SELFHOST) {
 	const runtime = RUNTIMES[process.platform];
 
-	executable = path.join(path.dirname(path.dirname(path.dirname(path.dirname(__dirname)))), runtime.folder, runtime.command);
+	let serverLocation = path.join(path.dirname(path.dirname(path.dirname(path.dirname(__dirname)))), runtime.folder);
+	node = path.join(serverLocation, runtime.node);
+	entryPoint = path.join(serverLocation, 'out', 'vs', 'server', 'main.js');
 
-	const executableExists = fs.existsSync(executable);
+	const executableExists = fs.existsSync(node);
 	if (UPDATE || !executableExists) {
-		const targetServerDestination = path.dirname(executable);
-		const targetServerZipDestination = process.platform === 'linux' ? `${targetServerDestination}.tgz` : `${targetServerDestination}.zip`;
+		const targetServerZipDestination = process.platform === 'linux' ? `${serverLocation}.tgz` : `${serverLocation}.zip`;
 
 		if (executableExists) {
-			console.log(`Updating server at ${targetServerDestination} to latest released insider version...`);
+			console.log(`Updating server at ${serverLocation} to latest released insider version...`);
 		} else {
-			console.log(`Installing latest released insider server into ${targetServerDestination}...`);
+			console.log(`Installing latest released insider server into ${serverLocation}...`);
 		}
 
 		let waitForRimRaf = Promise.resolve();
 		if (executableExists) {
-			// console.log(`\tDeleting existing server at ${targetServerDestination}...`);
-			waitForRimRaf = util.promisify(rimraf)(targetServerDestination);
+			// console.log(`\tDeleting existing server at ${serverLocation}...`);
+			waitForRimRaf = util.promisify(rimraf)(serverLocation);
 		}
 
 		waitForUpdate = waitForRimRaf.then(() => {
@@ -99,7 +100,8 @@ if (SELFHOST) {
 		});
 	}
 } else {
-	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
+	node = process.execPath;
+	entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server', 'main.js');
 }
 
 waitForUpdate.then(() => startServer(), console.error);
@@ -182,7 +184,7 @@ function getApp(requestedBrowser) {
 function getInsidersUserDataPath() {
 	const name = 'Code - Insiders';
 	switch (process.platform) {
-		case 'win32': return `"${path.join(process.env['USERPROFILE'], 'AppData', 'Roaming', name)}"`;
+		case 'win32': return `${path.join(process.env['USERPROFILE'], 'AppData', 'Roaming', name)}`;
 		case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support', name);
 		case 'linux': return path.join(os.homedir(), '.config', name);
 		default: throw new Error('Platform not supported');
@@ -191,7 +193,7 @@ function getInsidersUserDataPath() {
 
 function startServer() {
 	const serverArgs = process.argv.slice(2);
-	const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, serverArgs, { shell: true }) : cp.execFile(executable, serverArgs);
+	const proc = cp.spawn(node, [entryPoint, ...serverArgs]);
 
 	let launched = false;
 	proc.stdout.on("data", data => {
