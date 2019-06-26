@@ -563,10 +563,6 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _detectWindowsShells(): Promise<IShellDefinition[]> {
-		const conn = this._remoteAgentService.getConnection();
-		return new Promise(r => this._onRequestAvailableShells.fire({
-			remoteAuthority: conn ? conn.remoteAuthority : null,
-			callback: r
-		}));
+		return new Promise(r => this._onRequestAvailableShells.fire(r));
 	}
 }

@@ -758,8 +758,11 @@ export interface ITerminalProcessExtHostRequest {
 }
 
 export interface IAvailableShellsRequest {
-	remoteAuthority: string | null;
-	callback: (shells: IShellDefinition[]) => void;
+	(shells: IShellDefinition[]): void;
+}
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
 }
 
 export enum LinuxDistro {
@@ -795,8 +798,4 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-}
-
-export interface IDefaultShellAndArgsRequest {
-	(shell: string, args: string[] | string | undefined): void;
 }

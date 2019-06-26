@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -24,7 +25,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
+		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
@@ -51,7 +53,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 		// ITerminalInstanceService listeners
 		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.push(terminalInstanceService.onRequestDefaultShellAndArgs(r => this._proxy.$requestDefaultShellAndArgs().then(e => r(e.shell, e.args))));
+			this._toDispose.push(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
 		}
 
 		// Set initial ext host state
@@ -291,10 +293,24 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcesses[terminalId].emitLatency(sum / COUNT);
 	}
 
-	private _onRequestAvailableShells(request: IAvailableShellsRequest): void {
-		if (request.remoteAuthority !== this._remoteAuthority) {
-			return;
+	private _isPrimaryExtHost(): boolean {
+		// The "primary" ext host is the remote ext host if there is one, otherwise the local
+		const conn = this._remoteAgentService.getConnection();
+		if (conn) {
+			return this._remoteAuthority === conn.remoteAuthority;
 		}
-		this._proxy.$requestAvailableShells().then(e => request.callback(e));
+		return true;
+	}
+
+	private _onRequestAvailableShells(request: IAvailableShellsRequest): void {
+		if (this._isPrimaryExtHost()) {
+			this._proxy.$requestAvailableShells().then(e => request(e));
+		}
+	}
+
+	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest): void {
+		if (this._isPrimaryExtHost()) {
+			this._proxy.$requestDefaultShellAndArgs().then(e => request(e.shell, e.args));
+		}
 	}
 }
