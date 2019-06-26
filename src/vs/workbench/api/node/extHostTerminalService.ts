@@ -488,6 +488,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		};
 	}
 
+	private async _getNonInheritedEnv(): Promise<platform.IProcessEnvironment> {
+		const env = await getMainProcessParentEnv();
+		env.VSCODE_IPC_HOOK_CLI = process.env['VSCODE_IPC_HOOK_CLI']!;
+		return env;
+	}
+
 	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
@@ -523,7 +529,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
 		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
-		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await getMainProcessParentEnv();
+		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
 			lastActiveWorkspace,
