@@ -628,7 +628,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusPrevious',
+	id: 'breadcrumbs.focusPreviousWithPicker',
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 	mac: {
