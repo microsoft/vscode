@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "atom/language-sass",
+					"repositoryUrl": "https://github.com/atom/language-sass",
+					"commitHash": "303bbf0c250fe380b9e57375598cfd916110758b"
+				}
+			},
+			"license": "MIT",
+			"description": "The file syntaxes/scss.json was derived from the Atom package https://github.com/atom/language-sass which was originally converted from the TextMate bundle https://github.com/alexsancho/SASS.tmbundle.",
+			"version": "0.61.4"
+		}
+	],
+	"version": 1
+}

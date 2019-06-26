@@ -9,39 +9,30 @@
 			"stopOnEntry": true,
 			"args": [
 				"hygiene"
-			],
-			"cwd": "${workspaceFolder}"
+			]
 		},
 		{
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
-			"protocol": "inspector",
 			"port": 5870,
 			"restart": true,
-			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{
-			"type": "node",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
-			"protocol": "inspector",
-			"port": 5871,
-			"smartStep": true,
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			]
+			"port": 9222,
+			"urlFilter": "*"
 		},
 		{
 			"type": "node",
 			"request": "attach",
-			"protocol": "inspector",
 			"name": "Attach to Search Process",
 			"port": 5876,
-			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -50,9 +41,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to CLI Process",
-			"protocol": "inspector",
 			"port": 5874,
-			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -61,9 +50,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Main Process",
-			"protocol": "inspector",
 			"port": 5875,
-			"smartStep": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -129,7 +116,6 @@
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"smartStep": true,
 			"port": 9222
 		},
 		{
@@ -137,7 +123,8 @@
 			"request": "launch",
 			"name": "Launch VS Code",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
+				"timeout": 20000
 			},
 			"osx": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
@@ -145,21 +132,36 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
-			"urlFilter": "*index.html*",
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
+			},
+			"breakOnLoad": false,
+			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875"
-			],
-			"smartStep": true,
-			"skipFiles": [
-				"**/winjs*.js"
+				"--inspect=5875",
+				"--no-cached-data"
 			],
 			"webRoot": "${workspaceFolder}"
 		},
 		{
 			"type": "node",
 			"request": "launch",
+			"name": "Launch VS Code (Main Process)",
+			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
+			},
+			"runtimeArgs": [
+				"--no-cached-data"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
 			"name": "Git Unit Tests",
-			"protocol": "inspector",
 			"program": "${workspaceFolder}/extensions/git/node_modules/mocha/bin/_mocha",
 			"stopOnEntry": false,
 			"cwd": "${workspaceFolder}/extensions/git",
@@ -198,9 +200,8 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Unit Tests",
-			"protocol": "inspector",
-			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+			"name": "Run Unit Tests",
+			"program": "${workspaceFolder}/test/electron/index.js",
 			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
@@ -210,14 +211,9 @@
 			},
 			"outputCapture": "std",
 			"args": [
-				"--delay",
-				"--timeout",
-				"2000"
+				"--remote-debugging-port=9222"
 			],
 			"cwd": "${workspaceFolder}",
-			"env": {
-				"ELECTRON_RUN_AS_NODE": "true"
-			},
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -274,6 +270,13 @@
 				"Launch VS Code",
 				"Attach to Extension Host"
 			]
-		}
+		},
+		{
+			"name": "Debug Unit Tests",
+			"configurations": [
+				"Attach to VS Code",
+				"Run Unit Tests"
+			]
+		},
 	]
 }

@@ -2,26 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { guessMimeTypes } from 'vs/base/common/mime';
-import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return TPromise.wrap<void>(null);
+		return Promise.resolve(undefined);
 	}
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
+	}
+	setEnabled() { }
 	isOptedIn: true;
-	getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.wrap({
+	getTelemetryInfo(): Promise<ITelemetryInfo> {
+		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
@@ -31,17 +31,17 @@ export const NullTelemetryService = new class implements ITelemetryService {
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	dispose(): TPromise<any>;
+	dispose(): Promise<any> | undefined;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		dispose: () => TPromise.join(appenders.map(a => a.dispose()))
+		dispose: () => Promise.all(appenders.map(a => a.dispose()))
 	};
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => TPromise.as(null) };
+export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => Promise.resolve(null) };
 
 
 export class LogAppender implements ITelemetryAppender {
@@ -49,8 +49,8 @@ export class LogAppender implements ITelemetryAppender {
 	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
 	constructor(@ILogService private readonly _logService: ILogService) { }
 
-	dispose(): TPromise<any> {
-		return TPromise.as(undefined);
+	dispose(): Promise<any> {
+		return Promise.resolve(undefined);
 	}
 
 	log(eventName: string, data: any): void {
@@ -67,26 +67,22 @@ export class LogAppender implements ITelemetryAppender {
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"scheme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface URIDescriptor {
 	mimeType?: string;
+	scheme?: string;
 	ext?: string;
 	path?: string;
-}
-
-export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => string): URIDescriptor {
-	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: hashPath(fsPath) } : {};
 }
 
 /**
  * Only add settings that cannot contain any personal/private information of users (PII).
  */
 const configurationValueWhitelist = [
-	'editor.tabCompletion',
 	'editor.fontFamily',
 	'editor.fontWeight',
 	'editor.fontSize',
@@ -96,6 +92,7 @@ const configurationValueWhitelist = [
 	'editor.rulers',
 	'editor.wordSeparators',
 	'editor.tabSize',
+	'editor.indentSize',
 	'editor.insertSpaces',
 	'editor.detectIndentation',
 	'editor.roundedSelection',
@@ -130,11 +127,13 @@ const configurationValueWhitelist = [
 	'editor.suggestSelection',
 	'editor.suggestFontSize',
 	'editor.suggestLineHeight',
+	'editor.tabCompletion',
 	'editor.selectionHighlight',
 	'editor.occurrencesHighlight',
 	'editor.overviewRulerLanes',
 	'editor.overviewRulerBorder',
 	'editor.cursorBlinking',
+	'editor.cursorSmoothCaretAnimation',
 	'editor.cursorStyle',
 	'editor.mouseWheelZoom',
 	'editor.fontLigatures',
@@ -158,6 +157,7 @@ const configurationValueWhitelist = [
 	'breadcrumbs.enabled',
 	'breadcrumbs.filePath',
 	'breadcrumbs.symbolPath',
+	'breadcrumbs.symbolSortOrder',
 	'breadcrumbs.useQuickPick',
 	'explorer.openEditors.visible',
 	'extensions.autoUpdate',
@@ -179,10 +179,12 @@ const configurationValueWhitelist = [
 	'terminal.integrated.fontFamily',
 	'window.openFilesInNewWindow',
 	'window.restoreWindows',
+	'window.nativeFullScreen',
 	'window.zoomLevel',
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
+	'workbench.editor.highlightModifiedTabs',
 	'workbench.editor.swipeToNavigate',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',
@@ -200,7 +202,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfiguration', {
-				configurationSource: ConfigurationTarget[event.source],
+				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 			/* __GDPR__
@@ -210,7 +212,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfigurationValues', {
-				configurationSource: ConfigurationTarget[event.source],
+				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}
@@ -267,5 +269,5 @@ function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] 
 			array.push({ [key]: v });
 		}
 		return array;
-	}, []);
+	}, <{ [key: string]: any }[]>[]);
 }

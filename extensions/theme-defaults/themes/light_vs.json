@@ -140,8 +140,8 @@
 		},
 		{
 			"scope": [
-				"beginning.punctuation.definition.quote.markdown",
-				"beginning.punctuation.definition.list.markdown"
+				"punctuation.definition.quote.begin.markdown",
+				"punctuation.definition.list.begin.markdown"
 			],
 			"settings": {
 				"foreground": "#0451a5"
@@ -149,12 +149,6 @@
 		},
 		{
 			"scope": "markup.inline.raw",
-			"settings": {
-				"foreground": "#800000"
-			}
-		},
-		{
-			"scope": "meta.selector",
 			"settings": {
 				"foreground": "#800000"
 			}

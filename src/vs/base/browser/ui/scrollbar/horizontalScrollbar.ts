@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
+import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
@@ -35,26 +34,26 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				className: 'left-arrow',
 				top: scrollbarDelta,
 				left: arrowDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
 			});
 
 			this._createArrow({
 				className: 'right-arrow',
 				top: scrollbarDelta,
-				left: void 0,
-				bottom: void 0,
+				left: undefined,
+				bottom: undefined,
 				right: arrowDelta,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, -1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)),
 			});
 		}
 
-		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
+		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, undefined, options.horizontalSliderSize);
 	}
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {

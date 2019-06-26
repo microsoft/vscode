@@ -10,16 +10,12 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item:focus .action-label {
-	color: #0059AC;
 	stroke-width: 1.2px;
-	text-shadow: 0px 0px 0.15px #0059AC;
 }
 
 .monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
 .monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
-	color: #ACDDFF;
 	stroke-width: 1.2px;
-	text-shadow: 0px 0px 0.15px #ACDDFF;
 }
 
 .monaco-editor-hover p {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -13,10 +12,10 @@ import { ITextModel } from 'vs/editor/common/model';
 
 export class DragAndDropCommand implements editorCommon.ICommand {
 
-	private selection: Selection;
-	private targetPosition: Position;
+	private readonly selection: Selection;
+	private readonly targetPosition: Position;
 	private targetSelection: Selection;
-	private copy: boolean;
+	private readonly copy: boolean;
 
 	constructor(selection: Selection, targetPosition: Position, copy: boolean) {
 		this.selection = selection;

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as path from 'path';
 import {
@@ -43,11 +42,11 @@ class PackageJSON extends TreeItem {
 	folder: Folder;
 	scripts: NpmScript[] = [];
 
-	static getLabel(folderName: string, relativePath: string): string {
+	static getLabel(_folderName: string, relativePath: string): string {
 		if (relativePath.length > 0) {
 			return path.join(relativePath, packageName);
 		}
-		return path.join(folderName, packageName);
+		return packageName;
 	}
 
 	constructor(folder: Folder, relativePath: string) {
@@ -109,6 +108,13 @@ class NpmScript extends TreeItem {
 				dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
 			};
 		}
+
+		let uri = getPackageJsonUriFromTask(task);
+		getScripts(uri!).then(scripts => {
+			if (scripts && scripts[task.definition['script']]) {
+				this.tooltip = scripts[task.definition['script']];
+			}
+		});
 	}
 
 	getFolder(): WorkspaceFolder {
@@ -338,7 +344,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder.addPackage(packageJson);
 					packages.set(fullPath, packageJson);
 				}
-				let fullScriptPath = path.join(packageJson.path, each.name);
 				let script = new NpmScript(this.extensionContext, packageJson, each);
 				packageJson.addScript(script);
 			}

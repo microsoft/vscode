@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Margin extends ViewPart {
@@ -16,7 +14,7 @@ export class Margin extends ViewPart {
 	public static readonly CLASS_NAME = 'glyph-margin';
 	public static readonly OUTER_CLASS_NAME = 'margin';
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 	private _canUseLayerHinting: boolean;
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;
@@ -42,7 +40,7 @@ export class Margin extends ViewPart {
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
-		let domNode = createFastDomNode(document.createElement('div'));
+		const domNode = createFastDomNode(document.createElement('div'));
 		domNode.setClassName(Margin.OUTER_CLASS_NAME);
 		domNode.setPosition('absolute');
 		domNode.setAttribute('role', 'presentation');
@@ -85,7 +83,7 @@ export class Margin extends ViewPart {
 		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
 		this._domNode.setTop(-adjustedScrollTop);
 
-		let height = Math.min(ctx.scrollHeight, 1000000);
+		const height = Math.min(ctx.scrollHeight, 1000000);
 		this._domNode.setHeight(height);
 		this._domNode.setWidth(this._contentLeft);
 

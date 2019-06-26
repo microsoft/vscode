@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -23,22 +21,37 @@ export interface Modifiers {
 	readonly metaKey: boolean;
 }
 
+export interface KeyLabelProvider<T extends Modifiers> {
+	(keybinding: T): string | null;
+}
+
 export class ModifierLabelProvider {
 
 	public readonly modifierLabels: ModifierLabels[];
 
 	constructor(mac: ModifierLabels, windows: ModifierLabels, linux: ModifierLabels = windows) {
-		this.modifierLabels = [null];
+		this.modifierLabels = [null!]; // index 0 will never me accessed.
 		this.modifierLabels[OperatingSystem.Macintosh] = mac;
 		this.modifierLabels[OperatingSystem.Windows] = windows;
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
-		if (firstPartKey === null && chordPartKey === null) {
+	public toLabel<T extends Modifiers>(OS: OperatingSystem, parts: T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
+		if (parts.length === 0) {
 			return null;
 		}
-		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
+
+		const result: string[] = [];
+		for (let i = 0, len = parts.length; i < len; i++) {
+			const part = parts[i];
+			const keyLabel = keyLabelProvider(part);
+			if (keyLabel === null) {
+				// this keybinding cannot be expressed...
+				return null;
+			}
+			result[i] = _simpleAsString(part, keyLabel, this.modifierLabels[OS]);
+		}
+		return result.join(' ');
 	}
 }
 
@@ -149,7 +162,7 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 		return '';
 	}
 
-	let result: string[] = [];
+	const result: string[] = [];
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if (modifiers.ctrlKey) {
@@ -172,15 +185,4 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	result.push(key);
 
 	return result.join(labels.separator);
-}
-
-function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): string {
-	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
-
-	if (chordPartKey !== null) {
-		result += ' ';
-		result += _simpleAsString(chordPartMod, chordPartKey, labels);
-	}
-
-	return result;
 }

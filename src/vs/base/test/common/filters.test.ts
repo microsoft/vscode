@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
-	assert(r);
+	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
 	}
@@ -20,7 +18,7 @@ function filterNotOk(filter: IFilter, word: string, suggestion: string) {
 }
 
 suite('Filters', () => {
-	test('or', function () {
+	test('or', () => {
 		let filter: IFilter;
 		let counters: number[];
 		let newFilter = function (i: number, r: boolean): IFilter {
@@ -72,7 +70,7 @@ suite('Filters', () => {
 		filterNotOk(matchesPrefix, 'T', '4'); // see https://github.com/Microsoft/vscode/issues/22401
 	});
 
-	test('CamelCaseFilter', function () {
+	test('CamelCaseFilter', () => {
 		filterNotOk(matchesCamelCase, '', '');
 		filterOk(matchesCamelCase, '', 'anything', []);
 		filterOk(matchesCamelCase, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
@@ -150,13 +148,13 @@ suite('Filters', () => {
 		assert(matchesCamelCase('debug console', 'Open: Debug Console'));
 	});
 
-	test('matchesContiguousSubString', function () {
+	test('matchesContiguousSubString', () => {
 		filterOk(matchesContiguousSubString, 'cela', 'cancelAnimationFrame()', [
 			{ start: 3, end: 7 }
 		]);
 	});
 
-	test('matchesSubString', function () {
+	test('matchesSubString', () => {
 		filterOk(matchesSubString, 'cmm', 'cancelAnimationFrame()', [
 			{ start: 0, end: 1 },
 			{ start: 9, end: 10 },
@@ -176,7 +174,7 @@ suite('Filters', () => {
 		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 	});
 
-	test('WordFilter', function () {
+	test('WordFilter', () => {
 		filterOk(matchesWords, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
 		filterOk(matchesWords, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
 		filterNotOk(matchesWords, 'alpha', 'alp');
@@ -204,20 +202,33 @@ suite('Filters', () => {
 
 		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
 		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+
+		filterOk(matchesWords, 'bar', 'foo-bar');
+		filterOk(matchesWords, 'bar test', 'foo-bar test');
+		filterOk(matchesWords, 'fbt', 'foo-bar test');
+		filterOk(matchesWords, 'bar test', 'foo-bar (test)');
+		filterOk(matchesWords, 'foo bar', 'foo (bar)');
+
+		filterNotOk(matchesWords, 'bar est', 'foo-bar test');
+		filterNotOk(matchesWords, 'fo ar', 'foo-bar test');
+		filterNotOk(matchesWords, 'for', 'foo-bar test');
+		filterNotOk(matchesWords, 'foo bar', 'foo-bar');
 	});
 
-	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyScore) {
-		let r = filter(pattern, word);
-		assert.ok(!decoratedWord === (!r || r[1].length === 0));
+	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
+		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, opts.firstMatchCanBeWeak || false);
+		assert.ok(!decoratedWord === !r);
 		if (r) {
-			const [, matches] = r;
+			let matches = createMatches(r);
+			let actualWord = '';
 			let pos = 0;
-			for (let i = 0; i < matches.length; i++) {
-				let actual = matches[i];
-				let expected = decoratedWord.indexOf('^', pos) - i;
-				assert.equal(actual, expected);
-				pos = expected + 1 + i;
+			for (const match of matches) {
+				actualWord += word.substring(pos, match.start);
+				actualWord += '^' + word.substring(match.start, match.end).split('').join('^');
+				pos = match.end;
 			}
+			actualWord += word.substring(pos);
+			assert.equal(actualWord, decoratedWord);
 		}
 	}
 
@@ -256,7 +267,7 @@ suite('Filters', () => {
 		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
 	});
 
-	test('fuzzyScore', function () {
+	test('fuzzyScore', () => {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
 		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
@@ -310,11 +321,11 @@ suite('Filters', () => {
 	});
 
 	test('fuzzyScore (first match can be weak)', function () {
-		let fuzzyScoreWeak = (pattern, word) => fuzzyScore(pattern, word, undefined, true);
-		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScoreWeak);
-		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScoreWeak);
-		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScoreWeak);
-		assertTopScore(fuzzyScoreWeak, 'tor', 2, 'constructor', 'Thor', 'cTor');
+
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore, { firstMatchCanBeWeak: true });
+		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScore, { firstMatchCanBeWeak: true });
+		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScore, { firstMatchCanBeWeak: true });
+		assertTopScore(fuzzyScore, 'tor', 2, 'constructor', 'Thor', 'cTor');
 	});
 
 	test('fuzzyScore, many matches', function () {
@@ -353,17 +364,17 @@ suite('Filters', () => {
 	test('Cannot set property \'1\' of undefined, #26511', function () {
 		let word = new Array<void>(123).join('a');
 		let pattern = new Array<void>(120).join('a');
-		fuzzyScore(pattern, word);
+		fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
 		assert.ok(true); // must not explode
 	});
 
 	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
-		assertMatches('  ', '  group', undefined, fuzzyScore);
-		assertMatches('  g', '  group', '  ^group', fuzzyScore);
+		assertMatches('  ', '  group', undefined, fuzzyScore, { patternPos: 2 });
+		assertMatches('  g', '  group', '  ^group', fuzzyScore, { patternPos: 2 });
 		assertMatches('g', '  group', '  ^group', fuzzyScore);
 		assertMatches('g g', '  groupGroup', undefined, fuzzyScore);
 		assertMatches('g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
-		assertMatches(' g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches(' g g', '  group Group', '  ^group^ ^Group', fuzzyScore, { patternPos: 1 });
 		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
 		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
 		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
@@ -374,7 +385,7 @@ suite('Filters', () => {
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];
-			const m = filter(pattern, word);
+			const m = filter(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
 			if (m) {
 				const [score] = m;
 				if (score > topScore) {
@@ -434,12 +445,12 @@ suite('Filters', () => {
 	});
 
 	test('HTML closing tag proposal filtered out #38880', function () {
-		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 0));
-		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 3));
-		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
+		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', fuzzyScore, { patternPos: 0 });
+		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', fuzzyScore, { patternPos: 2 });
+		assertMatches('\t<', '\t</body>', '\t^</body>', fuzzyScore, { patternPos: 1 });
 	});
 
-	test('fuzzyScoreGraceful', function () {
+	test('fuzzyScoreGraceful', () => {
 
 		assertMatches('rlut', 'result', undefined, fuzzyScore);
 		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);
@@ -449,5 +460,9 @@ suite('Filters', () => {
 		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
+	});
+
+	test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
+		assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
 	});
 });

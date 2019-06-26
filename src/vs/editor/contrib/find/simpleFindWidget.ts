@@ -5,17 +5,19 @@
 
 import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
+import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as dom from 'vs/base/browser/dom';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { SimpleButton } from './findWidget';
-import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -24,24 +26,38 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
-	private _findInput: FindInput;
-	private _domNode: HTMLElement;
-	private _innerDomNode: HTMLElement;
-	private _isVisible: boolean;
-	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocusTracker: dom.IFocusTracker;
-	private _updateHistoryDelayer: Delayer<void>;
+	private readonly _findInput: FindInput;
+	private readonly _domNode: HTMLElement;
+	private readonly _innerDomNode: HTMLElement;
+	private _isVisible: boolean = false;
+	private readonly _focusTracker: dom.IFocusTracker;
+	private readonly _findInputFocusTracker: dom.IFocusTracker;
+	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		private readonly _state: FindReplaceState = new FindReplaceState(),
+		showOptionButtons?: boolean
 	) {
 		super();
 
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-		}, contextKeyService));
+			validation: (value: string): InputBoxMessage | null => {
+				if (value.length === 0 || !this._findInput.getRegex()) {
+					return null;
+				}
+				try {
+					/* tslint:disable-next-line:no-unused-expression */
+					new RegExp(value);
+					return null;
+				} catch (e) {
+					return { content: e.message };
+				}
+			}
+		}, contextKeyService, showOptionButtons));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
@@ -50,6 +66,24 @@ export abstract class SimpleFindWidget extends Widget {
 			this.onInputChanged();
 			this._delayedUpdateHistory();
 		});
+
+		this._findInput.setRegex(!!this._state.isRegex);
+		this._findInput.setCaseSensitive(!!this._state.matchCase);
+		this._findInput.setWholeWords(!!this._state.wholeWord);
+
+		this._register(this._findInput.onDidOptionChange(() => {
+			this._state.change({
+				isRegex: this._findInput.getRegex(),
+				wholeWord: this._findInput.getWholeWords(),
+				matchCase: this._findInput.getCaseSensitive()
+			}, true);
+		}));
+
+		this._register(this._state.onFindReplaceStateChange(() => {
+			this._findInput.setRegex(this._state.isRegex);
+			this._findInput.setWholeWords(this._state.wholeWord);
+			this._findInput.setCaseSensitive(this._state.matchCase);
+		}));
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
@@ -65,29 +99,29 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		const prevBtn = new SimpleButton({
+		const prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			className: 'previous',
 			onTrigger: () => {
 				this.find(true);
 			}
-		});
+		}));
 
-		const nextBtn = new SimpleButton({
+		const nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
 			className: 'next',
 			onTrigger: () => {
 				this.find(false);
 			}
-		});
+		}));
 
-		const closeBtn = new SimpleButton({
+		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
 			className: 'close-fw',
 			onTrigger: () => {
 				this.hide();
 			}
-		});
+		}));
 
 		this._innerDomNode = document.createElement('div');
 		this._innerDomNode.classList.add('simple-find-part');
@@ -134,20 +168,23 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public get focusTracker(): dom.IFocusTracker {
-		return this._findInputFocusTracker;
+		return this._focusTracker;
 	}
 
 	public updateTheme(theme: ITheme): void {
-		const inputStyles = {
+		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
 		};
 		this._findInput.style(inputStyles);
@@ -158,11 +195,10 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
-			this._domNode = undefined;
 		}
 	}
 
-	public getDomNode(): HTMLElement {
+	public getDomNode() {
 		return this._domNode;
 	}
 
@@ -180,19 +216,35 @@ export abstract class SimpleFindWidget extends Widget {
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
-			setTimeout(() => {
-				this._findInput.select();
-			}, 200);
+			this._findInput.select();
+		}, 0);
+	}
+
+	public show(initialInput?: string): void {
+		if (initialInput && !this._isVisible) {
+			this._findInput.setValue(initialInput);
+		}
+
+		this._isVisible = true;
+
+		setTimeout(() => {
+			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			this._isVisible = false;
-
-			dom.removeClass(this._innerDomNode, 'visible');
+			dom.removeClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
+			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
+			setTimeout(() => {
+				this._isVisible = false;
+				dom.removeClass(this._innerDomNode, 'visible');
+			}, 200);
 		}
 	}
 
@@ -202,6 +254,18 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected _updateHistory() {
 		this._findInput.inputBox.addToHistory();
+	}
+
+	protected _getRegexValue(): boolean {
+		return this._findInput.getRegex();
+	}
+
+	protected _getWholeWordValue(): boolean {
+		return this._findInput.getWholeWords();
+	}
+
+	protected _getCaseSensitiveValue(): boolean {
+		return this._findInput.getCaseSensitive();
 	}
 }
 

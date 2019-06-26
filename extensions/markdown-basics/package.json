@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "^1.20.0"
 	},
@@ -17,9 +18,13 @@
 				],
 				"extensions": [
 					".md",
+					".mkd",
+					".mdwn",
 					".mdown",
 					".markdown",
 					".markdn",
+					".mdtxt",
+					".mdtext",
 					".workbook"
 				],
 				"configuration": "./language-configuration.json"

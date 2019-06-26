@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./checkbox';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -13,9 +11,11 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
-	readonly actionClassName: string;
+	readonly actionClassName?: string;
 	readonly title: string;
 	readonly isChecked: boolean;
 }
@@ -27,6 +27,47 @@ export interface ICheckboxStyles {
 const defaultOpts = {
 	inputActiveOptionBorder: Color.fromHex('#007ACC')
 };
+
+export class CheckboxActionViewItem extends BaseActionViewItem {
+
+	private checkbox: Checkbox;
+	private readonly disposables = new DisposableStore();
+
+	render(container: HTMLElement): void {
+		this.element = container;
+
+		this.disposables.clear();
+		this.checkbox = new Checkbox({
+			actionClassName: this._action.class,
+			isChecked: this._action.checked,
+			title: this._action.label
+		});
+		this.disposables.add(this.checkbox);
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
+		this.element.appendChild(this.checkbox.domNode);
+	}
+
+	updateEnabled(): void {
+		if (this.checkbox) {
+			if (this.isEnabled()) {
+				this.checkbox.enable();
+			} else {
+				this.checkbox.disable();
+			}
+		}
+	}
+
+	updateChecked(): void {
+		if (this.checkbox) {
+			this.checkbox.checked = this._action.checked;
+		}
+	}
+
+	dipsose(): void {
+		this.disposables.dispose();
+		super.dispose();
+	}
+}
 
 export class Checkbox extends Widget {
 
@@ -50,7 +91,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = 'monaco-custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.className = 'monaco-custom-checkbox ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));

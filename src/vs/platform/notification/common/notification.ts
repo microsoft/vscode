@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export import Severity = BaseSeverity;
 
@@ -16,7 +15,23 @@ export const INotificationService = createDecorator<INotificationService>('notif
 
 export type NotificationMessage = string | Error;
 
-export interface INotification {
+export interface INotificationProperties {
+
+	/**
+	 * Sticky notifications are not automatically removed after a certain timeout. By
+	 * default, notifications with primary actions and severity error are always sticky.
+	 */
+	sticky?: boolean;
+
+	/**
+	 * Silent notifications are not shown to the user unless the notification center
+	 * is opened. The status bar will still indicate all number of notifications to
+	 * catch some attention.
+	 */
+	silent?: boolean;
+}
+
+export interface INotification extends INotificationProperties {
 
 	/**
 	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
@@ -55,14 +70,14 @@ export interface INotificationActions {
 	 * Primary actions show up as buttons as part of the message and will close
 	 * the notification once clicked.
 	 */
-	primary?: IAction[];
+	primary?: ReadonlyArray<IAction>;
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	secondary?: IAction[];
+	secondary?: ReadonlyArray<IAction>;
 }
 
 export interface INotificationProgress {
@@ -149,6 +164,30 @@ export interface IPromptChoice {
 	run: () => void;
 }
 
+export interface IPromptOptions extends INotificationProperties {
+
+	/**
+	 * Will be called if the user closed the notification without picking
+	 * any of the provided choices.
+	 */
+	onCancel?: () => void;
+}
+
+export interface IStatusMessageOptions {
+
+	/**
+	 * An optional timeout after which the status message should show. By default
+	 * the status message will show immediately.
+	 */
+	showAfter?: number;
+
+	/**
+	 * An optional timeout after which the status message is to be hidden. By default
+	 * the status message will not hide until another status message is displayed.
+	 */
+	hideAfter?: number;
+}
+
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -156,7 +195,7 @@ export interface IPromptChoice {
  */
 export interface INotificationService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<INotificationService>;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -171,19 +210,19 @@ export interface INotificationService {
 	notify(notification: INotification): INotificationHandle;
 
 	/**
-	 * A convinient way of reporting infos. Use the `INotificationService.notify`
+	 * A convenient way of reporting infos. Use the `INotificationService.notify`
 	 * method if you need more control over the notification.
 	 */
 	info(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * A convinient way of reporting warnings. Use the `INotificationService.notify`
+	 * A convenient way of reporting warnings. Use the `INotificationService.notify`
 	 * method if you need more control over the notification.
 	 */
 	warn(message: NotificationMessage | NotificationMessage[]): void;
 
 	/**
-	 * A convinient way of reporting errors. Use the `INotificationService.notify`
+	 * A convenient way of reporting errors. Use the `INotificationService.notify`
 	 * method if you need more control over the notification.
 	 */
 	error(message: NotificationMessage | NotificationMessage[]): void;
@@ -197,17 +236,25 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle;
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle;
+
+	/**
+	 * Shows a status message in the status area with the provided text.
+	 *
+	 * @param message the message to show as status
+	 * @param options provides some optional configuration options
+	 *
+	 * @returns a disposable to hide the status message
+	 */
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
 }
 
 export class NoOpNotification implements INotificationHandle {
+
 	readonly progress = new NoOpProgress();
 
 	private readonly _onDidClose: Emitter<void> = new Emitter();
-
-	get onDidClose(): Event<void> {
-		return this._onDidClose.event;
-	}
+	get onDidClose(): Event<void> { return this._onDidClose.event; }
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }

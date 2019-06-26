@@ -1,0 +1,134 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- script: |
+    set -e
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(devops-pat)
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
+
+- script: |
+    set -e
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
+
+- script: |
+    set -e
+    yarn --frozen-lockfile
+  displayName: Install dependencies
+
+- script: |
+    set -e
+    yarn gulp mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
+    yarn gulp hygiene
+    yarn monaco-compile-check
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
+    node build/lib/builtInExtensions.js
+  displayName: Install distro dependencies and extensions
+
+- script: |
+    set -e
+    cd ..
+    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
+    cd vscode-telemetry-extractor
+    npm install
+    ./node_modules/typescript/bin/tsc
+    npm run setup-extension-repos
+    node ./out/cli-extract.js --sourceDir ../s --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
+    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources/ --outputDir . --applyEndpoints --includeIsMeasurement
+    mv declarations-resolved.json ../s/src/telemetry-core.json
+    mv declarations-extensions-resolved.json ../s/src/telemetry-extensions.json
+    echo 'Moved Files'
+  displayName: Extract Telemetry
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+    ./build/azure-pipelines/darwin/build.sh
+  displayName: Build
+
+- script: |
+    set -e
+    ./scripts/test.sh --build --tfs "Unit Tests"
+    # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
+    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
+  displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    ./scripts/test-integration.sh --build --tfs "Integration Tests"
+  displayName: Run integration tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
+  displayName: Archive build
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin.zip'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppDeveloperSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+  displayName: Codesign
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+    ./build/azure-pipelines/darwin/publish.sh
+  displayName: Publish
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true

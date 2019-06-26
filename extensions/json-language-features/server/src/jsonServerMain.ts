@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic, TextDocumentSyncKind
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import * as URL from 'url';
-import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -35,6 +33,10 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+}
+
 // Create a connection for the server
 const connection: IConnection = createConnection();
 
@@ -49,9 +51,63 @@ process.on('uncaughtException', (e: any) => {
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
-const documents: TextDocuments = new TextDocuments();
+const workspaceContext = {
+	resolveRelativePath: (relativePath: string, resource: string) => {
+		return URL.resolve(resource, relativePath);
+	}
+};
+function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) {
+
+	return (uri: string): Thenable<string> => {
+		const protocol = uri.substr(0, uri.indexOf(':'));
+
+		if (!handledSchemas || handledSchemas[protocol]) {
+			if (protocol === 'file') {
+				const fsPath = URI.parse(uri).fsPath;
+				return new Promise<string>((c, e) => {
+					fs.readFile(fsPath, 'UTF-8', (err, result) => {
+						err ? e(err.message || err.toString()) : c(result.toString());
+					});
+				});
+			} else if (protocol === 'http' || protocol === 'https') {
+				if (uri.indexOf('//schema.management.azure.com/') !== -1) {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					connection.telemetry.logEvent({
+						key: 'json.schema',
+						value: {
+							schemaURL: uri
+						}
+					});
+				}
+				const headers = { 'Accept-Encoding': 'gzip, deflate' };
+				return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
+					return response.responseText;
+				}, (error: XHRResponse) => {
+					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+				});
+			}
+		}
+		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
+			return responseText;
+		}, error => {
+			return Promise.reject(error.message);
+		});
+	};
+}
+
+// create the JSON language service
+let languageService = getLanguageService({
+	workspaceContext,
+	contributions: [],
+});
+
+// Create a text document manager.
+const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
+
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
@@ -64,6 +120,15 @@ let hierarchicalDocumentSymbolSupport = false;
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+
+	const handledProtocols = params.initializationOptions && params.initializationOptions['handledSchemaProtocols'];
+
+	languageService = getLanguageService({
+		schemaRequestService: getSchemaRequestService(handledProtocols),
+		workspaceContext,
+		contributions: [],
+		clientCapabilities: params.capabilities
+	});
 
 	function getClientCapability<T>(name: string, def: T) {
 		const keys = name.split('.');
@@ -84,7 +149,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
@@ -95,54 +160,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-const workspaceContext = {
-	resolveRelativePath: (relativePath: string, resource: string) => {
-		return URL.resolve(resource, relativePath);
-	}
-};
 
-const schemaRequestService = (uri: string): Thenable<string> => {
-	if (startsWith(uri, 'file://')) {
-		const fsPath = URI.parse(uri).fsPath;
-		return new Promise<string>((c, e) => {
-			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e('') : c(result.toString());
-			});
-		});
-	} else if (startsWith(uri, 'vscode://')) {
-		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
-			return responseText;
-		}, error => {
-			return Promise.reject(error.message);
-		});
-	}
-	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
-		/* __GDPR__
-			"json.schema" : {
-				"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		 */
-		connection.telemetry.logEvent({
-			key: 'json.schema',
-			value: {
-				schemaURL: uri
-			}
-		});
-	}
-	const headers = { 'Accept-Encoding': 'gzip, deflate' };
-	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
-		return response.responseText;
-	}, (error: XHRResponse) => {
-		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
-	});
-};
-
-// create the JSON language service
-const languageService = getLanguageService({
-	schemaRequestService,
-	workspaceContext,
-	contributions: []
-});
 
 // The settings interface describes the server relevant settings part
 interface Settings {
@@ -162,13 +180,13 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
-let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
+let schemaAssociations: ISchemaAssociations | undefined = undefined;
 let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
+	let settings = <Settings>change.settings;
 	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
@@ -199,6 +217,21 @@ connection.onNotification(SchemaContentChangeNotification.type, uri => {
 	languageService.resetSchema(uri);
 });
 
+// Retry schema validation on all open documents
+connection.onRequest(ForceValidateRequest.type, uri => {
+	return new Promise<Diagnostic[]>(resolve => {
+		const document = documents.get(uri);
+		if (document) {
+			updateConfiguration();
+			validateTextDocument(document, diagnostics => {
+				resolve(diagnostics);
+			});
+		} else {
+			resolve([]);
+		}
+	});
+});
+
 function updateConfiguration() {
 	const languageSettings = {
 		validate: true,
@@ -206,7 +239,7 @@ function updateConfiguration() {
 		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
-		for (var pattern in schemaAssociations) {
+		for (const pattern in schemaAssociations) {
 			const association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {
@@ -263,10 +296,15 @@ function triggerValidation(textDocument: TextDocument): void {
 	}, validationDelayMs);
 }
 
-function validateTextDocument(textDocument: TextDocument): void {
+function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {
+	const respond = (diagnostics: Diagnostic[]) => {
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+		if (callback) {
+			callback(diagnostics);
+		}
+	};
 	if (textDocument.getText().length === 0) {
-		// ignore empty documents
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		respond([]); // ignore empty documents
 		return;
 	}
 	const jsonDocument = getJSONDocument(textDocument);
@@ -277,8 +315,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 		setTimeout(() => {
 			const currDocument = documents.get(textDocument.uri);
 			if (currDocument && currDocument.version === version) {
-				// Send the computed diagnostics to VSCode.
-				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+				respond(diagnostics); // Send the computed diagnostics to VSCode.
 			}
 		}, 100);
 	}, error => {
@@ -394,6 +431,17 @@ connection.onFoldingRanges((params, token) => {
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			return languageService.getSelectionRanges(document, params.positions, jsonDocument);
+		}
+		return [];
+	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection

@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel } from './referencesModel';
@@ -27,28 +25,28 @@ export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSe
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
-	onGoto?: (reference: Location) => TPromise<any>;
+	onGoto?: (reference: Location) => Promise<any>;
 }
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.referencesController';
 
-	private _editor: ICodeEditor;
-	private _widget: ReferenceWidget;
-	private _model: ReferencesModel;
+	private readonly _disposables = new DisposableStore();
+	private readonly _editor: ICodeEditor;
+	private _widget: ReferenceWidget | null;
+	private _model: ReferencesModel | null;
 	private _requestIdPool = 0;
-	private _disposables: IDisposable[] = [];
 	private _ignoreModelChangeEvent = false;
 
-	private _referenceSearchVisible: IContextKey<boolean>;
+	private readonly _referenceSearchVisible: IContextKey<boolean>;
 
 	public static get(editor: ICodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
 	public constructor(
-		private _defaultTreeKeyboardSupport: boolean,
+		private readonly _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
@@ -68,48 +66,53 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	public dispose(): void {
 		this._referenceSearchVisible.reset();
 		dispose(this._disposables);
-		dispose(this._widget);
-		dispose(this._model);
-		this._widget = null;
-		this._model = null;
-		this._editor = null;
+		if (this._widget) {
+			dispose(this._widget);
+			this._widget = null;
+		}
+		if (this._model) {
+			dispose(this._model);
+			this._model = null;
+		}
 	}
 
 	public toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
-		let widgetPosition: Position;
+		let widgetPosition: Position | undefined;
 		if (this._widget) {
 			widgetPosition = this._widget.position;
 		}
 		this.closeWidget();
 		if (!!widgetPosition && range.containsPosition(widgetPosition)) {
-			return null;
+			return;
 		}
 
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
-		this._disposables.push(this._editor.onDidChangeModel(() => {
+		this._disposables.add(this._editor.onDidChangeModelLanguage(() => { this.closeWidget(); }));
+		this._disposables.add(this._editor.onDidChangeModel(() => {
 			if (!this._ignoreModelChangeEvent) {
 				this.closeWidget();
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
+		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
-		this._disposables.push(this._widget.onDidClose(() => {
-			modelPromise.cancel();
 
-			this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData));
-			this._widget = null;
+		this._disposables.add(this._widget.onDidClose(() => {
+			modelPromise.cancel();
+			if (this._widget) {
+				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+				this._widget = null;
+			}
 			this.closeWidget();
 		}));
 
-		this._disposables.push(this._widget.onDidSelectReference(event => {
+		this._disposables.add(this._widget.onDidSelectReference(event => {
 			let { element, kind } = event;
 			switch (kind) {
 				case 'open':
@@ -121,13 +124,17 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 						break;
 					}
 				case 'side':
-					this.openReference(element, kind === 'side');
+					if (element) {
+						this.openReference(element, kind === 'side');
+					}
 					break;
 				case 'goto':
-					if (options.onGoto) {
-						options.onGoto(element);
-					} else {
-						this._gotoReference(element);
+					if (element) {
+						if (options.onGoto) {
+							options.onGoto(element);
+						} else {
+							this._gotoReference(element);
+						}
 					}
 					break;
 			}
@@ -150,7 +157,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
-				if (this._widget) { // might have been closed
+				if (this._widget && this._model && this._editor.hasModel()) { // might have been closed
 					// set title
 					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
@@ -171,31 +178,46 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public async goToNextOrPreviousReference(fwd: boolean) {
-		if (this._model) { // can be called while still resolving...
-			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
-			let target = this._model.nextOrPreviousReference(source, fwd);
-			let editorFocus = this._editor.hasTextFocus();
-			await this._widget.setSelection(target);
-			await this._gotoReference(target);
-			if (editorFocus) {
-				this._editor.focus();
-			}
+		if (!this._editor.hasModel() || !this._model || !this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+		const currentPosition = this._widget.position;
+		if (!currentPosition) {
+			return;
+		}
+		const source = this._model.nearestReference(this._editor.getModel().uri, currentPosition);
+		if (!source) {
+			return;
+		}
+		const target = this._model.nextOrPreviousReference(source, fwd);
+		const editorFocus = this._editor.hasTextFocus();
+		await this._widget.setSelection(target);
+		await this._gotoReference(target);
+		if (editorFocus) {
+			this._editor.focus();
 		}
 	}
 
 	public closeWidget(): void {
-		dispose(this._widget);
-		this._widget = null;
+		if (this._widget) {
+			dispose(this._widget);
+			this._widget = null;
+		}
 		this._referenceSearchVisible.reset();
-		this._disposables = dispose(this._disposables);
-		dispose(this._model);
-		this._model = null;
+		this._disposables.clear();
+		if (this._model) {
+			dispose(this._model);
+			this._model = null;
+		}
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): TPromise<any> {
-		this._widget.hide();
+	private _gotoReference(ref: Location): Promise<any> {
+		if (this._widget) {
+			this._widget.hide();
+		}
 
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
@@ -218,8 +240,10 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 				return;
 			}
 
-			this._widget.show(range);
-			this._widget.focus();
+			if (this._widget) {
+				this._widget.show(range);
+				this._widget.focus();
+			}
 
 		}, (err) => {
 			this._ignoreModelChangeEvent = false;
@@ -228,15 +252,15 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public openReference(ref: Location, sideBySide: boolean): void {
+		// clear stage
+		if (!sideBySide) {
+			this.closeWidget();
+		}
+
 		const { uri, range } = ref;
 		this._editorService.openCodeEditor({
 			resource: uri,
 			options: { selection: range }
 		}, this._editor, sideBySide);
-
-		// clear stage
-		if (!sideBySide) {
-			this.closeWidget();
-		}
 	}
 }

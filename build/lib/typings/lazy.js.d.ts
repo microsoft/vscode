@@ -18,7 +18,7 @@ declare module Lazy {
 	function on<T>(eventType: string): Sequence<T>;
 	function readFile(path: string): StringLikeSequence;
 	function makeHttpRequest(path: string): StringLikeSequence;
-	
+
 	interface StrictLazy {
 		(value: string): StringLikeSequence;
 		<T>(value: T[]): ArrayLikeSequence<T>;
@@ -87,7 +87,7 @@ declare module Lazy {
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 	interface Iterator<T> {
-		new (sequence: Sequence<T>): Iterator<T>;
+		new(sequence: Sequence<T>): Iterator<T>;
 		current(): T;
 		moveNext(): boolean;
 	}
@@ -158,6 +158,9 @@ declare module Lazy {
 		join(delimiter?: string): string;
 		map<U>(mapFn: MapCallback<T, U[]>): ArraySequence<U>;
 		map<U>(mapFn: MapCallback<T, U>): Sequence<U>;
+
+		// TODO: vscode addition to workaround strict null errors
+		flatten(): Sequence<any>;
 
 		max(valueFn?: NumberCallback<T>): T;
 		min(valueFn?: NumberCallback<T>): T;

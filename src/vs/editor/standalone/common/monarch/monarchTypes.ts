@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 /*
  * Interface types for Monarch language definitions
@@ -106,7 +105,7 @@ export interface IExpandedMonarchLanguageAction {
 	 */
 	bracket?: string;
 	/**
-	 * switch to embedded language (useing the mimetype) or get out using "@pop"
+	 * switch to embedded language (using the mimetype) or get out using "@pop"
 	 */
 	nextEmbedded?: string;
 	/**
@@ -129,7 +128,7 @@ export interface IMonarchLanguageBracket {
 	 */
 	open: string;
 	/**
-	 * closeing bracket
+	 * closing bracket
 	 */
 	close: string;
 	/**

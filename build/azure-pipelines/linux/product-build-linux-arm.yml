@@ -1,0 +1,85 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- task: Docker@1
+  displayName: 'Pull image'
+  inputs:
+    azureSubscriptionEndpoint: 'vscode-builds-subscription'
+    azureContainerRegistry: vscodehub.azurecr.io
+    command: 'Run an image'
+    imageName: 'vscode-linux-build-agent:armhf'
+    containerCommand: uname
+
+- script: |
+    set -e
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(devops-pat)
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
+
+- script: |
+    set -e
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
+
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+  displayName: Install dependencies
+
+- script: |
+    set -e
+    yarn gulp mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
+    yarn gulp hygiene
+    yarn monaco-compile-check
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    ./build/azure-pipelines/linux/prebuild-arm.sh
+  displayName: Prebuild
+
+- script: |
+    set -e
+    ./build/azure-pipelines/linux/build-arm.sh
+  displayName: Build
+
+- script: |
+    set -e
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+    ./build/azure-pipelines/linux/publish-arm.sh
+  displayName: Publish
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true

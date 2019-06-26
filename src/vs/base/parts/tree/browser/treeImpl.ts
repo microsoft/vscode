@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./tree';
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
 import * as Model from 'vs/base/parts/tree/browser/treeModel';
 import * as View from './treeView';
@@ -22,13 +20,13 @@ export class TreeContext implements _.ITreeContext {
 	public options: _.ITreeOptions;
 
 	public dataSource: _.IDataSource;
-	public renderer: _.IRenderer;
+	public renderer?: _.IRenderer;
 	public controller: _.IController;
 	public dnd: _.IDragAndDrop;
 	public filter: _.IFilter;
-	public sorter: _.ISorter;
+	public sorter?: _.ISorter;
 	public accessibilityProvider: _.IAccessibilityProvider;
-	public styler: _.ITreeStyler;
+	public styler?: _.ITreeStyler;
 
 	constructor(tree: _.ITree, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		this.tree = tree;
@@ -44,9 +42,9 @@ export class TreeContext implements _.ITreeContext {
 		this.controller = configuration.controller || new TreeDefaults.DefaultController({ clickBehavior: TreeDefaults.ClickBehavior.ON_MOUSE_UP, keyboardSupport: typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport });
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
-		this.sorter = configuration.sorter || null;
+		this.sorter = configuration.sorter;
 		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
-		this.styler = configuration.styler || null;
+		this.styler = configuration.styler;
 	}
 }
 
@@ -151,7 +149,7 @@ export class Tree implements _.ITree {
 		this.view.onHidden();
 	}
 
-	public setInput(element: any): WinJS.Promise {
+	public setInput(element: any): Promise<any> {
 		return this.model.setInput(element);
 	}
 
@@ -159,126 +157,48 @@ export class Tree implements _.ITree {
 		return this.model.getInput();
 	}
 
-	public refresh(element: any = null, recursive = true): WinJS.Promise {
+	public refresh(element: any = null, recursive = true): Promise<any> {
 		return this.model.refresh(element, recursive);
 	}
 
-	public updateWidth(element: any): void {
-		let item = this.model.getItem(element);
-		return this.view.updateWidth(item);
-	}
-
-	public expand(element: any): WinJS.Promise {
+	public expand(element: any): Promise<any> {
 		return this.model.expand(element);
 	}
 
-	public expandAll(elements: any[]): WinJS.Promise {
+	public expandAll(elements: any[]): Promise<any> {
 		return this.model.expandAll(elements);
 	}
 
-	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
+	public collapse(element: any, recursive: boolean = false): Promise<any> {
 		return this.model.collapse(element, recursive);
 	}
 
-	public collapseAll(elements: any[] = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Promise<any> {
 		return this.model.collapseAll(elements, recursive);
 	}
 
-	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+	public toggleExpansion(element: any, recursive: boolean = false): Promise<any> {
 		return this.model.toggleExpansion(element, recursive);
-	}
-
-	public toggleExpansionAll(elements: any[]): WinJS.Promise {
-		return this.model.toggleExpansionAll(elements);
 	}
 
 	public isExpanded(element: any): boolean {
 		return this.model.isExpanded(element);
 	}
 
-	public getExpandedElements(): any[] {
-		return this.model.getExpandedElements();
-	}
-
-	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.model.reveal(element, relativeTop);
-	}
-
-	public getRelativeTop(element: any): number {
-		let item = this.model.getItem(element);
-		return this.view.getRelativeTop(item);
-	}
-
-	public getFirstVisibleElement(): any {
-		return this.view.getFirstVisibleElement();
-	}
-
-	public getLastVisibleElement(): any {
-		return this.view.getLastVisibleElement();
-	}
-
-	public getScrollPosition(): number {
-		return this.view.getScrollPosition();
-	}
-
-	public setScrollPosition(pos: number): void {
-		this.view.setScrollPosition(pos);
-	}
-
-	getContentHeight(): number {
-		return this.view.getContentHeight();
-	}
-
-	public setHighlight(element?: any, eventPayload?: any): void {
-		this.model.setHighlight(element, eventPayload);
 	}
 
 	public getHighlight(): any {
 		return this.model.getHighlight();
 	}
 
-	public isHighlighted(element: any): boolean {
-		return this.model.isFocused(element);
-	}
-
 	public clearHighlight(eventPayload?: any): void {
 		this.model.setHighlight(null, eventPayload);
 	}
 
-	public select(element: any, eventPayload?: any): void {
-		this.model.select(element, eventPayload);
-	}
-
-	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		this.model.selectRange(fromElement, toElement, eventPayload);
-	}
-
-	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		this.model.deselectRange(fromElement, toElement, eventPayload);
-	}
-
-	public selectAll(elements: any[], eventPayload?: any): void {
-		this.model.selectAll(elements, eventPayload);
-	}
-
-	public deselect(element: any, eventPayload?: any): void {
-		this.model.deselect(element, eventPayload);
-	}
-
-	public deselectAll(elements: any[], eventPayload?: any): void {
-		this.model.deselectAll(elements, eventPayload);
-	}
-
 	public setSelection(elements: any[], eventPayload?: any): void {
 		this.model.setSelection(elements, eventPayload);
-	}
-
-	public toggleSelection(element: any, eventPayload?: any): void {
-		this.model.toggleSelection(element, eventPayload);
-	}
-
-	public isSelected(element: any): boolean {
-		return this.model.isSelected(element);
 	}
 
 	public getSelection(): any[] {
@@ -289,24 +209,8 @@ export class Tree implements _.ITree {
 		this.model.setSelection([], eventPayload);
 	}
 
-	public selectNext(count?: number, clearSelection?: boolean, eventPayload?: any): void {
-		this.model.selectNext(count, clearSelection, eventPayload);
-	}
-
-	public selectPrevious(count?: number, clearSelection?: boolean, eventPayload?: any): void {
-		this.model.selectPrevious(count, clearSelection, eventPayload);
-	}
-
-	public selectParent(clearSelection?: boolean, eventPayload?: any): void {
-		this.model.selectParent(clearSelection, eventPayload);
-	}
-
 	public setFocus(element?: any, eventPayload?: any): void {
 		this.model.setFocus(element, eventPayload);
-	}
-
-	public isFocused(element: any): boolean {
-		return this.model.isFocused(element);
 	}
 
 	public getFocus(): any {
@@ -353,23 +257,6 @@ export class Tree implements _.ITree {
 		this.model.setFocus(null, eventPayload);
 	}
 
-	public addTraits(trait: string, elements: any[]): void {
-		this.model.addTraits(trait, elements);
-	}
-
-	public removeTraits(trait: string, elements: any[]): void {
-		this.model.removeTraits(trait, elements);
-	}
-
-	public toggleTrait(trait: string, element: any): void {
-		this.model.hasTrait(trait, element) ? this.model.removeTraits(trait, [element])
-			: this.model.addTraits(trait, [element]);
-	}
-
-	public hasTrait(trait: string, element: any): boolean {
-		return this.model.hasTrait(trait, element);
-	}
-
 	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any> {
 		return new MappedNavigator(this.model.getNavigator(fromElement, subTreeOnly), i => i && i.getElement());
 	}
@@ -379,11 +266,11 @@ export class Tree implements _.ITree {
 
 		if (this.model !== null) {
 			this.model.dispose();
-			this.model = null;
+			this.model = null!; // StrictNullOverride Nulling out ok in dispose
 		}
 		if (this.view !== null) {
 			this.view.dispose();
-			this.view = null;
+			this.view = null!; // StrictNullOverride Nulling out ok in dispose
 		}
 
 		this._onDidChangeFocus.dispose();

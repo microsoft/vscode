@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -15,8 +13,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { asJson } from 'vs/base/node/request';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -25,7 +23,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
@@ -44,7 +42,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		this.requestService.request({ url: this.url })
+		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
@@ -60,7 +58,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					this.setState(State.AvailableForDownload(update));
 				}
 			})
-			.then(null, err => {
+			.then(undefined, err => {
 				this.logService.error(err);
 
 				/* __GDPR__
@@ -69,20 +67,22 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(UpdateType.Archive));
+
+				// only show message when explicitly checking for updates
+				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				this.setState(State.Idle(UpdateType.Archive, message));
 			});
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
+	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
 			shell.openExternal(product.downloadUrl);
-		} else {
+		} else if (state.update.url) {
 			shell.openExternal(state.update.url);
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-		return TPromise.as(null);
 	}
 }

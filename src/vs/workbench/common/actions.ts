@@ -2,15 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -31,14 +29,14 @@ export interface IWorkbenchActionRegistry {
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
 	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
-		return this._registerWorkbenchCommandFromAction(descriptor, alias, category, when);
+		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private _registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
-		let registrations: IDisposable[] = [];
+	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+		const registrations = new DisposableStore();
 
 		// command
-		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this._createCommandHandler(descriptor)));
+		registrations.add(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
 
 		// keybinding
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
@@ -46,8 +44,8 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: descriptor.keybindingContext,
-			primary: keybindings && keybindings.primary,
+			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
+			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,
 			mac: keybindings && keybindings.mac,
@@ -56,71 +54,68 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/electron-browser/search.contribution.ts#L266
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			let idx = alias.indexOf(': ');
-			let categoryOriginal;
+			let categoryOriginal = '';
 			if (idx > 0) {
 				categoryOriginal = alias.substr(0, idx);
 				alias = alias.substr(idx + 2);
 			}
 
-			const command = {
+			const command: ICommandAction = {
 				id: descriptor.id,
 				title: { value: descriptor.label, original: alias },
-				category: category && { value: category, original: categoryOriginal }
+				category: category ? { value: category, original: categoryOriginal } : undefined
 			};
 
 			MenuRegistry.addCommand(command);
 
-			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
+			registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
 
 		// TODO@alex,joh
 		// support removal of keybinding rule
 		// support removal of command-ui
-		return combinedDisposable(registrations);
+		return registrations;
 	}
 
-	private _createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
-		return (accessor, args) => {
+	private createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
+		return async (accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
-				notificationService.error(err);
-			});
+			try {
+				await this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args);
+			} catch (error) {
+				notificationService.error(error);
+			}
 		};
 	}
 
-	private _triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
+	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Promise<void> {
+
 		// run action when workbench is created
-		return lifecycleService.when(LifecyclePhase.Running).then(() => {
-			const actionInstance = instantiationService.createInstance(descriptor.syncDescriptor);
-			try {
-				actionInstance.label = descriptor.label || actionInstance.label;
+		await lifecycleService.when(LifecyclePhase.Ready);
 
-				// don't run the action when not enabled
-				if (!actionInstance.enabled) {
-					actionInstance.dispose();
+		const actionInstance = instantiationService.createInstance(descriptor.syncDescriptor);
+		actionInstance.label = descriptor.label || actionInstance.label;
 
-					return void 0;
-				}
+		// don't run the action when not enabled
+		if (!actionInstance.enabled) {
+			actionInstance.dispose();
 
-				const from = args && args.from || 'keybinding';
+			return;
+		}
 
-				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
-					actionInstance.dispose();
-				}, (err) => {
-					actionInstance.dispose();
-					return TPromise.wrapError(err);
-				});
-			} catch (err) {
-				actionInstance.dispose();
-				return TPromise.wrapError(err);
-			}
-		});
+		// otherwise run and dispose
+		try {
+			const from = args && args.from || 'keybinding';
+			await actionInstance.run(undefined, { from });
+		} finally {
+			actionInstance.dispose();
+		}
 	}
 });

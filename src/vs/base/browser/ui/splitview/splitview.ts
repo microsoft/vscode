@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./splitview';
-import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, mapEvent, Emitter } from 'vs/base/common/event';
+import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import { clamp } from 'vs/base/common/numbers';
@@ -31,6 +29,16 @@ export interface ISplitViewOptions {
 	orthogonalStartSash?: Sash;
 	orthogonalEndSash?: Sash;
 	inverseAltBehavior?: boolean;
+	proportionalLayout?: boolean; // default true
+}
+
+/**
+ * Only used when `proportionalLayout` is false.
+ */
+export const enum LayoutPriority {
+	Normal,
+	Low,
+	High
 }
 
 export interface IView {
@@ -38,6 +46,7 @@ export interface IView {
 	readonly minimumSize: number;
 	readonly maximumSize: number;
 	readonly onDidChange: Event<number | undefined>;
+	readonly priority?: LayoutPriority;
 	layout(size: number, orientation: Orientation): void;
 }
 
@@ -86,10 +95,9 @@ export namespace Sizing {
 	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
 }
 
-export class SplitView implements IDisposable {
+export class SplitView extends Disposable {
 
 	readonly orientation: Orientation;
-	// TODO@Joao have the same pattern as grid here
 	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
@@ -101,10 +109,12 @@ export class SplitView implements IDisposable {
 	private sashDragState: ISashDragState;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
+	private proportionalLayout: boolean;
 
-	private _onDidSashChange = new Emitter<number>();
+	private _onDidSashChange = this._register(new Emitter<number>());
 	readonly onDidSashChange = this._onDidSashChange.event;
-	private _onDidSashReset = new Emitter<number>();
+
+	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
 	get length(): number {
@@ -144,8 +154,11 @@ export class SplitView implements IDisposable {
 	}
 
 	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
+		super();
+
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 		this.inverseAltBehavior = !!options.inverseAltBehavior;
+		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
 
 		this.el = document.createElement('div');
 		dom.addClass(this.el, 'monaco-split-view2');
@@ -186,7 +199,7 @@ export class SplitView implements IDisposable {
 
 		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
 		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
-		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
+		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
 
 		const layoutContainer = this.orientation === Orientation.VERTICAL
 			? () => item.container.style.height = `${item.size}px`
@@ -213,7 +226,7 @@ export class SplitView implements IDisposable {
 		// Add sash
 		if (this.viewItems.length > 1) {
 			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
+			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) } : { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) };
 			const sash = new Sash(this.sashContainer, layoutProvider, {
 				orientation,
 				orthogonalStartSash: this.orthogonalStartSash,
@@ -221,18 +234,18 @@ export class SplitView implements IDisposable {
 			});
 
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
-				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey } as ISashEvent)
-				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey } as ISashEvent);
+				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })
+				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey });
 
-			const onStart = mapEvent(sash.onDidStart, sashEventMapper);
+			const onStart = Event.map(sash.onDidStart, sashEventMapper);
 			const onStartDisposable = onStart(this.onSashStart, this);
-			const onChange = mapEvent(sash.onDidChange, sashEventMapper);
+			const onChange = Event.map(sash.onDidChange, sashEventMapper);
 			const onChangeDisposable = onChange(this.onSashChange, this);
-			const onEnd = mapEvent(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
+			const onEnd = Event.map(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
 			const onEndDisposable = onEnd(this.onSashEnd, this);
 			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
 
-			const disposable = combinedDisposable([onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash]);
+			const disposable = combinedDisposable(onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash);
 			const sashItem: ISashItem = { sash, disposable };
 
 			this.sashItems.splice(index - 1, 0, sashItem);
@@ -316,8 +329,10 @@ export class SplitView implements IDisposable {
 
 	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		const lowPriorityIndexes = typeof lowPriorityIndex === 'number' ? [lowPriorityIndex] : undefined;
+		const highPriorityIndexes = typeof highPriorityIndex === 'number' ? [highPriorityIndex] : undefined;
 
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex, highPriorityIndex);
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		this.distributeEmptySpace();
 		this.layoutViews();
 		this.saveProportions();
@@ -328,7 +343,11 @@ export class SplitView implements IDisposable {
 		this.size = size;
 
 		if (!this.proportions) {
-			this.resize(this.viewItems.length - 1, size - previousSize);
+			const indexes = range(this.viewItems.length);
+			const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].view.priority === LayoutPriority.Low);
+			const highPriorityIndexes = indexes.filter(i => this.viewItems[i].view.priority === LayoutPriority.High);
+
+			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		} else {
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
@@ -341,7 +360,7 @@ export class SplitView implements IDisposable {
 	}
 
 	private saveProportions(): void {
-		if (this.contentSize > 0) {
+		if (this.proportionalLayout && this.contentSize > 0) {
 			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
 		}
 	}
@@ -350,10 +369,10 @@ export class SplitView implements IDisposable {
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
 
 		// This way, we can press Alt while we resize a sash, macOS style!
-		const disposable = combinedDisposable([
+		const disposable = combinedDisposable(
 			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState.current, e.altKey)),
 			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState.current, false))
-		]);
+		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {
 			const sizes = this.viewItems.map(i => i.size);
@@ -499,8 +518,8 @@ export class SplitView implements IDisposable {
 		index: number,
 		delta: number,
 		sizes = this.viewItems.map(i => i.size),
-		lowPriorityIndex?: number,
-		highPriorityIndex?: number,
+		lowPriorityIndexes?: number[],
+		highPriorityIndexes?: number[],
 		overloadMinDelta: number = Number.NEGATIVE_INFINITY,
 		overloadMaxDelta: number = Number.POSITIVE_INFINITY
 	): number {
@@ -511,14 +530,18 @@ export class SplitView implements IDisposable {
 		const upIndexes = range(index, -1);
 		const downIndexes = range(index + 1, this.viewItems.length);
 
-		if (typeof highPriorityIndex === 'number') {
-			pushToStart(upIndexes, highPriorityIndex);
-			pushToStart(downIndexes, highPriorityIndex);
+		if (highPriorityIndexes) {
+			for (const index of highPriorityIndexes) {
+				pushToStart(upIndexes, index);
+				pushToStart(downIndexes, index);
+			}
 		}
 
-		if (typeof lowPriorityIndex === 'number') {
-			pushToEnd(upIndexes, lowPriorityIndex);
-			pushToEnd(downIndexes, lowPriorityIndex);
+		if (lowPriorityIndexes) {
+			for (const index of lowPriorityIndexes) {
+				pushToEnd(upIndexes, index);
+				pushToEnd(downIndexes, index);
+			}
 		}
 
 		const upItems = upIndexes.map(i => this.viewItems[i]);
@@ -626,6 +649,8 @@ export class SplitView implements IDisposable {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		this.viewItems.forEach(i => i.disposable.dispose());
 		this.viewItems = [];
 

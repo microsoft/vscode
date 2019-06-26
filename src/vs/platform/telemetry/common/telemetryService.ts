@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -12,14 +10,14 @@ import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils'
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
-	commonProperties?: TPromise<{ [name: string]: any }>;
+	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
 }
 
@@ -31,9 +29,10 @@ export class TelemetryService implements ITelemetryService {
 	_serviceBrand: any;
 
 	private _appender: ITelemetryAppender;
-	private _commonProperties: TPromise<{ [name: string]: any; }>;
+	private _commonProperties: Promise<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
+	private _enabled: boolean;
 
 	private _disposables: IDisposable[] = [];
 	private _cleanupPatterns: RegExp[] = [];
@@ -43,9 +42,10 @@ export class TelemetryService implements ITelemetryService {
 		@optional(IConfigurationService) private _configurationService: IConfigurationService
 	) {
 		this._appender = config.appender;
-		this._commonProperties = config.commonProperties || TPromise.as({});
+		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
+		this._enabled = true;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
@@ -63,7 +63,22 @@ export class TelemetryService implements ITelemetryService {
 				}
 			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
+
+			this._commonProperties.then(values => {
+				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
+
+				/* __GDPR__
+					"machineIdFallback" : {
+						"usingFallbackGuid" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
+					}
+				*/
+				this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
+			});
 		}
+	}
+
+	setEnabled(value: boolean): void {
+		this._enabled = value;
 	}
 
 	private _updateUserOptIn(): void {
@@ -72,28 +87,28 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	get isOptedIn(): boolean {
-		return this._userOptIn;
+		return this._userOptIn && this._enabled;
 	}
 
-	getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return this._commonProperties.then(values => {
-			// well known properties
-			let sessionId = values['sessionID'];
-			let instanceId = values['common.instanceId'];
-			let machineId = values['common.machineId'];
+	async getTelemetryInfo(): Promise<ITelemetryInfo> {
+		const values = await this._commonProperties;
 
-			return { sessionId, instanceId, machineId };
-		});
+		// well known properties
+		let sessionId = values['sessionID'];
+		let instanceId = values['common.instanceId'];
+		let machineId = values['common.machineId'];
+
+		return { sessionId, instanceId, machineId };
 	}
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): TPromise<any> {
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
-		if (!this._userOptIn) {
-			return TPromise.as(undefined);
+		if (!this.isOptedIn) {
+			return Promise.resolve(undefined);
 		}
 
 		return this._commonProperties.then(values => {
@@ -117,6 +132,10 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
+		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	}
+
 	private _cleanupInfo(stack: string, anonymizeFilePaths?: boolean): string {
 		let updatedStack = stack;
 
@@ -134,6 +153,8 @@ export class TelemetryService implements ITelemetryService {
 
 			const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
 			const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+			let lastIndex = 0;
+			updatedStack = '';
 
 			while (true) {
 				const result = fileRegex.exec(stack);
@@ -142,8 +163,12 @@ export class TelemetryService implements ITelemetryService {
 				}
 				// Anoynimize user file paths that do not need to be retained or cleaned up.
 				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-					updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
+					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+					lastIndex = fileRegex.lastIndex;
 				}
+			}
+			if (lastIndex < stack.length) {
+				updatedStack += stack.substr(lastIndex);
 			}
 		}
 

@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { RangeProvider } from './folding';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -21,29 +18,27 @@ export const ID_INDENT_PROVIDER = 'indent';
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = ID_INDENT_PROVIDER;
 
-	readonly decorations;
-
-	constructor(private editorModel: ITextModel) {
+	constructor(private readonly editorModel: ITextModel) {
 	}
 
 	dispose() {
 	}
 
-	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions> {
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
-		let offSide = foldingRules && foldingRules.offSide;
+		let offSide = foldingRules && !!foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
-		return TPromise.as(computeRanges(this.editorModel, offSide, markers));
+		return Promise.resolve(computeRanges(this.editorModel, offSide, markers));
 	}
 }
 
 // public only for testing
 export class RangesCollector {
-	private _startIndexes: number[];
-	private _endIndexes: number[];
-	private _indentOccurrences: number[];
+	private readonly _startIndexes: number[];
+	private readonly _endIndexes: number[];
+	private readonly _indentOccurrences: number[];
 	private _length: number;
-	private _foldingRangesLimit: number;
+	private readonly _foldingRangesLimit: number;
 
 	constructor(foldingRangesLimit: number) {
 		this._startIndexes = [];
@@ -116,7 +111,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	const tabSize = model.getOptions().tabSize;
 	let result = new RangesCollector(foldingRangesLimit);
 
-	let pattern = void 0;
+	let pattern: RegExp | undefined = undefined;
 	if (markers) {
 		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
 	}

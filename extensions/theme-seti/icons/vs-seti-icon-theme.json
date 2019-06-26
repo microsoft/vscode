@@ -1349,7 +1349,6 @@
 		"sty": "_tex_1",
 		"dtx": "_tex_2",
 		"ins": "_tex_3",
-		"txt": "_default",
 		"toml": "_config",
 		"twig": "_twig",
 		"spec.ts": "_typescript_1",
@@ -1640,7 +1639,6 @@
 			"sty": "_tex_1_light",
 			"dtx": "_tex_2_light",
 			"ins": "_tex_3_light",
-			"txt": "_default_light",
 			"toml": "_config_light",
 			"twig": "_twig_light",
 			"spec.ts": "_typescript_1_light",
@@ -1822,5 +1820,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/7714a720646300bb8f6d1690752cd71f50991414"
+	"version": "https://github.com/jesseweed/seti-ui/commit/89175d7f9e0c70cd325b80a18a3c77fc8eb7c798"
 }

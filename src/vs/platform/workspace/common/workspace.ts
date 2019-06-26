@@ -2,21 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export enum WorkbenchState {
+export const enum WorkbenchState {
 	EMPTY = 1,
 	FOLDER,
 	WORKSPACE
@@ -47,7 +43,13 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
-	 * Provides access to the workspace object the platform is running with.
+	 * Provides access to the complete workspace object.
+	 */
+	getCompleteWorkspace(): Promise<IWorkspace>;
+
+	/**
+	 * Provides access to the workspace object the window is running with.
+	 * Use `getCompleteWorkspace` to get complete workspace object.
 	 */
 	getWorkspace(): IWorkspace;
 
@@ -64,7 +66,7 @@ export interface IWorkspaceContextService {
 	 * Returns the folder for the given resource from the workspace.
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder;
+	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
 
 	/**
 	 * Return `true` if the current workspace has the given identifier otherwise `false`.
@@ -100,7 +102,7 @@ export interface IWorkspace {
 	/**
 	 * the location of the workspace configuration
 	 */
-	readonly configuration?: URI;
+	readonly configuration?: URI | null;
 }
 
 export interface IWorkspaceFolderData {
@@ -146,8 +148,7 @@ export class Workspace implements IWorkspace {
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[] = [],
-		private _configuration: URI = null,
-		private _ctime?: number
+		private _configuration: URI | null = null
 	) {
 		this.folders = folders;
 	}
@@ -155,7 +156,6 @@ export class Workspace implements IWorkspace {
 	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
-		this._ctime = workspace.ctime;
 		this.folders = workspace.folders;
 	}
 
@@ -172,24 +172,20 @@ export class Workspace implements IWorkspace {
 		return this._id;
 	}
 
-	get ctime(): number {
-		return this._ctime;
-	}
-
-	get configuration(): URI {
+	get configuration(): URI | null {
 		return this._configuration;
 	}
 
-	set configuration(configuration: URI) {
+	set configuration(configuration: URI | null) {
 		this._configuration = configuration;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder {
+	getFolder(resource: URI): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.toString());
+		return this._foldersMap.findSubstr(resource.toString()) || null;
 	}
 
 	private updateFoldersMap(): void {
@@ -226,17 +222,21 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo?: URI): WorkspaceFolder[] {
-	let workspaceFolders = parseWorkspaceFolders(configuredFolders, relativeTo);
-	return ensureUnique(coalesce(workspaceFolders))
-		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || resources.basenameOrAuthority(uri), index }, raw));
+export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
+	return new WorkspaceFolder({ uri: resource, index: 0, name: resources.basenameOrAuthority(resource) }, { uri: resource.toString() });
 }
 
-function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
-	return configuredFolders.map((configuredFolder, index) => {
-		let uri: URI;
+export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
+	let result: WorkspaceFolder[] = [];
+	let seen: Set<string> = new Set();
+
+	const relativeTo = resources.dirname(workspaceConfigFile);
+	for (let configuredFolder of configuredFolders) {
+		let uri: URI | null = null;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
-			uri = toUri(configuredFolder.path, relativeTo);
+			if (configuredFolder.path) {
+				uri = resources.resolvePath(relativeTo, configuredFolder.path);
+			}
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
 				uri = URI.parse(configuredFolder.uri);
@@ -249,25 +249,16 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 				// ignore
 			}
 		}
-		if (!uri) {
-			return void 0;
-		}
-		return new WorkspaceFolder({ uri, name: configuredFolder.name, index }, configuredFolder);
-	});
-}
+		if (uri) {
+			// remove duplicates
+			let comparisonKey = resources.getComparisonKey(uri);
+			if (!seen.has(comparisonKey)) {
+				seen.add(comparisonKey);
 
-function toUri(path: string, relativeTo: URI): URI {
-	if (path) {
-		if (paths.isAbsolute(path)) {
-			return URI.file(path);
-		}
-		if (relativeTo) {
-			return resources.joinPath(relativeTo, path);
+				const name = configuredFolder.name || resources.basenameOrAuthority(uri);
+				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
+			}
 		}
 	}
-	return null;
-}
-
-function ensureUnique(folders: WorkspaceFolder[]): WorkspaceFolder[] {
-	return distinct(folders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
+	return result;
 }

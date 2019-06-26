@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
@@ -17,11 +16,11 @@ export class ExtensionsManifestCache extends Disposable {
 
 	constructor(
 		private readonly environmentService: IEnvironmentService,
-		extensionsManagementServuce: IExtensionManagementService
+		extensionsManagementService: IExtensionManagementService
 	) {
 		super();
-		this._register(extensionsManagementServuce.onDidInstallExtension(e => this.onDidInstallExtension(e)));
-		this._register(extensionsManagementServuce.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
+		this._register(extensionsManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
 	}
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
@@ -37,6 +36,6 @@ export class ExtensionsManifestCache extends Disposable {
 	}
 
 	invalidate(): void {
-		pfs.del(this.extensionsManifestCache).done(() => { }, () => { });
+		pfs.rimraf(this.extensionsManifestCache, pfs.RimRafMode.MOVE).then(() => { }, () => { });
 	}
 }

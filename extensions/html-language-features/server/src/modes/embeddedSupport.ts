@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import { TextDocument, Position, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
@@ -20,7 +18,7 @@ export interface HTMLDocumentRegions {
 	getImportedScripts(): string[];
 }
 
-export var CSS_STYLE_RULE = '__';
+export const CSS_STYLE_RULE = '__';
 
 interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
 
@@ -61,7 +59,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					if (/["'](module|(text|application)\/(java|ecma)script)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
 					} else {
-						languageIdFromType = void 0;
+						languageIdFromType = undefined;
 					}
 				} else {
 					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);
@@ -132,7 +130,7 @@ function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], ra
 	return result;
 }
 
-function getLanguagesInDocument(document: TextDocument, regions: EmbeddedRegion[]): string[] {
+function getLanguagesInDocument(_document: TextDocument, regions: EmbeddedRegion[]): string[] {
 	let result = [];
 	for (let region of regions) {
 		if (region.languageId && result.indexOf(region.languageId) === -1) {

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { Workbench } from './areas/workbench/workbench';
-import * as cp from 'child_process';
 import { Code, spawn, SpawnOptions } from './vscode/code';
 import { Logger } from './logger';
 
-export enum Quality {
+export const enum Quality {
 	Dev,
 	Insiders,
 	Stable
@@ -17,8 +18,8 @@ export enum Quality {
 export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
 	workspacePath: string;
-	workspaceFilePath: string;
 	waitTime: number;
+	screenshotsPath: string | null;
 }
 
 export class Application {
@@ -26,7 +27,9 @@ export class Application {
 	private _code: Code | undefined;
 	private _workbench: Workbench;
 
-	constructor(private options: ApplicationOptions) { }
+	constructor(private options: ApplicationOptions) {
+		this._workspacePathOrFolder = options.workspacePath;
+	}
 
 	get quality(): Quality {
 		return this.options.quality;
@@ -44,8 +47,13 @@ export class Application {
 		return this.options.logger;
 	}
 
-	get workspacePath(): string {
-		return this.options.workspacePath;
+	get remote(): boolean {
+		return !!this.options.remote;
+	}
+
+	private _workspacePathOrFolder: string;
+	get workspacePathOrFolder(): string {
+		return this._workspacePathOrFolder;
 	}
 
 	get extensionsPath(): string {
@@ -56,14 +64,13 @@ export class Application {
 		return this.options.userDataDir;
 	}
 
-	get workspaceFilePath(): string {
-		return this.options.workspaceFilePath;
-	}
-
-	async start(): Promise<any> {
+	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
-		await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+
+		if (expectWalkthroughPart) {
+			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+		}
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
@@ -72,9 +79,9 @@ export class Application {
 		await this._start(options.workspaceOrFolder, options.extraArgs);
 	}
 
-	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
-		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(workspaceOrFolder, extraArgs);
+	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
+		this._workspacePathOrFolder = workspaceOrFolder;
+		await this.startApplication(extraArgs);
 		await this.checkWindowReady();
 	}
 
@@ -89,25 +96,35 @@ export class Application {
 
 	async stop(): Promise<any> {
 		if (this._code) {
+			await this._code.exit();
 			this._code.dispose();
 			this._code = undefined;
 		}
 	}
 
-	async capturePage(): Promise<string> {
-		return this.code.capturePage();
+	async captureScreenshot(name: string): Promise<void> {
+		if (this.options.screenshotsPath) {
+			const raw = await this.code.capturePage();
+			const buffer = Buffer.from(raw, 'base64');
+			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
+			if (this.options.log) {
+				this.logger.log('*** Screenshot recorded:', screenshotPath);
+			}
+			fs.writeFileSync(screenshotPath, buffer);
+		}
 	}
 
-	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
+	private async startApplication(extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
 			codePath: this.options.codePath,
-			workspacePath: workspaceOrFolder,
+			workspacePath: this.workspacePathOrFolder,
 			userDataDir: this.options.userDataDir,
 			extensionsPath: this.options.extensionsPath,
 			logger: this.options.logger,
 			verbose: this.options.verbose,
 			log: this.options.log,
 			extraArgs,
+			remote: this.options.remote
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -122,8 +139,12 @@ export class Application {
 		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
 
+		if (this.remote) {
+			await this.code.waitForElement('.monaco-workbench .statusbar-item.statusbar-entry a[title="Editing on TestResolver"]');
+		}
+
 		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (eg quick open)
-		await new Promise(c => setTimeout(c, 500));
+		// as soon as they open (e.g. quick open)
+		await new Promise(c => setTimeout(c, 1000));
 	}
 }

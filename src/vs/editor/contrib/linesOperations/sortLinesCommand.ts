@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
-	private selection: Selection;
+	private readonly selection: Selection;
 	private selectionId: string;
-	private descending: boolean;
+	private readonly descending: boolean;
 
 	constructor(selection: Selection, descending: boolean) {
 		this.selection = selection;
@@ -34,7 +33,11 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 
-	public static canRun(model: ITextModel, selection: Selection, descending: boolean): boolean {
+	public static canRun(model: ITextModel | null, selection: Selection, descending: boolean): boolean {
+		if (model === null) {
+			return false;
+		}
+
 		let data = getSortData(model, selection, descending);
 
 		if (!data) {
@@ -64,7 +67,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 		return null;
 	}
 
-	let linesToSort = [];
+	let linesToSort: string[] = [];
 
 	// Get the contents of the selection to be sorted.
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -92,7 +95,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 /**
  * Generate commands for sorting lines on a model.
  */
-function sortLines(model: ITextModel, selection: Selection, descending: boolean): IIdentifiedSingleEditOperation {
+function sortLines(model: ITextModel, selection: Selection, descending: boolean): IIdentifiedSingleEditOperation | null {
 	let data = getSortData(model, selection, descending);
 
 	if (!data) {

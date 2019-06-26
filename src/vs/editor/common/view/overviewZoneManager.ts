@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 const enum Constants {
 	MINIMUM_HEIGHT = 4
@@ -42,7 +41,7 @@ export class OverviewRulerZone {
 	public readonly endLineNumber: number;
 	public readonly color: string;
 
-	private _colorZone: ColorZone;
+	private _colorZone: ColorZone | null;
 
 	constructor(
 		startLineNumber: number,
@@ -69,14 +68,14 @@ export class OverviewRulerZone {
 		this._colorZone = colorZone;
 	}
 
-	public getColorZones(): ColorZone {
+	public getColorZones(): ColorZone | null {
 		return this._colorZone;
 	}
 }
 
 export class OverviewZoneManager {
 
-	private _getVerticalOffsetForLine: (lineNumber: number) => number;
+	private readonly _getVerticalOffsetForLine: (lineNumber: number) => number;
 	private _zones: OverviewRulerZone[];
 	private _colorZonesInvalid: boolean;
 	private _lineHeight: number;
@@ -86,8 +85,8 @@ export class OverviewZoneManager {
 	private _pixelRatio: number;
 
 	private _lastAssignedId: number;
-	private _color2Id: { [color: string]: number; };
-	private _id2Color: string[];
+	private readonly _color2Id: { [color: string]: number; };
+	private readonly _id2Color: string[];
 
 	constructor(getVerticalOffsetForLine: (lineNumber: number) => number) {
 		this._getVerticalOffsetForLine = getVerticalOffsetForLine;

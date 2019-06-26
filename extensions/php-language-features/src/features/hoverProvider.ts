@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { HoverProvider, Hover, MarkedString, TextDocument, CancellationToken, Position, workspace } from 'vscode';
 import { textToMarkedString } from './utils/markedTextUtil';
 import phpGlobals = require('./phpGlobals');
@@ -25,7 +23,7 @@ export default class PHPHoverProvider implements HoverProvider {
 
 		let name = document.getText(wordRange);
 
-		var entry = phpGlobalFunctions.globalfunctions[name] || phpGlobals.compiletimeconstants[name] || phpGlobals.globalvariables[name] || phpGlobals.keywords[name];
+		let entry = phpGlobalFunctions.globalfunctions[name] || phpGlobals.compiletimeconstants[name] || phpGlobals.globalvariables[name] || phpGlobals.keywords[name];
 		if (entry && entry.description) {
 			let signature = name + (entry.signature || '');
 			let contents: MarkedString[] = [textToMarkedString(entry.description), { language: 'php', value: signature }];

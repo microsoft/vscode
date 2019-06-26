@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change } from './git';
-import { Event, SourceControlInputBox, Uri } from 'vscode';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 
 class ApiInputBox implements InputBox {
@@ -19,7 +17,12 @@ class ApiInputBox implements InputBox {
 
 export class ApiChange implements Change {
 
-	constructor(_resource: Resource) { }
+	get uri(): Uri { return this.resource.resourceUri; }
+	get originalUri(): Uri { return this.resource.original; }
+	get renameUri(): Uri | undefined { return this.resource.renameResourceUri; }
+	get status(): Status { return this.resource.type; }
+
+	constructor(private readonly resource: Resource) { }
 }
 
 export class ApiRepositoryState implements RepositoryState {
@@ -39,13 +42,27 @@ export class ApiRepositoryState implements RepositoryState {
 	constructor(private _repository: BaseRepository) { }
 }
 
+export class ApiRepositoryUIState implements RepositoryUIState {
+
+	get selected(): boolean { return this._sourceControl.selected; }
+
+	readonly onDidChange: Event<void> = mapEvent<boolean, void>(this._sourceControl.onDidChangeSelection, () => null);
+
+	constructor(private _sourceControl: SourceControl) { }
+}
+
 export class ApiRepository implements Repository {
 
 	readonly rootUri: Uri = Uri.file(this._repository.root);
 	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
 	readonly state: RepositoryState = new ApiRepositoryState(this._repository);
+	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this._repository.sourceControl);
 
 	constructor(private _repository: BaseRepository) { }
+
+	apply(patch: string, reverse?: boolean): Promise<void> {
+		return this._repository.apply(patch, reverse);
+	}
 
 	getConfigs(): Promise<{ key: string; value: string; }[]> {
 		return this._repository.getConfigs();
@@ -59,6 +76,22 @@ export class ApiRepository implements Repository {
 		return this._repository.setConfig(key, value);
 	}
 
+	getGlobalConfig(key: string): Promise<string> {
+		return this._repository.getGlobalConfig(key);
+	}
+
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
+		return this._repository.getObjectDetails(treeish, path);
+	}
+
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		return this._repository.detectObjectType(object);
+	}
+
+	buffer(ref: string, filePath: string): Promise<Buffer> {
+		return this._repository.buffer(ref, filePath);
+	}
+
 	show(ref: string, path: string): Promise<string> {
 		return this._repository.show(ref, path);
 	}
@@ -67,23 +100,35 @@ export class ApiRepository implements Repository {
 		return this._repository.getCommit(ref);
 	}
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
-		return this._repository.getObjectDetails(treeish, path);
+	clean(paths: string[]) {
+		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}
 
-	diffWithHEAD(path: string): Promise<string> {
+	diff(cached?: boolean) {
+		return this._repository.diff(cached);
+	}
+
+	diffWithHEAD(): Promise<Change[]>;
+	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEAD(path?: string): Promise<string | Change[]> {
 		return this._repository.diffWithHEAD(path);
 	}
 
-	diffWith(ref: string, path: string): Promise<string> {
+	diffWith(ref: string): Promise<Change[]>;
+	diffWith(ref: string, path: string): Promise<string>;
+	diffWith(ref: string, path?: string): Promise<string | Change[]> {
 		return this._repository.diffWith(ref, path);
 	}
 
-	diffIndexWithHEAD(path: string): Promise<string> {
+	diffIndexWithHEAD(): Promise<Change[]>;
+	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		return this._repository.diffIndexWithHEAD(path);
 	}
 
-	diffIndexWith(ref: string, path: string): Promise<string> {
+	diffIndexWith(ref: string): Promise<Change[]>;
+	diffIndexWith(ref: string, path: string): Promise<string>;
+	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
 		return this._repository.diffIndexWith(ref, path);
 	}
 
@@ -91,7 +136,9 @@ export class ApiRepository implements Repository {
 		return this._repository.diffBlobs(object1, object2);
 	}
 
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this._repository.diffBetween(ref1, ref2, path);
 	}
 
@@ -103,8 +150,8 @@ export class ApiRepository implements Repository {
 		return this._repository.branch(name, checkout, ref);
 	}
 
-	deleteBranch(name: string): Promise<void> {
-		return this._repository.deleteBranch(name);
+	deleteBranch(name: string, force?: boolean): Promise<void> {
+		return this._repository.deleteBranch(name, force);
 	}
 
 	getBranch(name: string): Promise<Branch> {
@@ -116,7 +163,7 @@ export class ApiRepository implements Repository {
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		throw new Error('Method not implemented.');
+		return this._repository.getMergeBase(ref1, ref2);
 	}
 
 	status(): Promise<void> {
@@ -135,12 +182,24 @@ export class ApiRepository implements Repository {
 		return this._repository.removeRemote(name);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref);
+	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
+		return this._repository.fetch(remote, ref, depth);
 	}
 
-	pull(): Promise<void> {
-		return this._repository.pull();
+	pull(unshallow?: boolean): Promise<void> {
+		return this._repository.pull(undefined, unshallow);
+	}
+
+	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {
+		return this._repository.pushTo(remoteName, branchName, setUpstream);
+	}
+
+	blame(path: string): Promise<string> {
+		return this._repository.blame(path);
+	}
+
+	log(options?: LogOptions): Promise<Commit[]> {
+		return this._repository.log(options);
 	}
 }
 

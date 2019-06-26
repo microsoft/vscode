@@ -3,49 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
 }
 
-export class MarkdownRenderer {
+export class MarkdownRenderer extends Disposable {
 
-	private _onDidRenderCodeBlock = new Emitter<void>();
+	private _onDidRenderCodeBlock = this._register(new Emitter<void>());
 	readonly onDidRenderCodeBlock: Event<void> = this._onDidRenderCodeBlock.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IModeService private readonly _modeService: IModeService,
-		@optional(IOpenerService) private readonly _openerService: IOpenerService = NullOpenerService,
+		@optional(IOpenerService) private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
+		super();
 	}
 
-	private getOptions(disposeables: IDisposable[]): RenderOptions {
+	private getOptions(disposeables: DisposableStore): RenderOptions {
 		return {
-			codeBlockRenderer: (languageAlias, value): TPromise<string> => {
+			codeBlockRenderer: (languageAlias, value) => {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
 				// it is possible no alias is given in which case we fall back to the current editor lang
-				const modeId = languageAlias
-					? this._modeService.getModeIdForLanguageName(languageAlias)
-					: this._editor.getModel().getLanguageIdentifier().language;
+				let modeId: string | null = null;
+				if (languageAlias) {
+					modeId = this._modeService.getModeIdForLanguageName(languageAlias);
+				} else {
+					const model = this._editor.getModel();
+					if (model) {
+						modeId = model.getLanguageIdentifier().language;
+					}
+				}
 
-				return this._modeService.getOrCreateMode(modeId).then(_ => {
-					return tokenizeToString(value, modeId);
+				this._modeService.triggerMode(modeId || '');
+				return Promise.resolve(true).then(_ => {
+					const promise = TokenizationRegistry.getPromise(modeId || '');
+					if (promise) {
+						return promise.then(support => tokenizeToString(value, support));
+					}
+					return tokenizeToString(value, undefined);
 				}).then(code => {
 					return `<span style="font-family: ${this._editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});
@@ -53,15 +63,23 @@ export class MarkdownRenderer {
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
 			actionHandler: {
 				callback: (content) => {
-					this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					let uri: URI | undefined;
+					try {
+						uri = URI.parse(content);
+					} catch {
+						// ignore
+					}
+					if (uri && this._openerService) {
+						this._openerService.open(uri).catch(onUnexpectedError);
+					}
 				},
 				disposeables
 			}
 		};
 	}
 
-	render(markdown: IMarkdownString): IMarkdownRenderResult {
-		let disposeables: IDisposable[] = [];
+	render(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const disposeables = new DisposableStore();
 
 		let element: HTMLElement;
 		if (!markdown) {
@@ -72,7 +90,7 @@ export class MarkdownRenderer {
 
 		return {
 			element,
-			dispose: () => dispose(disposeables)
+			dispose: () => disposeables.dispose()
 		};
 	}
 }

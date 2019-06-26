@@ -11,6 +11,7 @@
 	padding: 4px;
 	text-align: center;
 	cursor: pointer;
+	outline-offset: 2px !important;
 }
 
 .monaco-text-button:hover {

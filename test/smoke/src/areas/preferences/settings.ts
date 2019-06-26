@@ -10,12 +10,10 @@ import { Editors } from '../editor/editors';
 import { Code } from '../../vscode/code';
 import { QuickOpen } from '../quickopen/quickopen';
 
-export enum ActivityBarPosition {
+export const enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
 }
-
-const SEARCH_INPUT = '.settings-search-input input';
 
 export class SettingsEditor {
 
@@ -23,13 +21,10 @@ export class SettingsEditor {
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openSettings();
-		await this.code.waitAndClick(SEARCH_INPUT);
-		await this.code.waitForActiveElement(SEARCH_INPUT);
-
-		await this.editor.waitForEditorFocus('settings.json', 1, '.editable-preferences-editor-container');
+		await this.editor.waitForEditorFocus('settings.json', 1);
 
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`);
 		await this.editors.saveOpenedFile();
 	}
 
@@ -38,7 +33,7 @@ export class SettingsEditor {
 		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
 		await this.openSettings();
-		await this.editor.waitForEditorContents('settings.json', c => c === '{}', '.editable-preferences-editor-container');
+		await this.editor.waitForEditorContents('settings.json', c => c === '{}');
 	}
 
 	private async openSettings(): Promise<void> {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -55,8 +53,7 @@ export class IconBadge extends BaseBadge {
 	}
 }
 
-export class ProgressBadge extends BaseBadge {
-}
+export class ProgressBadge extends BaseBadge { }
 
 export const IActivityService = createDecorator<IActivityService>('activityService');
 

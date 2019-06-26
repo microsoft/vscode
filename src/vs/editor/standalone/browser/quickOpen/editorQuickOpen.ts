@@ -2,19 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import 'vs/css!./editorQuickOpen';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { QuickOpenEditorWidget } from './quickOpenEditorWidget';
-import { Selection } from 'vs/editor/common/core/selection';
-import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { EditorAction, IActionOptions, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { QuickOpenEditorWidget } from 'vs/editor/standalone/browser/quickOpen/quickOpenEditorWidget';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -30,12 +30,12 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private widget: QuickOpenEditorWidget;
-	private rangeHighlightDecorationId: string;
-	private lastKnownEditorSelection: Selection;
+	private readonly editor: ICodeEditor;
+	private widget: QuickOpenEditorWidget | null;
+	private rangeHighlightDecorationId: string | null;
+	private lastKnownEditorSelection: Selection | null;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
 	}
 
@@ -69,7 +69,13 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			}
 
 			this.lastKnownEditorSelection = null;
-			this.editor.focus();
+
+			// Return focus to the editor if
+			// - focus is back on the <body> element because no other focusable element was clicked
+			// - a command was picked from the picker which indicates the editor should get focused
+			if (document.activeElement === document.body || !canceled) {
+				this.editor.focus();
+			}
 		};
 
 		this.widget = new QuickOpenEditorWidget(
@@ -77,7 +83,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			() => onClose(false),
 			() => onClose(true),
 			(value: string) => {
-				this.widget.setInput(opts.getModel(value), opts.getAutoFocus(value));
+				this.widget!.setInput(opts.getModel(value), opts.getAutoFocus(value));
 			},
 			{
 				inputAriaLabel: opts.inputAriaLabel
@@ -142,7 +148,7 @@ export interface IQuickOpenOpts {
  */
 export abstract class BaseEditorQuickOpenAction extends EditorAction {
 
-	private _inputAriaLabel: string;
+	private readonly _inputAriaLabel: string;
 
 	constructor(inputAriaLabel: string, opts: IActionOptions) {
 		super(opts);

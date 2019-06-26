@@ -9,5 +9,7 @@
 	"json.format.enable.desc": "Enable/disable default JSON formatter",
 	"json.tracing.desc": "Traces the communication between VS Code and the JSON language server.",
 	"json.colorDecorators.enable.desc": "Enables or disables color decorators",
-	"json.colorDecorators.enable.deprecationMessage": "The setting `json.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`."
+	"json.colorDecorators.enable.deprecationMessage": "The setting `json.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
+	"json.schemaResolutionErrorMessage": "Unable to resolve schema.",
+	"json.clickToRetry": "Click to retry."
 }

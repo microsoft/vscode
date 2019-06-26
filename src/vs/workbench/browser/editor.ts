@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { EditorInput } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -18,7 +16,7 @@ export interface IEditorDescriptor {
 	getId(): string;
 	getName(): string;
 
-	describes(obj: any): boolean;
+	describes(obj: unknown): boolean;
 }
 
 export interface IEditorRegistry {
@@ -38,12 +36,12 @@ export interface IEditorRegistry {
 	/**
 	 * Returns the editor descriptor for the given input or null if none.
 	 */
-	getEditor(input: EditorInput): IEditorDescriptor;
+	getEditor(input: EditorInput): IEditorDescriptor | null;
 
 	/**
 	 * Returns the editor descriptor for the given identifier or null if none.
 	 */
-	getEditorById(editorId: string): IEditorDescriptor;
+	getEditorById(editorId: string): IEditorDescriptor | null;
 
 	/**
 	 * Returns an array of registered editors known to the platform.
@@ -78,8 +76,8 @@ export class EditorDescriptor implements IEditorDescriptor {
 		return this.name;
 	}
 
-	describes(obj: any): boolean {
-		return obj instanceof BaseEditor && (<BaseEditor>obj).getId() === this.id;
+	describes(obj: unknown): boolean {
+		return obj instanceof BaseEditor && obj.getId() === this.id;
 	}
 }
 
@@ -90,7 +88,7 @@ class EditorRegistry implements IEditorRegistry {
 
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
-	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: any): void {
+	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput> | SyncDescriptor<EditorInput>[]): void {
 
 		// Support both non-array and array parameter
 		let inputDescriptors: SyncDescriptor<EditorInput>[] = [];
@@ -105,15 +103,14 @@ class EditorRegistry implements IEditorRegistry {
 		this.editors.push(descriptor);
 	}
 
-	getEditor(input: EditorInput): EditorDescriptor {
+	getEditor(input: EditorInput): EditorDescriptor | null {
 		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[] => {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
-			for (let i = 0; i < this.editors.length; i++) {
-				const editor = this.editors[i];
-				const inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
-				for (let j = 0; j < inputDescriptors.length; j++) {
-					const inputClass = inputDescriptors[j].ctor;
+			for (const editor of this.editors) {
+				const inputDescriptors: SyncDescriptor<EditorInput>[] = editor[INPUT_DESCRIPTORS_PROPERTY];
+				for (const inputDescriptor of inputDescriptors) {
+					const inputClass = inputDescriptor.ctor;
 
 					// Direct check on constructor type (ignores prototype chain)
 					if (!byInstanceOf && input.constructor === inputClass) {
@@ -157,9 +154,8 @@ class EditorRegistry implements IEditorRegistry {
 		return null;
 	}
 
-	getEditorById(editorId: string): EditorDescriptor {
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
+	getEditorById(editorId: string): EditorDescriptor | null {
+		for (const editor of this.editors) {
 			if (editor.getId() === editorId) {
 				return editor;
 			}
@@ -176,11 +172,10 @@ class EditorRegistry implements IEditorRegistry {
 		this.editors = editorsToSet;
 	}
 
-	getEditorInputs(): any[] {
-		const inputClasses: any[] = [];
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
-			const editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
+	getEditorInputs(): SyncDescriptor<EditorInput>[] {
+		const inputClasses: SyncDescriptor<EditorInput>[] = [];
+		for (const editor of this.editors) {
+			const editorInputDescriptors: SyncDescriptor<EditorInput>[] = editor[INPUT_DESCRIPTORS_PROPERTY];
 			inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
 		}
 

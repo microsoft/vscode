@@ -2,14 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
 suite('CancellationToken', function () {
 
-	test('None', function () {
+	test('None', () => {
 		assert.equal(CancellationToken.None.isCancellationRequested, false);
 		assert.equal(typeof CancellationToken.None.onCancellationRequested, 'function');
 	});
@@ -95,5 +93,20 @@ suite('CancellationToken', function () {
 		source.dispose();
 		source.cancel();
 		assert.equal(count, 0);
+	});
+
+	test('parent cancels child', function () {
+
+		let parent = new CancellationTokenSource();
+		let child = new CancellationTokenSource(parent.token);
+
+		let count = 0;
+		child.token.onCancellationRequested(() => count += 1);
+
+		parent.cancel();
+
+		assert.equal(count, 1);
+		assert.equal(child.token.isCancellationRequested, true);
+		assert.equal(parent.token.isCancellationRequested, true);
 	});
 });

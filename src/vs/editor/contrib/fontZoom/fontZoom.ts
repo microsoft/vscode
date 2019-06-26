@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 class EditorFontZoomIn extends EditorAction {
@@ -16,7 +15,7 @@ class EditorFontZoomIn extends EditorAction {
 			id: 'editor.action.fontZoomIn',
 			label: nls.localize('EditorFontZoomIn.label', "Editor Font Zoom In"),
 			alias: 'Editor Font Zoom In',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -32,7 +31,7 @@ class EditorFontZoomOut extends EditorAction {
 			id: 'editor.action.fontZoomOut',
 			label: nls.localize('EditorFontZoomOut.label', "Editor Font Zoom Out"),
 			alias: 'Editor Font Zoom Out',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -48,7 +47,7 @@ class EditorFontZoomReset extends EditorAction {
 			id: 'editor.action.fontZoomReset',
 			label: nls.localize('EditorFontZoomReset.label', "Editor Font Zoom Reset"),
 			alias: 'Editor Font Zoom Reset',
-			precondition: null
+			precondition: undefined
 		});
 	}
 

@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./goToDefinitionMouse';
 import * as nls from 'vs/nls';
-import { Throttler } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
@@ -25,40 +23,41 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private toUnhook: IDisposable[];
 	private decorations: string[];
-	private currentWordUnderMouse: IWordAtPosition;
-	private throttler: Throttler;
+	private currentWordUnderMouse: IWordAtPosition | null;
+	private previousPromise: CancelablePromise<LocationLink[] | null> | null;
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IModeService private modeService: IModeService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		this.toUnhook = [];
 		this.decorations = [];
 		this.editor = editor;
-		this.throttler = new Throttler();
+		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.push(linkGesture);
 
 		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinition(mouseEvent, keyboardEvent);
+			this.startFindDefinition(mouseEvent, withNullAsUndefined(keyboardEvent));
 		}));
 
 		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
-				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).done(() => {
+				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
 					this.removeDecorations();
 				}, (error: Error) => {
 					this.removeDecorations();
@@ -75,20 +74,26 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private startFindDefinition(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
-		if (!this.isEnabled(mouseEvent, withKey)) {
+
+		// check if we are active and on a content widget
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_WIDGET && this.decorations.length > 0) {
+			return;
+		}
+
+		if (!this.editor.hasModel() || !this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
 			return;
 		}
 
 		// Find word at mouse position
-		let position = mouseEvent.target.position;
-		let word = position ? this.editor.getModel().getWordAtPosition(position) : null;
+		const word = mouseEvent.target.position ? this.editor.getModel().getWordAtPosition(mouseEvent.target.position) : null;
 		if (!word) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
 			return;
 		}
+		const position = mouseEvent.target.position!;
 
 		// Return early if word at position is still the same
 		if (this.currentWordUnderMouse && this.currentWordUnderMouse.startColumn === word.startColumn && this.currentWordUnderMouse.endColumn === word.endColumn && this.currentWordUnderMouse.word === word.word) {
@@ -100,12 +105,14 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		// Find definition and decorate word if found
 		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-		this.throttler.queue(() => {
-			return state.validate(this.editor)
-				? this.findDefinition(mouseEvent.target)
-				: TPromise.wrap<DefinitionLink[]>(null);
+		if (this.previousPromise) {
+			this.previousPromise.cancel();
+			this.previousPromise = null;
+		}
 
-		}).then(results => {
+		this.previousPromise = createCancelablePromise(token => this.findDefinition(mouseEvent.target, token));
+
+		this.previousPromise.then(results => {
 			if (!results || !results.length || !state.validate(this.editor)) {
 				this.removeDecorations();
 				return;
@@ -143,27 +150,28 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						return;
 					}
 
-					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
+					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
 
 					let wordRange: Range;
-					if (result.origin) {
-						wordRange = Range.lift(result.origin);
+					if (result.originSelectionRange) {
+						wordRange = Range.lift(result.originSelectionRange);
 					} else {
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
+					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), previewValue)
+						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
 					);
 					ref.dispose();
 				});
 			}
-		}).done(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
 	}
 
-	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
-		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
+		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
 		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
@@ -173,7 +181,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return previewValue;
 	}
 
-	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: Range) {
+	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: IRange) {
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let minIndent = startIndent;
 
@@ -205,7 +213,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
 		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
 
-		const brackets = [];
+		const brackets: IFoundBracket[] = [];
 
 		let ignoreFirstEmpty = true;
 		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
@@ -268,25 +276,25 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return this.editor.getModel() &&
+		return this.editor.hasModel() &&
 			mouseEvent.isNoneOrSingleMouseDown &&
-			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
-			(mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) &&
+			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
+			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<DefinitionLink[]> {
+	private findDefinition(target: IMouseTarget, token: CancellationToken): Promise<LocationLink[] | null> {
 		const model = this.editor.getModel();
 		if (!model) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return getDefinitionsAtPosition(model, target.position);
+		return getDefinitionsAtPosition(model, target.position!, token);
 	}
 
-	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
-		this.editor.setPosition(target.position);
-		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
+	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
+		this.editor.setPosition(target.position!);
+		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 
@@ -302,7 +310,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
 
 registerThemingParticipant((theme, collector) => {
-	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
 	}

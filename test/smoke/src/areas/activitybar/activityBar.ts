@@ -5,7 +5,7 @@
 
 import { Code } from '../../vscode/code';
 
-export enum ActivityBarPosition {
+export const enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
 }

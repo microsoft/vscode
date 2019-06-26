@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path='./node.d.ts'/>
+/// <reference types='node'/>
 
 declare module 'iconv-lite' {
 	export function decode(buffer: Buffer, encoding: string): string;

@@ -30,6 +30,14 @@ export default class API {
 	public static readonly v291 = API.fromSimpleString('2.9.1');
 	public static readonly v292 = API.fromSimpleString('2.9.2');
 	public static readonly v300 = API.fromSimpleString('3.0.0');
+	public static readonly v310 = API.fromSimpleString('3.1.0');
+	public static readonly v314 = API.fromSimpleString('3.1.4');
+	public static readonly v320 = API.fromSimpleString('3.2.0');
+	public static readonly v330 = API.fromSimpleString('3.3.0');
+	public static readonly v333 = API.fromSimpleString('3.3.3');
+	public static readonly v340 = API.fromSimpleString('3.4.0');
+	public static readonly v345 = API.fromSimpleString('3.4.5');
+	public static readonly v350 = API.fromSimpleString('3.5.0');
 
 
 	public static fromVersionString(versionString: string): API {
@@ -53,5 +61,9 @@ export default class API {
 
 	public gte(other: API): boolean {
 		return semver.gte(this.version, other.version);
+	}
+
+	public lt(other: API): boolean {
+		return !this.gte(other);
 	}
 }

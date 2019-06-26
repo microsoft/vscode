@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import URI from 'vs/base/common/uri';
-import { match as matchGlobPattern, IRelativePattern } from 'vs/base/common/glob'; // TODO@Alex
+import { IRelativePattern, match as matchGlobPattern } from 'vs/base/common/glob';
+import { URI } from 'vs/base/common/uri'; // TODO@Alex
 
 export interface LanguageFilter {
 	language?: string;
@@ -19,9 +17,9 @@ export interface LanguageFilter {
 	exclusive?: boolean;
 }
 
-export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
+export type LanguageSelector = string | LanguageFilter | Array<string | LanguageFilter>;
 
-export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value

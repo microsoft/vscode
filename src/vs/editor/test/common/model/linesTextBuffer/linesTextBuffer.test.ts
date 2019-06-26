@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { PieceTreeTextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { IValidatedEditOperation, PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[] | null): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,
@@ -264,7 +262,7 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
 suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[]): IValidatedEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[] | null): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
 			identifier: null,

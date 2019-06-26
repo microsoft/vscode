@@ -3,32 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
+import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Event } from 'vs/base/common/event';
-import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import URI from 'vs/base/common/uri';
+import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
-import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { LabelService } from 'vs/platform/label/common/label';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 suite('MainThreadEditors', () => {
 
@@ -43,7 +41,7 @@ suite('MainThreadEditors', () => {
 
 	setup(() => {
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(null, configService);
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
@@ -56,15 +54,15 @@ suite('MainThreadEditors', () => {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
-				return TPromise.as(void 0);
+				return Promise.resolve(Object.create(null));
 			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
-				return TPromise.as(void 0);
+				return Promise.resolve(undefined);
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
-				return TPromise.as(void 0);
+				return Promise.resolve(Object.create(null));
 			}
 			models = <any>{
 				onModelSaved: Event.None,
@@ -75,16 +73,16 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 		const textModelService = new class extends mock<ITextModelService>() {
-			createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
-					textEditorModel = modelService.getModel(resource);
+			createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
+					textEditorModel = modelService.getModel(resource)!;
 				};
 				textEditorModel.isReadonly = () => false;
-				return TPromise.as(new ImmortalReference(textEditorModel));
+				return Promise.resolve(new ImmortalReference(textEditorModel));
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()));
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -102,12 +100,21 @@ suite('MainThreadEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null,
+			null!,
 			fileService,
-			null,
-			null,
+			null!,
+			null!,
 			editorGroupService,
 			bulkEditService,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				onDidPanelOpen = Event.None;
+				onDidPanelClose = Event.None;
+				getActivePanel() {
+					return null;
+				}
+			},
+			TestEnvironmentService
 		);
 
 		editors = new MainThreadTextEditors(
@@ -170,7 +177,7 @@ suite('MainThreadEditors', () => {
 			// second edit request fails
 			assert.equal(result, false);
 		});
-		return TPromise.join([p1, p2]);
+		return Promise.all([p1, p2]);
 	});
 
 	test(`applyWorkspaceEdit with only resource edit`, () => {

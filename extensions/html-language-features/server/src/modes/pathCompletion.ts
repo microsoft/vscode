@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { ICompletionParticipant } from 'vscode-html-languageservice';
 import { startsWith } from '../utils/strings';
 import { contains } from '../utils/arrays';
@@ -19,7 +18,7 @@ export function getPathCompletionParticipant(
 	result: CompletionItem[]
 ): ICompletionParticipant {
 	return {
-		onHtmlAttributeValue: ({ tag, position, attribute, value: valueBeforeCursor, range }) => {
+		onHtmlAttributeValue: ({ tag, attribute, value: valueBeforeCursor, range }) => {
 			const fullValue = stripQuotes(document.getText(range));
 
 			if (shouldDoPathCompletion(tag, attribute, fullValue)) {
@@ -78,11 +77,12 @@ function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?:
 	}
 
 	try {
-		return fs.readdirSync(parentDir).map(f => {
+		const paths = fs.readdirSync(parentDir).map(f => {
 			return isDir(path.resolve(parentDir, f))
 				? f + '/'
 				: f;
 		});
+		return paths.filter(p => p[0] !== '.');
 	} catch (e) {
 		return [];
 	}
@@ -139,11 +139,12 @@ function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: strin
 }
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
-	for (let i = 0; i < workspaceFolders.length; i++) {
-		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
-			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
+	for (const folder of workspaceFolders) {
+		if (startsWith(activeDoc.uri, folder.uri)) {
+			return path.resolve(URI.parse(folder.uri).fsPath);
 		}
 	}
+	return undefined;
 }
 
 function shiftPosition(pos: Position, offset: number): Position {
@@ -159,6 +160,7 @@ function shiftRange(range: Range, startOffset: number, endOffset: number): Range
 const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	// HTML 4
 	a: 'href',
+	area: 'href',
 	body: 'background',
 	del: 'cite',
 	form: 'action',
@@ -175,7 +177,7 @@ const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	command: 'icon',
 	embed: 'src',
 	html: 'manifest',
-	input: 'formaction',
+	input: ['src', 'formaction'],
 	source: 'src',
 	track: 'src',
 	video: ['src', 'poster']

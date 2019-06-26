@@ -6,6 +6,7 @@
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
+const task = require('./lib/task');
 const common = require('./lib/optimize');
 const es = require('event-stream');
 const File = require('vinyl');
@@ -28,7 +29,7 @@ var editorEntryPoints = [
 		name: 'vs/editor/editor.main',
 		include: [],
 		exclude: ['vs/css', 'vs/nls'],
-		prepend: ['out-build/vs/css.js', 'out-build/vs/nls.js'],
+		prepend: ['out-editor-build/vs/css.js', 'out-editor-build/vs/nls.js'],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
@@ -48,9 +49,6 @@ var editorResources = [
 	'!**/test/**'
 ];
 
-var editorOtherSources = [
-];
-
 var BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -63,8 +61,7 @@ var BUNDLED_FILE_HEADER = [
 
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
-gulp.task('clean-editor-src', util.rimraf('out-editor-src'));
-gulp.task('extract-editor-src', ['clean-editor-src'], function () {
+const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	console.log(`If the build fails, consider tweaking shakeLevel below to a lower value.`);
 	const apiusages = monacoapi.execute().usageContent;
 	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
@@ -79,35 +76,39 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function () {
 			apiusages,
 			extrausages
 		],
+		typings: [
+			'typings/lib.ie11_safe_es6.d.ts',
+			'typings/thenable.d.ts',
+			'typings/es6-promise.d.ts',
+			'typings/require-monaco.d.ts',
+			"typings/lib.es2018.promise.d.ts",
+			'vs/monaco.d.ts'
+		],
 		libs: [
-			`lib.d.ts`,
-			`lib.es2015.collection.d.ts`
+			`lib.es5.d.ts`,
+			`lib.dom.d.ts`,
+			`lib.webworker.importscripts.d.ts`
 		],
 		redirects: {
 			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
 		},
-		compilerOptions: {
-			module: 2, // ModuleKind.AMD
-		},
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /^vs\/css!/,
+		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
 		destRoot: path.join(root, 'out-editor-src')
 	});
 });
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('clean-editor-build', util.rimraf('out-editor-build'));
-gulp.task('compile-editor-build', ['clean-editor-build', 'extract-editor-src'], compilation.compileTask('out-editor-src', 'out-editor-build', true));
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
-gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'], common.optimizeTask({
+const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask({
 	src: 'out-editor-build',
 	entryPoints: editorEntryPoints,
-	otherSources: editorOtherSources,
 	resources: editorResources,
 	loaderConfig: {
 		paths: {
 			'vs': 'out-editor-build/vs',
+			'vs/css': 'out-editor-build/vs/css.build',
+			'vs/nls': 'out-editor-build/vs/nls.build',
 			'vscode': 'empty:'
 		}
 	},
@@ -118,14 +119,12 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'],
 	languages: languages
 }));
 
-gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
-gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
+const minifyEditorAMDTask = task.define('minify-editor-amd', common.minifyTask('out-editor'));
 
-gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
-gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'extract-editor-src'], function () {
+const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () => {
 	standalone.createESMSourcesAndResources2({
 		srcFolder: './out-editor-src',
-		outFolder: './out-editor-esm/src',
+		outFolder: './out-editor-esm',
 		outResourcesFolder: './out-monaco-editor-core/esm',
 		ignores: [
 			'inlineEntryPoint:0.ts',
@@ -144,11 +143,21 @@ gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'ext
 		}
 	});
 });
-gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], function () {
-	const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
-		cwd: path.join(__dirname, '../out-editor-esm')
-	});
-	console.log(result.stdout.toString());
+
+const compileEditorESMTask = task.define('compile-editor-esm', () => {
+	if (process.platform === 'win32') {
+		const result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
+			cwd: path.join(__dirname, '../out-editor-esm')
+		});
+		console.log(result.stdout.toString());
+		console.log(result.stderr.toString());
+	} else {
+		const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
+			cwd: path.join(__dirname, '../out-editor-esm')
+		});
+		console.log(result.stdout.toString());
+		console.log(result.stderr.toString());
+	}
 });
 
 function toExternalDTS(contents) {
@@ -186,8 +195,16 @@ function toExternalDTS(contents) {
 	return lines.join('\n');
 }
 
-gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
-gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify-editor', 'optimize-editor'], function () {
+function filterStream(testFunc) {
+	return es.through(function (data) {
+		if (!testFunc(data.relative)) {
+			return;
+		}
+		this.emit('data', data);
+	});
+}
+
+const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 	return es.merge(
 		// other assets
 		es.merge(
@@ -213,6 +230,14 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				var json = JSON.parse(data.contents.toString());
 				json.private = false;
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
+				this.emit('data', data);
+			}))
+			.pipe(gulp.dest('out-monaco-editor-core')),
+
+		// version.txt
+		gulp.src('build/monaco/version.txt')
+			.pipe(es.through(function (data) {
+				data.contents = Buffer.from(`monaco-editor-core: https://github.com/Microsoft/vscode/tree/${sha1}`);
 				this.emit('data', data);
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
@@ -250,7 +275,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 
 			var strContents = data.contents.toString();
 			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
-			strContents = strContents.replace(/\/\/\# sourceMappingURL=[^ ]+$/, newStr);
+			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
 
 			data.contents = Buffer.from(strContents);
 			this.emit('data', data);
@@ -266,59 +291,31 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 	);
 });
 
-gulp.task('analyze-editor-distro', function () {
-	// @ts-ignore
-	var bundleInfo = require('../out-editor/bundleInfo.json');
-	var graph = bundleInfo.graph;
-	var bundles = bundleInfo.bundles;
-
-	var inverseGraph = {};
-	Object.keys(graph).forEach(function (module) {
-		var dependencies = graph[module];
-		dependencies.forEach(function (dep) {
-			inverseGraph[dep] = inverseGraph[dep] || [];
-			inverseGraph[dep].push(module);
-		});
-	});
-
-	var detailed = {};
-	Object.keys(bundles).forEach(function (entryPoint) {
-		var included = bundles[entryPoint];
-		var includedMap = {};
-		included.forEach(function (included) {
-			includedMap[included] = true;
-		});
-
-		var explanation = [];
-		included.map(function (included) {
-			if (included.indexOf('!') >= 0) {
-				return;
-			}
-
-			var reason = (inverseGraph[included] || []).filter(function (mod) {
-				return !!includedMap[mod];
-			});
-			explanation.push({
-				module: included,
-				reason: reason
-			});
-		});
-
-		detailed[entryPoint] = explanation;
-	});
-
-	console.log(JSON.stringify(detailed, null, '\t'));
-});
-
-function filterStream(testFunc) {
-	return es.through(function (data) {
-		if (!testFunc(data.relative)) {
-			return;
-		}
-		this.emit('data', data);
-	});
-}
-
+gulp.task('editor-distro',
+	task.series(
+		task.parallel(
+			util.rimraf('out-editor-src'),
+			util.rimraf('out-editor-build'),
+			util.rimraf('out-editor-esm'),
+			util.rimraf('out-monaco-editor-core'),
+			util.rimraf('out-editor'),
+			util.rimraf('out-editor-min')
+		),
+		extractEditorSrcTask,
+		task.parallel(
+			task.series(
+				compileEditorAMDTask,
+				optimizeEditorAMDTask,
+				minifyEditorAMDTask
+			),
+			task.series(
+				createESMSourcesAndResourcesTask,
+				compileEditorESMTask
+			)
+		),
+		finalEditorResourcesTask
+	)
+);
 
 //#region monaco type checking
 
@@ -338,6 +335,7 @@ function createTscCompileTask(watch) {
 			let errors = [];
 			let reporter = createReporter();
 			let report;
+			// eslint-disable-next-line no-control-regex
 			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
 
 			child.stdout.on('data', data => {
@@ -371,7 +369,10 @@ function createTscCompileTask(watch) {
 	};
 }
 
-gulp.task('monaco-typecheck-watch', createTscCompileTask(true));
-gulp.task('monaco-typecheck', createTscCompileTask(false));
+const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', createTscCompileTask(true));
+exports.monacoTypecheckWatchTask = monacoTypecheckWatchTask;
+
+const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
+exports.monacoTypecheckTask = monacoTypecheckTask;
 
 //#endregion

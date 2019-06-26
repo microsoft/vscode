@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { DocumentContext } from 'vscode-html-languageservice';
 import { endsWith, startsWith } from '../utils/strings';
@@ -20,7 +19,7 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				return folderURI;
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
 	return {

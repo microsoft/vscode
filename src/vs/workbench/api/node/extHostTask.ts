@@ -2,467 +2,46 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
+import * as path from 'vs/base/common/path';
+
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as Objects from 'vs/base/common/objects';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { win32 } from 'vs/base/node/processes';
 
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import * as tasks from 'vs/workbench/parts/tasks/common/tasks';
 
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 
-import * as types from 'vs/workbench/api/node/extHostTypes';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import * as types from 'vs/workbench/api/common/extHostTypes';
+import { ExtHostWorkspace, IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
-	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
-} from '../shared/tasks';
+	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
+	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
+	ShellExecutionOptionsDTO, ShellExecutionDTO,
+	CustomExecutionDTO,
+	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
+} from '../common/shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-/*
-namespace ProblemPattern {
-	export function from(value: vscode.ProblemPattern | vscode.MultiLineProblemPattern): Problems.ProblemPattern | Problems.MultiLineProblemPattern {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		if (Array.isArray(value)) {
-			let result: Problems.ProblemPattern[] = [];
-			for (let pattern of value) {
-				let converted = fromSingle(pattern);
-				if (!converted) {
-					return undefined;
-				}
-				result.push(converted);
-			}
-			return result;
-		} else {
-			return fromSingle(value);
-		}
-	}
-
-	function copyProperty(target: Problems.ProblemPattern, source: vscode.ProblemPattern, tk: keyof Problems.ProblemPattern) {
-		let sk: keyof vscode.ProblemPattern = tk;
-		let value = source[sk];
-		if (typeof value === 'number') {
-			target[tk] = value;
-		}
-	}
-
-	function getValue(value: number, defaultValue: number): number {
-		if (value !== void 0 && value === null) {
-			return value;
-		}
-		return defaultValue;
-	}
-
-	function fromSingle(problemPattern: vscode.ProblemPattern): Problems.ProblemPattern {
-		if (problemPattern === void 0 || problemPattern === null || !(problemPattern.regexp instanceof RegExp)) {
-			return undefined;
-		}
-		let result: Problems.ProblemPattern = {
-			regexp: problemPattern.regexp
-		};
-		copyProperty(result, problemPattern, 'file');
-		copyProperty(result, problemPattern, 'location');
-		copyProperty(result, problemPattern, 'line');
-		copyProperty(result, problemPattern, 'character');
-		copyProperty(result, problemPattern, 'endLine');
-		copyProperty(result, problemPattern, 'endCharacter');
-		copyProperty(result, problemPattern, 'severity');
-		copyProperty(result, problemPattern, 'code');
-		copyProperty(result, problemPattern, 'message');
-		if (problemPattern.loop === true || problemPattern.loop === false) {
-			result.loop = problemPattern.loop;
-		}
-		if (result.location) {
-			result.file = getValue(result.file, 1);
-			result.message = getValue(result.message, 0);
-		} else {
-			result.file = getValue(result.file, 1);
-			result.line = getValue(result.line, 2);
-			result.character = getValue(result.character, 3);
-			result.message = getValue(result.message, 0);
-		}
-		return result;
-	}
-}
-
-namespace ApplyTo {
-	export function from(value: vscode.ApplyToKind): Problems.ApplyToKind {
-		if (value === void 0 || value === null) {
-			return Problems.ApplyToKind.allDocuments;
-		}
-		switch (value) {
-			case types.ApplyToKind.OpenDocuments:
-				return Problems.ApplyToKind.openDocuments;
-			case types.ApplyToKind.ClosedDocuments:
-				return Problems.ApplyToKind.closedDocuments;
-		}
-		return Problems.ApplyToKind.allDocuments;
-	}
-}
-
-namespace FileLocation {
-	export function from(value: vscode.FileLocationKind | string): { kind: Problems.FileLocationKind; prefix?: string } {
-		if (value === void 0 || value === null) {
-			return { kind: Problems.FileLocationKind.Auto };
-		}
-		if (typeof value === 'string') {
-			return { kind: Problems.FileLocationKind.Relative, prefix: value };
-		}
-		switch (value) {
-			case types.FileLocationKind.Absolute:
-				return { kind: Problems.FileLocationKind.Absolute };
-			case types.FileLocationKind.Relative:
-				return { kind: Problems.FileLocationKind.Relative, prefix: '${workspaceFolder}' };
-		}
-		return { kind: Problems.FileLocationKind.Auto };
-	}
-}
-
-namespace WatchingPattern {
-	export function from(value: RegExp | vscode.BackgroundPattern): Problems.WatchingPattern {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		if (value instanceof RegExp) {
-			return { regexp: value };
-		}
-		if (!(value.regexp instanceof RegExp)) {
-			return undefined;
-		}
-		let result: Problems.WatchingPattern = {
-			regexp: value.regexp
-		};
-		if (typeof value.file === 'number') {
-			result.file = value.file;
-		}
-		return result;
-	}
-}
-
-namespace BackgroundMonitor {
-	export function from(value: vscode.BackgroundMonitor): Problems.WatchingMatcher {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		let result: Problems.WatchingMatcher = {
-			activeOnStart: !!value.activeOnStart,
-			beginsPattern: WatchingPattern.from(value.beginsPattern),
-			endsPattern: WatchingPattern.from(value.endsPattern)
-		};
-		return result;
-	}
-}
-
-namespace ProblemMatcher {
-	export function from(values: (string | vscode.ProblemMatcher)[]): (string | Problems.ProblemMatcher)[] {
-		if (values === void 0 || values === null) {
-			return undefined;
-		}
-		let result: (string | Problems.ProblemMatcher)[] = [];
-		for (let value of values) {
-			let converted = typeof value === 'string' ? value : fromSingle(value);
-			if (converted) {
-				result.push(converted);
-			}
-		}
-		return result;
-	}
-
-	function fromSingle(problemMatcher: vscode.ProblemMatcher): Problems.ProblemMatcher {
-		if (problemMatcher === void 0 || problemMatcher === null) {
-			return undefined;
-		}
-
-		let location = FileLocation.from(problemMatcher.fileLocation);
-		let result: Problems.ProblemMatcher = {
-			owner: typeof problemMatcher.owner === 'string' ? problemMatcher.owner : UUID.generateUuid(),
-			applyTo: ApplyTo.from(problemMatcher.applyTo),
-			fileLocation: location.kind,
-			filePrefix: location.prefix,
-			pattern: ProblemPattern.from(problemMatcher.pattern),
-			severity: fromDiagnosticSeverity(problemMatcher.severity),
-		};
-		return result;
-	}
-}
-*/
-
-namespace TaskRevealKind {
-	export function from(value: vscode.TaskRevealKind): tasks.RevealKind {
-		if (value === void 0 || value === null) {
-			return tasks.RevealKind.Always;
-		}
-		switch (value) {
-			case types.TaskRevealKind.Silent:
-				return tasks.RevealKind.Silent;
-			case types.TaskRevealKind.Never:
-				return tasks.RevealKind.Never;
-		}
-		return tasks.RevealKind.Always;
-	}
-}
-
-namespace TaskPanelKind {
-	export function from(value: vscode.TaskPanelKind): tasks.PanelKind {
-		if (value === void 0 || value === null) {
-			return tasks.PanelKind.Shared;
-		}
-		switch (value) {
-			case types.TaskPanelKind.Dedicated:
-				return tasks.PanelKind.Dedicated;
-			case types.TaskPanelKind.New:
-				return tasks.PanelKind.New;
-			default:
-				return tasks.PanelKind.Shared;
-		}
-	}
-}
-
-namespace PresentationOptions {
-	export function from(value: vscode.TaskPresentationOptions): tasks.PresentationOptions {
-		if (value === void 0 || value === null) {
-			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared, showReuseMessage: true };
-		}
-		return {
-			reveal: TaskRevealKind.from(value.reveal),
-			echo: value.echo === void 0 ? true : !!value.echo,
-			focus: !!value.focus,
-			panel: TaskPanelKind.from(value.panel),
-			showReuseMessage: value.showReuseMessage === void 0 ? true : !!value.showReuseMessage
-		};
-	}
-}
-
-namespace Strings {
-	export function from(value: string[]): string[] {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		for (let element of value) {
-			if (typeof element !== 'string') {
-				return [];
-			}
-		}
-		return value;
-	}
-}
-
-namespace CommandOptions {
-	function isShellConfiguration(value: any): value is { executable: string; shellArgs?: string[] } {
-		return value && typeof value.executable === 'string';
-	}
-	export function from(value: vscode.ShellExecutionOptions | vscode.ProcessExecutionOptions): tasks.CommandOptions {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		let result: tasks.CommandOptions = {
-		};
-		if (typeof value.cwd === 'string') {
-			result.cwd = value.cwd;
-		}
-		if (value.env) {
-			result.env = Object.create(null);
-			Object.keys(value.env).forEach(key => {
-				let envValue = value.env[key];
-				if (typeof envValue === 'string') {
-					result.env[key] = envValue;
-				}
-			});
-		}
-		if (isShellConfiguration(value)) {
-			result.shell = ShellConfiguration.from(value);
-		}
-		return result;
-	}
-}
-
-namespace ShellQuoteOptions {
-	export function from(value: vscode.ShellQuotingOptions): tasks.ShellQuotingOptions {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		return {
-			escape: value.escape,
-			strong: value.strong,
-			weak: value.strong
-		};
-	}
-}
-
-namespace ShellConfiguration {
-	export function from(value: { executable?: string, shellArgs?: string[], quotes?: vscode.ShellQuotingOptions }): tasks.ShellConfiguration {
-		if (value === void 0 || value === null || !value.executable) {
-			return undefined;
-		}
-
-		let result: tasks.ShellConfiguration = {
-			executable: value.executable,
-			args: Strings.from(value.shellArgs),
-			quoting: ShellQuoteOptions.from(value.quotes)
-		};
-		return result;
-	}
-}
-
-namespace ShellString {
-	export function from(value: (string | vscode.ShellQuotedString)[]): tasks.CommandString[] {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		return value.slice(0);
-	}
-}
-
-namespace Tasks {
-
-	export function from(tasks: vscode.Task[], rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): tasks.ContributedTask[] {
-		if (tasks === void 0 || tasks === null) {
-			return [];
-		}
-		let result: tasks.ContributedTask[] = [];
-		for (let task of tasks) {
-			let converted = fromSingle(task, rootFolder, extension);
-			if (converted) {
-				result.push(converted);
-			}
-		}
-		return result;
-	}
-
-	function fromSingle(task: vscode.Task, rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): tasks.ContributedTask {
-		if (typeof task.name !== 'string') {
-			return undefined;
-		}
-		let command: tasks.CommandConfiguration;
-		let execution = task.execution;
-		if (execution instanceof types.ProcessExecution) {
-			command = getProcessCommand(execution);
-		} else if (execution instanceof types.ShellExecution) {
-			command = getShellCommand(execution);
-		} else {
-			return undefined;
-		}
-		if (command === void 0) {
-			return undefined;
-		}
-		command.presentation = PresentationOptions.from(task.presentationOptions);
-
-		let taskScope: types.TaskScope.Global | types.TaskScope.Workspace | vscode.WorkspaceFolder | undefined = task.scope;
-		let workspaceFolder: vscode.WorkspaceFolder | undefined;
-		let scope: tasks.TaskScope;
-		// For backwards compatibility
-		if (taskScope === void 0) {
-			scope = tasks.TaskScope.Folder;
-			workspaceFolder = rootFolder;
-		} else if (taskScope === types.TaskScope.Global) {
-			scope = tasks.TaskScope.Global;
-		} else if (taskScope === types.TaskScope.Workspace) {
-			scope = tasks.TaskScope.Workspace;
-		} else {
-			scope = tasks.TaskScope.Folder;
-			workspaceFolder = taskScope;
-		}
-		let source: tasks.ExtensionTaskSource = {
-			kind: tasks.TaskSourceKind.Extension,
-			label: typeof task.source === 'string' ? task.source : extension.name,
-			extension: extension.id,
-			scope: scope,
-			workspaceFolder: undefined
-		};
-		// We can't transfer a workspace folder object from the extension host to main since they differ
-		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
-		// workspace folder on the main side.
-		(source as any as tasks.ExtensionTaskSourceTransfer).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
-		(source as any as tasks.ExtensionTaskSourceTransfer).__definition = task.definition;
-		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		// The definition id will be prefix on the main side since we compute it there.
-		let id = `${extension.id}`;
-		let result: tasks.ContributedTask = {
-			_id: id,
-			_source: source,
-			_label: label,
-			type: task.definition.type,
-			defines: undefined,
-			name: task.name,
-			identifier: label,
-			group: task.group ? (task.group as types.TaskGroup).id : undefined,
-			command: command,
-			isBackground: !!task.isBackground,
-			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
-		};
-		return result;
-	}
-
-	function getProcessCommand(value: vscode.ProcessExecution): tasks.CommandConfiguration {
-		if (typeof value.process !== 'string') {
-			return undefined;
-		}
-		let result: tasks.CommandConfiguration = {
-			name: value.process,
-			args: Strings.from(value.args),
-			runtime: tasks.RuntimeType.Process,
-			suppressTaskName: true,
-			presentation: undefined
-		};
-		if (value.options) {
-			result.options = CommandOptions.from(value.options);
-		}
-		return result;
-	}
-
-	function getShellCommand(value: vscode.ShellExecution): tasks.CommandConfiguration {
-		if (value.args) {
-			if (typeof value.command !== 'string' && typeof value.command.value !== 'string') {
-				return undefined;
-			}
-			let result: tasks.CommandConfiguration = {
-				name: value.command,
-				args: ShellString.from(value.args),
-				runtime: tasks.RuntimeType.Shell,
-				presentation: undefined
-			};
-			if (value.options) {
-				result.options = CommandOptions.from(value.options);
-			}
-			return result;
-		} else {
-			if (typeof value.commandLine !== 'string') {
-				return undefined;
-			}
-			let result: tasks.CommandConfiguration = {
-				name: value.commandLine,
-				runtime: tasks.RuntimeType.Shell,
-				presentation: undefined
-			};
-			if (value.options) {
-				result.options = CommandOptions.from(value.options);
-			}
-			return result;
-		}
-	}
-}
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 namespace TaskDefinitionDTO {
-	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO {
-		if (value === void 0 || value === null) {
+	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
-	export function to(value: TaskDefinitionDTO): vscode.TaskDefinition {
-		if (value === void 0 || value === null) {
+	export function to(value: TaskDefinitionDTO): vscode.TaskDefinition | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -470,14 +49,14 @@ namespace TaskDefinitionDTO {
 }
 
 namespace TaskPresentationOptionsDTO {
-	export function from(value: vscode.TaskPresentationOptions): TaskPresentationOptionsDTO {
-		if (value === void 0 || value === null) {
+	export function from(value: vscode.TaskPresentationOptions): TaskPresentationOptionsDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
-	export function to(value: TaskPresentationOptionsDTO): vscode.TaskPresentationOptions {
-		if (value === void 0 || value === null) {
+	export function to(value: TaskPresentationOptionsDTO): vscode.TaskPresentationOptions | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -485,14 +64,14 @@ namespace TaskPresentationOptionsDTO {
 }
 
 namespace ProcessExecutionOptionsDTO {
-	export function from(value: vscode.ProcessExecutionOptions): ProcessExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+	export function from(value: vscode.ProcessExecutionOptions): ProcessExecutionOptionsDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
-	export function to(value: ProcessExecutionOptionsDTO): vscode.ProcessExecutionOptions {
-		if (value === void 0 || value === null) {
+	export function to(value: ProcessExecutionOptionsDTO): vscode.ProcessExecutionOptions | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -500,15 +79,19 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
-		let candidate = value as ProcessExecutionDTO;
-		return candidate && !!candidate.process;
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is ProcessExecutionDTO {
+		if (value) {
+			const candidate = value as ProcessExecutionDTO;
+			return candidate && !!candidate.process;
+		} else {
+			return false;
+		}
 	}
-	export function from(value: vscode.ProcessExecution): ProcessExecutionDTO {
-		if (value === void 0 || value === null) {
+	export function from(value: vscode.ProcessExecution): ProcessExecutionDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let result: ProcessExecutionDTO = {
+		const result: ProcessExecutionDTO = {
 			process: value.process,
 			args: value.args
 		};
@@ -517,8 +100,8 @@ namespace ProcessExecutionDTO {
 		}
 		return result;
 	}
-	export function to(value: ProcessExecutionDTO): types.ProcessExecution {
-		if (value === void 0 || value === null) {
+	export function to(value: ProcessExecutionDTO): types.ProcessExecution | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return new types.ProcessExecution(value.process, value.args, value.options);
@@ -526,14 +109,14 @@ namespace ProcessExecutionDTO {
 }
 
 namespace ShellExecutionOptionsDTO {
-	export function from(value: vscode.ShellExecutionOptions): ShellExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+	export function from(value: vscode.ShellExecutionOptions): ShellExecutionOptionsDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
-	export function to(value: ShellExecutionOptionsDTO): vscode.ShellExecutionOptions {
-		if (value === void 0 || value === null) {
+	export function to(value: ShellExecutionOptionsDTO): vscode.ShellExecutionOptions | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -541,17 +124,21 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
-		let candidate = value as ShellExecutionDTO;
-		return candidate && (!!candidate.commandLine || !!candidate.command);
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is ShellExecutionDTO {
+		if (value) {
+			const candidate = value as ShellExecutionDTO;
+			return candidate && (!!candidate.commandLine || !!candidate.command);
+		} else {
+			return false;
+		}
 	}
-	export function from(value: vscode.ShellExecution): ShellExecutionDTO {
-		if (value === void 0 || value === null) {
+	export function from(value: vscode.ShellExecution): ShellExecutionDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let result: ShellExecutionDTO = {
+		const result: ShellExecutionDTO = {
 		};
-		if (value.commandLine !== void 0) {
+		if (value.commandLine !== undefined) {
 			result.commandLine = value.commandLine;
 		} else {
 			result.command = value.command;
@@ -562,92 +149,129 @@ namespace ShellExecutionDTO {
 		}
 		return result;
 	}
-	export function to(value: ShellExecutionDTO): types.ShellExecution {
-		if (value === void 0 || value === null) {
+	export function to(value: ShellExecutionDTO): types.ShellExecution | undefined {
+		if (value === undefined || value === null || (value.command === undefined && value.commandLine === undefined)) {
 			return undefined;
 		}
 		if (value.commandLine) {
 			return new types.ShellExecution(value.commandLine, value.options);
 		} else {
-			return new types.ShellExecution(value.command, value.args ? value.args : [], value.options);
+			return new types.ShellExecution(value.command!, value.args ? value.args : [], value.options);
 		}
+	}
+}
+
+namespace CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is CustomExecutionDTO {
+		if (value) {
+			let candidate = value as CustomExecutionDTO;
+			return candidate && candidate.customExecution === 'customExecution';
+		} else {
+			return false;
+		}
+	}
+
+	export function from(value: vscode.CustomExecution): CustomExecutionDTO {
+		return {
+			customExecution: 'customExecution'
+		};
 	}
 }
 
 namespace TaskHandleDTO {
 	export function from(value: types.Task): TaskHandleDTO {
-		let folder: UriComponents;
-		if (value.scope !== void 0 && typeof value.scope !== 'number') {
+		let folder: UriComponents | undefined;
+		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
 		}
 		return {
-			id: value._id,
-			workspaceFolder: folder
+			id: value._id!,
+			workspaceFolder: folder!
 		};
 	}
 }
 
 namespace TaskDTO {
 
-	export function from(value: vscode.Task, extension: IExtensionDescription): TaskDTO {
-		if (value === void 0 || value === null) {
+	export function fromMany(tasks: vscode.Task[], extension: IExtensionDescription): TaskDTO[] {
+		if (tasks === undefined || tasks === null) {
+			return [];
+		}
+		const result: TaskDTO[] = [];
+		for (let task of tasks) {
+			const converted = from(task, extension);
+			if (converted) {
+				result.push(converted);
+			}
+		}
+		return result;
+	}
+
+	export function from(value: vscode.Task, extension: IExtensionDescription): TaskDTO | undefined {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
+		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution) {
+			execution = CustomExecutionDTO.from(<types.CustomExecution>(<vscode.Task2>value).execution2);
 		}
-		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
+		const definition: TaskDefinitionDTO | undefined = TaskDefinitionDTO.from(value.definition);
 		let scope: number | UriComponents;
 		if (value.scope) {
 			if (typeof value.scope === 'number') {
 				scope = value.scope;
 			} else {
-				scope = value.scope.uri.toJSON();
+				scope = value.scope.uri;
 			}
+		} else {
+			// To continue to support the deprecated task constructor that doesn't take a scope, we must add a scope here:
+			scope = types.TaskScope.Workspace;
 		}
 		if (!definition || !scope) {
 			return undefined;
 		}
-		let group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
-		let result: TaskDTO = {
-			_id: (value as types.Task)._id,
+		const group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
+		const result: TaskDTO = {
+			_id: (value as types.Task)._id!,
 			definition,
 			name: value.name,
 			source: {
-				extensionId: extension.id,
+				extensionId: extension.identifier.value,
 				label: value.source,
 				scope: scope
 			},
-			execution,
+			execution: execution!,
 			isBackground: value.isBackground,
 			group: group,
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
-			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers
+			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
+			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
 		};
 		return result;
 	}
-	export function to(value: TaskDTO, workspace: ExtHostWorkspace): types.Task {
-		if (value === void 0 || value === null) {
+	export async function to(value: TaskDTO | undefined, workspace: IExtHostWorkspaceProvider): Promise<types.Task | undefined> {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: types.ShellExecution | types.ProcessExecution;
+		let execution: types.ShellExecution | types.ProcessExecution | undefined;
 		if (ProcessExecutionDTO.is(value.execution)) {
 			execution = ProcessExecutionDTO.to(value.execution);
 		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
 		}
-		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
-		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
+		const definition: vscode.TaskDefinition | undefined = TaskDefinitionDTO.to(value.definition);
+		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 		if (value.source) {
-			if (value.source.scope !== void 0) {
+			if (value.source.scope !== undefined) {
 				if (typeof value.source.scope === 'number') {
 					scope = value.source.scope;
 				} else {
-					scope = workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
+					scope = await workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
 				}
 			} else {
 				scope = types.TaskScope.Workspace;
@@ -656,15 +280,15 @@ namespace TaskDTO {
 		if (!definition || !scope) {
 			return undefined;
 		}
-		let result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);
-		if (value.isBackground !== void 0) {
+		const result = new types.Task(definition, scope, value.name!, value.source.label, execution, value.problemMatchers);
+		if (value.isBackground !== undefined) {
 			result.isBackground = value.isBackground;
 		}
-		if (value.group !== void 0) {
+		if (value.group !== undefined) {
 			result.group = types.TaskGroup.from(value.group);
 		}
 		if (value.presentationOptions) {
-			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions);
+			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions)!;
 		}
 		if (value._id) {
 			result._id = value._id;
@@ -674,11 +298,11 @@ namespace TaskDTO {
 }
 
 namespace TaskFilterDTO {
-	export function from(value: vscode.TaskFilter): TaskFilterDTO {
+	export function from(value: vscode.TaskFilter | undefined): TaskFilterDTO | undefined {
 		return value;
 	}
 
-	export function to(value: TaskFilterDTO): vscode.TaskFilter {
+	export function to(value: TaskFilterDTO): vscode.TaskFilter | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -707,8 +331,12 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 }
 
 namespace TaskExecutionDTO {
-	export function to(value: TaskExecutionDTO, tasks: ExtHostTask): vscode.TaskExecution {
-		return new TaskExecutionImpl(tasks, value.id, TaskDTO.to(value.task, tasks.extHostWorkspace));
+	export async function to(value: TaskExecutionDTO, tasks: ExtHostTask, workspaceProvider: IExtHostWorkspaceProvider): Promise<vscode.TaskExecution> {
+		const task = await TaskDTO.to(value.task, workspaceProvider);
+		if (!task) {
+			throw new Error('Unexpected: Task cannot be created.');
+		}
+		return new TaskExecutionImpl(tasks, value.id, task);
 	}
 	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
@@ -723,15 +351,122 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
+class CustomExecutionData implements IDisposable {
+	private static waitForDimensionsTimeoutInMs: number = 5000;
+	private _cancellationSource?: CancellationTokenSource;
+	private readonly _onTaskExecutionComplete: Emitter<CustomExecutionData> = new Emitter<CustomExecutionData>();
+	private readonly _disposables: IDisposable[] = [];
+	private terminal?: vscode.Terminal;
+	private terminalId?: number;
+	public result: number | undefined;
+
+	constructor(
+		private readonly customExecution: vscode.CustomExecution,
+		private readonly terminalService: ExtHostTerminalService) {
+	}
+
+	public dispose(): void {
+		this._cancellationSource = undefined;
+		dispose(this._disposables);
+	}
+
+	public get onTaskExecutionComplete(): Event<CustomExecutionData> {
+		return this._onTaskExecutionComplete.event;
+	}
+
+	private onDidCloseTerminal(terminal: vscode.Terminal): void {
+		if ((this.terminal === terminal) && this._cancellationSource) {
+			this._cancellationSource.cancel();
+		}
+	}
+
+	private onDidOpenTerminal(terminal: vscode.Terminal): void {
+		if (!(terminal instanceof ExtHostTerminal)) {
+			throw new Error('How could this not be a extension host terminal?');
+		}
+
+		if (this.terminalId && terminal._id === this.terminalId) {
+			this.startCallback(this.terminalId);
+		}
+	}
+
+	public async startCallback(terminalId: number): Promise<void> {
+		this.terminalId = terminalId;
+
+		// If we have already started the extension task callback, then
+		// do not start it again.
+		// It is completely valid for multiple terminals to be opened
+		// before the one for our task.
+		if (this._cancellationSource) {
+			return undefined;
+		}
+
+		const callbackTerminals: vscode.Terminal[] = this.terminalService.terminals.filter((terminal) => terminal._id === terminalId);
+
+		if (!callbackTerminals || callbackTerminals.length === 0) {
+			this._disposables.push(this.terminalService.onDidOpenTerminal(this.onDidOpenTerminal.bind(this)));
+			return;
+		}
+
+		if (callbackTerminals.length !== 1) {
+			throw new Error(`Expected to only have one terminal at this point`);
+		}
+
+		this.terminal = callbackTerminals[0];
+		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.resolveTerminalRenderer(terminalId);
+
+		// If we don't have the maximum dimensions yet, then we need to wait for them (but not indefinitely).
+		// Custom executions will expect the dimensions to be set properly before they are launched.
+		// BUT, due to the API contract VSCode has for terminals and dimensions, they are still responsible for
+		// handling cases where they are not set.
+		if (!terminalRenderer.maximumDimensions) {
+			const dimensionTimeout: Promise<void> = new Promise((resolve) => {
+				setTimeout(() => {
+					resolve();
+				}, CustomExecutionData.waitForDimensionsTimeoutInMs);
+			});
+
+			let dimensionsRegistration: IDisposable | undefined;
+			const dimensionsPromise: Promise<void> = new Promise((resolve) => {
+				dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions((newDimensions) => {
+					resolve();
+				});
+			});
+
+			await Promise.race([dimensionTimeout, dimensionsPromise]);
+			if (dimensionsRegistration) {
+				dimensionsRegistration.dispose();
+			}
+		}
+
+		this._cancellationSource = new CancellationTokenSource();
+		this._disposables.push(this._cancellationSource);
+
+		this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
+
+		// Regardless of how the task completes, we are done with this custom execution task.
+		this.customExecution.callback(terminalRenderer, this._cancellationSource.token).then(
+			(success) => {
+				this.result = success;
+				this._onTaskExecutionComplete.fire(this);
+			}, (rejected) => {
+				this._onTaskExecutionComplete.fire(this);
+			});
+	}
+}
+
 export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
-	private _workspaceService: ExtHostWorkspace;
+	private _workspaceProvider: IExtHostWorkspaceProvider;
 	private _editorService: ExtHostDocumentsAndEditors;
 	private _configurationService: ExtHostConfiguration;
+	private _terminalService: ExtHostTerminalService;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
+	private _providedCustomExecutions: Map<string, CustomExecutionData>;
+	private _activeCustomExecutions: Map<string, CustomExecutionData>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -739,25 +474,29 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
-	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfiguration) {
+	constructor(
+		mainContext: IMainContext,
+		workspaceService: ExtHostWorkspace,
+		editorService: ExtHostDocumentsAndEditors,
+		configurationService: ExtHostConfiguration,
+		extHostTerminalService: ExtHostTerminalService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
-		this._workspaceService = workspaceService;
+		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;
 		this._configurationService = configurationService;
+		this._terminalService = extHostTerminalService;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
-	}
-
-	public get extHostWorkspace(): ExtHostWorkspace {
-		return this._workspaceService;
+		this._providedCustomExecutions = new Map<string, CustomExecutionData>();
+		this._activeCustomExecutions = new Map<string, CustomExecutionData>();
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
 		if (!provider) {
 			return new types.Disposable(() => { });
 		}
-		let handle = this.nextHandle();
+		const handle = this.nextHandle();
 		this._handlers.set(handle, { provider, extension });
 		this._proxy.$registerTaskProvider(handle);
 		return new types.Disposable(() => {
@@ -770,11 +509,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._proxy.$registerTaskSystem(scheme, info);
 	}
 
-	public fetchTasks(filter?: vscode.TaskFilter): Thenable<vscode.Task[]> {
-		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then((values) => {
-			let result: vscode.Task[] = [];
+	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
+		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then(async (values) => {
+			const result: vscode.Task[] = [];
 			for (let value of values) {
-				let task = TaskDTO.to(value, this._workspaceService);
+				const task = await TaskDTO.to(value, this._workspaceProvider);
 				if (task) {
 					result.push(task);
 				}
@@ -783,14 +522,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public executeTask(extension: IExtensionDescription, task: vscode.Task): Thenable<vscode.TaskExecution> {
-		let tTask = (task as types.Task);
+	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+		const tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
-		if (tTask._id !== void 0) {
+		if (tTask._id !== undefined) {
 			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, task));
 		} else {
-			let dto = TaskDTO.from(task, extension);
-			if (dto === void 0) {
+			const dto = TaskDTO.from(task, extension);
+			if (dto === undefined) {
 				return Promise.reject(new Error('Task is not valid'));
 			}
 			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
@@ -798,12 +537,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public get taskExecutions(): vscode.TaskExecution[] {
-		let result: vscode.TaskExecution[] = [];
+		const result: vscode.TaskExecution[] = [];
 		this._taskExecutions.forEach(value => result.push(value));
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+	public terminateTask(execution: vscode.TaskExecution): Promise<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
@@ -814,9 +553,28 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidExecuteTask.event;
 	}
 
-	public $onDidStartTask(execution: TaskExecutionDTO): void {
+	public async $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): Promise<void> {
+		// Once a terminal is spun up for the custom execution task this event will be fired.
+		// At that point, we need to actually start the callback, but
+		// only if it hasn't already begun.
+		const extensionCallback: CustomExecutionData | undefined = this._providedCustomExecutions.get(execution.id);
+		if (extensionCallback) {
+			if (this._activeCustomExecutions.get(execution.id) !== undefined) {
+				throw new Error('We should not be trying to start the same custom task executions twice.');
+			}
+
+			this._activeCustomExecutions.set(execution.id, extensionCallback);
+
+			const taskExecutionComplete: IDisposable = extensionCallback.onTaskExecutionComplete(() => {
+				this.customExecutionComplete(execution);
+				taskExecutionComplete.dispose();
+			});
+
+			extensionCallback.startCallback(terminalId);
+		}
+
 		this._onDidExecuteTask.fire({
-			execution: this.getTaskExecution(execution)
+			execution: await this.getTaskExecution(execution)
 		});
 	}
 
@@ -824,9 +582,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidTerminateTask.event;
 	}
 
-	public $OnDidEndTask(execution: TaskExecutionDTO): void {
-		const _execution = this.getTaskExecution(execution);
+	public async $OnDidEndTask(execution: TaskExecutionDTO): Promise<void> {
+		const _execution = await this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
+		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
 			execution: _execution
 		});
@@ -836,8 +595,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidTaskProcessStarted.event;
 	}
 
-	public $onDidStartTaskProcess(value: TaskProcessStartedDTO): void {
-		const execution = this.getTaskExecution(value.id);
+	public async $onDidStartTaskProcess(value: TaskProcessStartedDTO): Promise<void> {
+		const execution = await this.getTaskExecution(value.id);
 		if (execution) {
 			this._onDidTaskProcessStarted.fire({
 				execution: execution,
@@ -850,8 +609,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidTaskProcessEnded.event;
 	}
 
-	public $onDidEndTaskProcess(value: TaskProcessEndedDTO): void {
-		const execution = this.getTaskExecution(value.id);
+	public async $onDidEndTaskProcess(value: TaskProcessEndedDTO): Promise<void> {
+		const execution = await this.getTaskExecution(value.id);
 		if (execution) {
 			this._onDidTaskProcessEnded.fire({
 				execution: execution,
@@ -860,35 +619,81 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<tasks.TaskSet> {
-		let handler = this._handlers.get(handle);
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO> {
+		const handler = this._handlers.get(handle);
 		if (!handler) {
-			return TPromise.wrapError<tasks.TaskSet>(new Error('no handler found'));
+			return Promise.reject(new Error('no handler found'));
 		}
-		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
-			let sanitized: vscode.Task[] = [];
-			for (let task of value) {
-				if (task.definition && validTypes[task.definition.type] === true) {
-					sanitized.push(task);
-				} else {
-					sanitized.push(task);
-					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+
+		// For custom execution tasks, we need to store the execution objects locally
+		// since we obviously cannot send callback functions through the proxy.
+		// So, clear out any existing ones.
+		this._providedCustomExecutions.clear();
+
+		// Set up a list of task ID promises that we can wait on
+		// before returning the provided tasks. The ensures that
+		// our task IDs are calculated for any custom execution tasks.
+		// Knowing this ID ahead of time is needed because when a task
+		// start event is fired this is when the custom execution is called.
+		// The task start event is also the first time we see the ID from the main
+		// thread, which is too late for us because we need to save an map
+		// from an ID to the custom execution function. (Kind of a cart before the horse problem).
+		const taskIdPromises: Promise<void>[] = [];
+		const fetchPromise = asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+			const taskDTOs: TaskDTO[] = [];
+			if (value) {
+				for (let task of value) {
+					if (!task.definition || !validTypes[task.definition.type]) {
+						console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+					}
+
+					const taskDTO: TaskDTO | undefined = TaskDTO.from(task, handler.extension);
+					if (taskDTO) {
+						taskDTOs.push(taskDTO);
+
+						if (CustomExecutionDTO.is(taskDTO.execution)) {
+							taskIdPromises.push(new Promise((resolve) => {
+								// The ID is calculated on the main thread task side, so, let's call into it here.
+								// We need the task id's pre-computed for custom task executions because when OnDidStartTask
+								// is invoked, we have to be able to map it back to our data.
+								this._proxy.$createTaskId(taskDTO).then((taskId) => {
+									this._providedCustomExecutions.set(taskId, new CustomExecutionData(<vscode.CustomExecution>(<vscode.Task2>task).execution2, this._terminalService));
+									resolve();
+								});
+							}));
+						}
+					}
 				}
 			}
-			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
 			return {
-				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
+				tasks: taskDTOs,
 				extension: handler.extension
 			};
 		});
+
+		return new Promise((resolve) => {
+			fetchPromise.then((result) => {
+				Promise.all(taskIdPromises).then(() => {
+					resolve(result);
+				});
+			});
+		});
 	}
 
-	public $resolveVariables(uriComponents: UriComponents, variables: string[]): any {
-		let uri: URI = URI.revive(uriComponents);
-		let result: { [key: string]: string; } = Object.create(null);
-		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
-		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
-		let ws: IWorkspaceFolder = {
+	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
+		const configProvider = await this._configurationService.getConfigProvider();
+		const uri: URI = URI.revive(uriComponents);
+		const result = {
+			process: <unknown>undefined as string,
+			variables: Object.create(null)
+		};
+		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
+		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
+		if (!workspaceFolders || !workspaceFolder) {
+			throw new Error('Unexpected: Tasks can only be run in a workspace folder');
+		}
+		const resolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider);
+		const ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
 			index: workspaceFolder.index,
@@ -896,8 +701,22 @@ export class ExtHostTask implements ExtHostTaskShape {
 				throw new Error('Not implemented');
 			}
 		};
-		for (let variable of variables) {
-			result[variable] = resolver.resolve(ws, variable);
+		for (let variable of toResolve.variables) {
+			result.variables[variable] = resolver.resolve(ws, variable);
+		}
+		if (toResolve.process !== undefined) {
+			let paths: string[] | undefined = undefined;
+			if (toResolve.process.path !== undefined) {
+				paths = toResolve.process.path.split(path.delimiter);
+				for (let i = 0; i < paths.length; i++) {
+					paths[i] = resolver.resolve(ws, paths[i]);
+				}
+			}
+			result.process = await win32.findExecutable(
+				resolver.resolve(ws, toResolve.process.name),
+				toResolve.process.cwd !== undefined ? resolver.resolve(ws, toResolve.process.cwd) : undefined,
+				paths
+			);
 		}
 		return result;
 	}
@@ -906,17 +725,34 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	private getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): TaskExecutionImpl {
+	private async getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
-			return this._taskExecutions.get(execution);
+			const taskExecution = this._taskExecutions.get(execution);
+			if (!taskExecution) {
+				throw new Error('Unexpected: The specified task is missing an execution');
+			}
+			return taskExecution;
 		}
 
-		let result: TaskExecutionImpl = this._taskExecutions.get(execution.id);
+		let result: TaskExecutionImpl | undefined = this._taskExecutions.get(execution.id);
 		if (result) {
 			return result;
 		}
-		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, this._workspaceService));
-		this._taskExecutions.set(execution.id, result);
-		return result;
+		const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider);
+		if (!taskToCreate) {
+			throw new Error('Unexpected: Task does not exist.');
+		}
+		const createdResult: TaskExecutionImpl = new TaskExecutionImpl(this, execution.id, taskToCreate);
+		this._taskExecutions.set(execution.id, createdResult);
+		return createdResult;
+	}
+
+	private customExecutionComplete(execution: TaskExecutionDTO): void {
+		const extensionCallback: CustomExecutionData | undefined = this._activeCustomExecutions.get(execution.id);
+		if (extensionCallback) {
+			this._activeCustomExecutions.delete(execution.id);
+			this._proxy.$customExecutionComplete(execution.id, extensionCallback.result);
+			extensionCallback.dispose();
+		}
 	}
 }

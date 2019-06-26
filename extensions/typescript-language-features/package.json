@@ -10,20 +10,22 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "engines": {
-    "vscode": "*"
+    "vscode": "^1.30.0"
   },
   "categories": [
     "Programming Languages"
   ],
   "dependencies": {
     "jsonc-parser": "^2.0.1",
+    "rimraf": "^2.6.3",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.0.18",
-    "vscode-nls": "^3.2.4"
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "8.0.33",
+    "@types/node": "^10.14.8",
     "@types/semver": "^5.5.0",
+    "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -42,6 +44,7 @@
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
+    "onCommand:_typescript.configurePlugin",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
@@ -82,7 +85,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -128,7 +131,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -141,10 +144,16 @@
           "description": "%typescript.tsserver.trace%",
           "scope": "window"
         },
-        "typescript.useCodeSnippetsOnMethodSuggest": {
+        "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
+          "description": "%configuration.suggest.completeFunctionCalls%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -351,12 +360,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -369,10 +372,10 @@
           "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
           "scope": "window"
         },
-        "javascript.nameSuggestions": {
+        "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%javascript.nameSuggestions%",
+          "description": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -384,7 +387,7 @@
             "build",
             "watch"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.tsc.autoDetect.on%",
             "%typescript.tsc.autoDetect.off%",
             "%typescript.tsc.autoDetect.build%",
@@ -393,16 +396,40 @@
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },
-        "typescript.quickSuggestionsForPaths": {
+        "javascript.suggest.paths": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.quickSuggestionsForPaths%",
+          "description": "%configuration.suggest.paths%",
           "scope": "resource"
         },
-        "typescript.autoImportSuggestions.enabled": {
+        "typescript.suggest.paths": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoImportSuggestions.enabled%",
+          "description": "%configuration.suggest.paths%",
+          "scope": "resource"
+        },
+        "javascript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "typescript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "javascript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -484,13 +511,25 @@
             "relative",
             "non-relative"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifier.auto%",
             "%typescript.preferences.importModuleSpecifier.relative%",
             "%typescript.preferences.importModuleSpecifier.nonRelative%"
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -500,7 +539,7 @@
             "always",
             "never"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.updateImportsOnFileMove.enabled.prompt%",
             "%typescript.updateImportsOnFileMove.enabled.always%",
             "%typescript.updateImportsOnFileMove.enabled.never%"
@@ -516,6 +555,11 @@
             "always",
             "never"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
+          ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
@@ -529,6 +573,30 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.surveys.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.surveys.enabled%",
+          "scope": "window"
+        },
+        "typescript.experimental.useSeparateSyntaxServer": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.experimental.useSeparateSyntaxServer%",
+          "scope": "window"
         }
       }
     },
@@ -645,7 +713,7 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
         "file": 1,
         "line": 2,
         "column": 3,

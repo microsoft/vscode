@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./countBadge';
 import { $, append } from 'vs/base/browser/dom';
 import { format } from 'vs/base/common/strings';
@@ -35,9 +33,9 @@ export class CountBadge {
 	private countFormat: string;
 	private titleFormat: string;
 
-	private badgeBackground: Color;
-	private badgeForeground: Color;
-	private badgeBorder: Color;
+	private badgeBackground: Color | undefined;
+	private badgeForeground: Color | undefined;
+	private badgeBorder: Color | undefined;
 
 	private options: ICountBadgeOptions;
 

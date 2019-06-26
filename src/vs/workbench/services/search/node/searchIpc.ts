@@ -3,25 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IRawSearch, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IRawFileQuery, IRawTextQuery, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
 
-export interface ISearchChannel extends IChannel {
-	listen(event: 'fileSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	listen(event: 'textSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-	call(command: 'clearCache', cacheKey: string): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
-}
-
-export class SearchChannel implements ISearchChannel {
+export class SearchChannel implements IServerChannel {
 
 	constructor(private service: IRawSearchService) { }
 
-	listen<T>(event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'fileSearch': return this.service.fileSearch(arg);
 			case 'textSearch': return this.service.textSearch(arg);
@@ -29,7 +19,7 @@ export class SearchChannel implements ISearchChannel {
 		throw new Error('Event not found');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'clearCache': return this.service.clearCache(arg);
 		}
@@ -39,17 +29,17 @@ export class SearchChannel implements ISearchChannel {
 
 export class SearchChannelClient implements IRawSearchService {
 
-	constructor(private channel: ISearchChannel) { }
+	constructor(private channel: IChannel) { }
 
-	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		return this.channel.listen('fileSearch', search);
 	}
 
-	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	textSearch(search: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		return this.channel.listen('textSearch', search);
 	}
 
-	clearCache(cacheKey: string): TPromise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		return this.channel.call('clearCache', cacheKey);
 	}
 }

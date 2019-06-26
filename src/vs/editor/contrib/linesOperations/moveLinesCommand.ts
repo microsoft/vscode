@@ -2,27 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
+import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry, IIndentConverter } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import * as IndentUtil from 'vs/editor/contrib/indentation/indentUtils';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
+import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 
 export class MoveLinesCommand implements ICommand {
 
-	private _selection: Selection;
-	private _isMovingDown: boolean;
-	private _autoIndent: boolean;
+	private readonly _selection: Selection;
+	private readonly _isMovingDown: boolean;
+	private readonly _autoIndent: boolean;
 
 	private _selectionId: string;
-	private _moveEndPositionDown: boolean;
+	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
 
 	constructor(selection: Selection, isMovingDown: boolean, autoIndent: boolean) {
@@ -51,9 +50,8 @@ export class MoveLinesCommand implements ICommand {
 			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
 		}
 
-		let tabSize = model.getOptions().tabSize;
-		let insertSpaces = model.getOptions().insertSpaces;
-		let indentConverter = this.buildIndentConverter(tabSize);
+		const { tabSize, indentSize, insertSpaces } = model.getOptions();
+		let indentConverter = this.buildIndentConverter(tabSize, indentSize, insertSpaces);
 		let virtualModel = {
 			getLineTokens: (lineNumber: number) => {
 				return model.getLineTokens(lineNumber);
@@ -64,7 +62,7 @@ export class MoveLinesCommand implements ICommand {
 			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 				return model.getLanguageIdAtPosition(lineNumber, column);
 			},
-			getLineContent: <(lineNumber: number) => string>null,
+			getLineContent: null as unknown as (lineNumber: number) => string,
 		};
 
 		if (s.startLineNumber === s.endLineNumber && model.getLineMaxColumn(s.startLineNumber) === 1) {
@@ -104,8 +102,8 @@ export class MoveLinesCommand implements ICommand {
 					// if s.startLineNumber - 1 matches onEnter rule, we still honor that.
 					if (movingLineMatchResult !== null) {
 						let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
-						let newSpaceCnt = movingLineMatchResult + IndentUtil.getSpaceCnt(oldIndentation, tabSize);
-						let newIndentation = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
+						let newSpaceCnt = movingLineMatchResult + indentUtils.getSpaceCnt(oldIndentation, tabSize);
+						let newIndentation = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
 						insertingText = newIndentation + this.trimLeft(movingLineText);
 					} else {
 						// no enter rule matches, let's check indentatin rules then.
@@ -120,10 +118,10 @@ export class MoveLinesCommand implements ICommand {
 							movingLineNumber, 1), s.startLineNumber, indentConverter);
 						if (indentOfMovingLine !== null) {
 							let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
-							let newSpaceCnt = IndentUtil.getSpaceCnt(indentOfMovingLine, tabSize);
-							let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
+							let newSpaceCnt = indentUtils.getSpaceCnt(indentOfMovingLine, tabSize);
+							let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
 							if (newSpaceCnt !== oldSpaceCnt) {
-								let newIndentation = IndentUtil.generateIndent(newSpaceCnt, tabSize, insertSpaces);
+								let newIndentation = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
 								insertingText = newIndentation + this.trimLeft(movingLineText);
 							}
 						}
@@ -156,8 +154,8 @@ export class MoveLinesCommand implements ICommand {
 
 						if (newIndentatOfMovingBlock !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
-							const newSpaceCnt = IndentUtil.getSpaceCnt(newIndentatOfMovingBlock, tabSize);
-							const oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
+							const newSpaceCnt = indentUtils.getSpaceCnt(newIndentatOfMovingBlock, tabSize);
+							const oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
 							if (newSpaceCnt !== oldSpaceCnt) {
 								const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
 
@@ -200,8 +198,8 @@ export class MoveLinesCommand implements ICommand {
 						if (indentOfFirstLine !== null) {
 							// adjust the indentation of the moving block
 							let oldIndent = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
-							let newSpaceCnt = IndentUtil.getSpaceCnt(indentOfFirstLine, tabSize);
-							let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndent, tabSize);
+							let newSpaceCnt = indentUtils.getSpaceCnt(indentOfFirstLine, tabSize);
+							let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndent, tabSize);
 							if (newSpaceCnt !== oldSpaceCnt) {
 								let spaceCntOffset = newSpaceCnt - oldSpaceCnt;
 
@@ -216,25 +214,13 @@ export class MoveLinesCommand implements ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private buildIndentConverter(tabSize: number): IIndentConverter {
+	private buildIndentConverter(tabSize: number, indentSize: number, insertSpaces: boolean): IIndentConverter {
 		return {
 			shiftIndent: (indentation) => {
-				let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + 1, tabSize);
-				let newIndentation = '';
-				for (let i = 0; i < desiredIndentCount; i++) {
-					newIndentation += '\t';
-				}
-
-				return newIndentation;
+				return ShiftCommand.shiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
 			},
 			unshiftIndent: (indentation) => {
-				let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, tabSize);
-				let newIndentation = '';
-				for (let i = 0; i < desiredIndentCount; i++) {
-					newIndentation += '\t';
-				}
-
-				return newIndentation;
+				return ShiftCommand.unshiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
 			}
 		};
 	}
@@ -282,11 +268,11 @@ export class MoveLinesCommand implements ICommand {
 				let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
 				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
 				let indentMetadataOfMovelingLine = LanguageConfigurationRegistry.getIndentMetadata(model, line);
-				if (indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
+				if (indentMetadataOfMovelingLine !== null && indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
 					newIndentation = indentConverter.unshiftIndent(newIndentation);
 				}
-				let newSpaceCnt = IndentUtil.getSpaceCnt(newIndentation, tabSize);
-				let oldSpaceCnt = IndentUtil.getSpaceCnt(oldIndentation, tabSize);
+				let newSpaceCnt = indentUtils.getSpaceCnt(newIndentation, tabSize);
+				let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
 				return newSpaceCnt - oldSpaceCnt;
 			}
 		}
@@ -324,9 +310,9 @@ export class MoveLinesCommand implements ICommand {
 		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
 			let lineContent = model.getLineContent(i);
 			let originalIndent = strings.getLeadingWhitespace(lineContent);
-			let originalSpacesCnt = IndentUtil.getSpaceCnt(originalIndent, tabSize);
+			let originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
 			let newSpacesCnt = originalSpacesCnt + offset;
-			let newIndent = IndentUtil.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+			let newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 
 			if (newIndent !== originalIndent) {
 				builder.addEditOperation(new Range(i, 1, i, originalIndent.length + 1), newIndent);

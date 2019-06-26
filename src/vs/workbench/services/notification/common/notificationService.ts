@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
-import { once } from 'vs/base/common/event';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IAction } from 'vs/base/common/actions';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<INotificationService>;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 
@@ -29,7 +28,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.notify({ severity: Severity.Info, message });
+		this.model.addNotification({ severity: Severity.Info, message });
 	}
 
 	warn(message: NotificationMessage | NotificationMessage[]): void {
@@ -39,7 +38,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.notify({ severity: Severity.Warning, message });
+		this.model.addNotification({ severity: Severity.Warning, message });
 	}
 
 	error(message: NotificationMessage | NotificationMessage[]): void {
@@ -49,55 +48,64 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.notify({ severity: Severity.Error, message });
+		this.model.addNotification({ severity: Severity.Error, message });
 	}
 
 	notify(notification: INotification): INotificationHandle {
-		return this.model.notify(notification);
+		return this.model.addNotification(notification);
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
-		let handle: INotificationHandle;
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+		const toDispose = new DisposableStore();
+
 		let choiceClicked = false;
+		let handle: INotificationHandle;
 
 		// Convert choices into primary/secondary actions
-		const actions: INotificationActions = { primary: [], secondary: [] };
+		const primaryActions: IAction[] = [];
+		const secondaryActions: IAction[] = [];
 		choices.forEach((choice, index) => {
-			const action = new Action(`workbench.dialog.choice.${index}`, choice.label, null, true, () => {
-				choiceClicked = true;
+			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
+			if (!choice.isSecondary) {
+				primaryActions.push(action);
+			} else {
+				secondaryActions.push(action);
+			}
 
-				// Pass to runner
-				choice.run();
+			// React to action being clicked
+			toDispose.add(action.onDidRun(() => {
+				choiceClicked = true;
 
 				// Close notification unless we are told to keep open
 				if (!choice.keepOpen) {
 					handle.close();
 				}
+			}));
 
-				return TPromise.as(void 0);
-			});
-
-			if (!choice.isSecondary) {
-				actions.primary.push(action);
-			} else {
-				actions.secondary.push(action);
-			}
+			toDispose.add(action);
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions });
+		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
+		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
 
-		once(handle.onDidClose)(() => {
+		Event.once(handle.onDidClose)(() => {
 
 			// Cleanup when notification gets disposed
-			dispose(...actions.primary, ...actions.secondary);
+			toDispose.dispose();
 
 			// Indicate cancellation to the outside if no action was executed
-			if (!choiceClicked && typeof onCancel === 'function') {
-				onCancel();
+			if (options && typeof options.onCancel === 'function' && !choiceClicked) {
+				options.onCancel();
 			}
 		});
 
 		return handle;
 	}
+
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+		return this.model.showStatusMessage(message, options);
+	}
 }
+
+registerSingleton(INotificationService, NotificationService, true);

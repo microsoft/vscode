@@ -23,6 +23,7 @@
 		"editorGroupHeader.tabsBackground": "#282828",
 		"tab.inactiveBackground": "#404040",
 		"tab.border": "#303030",
+		"tab.modifiedBorder": "#6796e6",
 		"tab.inactiveForeground": "#d8d8d8",
 		"peekView.border": "#3655b5",
 		"panelTitle.activeForeground": "#ffffff",
@@ -30,11 +31,14 @@
 		"statusBar.debuggingBackground": "#505050",
 		"statusBar.noFolderBackground": "#505050",
 		"titleBar.activeBackground": "#505050",
+		"statusBarItem.remoteBackground": "#3655b5",
 		"activityBar.background": "#353535",
 		"activityBar.foreground": "#ffffff",
 		"activityBarBadge.background": "#3655b5",
 		"sideBar.background": "#272727",
 		"sideBarSectionHeader.background": "#505050",
+		"menu.background": "#272727",
+		"menu.foreground": "#CCCCCC",
 		"pickerGroup.foreground": "#b0b0b0",
 		"terminal.ansiWhite": "#ffffff",
 		"inputOption.activeBorder": "#3655b5",
@@ -139,7 +143,7 @@
 		},
 		{
 			"name": "Class name",
-			"scope": "entity.name.class, entity.name.type",
+			"scope": "entity.name.class, entity.name.type, entity.name.namespace, entity.name.scope-resolution",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9B0000",
@@ -251,8 +255,14 @@
 			}
 		},
 		{
-			"name": "Keyword Control",
-			"scope": "keyword.control",
+			"name": "Keyword Control / Special",
+			"scope": [
+				"keyword.control",
+				"keyword.operator.new.cpp",
+				"keyword.operator.delete.cpp",
+				"keyword.other.using",
+				"keyword.other.operator"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9872A2"

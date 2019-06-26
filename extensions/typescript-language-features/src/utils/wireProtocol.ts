@@ -4,30 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as stream from 'stream';
+import * as vscode from 'vscode';
+import { Disposable } from './dispose';
 
-const DefaultSize: number = 8192;
-const ContentLength: string = 'Content-Length: ';
-const ContentLengthSize: number = Buffer.byteLength(ContentLength, 'utf8');
-const Blank: number = Buffer.from(' ', 'utf8')[0];
-const BackslashR: number = Buffer.from('\r', 'utf8')[0];
-const BackslashN: number = Buffer.from('\n', 'utf8')[0];
+const defaultSize: number = 8192;
+const contentLength: string = 'Content-Length: ';
+const contentLengthSize: number = Buffer.byteLength(contentLength, 'utf8');
+const blank: number = Buffer.from(' ', 'utf8')[0];
+const backslashR: number = Buffer.from('\r', 'utf8')[0];
+const backslashN: number = Buffer.from('\n', 'utf8')[0];
 
 class ProtocolBuffer {
 
 	private index: number = 0;
-	private buffer: Buffer = Buffer.allocUnsafe(DefaultSize);
+	private buffer: Buffer = Buffer.allocUnsafe(defaultSize);
 
 	public append(data: string | Buffer): void {
 		let toAppend: Buffer | null = null;
 		if (Buffer.isBuffer(data)) {
-			toAppend = <Buffer>data;
+			toAppend = data;
 		} else {
-			toAppend = Buffer.from(<string>data, 'utf8');
+			toAppend = Buffer.from(data, 'utf8');
 		}
 		if (this.buffer.length - this.index >= toAppend.length) {
 			toAppend.copy(this.buffer, this.index, 0, toAppend.length);
 		} else {
-			let newSize = (Math.ceil((this.index + toAppend.length) / DefaultSize) + 1) * DefaultSize;
+			let newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
 			if (this.index === 0) {
 				this.buffer = Buffer.allocUnsafe(newSize);
 				toAppend.copy(this.buffer, 0, 0, toAppend.length);
@@ -42,18 +44,18 @@ class ProtocolBuffer {
 		let result = -1;
 		let current = 0;
 		// we are utf8 encoding...
-		while (current < this.index && (this.buffer[current] === Blank || this.buffer[current] === BackslashR || this.buffer[current] === BackslashN)) {
+		while (current < this.index && (this.buffer[current] === blank || this.buffer[current] === backslashR || this.buffer[current] === backslashN)) {
 			current++;
 		}
-		if (this.index < current + ContentLengthSize) {
+		if (this.index < current + contentLengthSize) {
 			return result;
 		}
-		current += ContentLengthSize;
+		current += contentLengthSize;
 		let start = current;
-		while (current < this.index && this.buffer[current] !== BackslashR) {
+		while (current < this.index && this.buffer[current] !== backslashR) {
 			current++;
 		}
-		if (current + 3 >= this.index || this.buffer[current + 1] !== BackslashN || this.buffer[current + 2] !== BackslashR || this.buffer[current + 3] !== BackslashN) {
+		if (current + 3 >= this.index || this.buffer[current + 1] !== backslashN || this.buffer[current + 2] !== backslashR || this.buffer[current + 3] !== backslashN) {
 			return result;
 		}
 		let data = this.buffer.toString('utf8', start, current);
@@ -69,7 +71,7 @@ class ProtocolBuffer {
 		}
 		let result = this.buffer.toString('utf8', 0, length);
 		let sourceStart = length;
-		while (sourceStart < this.index && (this.buffer[sourceStart] === BackslashR || this.buffer[sourceStart] === BackslashN)) {
+		while (sourceStart < this.index && (this.buffer[sourceStart] === backslashR || this.buffer[sourceStart] === backslashN)) {
 			sourceStart++;
 		}
 		this.buffer.copy(this.buffer, 0, sourceStart);
@@ -78,26 +80,27 @@ class ProtocolBuffer {
 	}
 }
 
-export interface ICallback<T> {
-	(data: T): void;
-}
-
-export class Reader<T> {
+export class Reader<T> extends Disposable {
 
 	private readonly buffer: ProtocolBuffer = new ProtocolBuffer();
 	private nextMessageLength: number = -1;
 
-	public constructor(
-		private readonly readable: stream.Readable,
-		private readonly callback: ICallback<T>,
-		private readonly onError: (error: any) => void
-	) {
-		this.readable.on('data', (data: Buffer) => {
-			this.onLengthData(data);
-		});
+	public constructor(readable: stream.Readable) {
+		super();
+		readable.on('data', data => this.onLengthData(data));
 	}
 
-	private onLengthData(data: Buffer): void {
+	private readonly _onError = this._register(new vscode.EventEmitter<Error>());
+	public readonly onError = this._onError.event;
+
+	private readonly _onData = this._register(new vscode.EventEmitter<T>());
+	public readonly onData = this._onData.event;
+
+	private onLengthData(data: Buffer | string): void {
+		if (this.isDisposed) {
+			return;
+		}
+
 		try {
 			this.buffer.append(data);
 			while (true) {
@@ -113,10 +116,10 @@ export class Reader<T> {
 				}
 				this.nextMessageLength = -1;
 				const json = JSON.parse(msg);
-				this.callback(json);
+				this._onData.fire(json);
 			}
 		} catch (e) {
-			this.onError(e);
+			this._onError.fire(e);
 		}
 	}
 }

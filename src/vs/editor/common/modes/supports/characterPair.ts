@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export class CharacterPairSupport {
 
@@ -47,9 +46,7 @@ export class CharacterPairSupport {
 		let tokenIndex = context.findTokenIndexAtOffset(column - 2);
 		let standardTokenType = context.getStandardTokenType(tokenIndex);
 
-		for (let i = 0; i < this._autoClosingPairs.length; ++i) {
-			let autoClosingPair = this._autoClosingPairs[i];
-
+		for (const autoClosingPair of this._autoClosingPairs) {
 			if (autoClosingPair.open === character) {
 				return autoClosingPair.isOK(standardTokenType);
 			}

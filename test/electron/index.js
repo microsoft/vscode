@@ -10,6 +10,7 @@ const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
 const MochaJUnitReporter = require('mocha-junit-reporter');
+const url = require('url');
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
@@ -99,6 +100,13 @@ function parseReporterOption(value) {
 
 app.on('ready', () => {
 
+	ipcMain.on('error', (_, err) => {
+		if (!argv.debug) {
+			console.error(err);
+			app.exit(1);
+		}
+	});
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
@@ -117,7 +125,7 @@ app.on('ready', () => {
 		win.webContents.send('run', argv);
 	});
 
-	win.loadURL(`file://${__dirname}/renderer.html`);
+	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
 
 	const runner = new IPCRunner();
 

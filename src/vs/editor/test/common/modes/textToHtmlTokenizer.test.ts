@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
-import { tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { ColorId, FontStyle, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	function toStr(pieces: { className: string; text: string }[]): string {
@@ -19,8 +18,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 1', () => {
 		let mode = new Mode();
+		let support = TokenizationRegistry.get(mode.getId())!;
 
-		let actual = tokenizeToString('.abc..def...gh', mode.getId());
+		let actual = tokenizeToString('.abc..def...gh', support);
 		let expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -38,8 +38,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 2', () => {
 		let mode = new Mode();
+		let support = TokenizationRegistry.get(mode.getId())!;
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', mode.getId());
+		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
 		let expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -101,7 +102,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 				) >>> 0
 			)
 		]);
-		const colorMap = [null, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
 		assert.equal(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4),
@@ -202,8 +203,8 @@ class Mode extends MockMode {
 	constructor() {
 		super(Mode._id);
 		this._register(TokenizationRegistry.register(this.getId(), {
-			getInitialState: (): IState => null,
-			tokenize: undefined,
+			getInitialState: (): IState => null!,
+			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
 				let tokensArr: number[] = [];
 				let prevColor: ColorId = -1;
@@ -222,7 +223,7 @@ class Mode extends MockMode {
 				for (let i = 0; i < tokens.length; i++) {
 					tokens[i] = tokensArr[i];
 				}
-				return new TokenizationResult2(tokens, null);
+				return new TokenizationResult2(tokens, null!);
 			}
 		}));
 	}

@@ -141,13 +141,13 @@
 			}
 		},
 		{
-			"scope": "beginning.punctuation.definition.quote.markdown",
+			"scope": "punctuation.definition.quote.begin.markdown",
 			"settings": {
 				"foreground": "#6A9955"
 			}
 		},
 		{
-			"scope": "beginning.punctuation.definition.list.markdown",
+			"scope": "punctuation.definition.list.begin.markdown",
 			"settings": {
 				"foreground": "#6796e6"
 			}
@@ -156,12 +156,6 @@
 			"scope": "markup.inline.raw",
 			"settings": {
 				"foreground": "#ce9178"
-			}
-		},
-		{
-			"scope": "meta.selector",
-			"settings": {
-				"foreground": "#d7ba7d"
 			}
 		},
 		{

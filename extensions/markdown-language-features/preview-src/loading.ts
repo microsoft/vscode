@@ -30,7 +30,7 @@ export class StyleLoadingMonitor {
 			}
 			this.finishedLoading = true;
 			if (this.poster) {
-				this.poster.postCommand('_markdown.onPreviewStyleLoadError', [this.unloadedStyles]);
+				this.poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
 			}
 		});
 	}
@@ -38,7 +38,7 @@ export class StyleLoadingMonitor {
 	public setPoster(poster: MessagePoster): void {
 		this.poster = poster;
 		if (this.finishedLoading) {
-			poster.postCommand('_markdown.onPreviewStyleLoadError', [this.unloadedStyles]);
+			poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
 		}
 	}
 }

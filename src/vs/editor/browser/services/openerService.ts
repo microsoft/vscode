@@ -2,49 +2,67 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import * as resources from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
-import { TPromise } from 'vs/base/common/winjs.base';
+import * as resources from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export class OpenerService implements IOpenerService {
 
 	_serviceBrand: any;
 
+	private readonly _opener = new LinkedList<IOpener>();
+
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@optional(ITelemetryService) private _telemetryService: ITelemetryService = NullTelemetryService
 	) {
 		//
 	}
 
-	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
+	registerOpener(opener: IOpener): IDisposable {
+		const remove = this._opener.push(opener);
+		return { dispose: remove };
+	}
 
-		/* __GDPR__
-			"openerService" : {
-				"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	async open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+		// no scheme ?!?
+		if (!resource.scheme) {
+			return Promise.resolve(false);
+		}
+		// check with contributed openers
+		for (const opener of this._opener.toArray()) {
+			const handled = await opener.open(resource, options);
+			if (handled) {
+				return true;
 			}
-		*/
-		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
+		}
+		// use default openers
+		return this._doOpen(resource, options);
+	}
+
+	private _doOpen(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: TPromise<any> = TPromise.wrap(void 0);
 
-		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
+		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
 			// open http or default mail application
-			dom.windowOpenNoOpener(resource.toString(true));
-		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
+			dom.windowOpenNoOpener(resource.toString());
+			return Promise.resolve(true);
+
+		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
+			// run command or bail out if command isn't known
+			if (!CommandsRegistry.getCommand(path)) {
+				return Promise.reject(`command '${path}' NOT known`);
+			}
 			// execute as command
 			let args: any = [];
 			try {
@@ -55,13 +73,10 @@ export class OpenerService implements IOpenerService {
 			} catch (e) {
 				//
 			}
-			promise = this._commandService.executeCommand(path, ...args);
+			return this._commandService.executeCommand(path, ...args).then(() => true);
 
 		} else {
-			let selection: {
-				startLineNumber: number;
-				startColumn: number;
-			};
+			let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
 			const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
 			if (match) {
 				// support file:///some/file.js#73,84
@@ -74,16 +89,15 @@ export class OpenerService implements IOpenerService {
 				resource = resource.with({ fragment: '' });
 			}
 
-			if (!resource.scheme) {
-				// we cannot handle those
-				return TPromise.as(undefined);
-
-			} else if (resource.scheme === Schemas.file) {
+			if (resource.scheme === Schemas.file) {
 				resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
-			promise = this._editorService.openCodeEditor({ resource, options: { selection, } }, this._editorService.getFocusedCodeEditor(), options && options.openToSide);
-		}
 
-		return promise;
+			return this._editorService.openCodeEditor(
+				{ resource, options: { selection, } },
+				this._editorService.getFocusedCodeEditor(),
+				options && options.openToSide
+			).then(() => true);
+		}
 	}
 }

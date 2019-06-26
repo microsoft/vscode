@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -69,10 +68,15 @@ function providePathSuggestions(pathValue: string, position: Position, range: Ra
 	const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 	const currentDocFsPath = URI.parse(document.uri).fsPath;
 
-	const paths = providePaths(valueBeforeCursor, currentDocFsPath, workspaceRoot).filter(p => {
-		// Exclude current doc's path
-		return path.resolve(currentDocFsPath, '../', p) !== currentDocFsPath;
-	});
+	const paths = providePaths(valueBeforeCursor, currentDocFsPath, workspaceRoot)
+		.filter(p => {
+			// Exclude current doc's path
+			return path.resolve(currentDocFsPath, '../', p) !== currentDocFsPath;
+		})
+		.filter(p => {
+			// Exclude paths that start with `.`
+			return p[0] !== '.';
+		});
 
 	const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
 	const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);
@@ -191,11 +195,12 @@ function escapePath(p: string) {
 }
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
-	for (let i = 0; i < workspaceFolders.length; i++) {
-		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
-			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
+	for (const folder of workspaceFolders) {
+		if (startsWith(activeDoc.uri, folder.uri)) {
+			return path.resolve(URI.parse(folder.uri).fsPath);
 		}
 	}
+	return undefined;
 }
 
 function shiftPosition(pos: Position, offset: number): Position {

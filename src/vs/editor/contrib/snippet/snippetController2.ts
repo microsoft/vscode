@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { repeat } from 'vs/base/common/strings';
@@ -14,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -36,10 +34,10 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
-	private _session: SnippetSession;
+	private _session?: SnippetSession;
 	private _snippetListener: IDisposable[] = [];
 	private _modelVersionId: number;
-	private _currentChoice: Choice;
+	private _currentChoice?: Choice;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -89,6 +87,9 @@ export class SnippetController2 implements IEditorContribution {
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true,
 		adjustWhitespace: boolean = true,
 	): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
 		// don't listen while inserting the snippet
 		// as that is the inflight state causing cancelation
@@ -120,7 +121,7 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	private _updateState(): void {
-		if (!this._session) {
+		if (!this._session || !this._editor.hasModel()) {
 			// canceled in the meanwhile
 			return;
 		}
@@ -149,6 +150,11 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	private _handleChoice(): void {
+		if (!this._session || !this._editor.hasModel()) {
+			this._currentChoice = undefined;
+			return;
+		}
+
 		const { choice } = this._session;
 		if (!choice) {
 			this._currentChoice = undefined;
@@ -168,14 +174,14 @@ export class SnippetController2 implements IEditorContribution {
 				// let before = choice.options.slice(0, i);
 				// let after = choice.options.slice(i);
 
-				return <ISuggestion>{
-					type: 'value',
+				return <CompletionItem>{
+					kind: CompletionItemKind.Value,
 					label: option.value,
 					insertText: option.value,
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
 					// snippetType: 'textmate',
-					sortText: repeat('a', i),
-					overwriteAfter: first.value.length
+					sortText: repeat('a', i + 1),
+					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
 				};
 			}));
 		}
@@ -187,7 +193,7 @@ export class SnippetController2 implements IEditorContribution {
 		}
 	}
 
-	cancel(): void {
+	cancel(resetSelection: boolean = false): void {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
@@ -195,23 +201,33 @@ export class SnippetController2 implements IEditorContribution {
 		dispose(this._session);
 		this._session = undefined;
 		this._modelVersionId = -1;
+		if (resetSelection) {
+			// reset selection to the primary cursor when being asked
+			// for. this happens when explicitly cancelling snippet mode,
+			// e.g. when pressing ESC
+			this._editor.setSelections([this._editor.getSelection()!]);
+		}
 	}
 
 	prev(): void {
-		this._session.prev();
+		if (this._session) {
+			this._session.prev();
+		}
 		this._updateState();
 	}
 
 	next(): void {
-		this._session.next();
+		if (this._session) {
+			this._session.next();
+		}
 		this._updateState();
 	}
 
 	isInSnippet(): boolean {
-		return this._inSnippet.get();
+		return Boolean(this._inSnippet.get());
 	}
 
-	getSessionEnclosingRange(): Range {
+	getSessionEnclosingRange(): Range | undefined {
 		if (this._session) {
 			return this._session.getEnclosingRange();
 		}
@@ -247,7 +263,7 @@ registerEditorCommand(new CommandCtor({
 registerEditorCommand(new CommandCtor({
 	id: 'leaveSnippet',
 	precondition: SnippetController2.InSnippetMode,
-	handler: ctrl => ctrl.cancel(),
+	handler: ctrl => ctrl.cancel(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,

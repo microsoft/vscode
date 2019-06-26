@@ -2,29 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Handler, ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageIdentifier, ITokenizationSupport, IState, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { createTextModel, IRelaxedTextModelCreationOptions } from 'vs/editor/test/common/editorTestUtils';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 const H = Handler;
 
@@ -151,8 +151,8 @@ suite('Editor Controller - Cursor', () => {
 			LINE5;
 
 		thisModel = createTextModel(text);
-		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
+		thisConfiguration = new TestConfiguration({});
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -735,8 +735,8 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -774,8 +774,8 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -836,8 +836,8 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -885,8 +885,8 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -1105,14 +1105,13 @@ class SurroundingMode extends MockMode {
 class OnEnterMode extends MockMode {
 	private static readonly _id = new LanguageIdentifier('onEnterMode', 3);
 
-	constructor(indentAction: IndentAction, outdentCurrentLine?: boolean) {
+	constructor(indentAction: IndentAction) {
 		super(OnEnterMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			onEnterRules: [{
 				beforeText: /.*/,
 				action: {
-					indentAction: indentAction,
-					outdentCurrentLine: outdentCurrentLine
+					indentAction: indentAction
 				}
 			}]
 		}));
@@ -1396,7 +1395,7 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			'qwerty'
 		], {}, (editor, cursor) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 
 			moveTo(cursor, 2, 1, false);
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1412,7 +1411,7 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			''
 		], {}, (editor, cursor) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 
 			moveTo(cursor, 2, 1, false);
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1869,7 +1868,7 @@ suite('Editor Controller - Regression tests', () => {
 		this.timeout(10000);
 		const LINE_CNT = 2000;
 
-		let text = [];
+		let text: string[] = [];
 		for (let i = 0; i < LINE_CNT; i++) {
 			text[i] = 'asd';
 		}
@@ -1982,7 +1981,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null);
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -2051,9 +2050,9 @@ suite('Editor Controller - Regression tests', () => {
 
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(null, state);
+				return new TokenizationResult2(null!, state);
 			}
 		};
 
@@ -2213,6 +2212,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n'),
 			{
 				tabSize: 13,
+				indentSize: 13,
 			}
 		);
 
@@ -2385,7 +2385,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			class TestCommand implements ICommand {
 
-				private _selectionId: string = null;
+				private _selectionId: string | null = null;
 
 				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
@@ -2393,7 +2393,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				}
 
 				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-					return helper.getTrackedSelection(this._selectionId);
+					return helper.getTrackedSelection(this._selectionId!);
 				}
 
 			}
@@ -3123,7 +3123,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 2 }
+			modelOpts: {
+				tabSize: 2,
+				indentSize: 2
+			}
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3517,31 +3520,7 @@ suite('Editor Controller - Indentation Rules', () => {
 						// ^.*\{[^}"']*$
 						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 					},
-					onEnterRules: [
-						{
-							// e.g. /** | */
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							afterText: /^\s*\*\/$/,
-							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-						}, {
-							// e.g. /** ...|
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							action: { indentAction: IndentAction.None, appendText: ' * ' }
-						}, {
-							// e.g.  * ...|
-							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-							action: { indentAction: IndentAction.None, appendText: '* ' }
-						}, {
-							// e.g.  */|
-							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						},
-						{
-							// e.g.  *-----*/|
-							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						}
-					]
+					onEnterRules: javascriptOnEnterRules
 				}));
 			}
 		}
@@ -3619,7 +3598,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ tabSize: 2 },
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
 			mode.getLanguageIdentifier()
 		);
 
@@ -3651,7 +3633,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 interface ICursorOpts {
 	text: string[];
-	languageIdentifier?: LanguageIdentifier;
+	languageIdentifier?: LanguageIdentifier | null;
 	modelOpts?: IRelaxedTextModelCreationOptions;
 	editorOpts?: IEditorOptions;
 }
@@ -3659,8 +3641,8 @@ interface ICursorOpts {
 function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cursor) => void): void {
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
-	let config = new TestConfiguration(opts.editorOpts);
-	let viewModel = new ViewModel(0, config, model, null);
+	let config = new TestConfiguration(opts.editorOpts || {});
+	let viewModel = new ViewModel(0, config, model, null!);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);
@@ -3849,7 +3831,7 @@ suite('ElectricCharacter', () => {
 			languageIdentifier: mode.getLanguageIdentifier()
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 5);
-			let changeText: string = null;
+			let changeText: string | null = null;
 			model.onDidChangeContent(e => {
 				changeText = e.changes[0].text;
 			});
@@ -4384,6 +4366,51 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #55314: Do not auto-close when ending with open', () => {
+		const languageId = new LanguageIdentifier('myElectricMode', 5);
+		class ElectricMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] },
+						{ open: '/**', close: ' */', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+
+		const mode = new ElectricMode();
+
+		usingCursor({
+			text: [
+				'little goat',
+				'little LAMB',
+				'little sheep',
+				'Big LAMB'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 1, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 2, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 3, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 2, '"', '""', `double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 3, '"', '"', `does not double quote when ending with open`);
+		});
+		mode.dispose();
+	});
+
 	test('issue #27937: Trying to add an item to the front of a list is cumbersome', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4536,7 +4563,7 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '"' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
-			assert.equal(model.getValue(), '\'""\'');
+			assert.equal(model.getValue(), '\'"\'');
 
 			// Typing ' + space after '
 			model.setValue('\'');

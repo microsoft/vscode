@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -18,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -26,105 +23,36 @@ import { DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelvie
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { latch, mapEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-
-export abstract class TreeViewsViewletPanel extends ViewletPanel {
-
-	protected tree: WorkbenchTree;
-
-	setExpanded(expanded: boolean): void {
-		if (this.isExpanded() !== expanded) {
-			this.updateTreeVisibility(this.tree, expanded);
-			super.setExpanded(expanded);
-		}
-	}
-
-	setVisible(visible: boolean): TPromise<void> {
-		if (this.isVisible() !== visible) {
-			return super.setVisible(visible)
-				.then(() => this.updateTreeVisibility(this.tree, visible && this.isExpanded()));
-		}
-		return TPromise.wrap(null);
-	}
-
-	focus(): void {
-		super.focus();
-		this.focusTree();
-	}
-
-	layoutBody(size: number): void {
-		if (this.tree) {
-			this.tree.layout(size);
-		}
-	}
-
-	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
-		if (!tree) {
-			return;
-		}
-
-		if (isVisible) {
-			DOM.show(tree.getHTMLElement());
-		} else {
-			DOM.hide(tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
-		}
-
-		if (isVisible) {
-			tree.onVisible();
-		} else {
-			tree.onHidden();
-		}
-	}
-
-	private focusTree(): void {
-		if (!this.tree) {
-			return; // return early if viewlet has not yet been created
-		}
-
-		// Make sure the current selected element is revealed
-		const selectedElement = this.tree.getSelection()[0];
-		if (selectedElement) {
-			this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
-		}
-
-		// Pass Focus to Viewer
-		this.tree.domFocus();
-	}
-
-	dispose(): void {
-		if (this.tree) {
-			this.tree.dispose();
-		}
-		super.dispose();
-	}
-}
+import { MementoObject } from 'vs/workbench/common/memento';
 
 export interface IViewletViewOptions extends IViewletPanelOptions {
-	viewletSettings: object;
+	viewletState: MementoObject;
 }
 
 export abstract class ViewContainerViewlet extends PanelViewlet implements IViewsViewlet {
 
-	private readonly viewletSettings: Object;
+	private readonly viewletState: MementoObject;
 	private didLayout = false;
 	private dimension: DOM.Dimension;
 	private areExtensionsReady: boolean = false;
 
 	private readonly visibleViewsCountFromCache: number;
 	private readonly visibleViewsStorageId: string;
-	private readonly viewsModel: PersistentContributableViewsModel;
+	protected readonly viewsModel: PersistentContributableViewsModel;
 	private viewDisposables: IDisposable[] = [];
 
 	constructor(
 		id: string,
 		viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
-		@IPartService partService: IPartService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -133,42 +61,41 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, layoutService, contextMenuService, telemetryService, themeService, storageService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
-		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.viewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
-		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
+		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, 1);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
-		return super.create(parent).then(() => {
-			this._register(this.onDidSashChange(() => this.saveViewSizes()));
-			this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
-			this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
-			const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
-				const size = this.viewsModel.getSize(viewDescriptor.id);
-				const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
-				return ({ viewDescriptor, index, size, collapsed });
-			});
-			if (addedViews.length) {
-				this.onDidAddViews(addedViews);
-			}
-
-			// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
-			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				this.areExtensionsReady = true;
-				if (this.panels.length) {
-					this.updateTitleArea();
-					this.updateViewHeaders();
-				}
-			});
-
-			this.focus();
+	create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(this.onDidSashChange(() => this.saveViewSizes()));
+		this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
+		this.viewsModel.onDidRemove(removed => this.onDidRemoveViews(removed));
+		const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
+			const size = this.viewsModel.getSize(viewDescriptor.id);
+			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
+			return ({ viewDescriptor, index, size, collapsed });
 		});
+		if (addedViews.length) {
+			this.onDidAddViews(addedViews);
+		}
+
+		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.areExtensionsReady = true;
+			if (this.panels.length) {
+				this.updateTitleArea();
+				this.updateViewHeaders();
+			}
+		});
+
+		this.focus();
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -191,14 +118,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return result;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible)
-			.then(() => TPromise.join(this.panels.filter(view => view.isVisible() !== visible)
-				.map((view) => view.setVisible(visible))))
-			.then(() => void 0);
+	setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.panels.filter(view => view.isVisible() !== visible)
+			.map((view) => view.setVisible(visible));
 	}
 
-	openView(id: string, focus?: boolean): TPromise<IView> {
+	openView(id: string, focus?: boolean): IView {
 		if (focus) {
 			this.focus();
 		}
@@ -211,7 +137,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (focus) {
 			view.focus();
 		}
-		return TPromise.as(view);
+		return view;
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -241,13 +167,6 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return optimalWidth + additionalMargin;
 	}
 
-	shutdown(): void {
-		this.panels.forEach((view) => view.shutdown());
-		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
-		this.viewsModel.saveViewsStates();
-		super.shutdown();
-	}
-
 	protected isSingleView(): boolean {
 		if (!super.isSingleView()) {
 			return false;
@@ -260,7 +179,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewletPanel;
+		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.arguments || []), options) as ViewletPanel;
 	}
 
 	protected getView(id: string): ViewletPanel {
@@ -276,27 +195,32 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 					title: viewDescriptor.name,
 					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
-					viewletSettings: this.viewletSettings
+					viewletState: this.viewletState
 				});
 			panel.render();
-			panel.setVisible(true);
 			const contextMenuDisposable = DOM.addDisposableListener(panel.draggableElement, 'contextmenu', e => {
 				e.stopPropagation();
 				e.preventDefault();
 				this.onContextMenu(new StandardMouseEvent(e), viewDescriptor);
 			});
 
-			const collapseDisposable = latch(mapEvent(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
+			const collapseDisposable = Event.latch(Event.map(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
 				this.viewsModel.setCollapsed(viewDescriptor.id, collapsed);
 			});
 
-			this.viewDisposables.splice(index, 0, combinedDisposable([contextMenuDisposable, collapseDisposable]));
+			this.viewDisposables.splice(index, 0, combinedDisposable(contextMenuDisposable, collapseDisposable));
 			panelsToAdd.push({ panel, size: size || panel.minimumSize, index });
 		}
 
 		this.addPanels(panelsToAdd);
 		this.restoreViewSizes();
-		return panelsToAdd.map(({ panel }) => panel);
+
+		const panels: ViewletPanel[] = [];
+		for (const { panel } of panelsToAdd) {
+			panel.setVisible(this.isVisible());
+			panels.push(panel);
+		}
+		return panels;
 	}
 
 	private onDidRemoveViews(removed: IViewDescriptorRef[]): void {
@@ -330,7 +254,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => actions
 		});
 	}
 
@@ -383,6 +307,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			}
 		}
 		return sizes;
+	}
+
+	protected saveState(): void {
+		this.panels.forEach((view) => view.saveState());
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE);
+
+		super.saveState();
 	}
 }
 

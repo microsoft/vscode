@@ -31,6 +31,25 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
+	let compilerOptions: { [key: string]: any };
+	if (tsConfig.extends) {
+		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+	} else {
+		compilerOptions = tsConfig.compilerOptions;
+	}
+	tsConfig.compilerOptions = compilerOptions;
+
+	compilerOptions.noEmit = false;
+	compilerOptions.noUnusedLocals = false;
+	compilerOptions.preserveConstEnums = false;
+	compilerOptions.declaration = false;
+	compilerOptions.noImplicitAny = false;
+	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
+
+
+	options.compilerOptions = compilerOptions;
+
 	let result = tss.shake(options);
 	for (let fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
@@ -47,7 +66,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		const dstPath = path.join(options.destRoot, fileName);
 		writeFile(dstPath, fs.readFileSync(srcPath));
 	};
-	const writeOutputFile = (fileName: string, contents: string) => {
+	const writeOutputFile = (fileName: string, contents: string | Buffer) => {
 		writeFile(path.join(options.destRoot, fileName), contents);
 	};
 	for (let fileName in result) {
@@ -79,26 +98,20 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		}
 	}
 
-	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
-	tsConfig.compilerOptions.noUnusedLocals = false;
-	tsConfig.compilerOptions.preserveConstEnums = false;
-	tsConfig.compilerOptions.declaration = false;
+	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+	const tsConfigBase = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.base.json')).toString());
+	writeOutputFile('tsconfig.base.json', JSON.stringify(tsConfigBase, null, '\t'));
 
 	[
 		'vs/css.build.js',
 		'vs/css.d.ts',
 		'vs/css.js',
 		'vs/loader.js',
-		'vs/monaco.d.ts',
 		'vs/nls.build.js',
 		'vs/nls.d.ts',
 		'vs/nls.js',
 		'vs/nls.mock.ts',
-		'typings/lib.ie11_safe_es6.d.ts',
-		'typings/thenable.d.ts',
-		'typings/es6-promise.d.ts',
-		'typings/require.d.ts',
 	].forEach(copyFile);
 }
 
@@ -118,7 +131,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	const getDestAbsoluteFilePath = (file: string): string => {
 		let dest = options.renames[file.replace(/\\/g, '/')] || file;
 		if (dest === 'tsconfig.json') {
-			return path.join(OUT_FOLDER, `../tsconfig.json`);
+			return path.join(OUT_FOLDER, `tsconfig.json`);
 		}
 		if (/\.ts$/.test(dest)) {
 			return path.join(OUT_FOLDER, dest);
@@ -127,8 +140,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	};
 
 	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (let i = 0; i < allFiles.length; i++) {
-		const file = allFiles[i];
+	for (const file of allFiles) {
 
 		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
 			continue;
@@ -136,11 +148,8 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 
 		if (file === 'tsconfig.json') {
 			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-			tsConfig.compilerOptions.moduleResolution = undefined;
-			tsConfig.compilerOptions.baseUrl = undefined;
 			tsConfig.compilerOptions.module = 'es6';
-			tsConfig.compilerOptions.rootDir = 'src';
-			tsConfig.compilerOptions.outDir = path.relative(path.dirname(OUT_FOLDER), OUT_RESOURCES_FOLDER);
+			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
 			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
 			continue;
 		}
@@ -173,13 +182,14 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 				}
 
 				let relativePath: string;
-				if (importedFilepath === path.dirname(file)) {
+				if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
 					relativePath = '../' + path.basename(path.dirname(file));
-				} else if (importedFilepath === path.dirname(path.dirname(file))) {
+				} else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
 					relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
 				} else {
 					relativePath = path.relative(path.dirname(file), importedFilepath);
 				}
+				relativePath = relativePath.replace(/\\/g, '/');
 				if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
 					relativePath = './' + relativePath;
 				}
@@ -234,7 +244,6 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			let mode = 0;
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-
 				if (mode === 0) {
 					if (/\/\/ ESM-comment-begin/.test(line)) {
 						mode = 1;
@@ -321,7 +330,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 	function _replaceURL(contents: string, replacer: (url: string) => string): string {
 		// Use ")" as the terminator as quotes are oftentimes not used at all
 		return contents.replace(/url\(\s*([^\)]+)\s*\)?/g, (_: string, ...matches: string[]) => {
-			var url = matches[0];
+			let url = matches[0];
 			// Eliminate starting quotes (the initial whitespace is not captured)
 			if (url.charAt(0) === '"' || url.charAt(0) === '\'') {
 				url = url.substring(1);

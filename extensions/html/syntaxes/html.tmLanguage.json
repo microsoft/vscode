@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/html.tmbundle/commit/6a6fb2967e2f562a634fca97d18018104d428f1c",
+	"version": "https://github.com/textmate/html.tmbundle/commit/0c3d5ee54de3a993f747f54186b73a4d2d3c44a2",
 	"name": "HTML",
 	"scopeName": "text.html.basic",
 	"injections": {
@@ -20,55 +20,13 @@
 	},
 	"patterns": [
 		{
-			"begin": "(<\\?)(xml)",
-			"captures": {
-				"1": {
-					"name": "punctuation.definition.tag.html"
-				},
-				"2": {
-					"name": "entity.name.tag.html"
-				}
-			},
-			"end": "(\\?>)",
-			"name": "meta.tag.metadata.processing.xml.html",
-			"patterns": [
-				{
-					"include": "#attribute"
-				}
-			]
+			"include": "#xml-processing"
 		},
 		{
 			"include": "#comment"
 		},
 		{
-			"begin": "<!(?=(?i:DOCTYPE\\s))",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.tag.begin.html"
-				}
-			},
-			"end": ">",
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.definition.tag.end.html"
-				}
-			},
-			"name": "meta.tag.metadata.doctype.html",
-			"patterns": [
-				{
-					"match": "\\G(?i:DOCTYPE)",
-					"name": "entity.name.tag.html"
-				},
-				{
-					"begin": "\"",
-					"end": "\"",
-					"name": "string.quoted.double.html"
-				},
-				{
-					"match": "[^\\s>]+",
-					"name": "entity.other.attribute-name.html"
-				}
-			]
+			"include": "#doctype"
 		},
 		{
 			"include": "#cdata"
@@ -264,7 +222,32 @@
 															]
 														}
 													},
-													"match": "[^\\n\"]+"
+													"match": "([^\\n\"/]|/(?![/*]))+"
+												},
+												{
+													"begin": "//",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.js"
+														}
+													},
+													"end": "(?=\")|\\n",
+													"name": "comment.line.double-slash.js"
+												},
+												{
+													"begin": "/\\*",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.begin.js"
+														}
+													},
+													"end": "(?=\")|\\*/",
+													"endCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.end.js"
+														}
+													},
+													"name": "comment.block.js"
 												}
 											]
 										},
@@ -297,7 +280,32 @@
 															]
 														}
 													},
-													"match": "[^\\n']+"
+													"match": "([^\\n'/]|/(?![/*]))+"
+												},
+												{
+													"begin": "//",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.js"
+														}
+													},
+													"end": "(?=')|\\n",
+													"name": "comment.line.double-slash.js"
+												},
+												{
+													"begin": "/\\*",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.begin.js"
+														}
+													},
+													"end": "(?=')|\\*/",
+													"endCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.end.js"
+														}
+													},
+													"name": "comment.block.js"
 												}
 											]
 										}
@@ -465,6 +473,59 @@
 				{
 					"match": "--!>",
 					"name": "invalid.illegal.characters-not-allowed-here.html"
+				}
+			]
+		},
+		"core-minus-invalid": {
+			"comment": "This should be the root pattern array includes minus #tags-invalid",
+			"patterns": [
+				{
+					"include": "#xml-processing"
+				},
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#doctype"
+				},
+				{
+					"include": "#cdata"
+				},
+				{
+					"include": "#tags-valid"
+				},
+				{
+					"include": "#entities"
+				}
+			]
+		},
+		"doctype": {
+			"begin": "<!(?=(?i:DOCTYPE\\s))",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.tag.begin.html"
+				}
+			},
+			"end": ">",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.tag.end.html"
+				}
+			},
+			"name": "meta.tag.metadata.doctype.html",
+			"patterns": [
+				{
+					"match": "\\G(?i:DOCTYPE)",
+					"name": "entity.name.tag.html"
+				},
+				{
+					"begin": "\"",
+					"end": "\"",
+					"name": "string.quoted.double.html"
+				},
+				{
+					"match": "[^\\s>]+",
+					"name": "entity.other.attribute-name.html"
 				}
 			]
 		},
@@ -2557,6 +2618,24 @@
 							"include": "#attribute"
 						}
 					]
+				}
+			]
+		},
+		"xml-processing": {
+			"begin": "(<\\?)(xml)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.tag.html"
+				},
+				"2": {
+					"name": "entity.name.tag.html"
+				}
+			},
+			"end": "(\\?>)",
+			"name": "meta.tag.metadata.processing.xml.html",
+			"patterns": [
+				{
+					"include": "#attribute"
 				}
 			]
 		}

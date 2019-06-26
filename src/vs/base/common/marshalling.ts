@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
+import { regExpFlags } from 'vs/base/common/strings';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);
@@ -25,8 +25,8 @@ function replacer(key: string, value: any): any {
 	if (value instanceof RegExp) {
 		return {
 			$mid: 2,
-			source: (<RegExp>value).source,
-			flags: ((<RegExp>value).global ? 'g' : '') + ((<RegExp>value).ignoreCase ? 'i' : '') + ((<RegExp>value).multiline ? 'm' : ''),
+			source: value.source,
+			flags: regExpFlags(value),
 		};
 	}
 	return value;

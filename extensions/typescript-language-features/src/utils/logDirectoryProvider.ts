@@ -13,7 +13,7 @@ export default class LogDirectoryProvider {
 		private readonly context: vscode.ExtensionContext
 	) { }
 
-	public async getNewLogDirectory(): Promise<string | undefined> {
+	public getNewLogDirectory(): string | undefined {
 		const root = this.logDirectory();
 		if (root) {
 			try {

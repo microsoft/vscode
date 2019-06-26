@@ -87,10 +87,14 @@ function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Se
 		return selection;
 	}
 
-	if (selection.start.isEqual(nodeToBalance.start)
-		&& selection.end.isEqual(nodeToBalance.end)
-		&& nodeToBalance.close) {
-		return new vscode.Selection(nodeToBalance.open.end, nodeToBalance.close.start);
+	if (nodeToBalance.close) {
+		const entireNodeSelected = selection.start.isEqual(nodeToBalance.start) && selection.end.isEqual(nodeToBalance.end);
+		const startInOpenTag = selection.start.isAfter(nodeToBalance.open.start) && selection.start.isBefore(nodeToBalance.open.end);
+		const startInCloseTag = selection.start.isAfter(nodeToBalance.close.start) && selection.start.isBefore(nodeToBalance.close.end);
+
+		if (entireNodeSelected || startInOpenTag || startInCloseTag) {
+			return new vscode.Selection(nodeToBalance.open.end, nodeToBalance.close.start);
+		}
 	}
 
 	if (!nodeToBalance.firstChild) {

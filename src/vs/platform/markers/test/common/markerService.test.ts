@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as markerService from 'vs/platform/markers/common/markerService';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
@@ -162,11 +160,11 @@ suite('Marker Service', () => {
 		let data = randomMarkerData();
 		let service = new markerService.MarkerService();
 
-		data.message = undefined;
+		data.message = undefined!;
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 
-		data.message = null;
+		data.message = null!;
 		service.changeOne('far', URI.parse('some:uri/path'), [data]);
 		assert.equal(service.read({ owner: 'far' }).length, 0);
 

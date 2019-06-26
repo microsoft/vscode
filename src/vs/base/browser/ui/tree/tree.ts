@@ -3,259 +3,193 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./tree';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { append, $ } from 'vs/base/browser/dom';
-import { Event, Relay, chain } from 'vs/base/common/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { tail2 } from 'vs/base/common/arrays';
+import { Event } from 'vs/base/common/event';
+import { Iterator } from 'vs/base/common/iterator';
+import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
-function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
-	if (!options) {
-		return undefined;
-	}
+export const enum TreeVisibility {
 
-	let identityProvider: IIdentityProvider<ITreeNode<T>> | undefined = undefined;
-	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T>> | undefined = undefined;
+	/**
+	 * The tree node should be hidden.
+	 */
+	Hidden,
 
-	if (options.identityProvider) {
-		identityProvider = el => options.identityProvider(el.element);
-	}
+	/**
+	 * The tree node should be visible.
+	 */
+	Visible,
 
-	if (options.multipleSelectionController) {
-		multipleSelectionController = {
-			isSelectionSingleChangeEvent(e) {
-				return options.multipleSelectionController.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
-			},
-			isSelectionRangeChangeEvent(e) {
-				return options.multipleSelectionController.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
-			}
-		};
-	}
-
-	return {
-		...options,
-		identityProvider,
-		multipleSelectionController
-	};
+	/**
+	 * The tree node should be visible if any of its descendants is visible.
+	 */
+	Recurse
 }
 
-class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T>> {
+/**
+ * A composed filter result containing the visibility result as well as
+ * metadata.
+ */
+export interface ITreeFilterDataResult<TFilterData> {
 
-	constructor(private delegate: IVirtualDelegate<T>) { }
+	/**
+	 * Whether the node should be visible.
+	 */
+	visibility: boolean | TreeVisibility;
 
-	getHeight(element: ITreeNode<T>): number {
-		return this.delegate.getHeight(element.element);
-	}
-
-	getTemplateId(element: ITreeNode<T>): string {
-		return this.delegate.getTemplateId(element.element);
-	}
+	/**
+	 * Metadata about the element's visibility which gets forwarded to the
+	 * renderer once the element gets rendered.
+	 */
+	data: TFilterData;
 }
 
-interface ITreeListTemplateData<T> {
-	twistie: HTMLElement;
-	count: HTMLElement;
-	templateData: T;
+/**
+ * The result of a filter call can be a boolean value indicating whether
+ * the element should be visible or not, a value of type `TreeVisibility` or
+ * an object composed of the visibility result as well as additional metadata
+ * which gets forwarded to the renderer once the element gets rendered.
+ */
+export type TreeFilterResult<TFilterData> = boolean | TreeVisibility | ITreeFilterDataResult<TFilterData>;
+
+/**
+ * A tree filter is responsible for controlling the visibility of
+ * elements in a tree.
+ */
+export interface ITreeFilter<T, TFilterData = void> {
+
+	/**
+	 * Returns whether this elements should be visible and, if affirmative,
+	 * additional metadata which gets forwarded to the renderer once the element
+	 * gets rendered.
+	 *
+	 * @param element The tree element.
+	 */
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
 }
 
-function renderTwistie<T>(node: ITreeNode<T>, twistie: HTMLElement): void {
-	if (node.children.length === 0 && !node.collapsible) {
-		twistie.innerText = '';
-	} else {
-		twistie.innerText = node.collapsed ? '▹' : '◢';
-	}
+export interface ITreeSorter<T> {
+	compare(element: T, otherElement: T): number;
 }
 
-class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeListTemplateData<TTemplateData>> {
-
-	readonly templateId: string;
-	private renderedNodes = new Map<ITreeNode<T>, ITreeListTemplateData<TTemplateData>>();
-	private disposables: IDisposable[] = [];
-
-	constructor(
-		private renderer: IRenderer<T, TTemplateData>,
-		onDidChangeCollapseState: Event<ITreeNode<T>>
-	) {
-		this.templateId = renderer.templateId;
-		onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
-	}
-
-	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
-		const el = append(container, $('.monaco-tl-row'));
-		const twistie = append(el, $('.tl-twistie'));
-		const contents = append(el, $('.tl-contents'));
-		const count = append(el, $('.tl-count'));
-		const templateData = this.renderer.renderTemplate(contents);
-
-		return { twistie, count, templateData };
-	}
-
-	renderElement(node: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderedNodes.set(node, templateData);
-
-		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
-		renderTwistie(node, templateData.twistie);
-		templateData.count.textContent = `${node.visibleCount}`;
-
-		this.renderer.renderElement(node.element, index, templateData.templateData);
-	}
-
-	disposeElement(node: ITreeNode<T>): void {
-		this.renderedNodes.delete(node);
-	}
-
-	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeTemplate(templateData.templateData);
-	}
-
-	private onDidChangeCollapseState(node: ITreeNode<T>): void {
-		const templateData = this.renderedNodes.get(node);
-
-		if (!templateData) {
-			return;
-		}
-
-		renderTwistie(node, templateData.twistie);
-		templateData.count.textContent = `${node.visibleCount}`;
-	}
-
-	dispose(): void {
-		this.renderedNodes.clear();
-		this.disposables = dispose(this.disposables);
-	}
+export interface ITreeElement<T> {
+	readonly element: T;
+	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];
+	readonly collapsible?: boolean;
+	readonly collapsed?: boolean;
 }
 
-function isInputElement(e: HTMLElement): boolean {
-	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
+export interface ITreeNode<T, TFilterData = void> {
+	readonly element: T;
+	readonly parent: ITreeNode<T, TFilterData> | undefined;
+	readonly children: ITreeNode<T, TFilterData>[];
+	readonly depth: number;
+	readonly visibleChildrenCount: number;
+	readonly visibleChildIndex: number;
+	readonly collapsible: boolean;
+	readonly collapsed: boolean;
+	readonly visible: boolean;
+	readonly filterData: TFilterData | undefined;
 }
 
-export interface ITreeOptions<T> extends IListOptions<T> { }
+export interface ICollapseStateChangeEvent<T, TFilterData> {
+	node: ITreeNode<T, TFilterData>;
+	deep: boolean;
+}
 
-export class Tree<T> implements IDisposable {
+export interface ITreeModelSpliceEvent<T, TFilterData> {
+	insertedNodes: ITreeNode<T, TFilterData>[];
+	deletedNodes: ITreeNode<T, TFilterData>[];
+}
 
-	private view: List<ITreeNode<T>>;
-	private model: TreeModel<T>;
-	private disposables: IDisposable[] = [];
+export interface ITreeModel<T, TFilterData, TRef> {
+	readonly rootRef: TRef;
 
-	constructor(
-		container: HTMLElement,
-		delegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
-		options?: ITreeOptions<T>
-	) {
-		const treeDelegate = new TreeDelegate(delegate);
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
-		const onDidChangeCollapseStateRelay = new Relay<ITreeNode<T>>();
-		const treeRenderers = renderers.map(r => new TreeRenderer(r, onDidChangeCollapseStateRelay.event));
-		this.disposables.push(...treeRenderers);
+	getListIndex(location: TRef): number;
+	getListRenderCount(location: TRef): number;
+	getNode(location?: TRef): ITreeNode<T, any>;
+	getNodeLocation(node: ITreeNode<T, any>): TRef;
+	getParentNodeLocation(location: TRef): TRef;
 
-		const treeOptions = toTreeListOptions(options);
+	getParentElement(location: TRef): T;
+	getFirstElementChild(location: TRef): T | undefined;
+	getLastElementAncestor(location?: TRef): T | undefined;
 
-		this.view = new List(container, treeDelegate, treeRenderers, treeOptions);
-		this.model = new TreeModel<T>(this.view);
-		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
+	isCollapsible(location: TRef): boolean;
+	isCollapsed(location: TRef): boolean;
+	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
+	expandTo(location: TRef): void;
 
-		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
+	refilter(): void;
+}
 
-		const onKeyDown = chain(this.view.onKeyDown)
-			.filter(e => !isInputElement(e.target as HTMLElement))
-			.map(e => new StandardKeyboardEvent(e));
+export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	renderTwistie?(element: T, twistieElement: HTMLElement): void;
+	onDidChangeTwistieState?: Event<T>;
+}
 
-		onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
-	}
+export interface ITreeEvent<T> {
+	elements: T[];
+	browserEvent?: UIEvent;
+}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
-		return this.model.splice(location, deleteCount, toInsert);
-	}
+export enum TreeMouseEventTarget {
+	Unknown,
+	Twistie,
+	Element
+}
 
-	private onMouseClick(e: IListMouseEvent<ITreeNode<T>>): void {
-		const node = e.element;
-		const location = getNodeLocation(node);
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | null;
+	target: TreeMouseEventTarget;
+}
 
-		this.model.toggleCollapsed(location);
-	}
+export interface ITreeContextMenuEvent<T> {
+	browserEvent: UIEvent;
+	element: T | null;
+	anchor: HTMLElement | { x: number; y: number; };
+}
 
-	private onLeftArrow(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
+export interface ITreeNavigator<T> {
+	current(): T | null;
+	previous(): T | null;
+	parent(): T | null;
+	first(): T | null;
+	last(): T | null;
+	next(): T | null;
+}
 
-		const nodes = this.view.getFocusedElements();
+export interface IDataSource<TInput, T> {
+	getChildren(element: TInput | T): T[];
+}
 
-		if (nodes.length === 0) {
-			return;
-		}
+export interface IAsyncDataSource<TInput, T> {
+	hasChildren(element: TInput | T): boolean;
+	getChildren(element: TInput | T): T[] | Promise<T[]>;
+}
 
-		const node = nodes[0];
-		const location = getNodeLocation(node);
-		const didChange = this.model.setCollapsed(location, true);
+export const enum TreeDragOverBubble {
+	Down,
+	Up
+}
 
-		if (!didChange) {
-			if (location.length === 1) {
-				return;
-			}
+export interface ITreeDragOverReaction extends IListDragOverReaction {
+	bubble?: TreeDragOverBubble;
+	autoExpand?: boolean;
+}
 
-			const [parentLocation] = tail2(location);
-			const parentListIndex = this.model.getListIndex(parentLocation);
+export const TreeDragOverReactions = {
+	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
+	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
+	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
+	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+};
 
-			this.view.reveal(parentListIndex);
-			this.view.setFocus([parentListIndex]);
-		}
-	}
-
-	private onRightArrow(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
-
-		const nodes = this.view.getFocusedElements();
-
-		if (nodes.length === 0) {
-			return;
-		}
-
-		const node = nodes[0];
-		const location = getNodeLocation(node);
-		const didChange = this.model.setCollapsed(location, false);
-
-		if (!didChange) {
-			if (node.children.length === 0) {
-				return;
-			}
-
-			const [focusedIndex] = this.view.getFocus();
-			const firstChildIndex = focusedIndex + 1;
-
-			this.view.reveal(firstChildIndex);
-			this.view.setFocus([firstChildIndex]);
-		}
-	}
-
-	private onSpace(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
-
-		const nodes = this.view.getFocusedElements();
-
-		if (nodes.length === 0) {
-			return;
-		}
-
-		const node = nodes[0];
-		const location = getNodeLocation(node);
-		this.model.toggleCollapsed(location);
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this.view.dispose();
-		this.view = null;
-		this.model = null;
-	}
+export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }

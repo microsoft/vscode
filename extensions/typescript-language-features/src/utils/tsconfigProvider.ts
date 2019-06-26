@@ -5,8 +5,9 @@
 import * as vscode from 'vscode';
 
 export interface TSConfig {
-	path: string;
-	workspaceFolder?: vscode.WorkspaceFolder;
+	readonly path: string;
+	readonly posixPath: string;
+	readonly workspaceFolder?: vscode.WorkspaceFolder;
 }
 
 export default class TsConfigProvider {
@@ -20,6 +21,7 @@ export default class TsConfigProvider {
 			if (root) {
 				configs.set(config.fsPath, {
 					path: config.fsPath,
+					posixPath: config.path,
 					workspaceFolder: root
 				});
 			}

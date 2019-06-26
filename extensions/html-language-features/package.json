@@ -1,9 +1,11 @@
 {
+  "enableProposedApi": true,
   "name": "html-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
@@ -11,10 +13,8 @@
   "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
-    "onLanguage:handlebars",
-    "onLanguage:razor"
+    "onLanguage:handlebars"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
     "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
@@ -32,6 +32,15 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.experimental.customData": {
+          "type": "array",
+          "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read.",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
         "html.format.enable": {
           "type": "boolean",
           "scope": "window",
@@ -51,7 +60,7 @@
           ],
           "scope": "resource",
           "default": "wbr",
-          "description": "%html.format.unformatted.desc%"
+          "markdownDescription": "%html.format.unformatted.desc%"
         },
         "html.format.contentUnformatted": {
           "type": [
@@ -60,13 +69,13 @@
           ],
           "scope": "resource",
           "default": "pre,code,textarea",
-          "description": "%html.format.contentUnformatted.desc%"
+          "markdownDescription": "%html.format.contentUnformatted.desc%"
         },
         "html.format.indentInnerHtml": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.format.indentInnerHtml.desc%"
+          "markdownDescription": "%html.format.indentInnerHtml.desc%"
         },
         "html.format.preserveNewLines": {
           "type": "boolean",
@@ -81,13 +90,13 @@
           ],
           "scope": "resource",
           "default": null,
-          "description": "%html.format.maxPreserveNewLines.desc%"
+          "markdownDescription": "%html.format.maxPreserveNewLines.desc%"
         },
         "html.format.indentHandlebars": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.format.indentHandlebars.desc%"
+          "markdownDescription": "%html.format.indentHandlebars.desc%"
         },
         "html.format.endWithNewline": {
           "type": "boolean",
@@ -102,7 +111,7 @@
           ],
           "scope": "resource",
           "default": "head, body, /html",
-          "description": "%html.format.extraLiners.desc%"
+          "markdownDescription": "%html.format.extraLiners.desc%"
         },
         "html.format.wrapAttributes": {
           "type": "string",
@@ -113,28 +122,20 @@
             "force",
             "force-aligned",
             "force-expand-multiline",
-            "aligned-multiple"
+            "aligned-multiple",
+            "preserve",
+            "preserve-aligned"
           ],
           "enumDescriptions": [
             "%html.format.wrapAttributes.auto%",
             "%html.format.wrapAttributes.force%",
             "%html.format.wrapAttributes.forcealign%",
             "%html.format.wrapAttributes.forcemultiline%",
-            "%html.format.wrapAttributes.alignedmultiple%"
+            "%html.format.wrapAttributes.alignedmultiple%",
+            "%html.format.wrapAttributes.preserve%",
+            "%html.format.wrapAttributes.preservealigned%"
           ],
           "description": "%html.format.wrapAttributes.desc%"
-        },
-        "html.suggest.angular1": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.angular1.desc%"
-        },
-        "html.suggest.ionic": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
           "type": "boolean",
@@ -175,11 +176,11 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.18",
-    "vscode-languageclient": "^5.1.0-next.9",
-    "vscode-nls": "^3.2.5"
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.14.8"
   }
 }

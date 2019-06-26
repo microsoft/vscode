@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { StandardTokenType } from 'vs/editor/common/modes';
 
@@ -13,11 +12,11 @@ export interface CommentRule {
 	/**
 	 * The line comment token, like `// this is a comment`
 	 */
-	lineComment?: string;
+	lineComment?: string | null;
 	/**
 	 * The block comment character pair, like `/* block comment *&#47;`
 	 */
-	blockComment?: CharacterPair;
+	blockComment?: CharacterPair | null;
 }
 
 /**
@@ -87,7 +86,7 @@ export interface LanguageConfiguration {
  */
 export interface IndentationRule {
 	/**
-	 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
+	 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
 	 */
 	decreaseIndentPattern: RegExp;
 	/**
@@ -97,11 +96,11 @@ export interface IndentationRule {
 	/**
 	 * If a line matches this pattern, then **only the next line** after it should be indented once.
 	 */
-	indentNextLinePattern?: RegExp;
+	indentNextLinePattern?: RegExp | null;
 	/**
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 	 */
-	unIndentedLinePattern?: RegExp;
+	unIndentedLinePattern?: RegExp | null;
 
 }
 
@@ -121,7 +120,7 @@ export interface FoldingMarkers {
  */
 export interface FoldingRules {
 	/**
-	 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+	 * Used by the indentation based strategy to decide whether empty lines belong to the previous or the next block.
 	 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
 	 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
 	 * If not set, `false` is used and empty lines belong to the previous block.
@@ -147,6 +146,10 @@ export interface OnEnterRule {
 	 */
 	afterText?: RegExp;
 	/**
+	 * This rule will only execute if the text above the this line matches this regular expression.
+	 */
+	oneLineAboveText?: RegExp;
+	/**
 	 * The action to execute.
 	 */
 	action: EnterAction;
@@ -167,7 +170,7 @@ export interface IDocComment {
 	/**
 	 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
 	 */
-	close: string;
+	close?: string;
 }
 
 /**
@@ -217,10 +220,6 @@ export interface EnterAction {
 	 * Describe what to do with the indentation.
 	 */
 	indentAction: IndentAction;
-	/**
-	 * Describe whether to outdent current line.
-	 */
-	outdentCurrentLine?: boolean;
 	/**
 	 * Describes text to be appended after the new line and after the indentation.
 	 */

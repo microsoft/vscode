@@ -3,24 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { Position } from 'vs/editor/common/core/position';
+import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;
-	private _renderResult: string[];
+	private _renderResult: string[] | null;
 	private _enabled: boolean;
 	private _activeIndentEnabled: boolean;
 
@@ -39,7 +37,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		this._renderResult = null;
 		super.dispose();
 	}
@@ -106,11 +103,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const tabSize = this._context.model.getTabSize();
-		const tabWidth = tabSize * this._spaceWidth;
+		const { indentSize } = this._context.model.getOptions();
+		const indentWidth = indentSize * this._spaceWidth;
 		const scrollWidth = ctx.scrollWidth;
 		const lineHeight = this._lineHeight;
-		const indentGuideWidth = tabWidth;
 
 		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
 
@@ -124,19 +120,19 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			activeIndentLevel = activeIndentInfo.indent;
 		}
 
-		let output: string[] = [];
+		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 
 			let result = '';
-			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+			const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
 			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
 			for (let i = 1; i <= indent; i++) {
-				let className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
-				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
-				left += tabWidth;
+				const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
+				left += indentWidth;
 				if (left > scrollWidth) {
 					break;
 				}
@@ -151,7 +147,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (!this._renderResult) {
 			return '';
 		}
-		let lineIndex = lineNumber - startLineNumber;
+		const lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
 			return '';
 		}
@@ -160,11 +156,11 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorIndentGuidesColor = theme.getColor(editorIndentGuides);
+	const editorIndentGuidesColor = theme.getColor(editorIndentGuides);
 	if (editorIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorIndentGuidesColor} inset; }`);
 	}
-	let editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
+	const editorActiveIndentGuidesColor = theme.getColor(editorActiveIndentGuides) || editorIndentGuidesColor;
 	if (editorActiveIndentGuidesColor) {
 		collector.addRule(`.monaco-editor .lines-content .cigra { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 
@@ -15,9 +13,9 @@ class TestNsfwWatcherService extends NsfwWatcherService {
 	public normalizeRoots(roots: string[]): string[] {
 		// Work with strings as paths to simplify testing
 		const requests: IWatcherRequest[] = roots.map(r => {
-			return { basePath: r, ignored: [] };
+			return { path: r, excludes: [] };
 		});
-		return this._normalizeRoots(requests).map(r => r.basePath);
+		return this._normalizeRoots(requests).map(r => r.path);
 	}
 }
 

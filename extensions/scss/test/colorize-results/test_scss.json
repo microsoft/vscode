@@ -1419,7 +1419,7 @@
 		}
 	},
 	{
-		"c": ": fantasy",
+		"c": ": ",
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1427,6 +1427,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "fantasy",
+		"t": "source.css.scss meta.property-list.scss meta.property-value.scss support.constant.font-name.css",
+		"r": {
+			"dark_plus": "support.constant.font-name: #CE9178",
+			"light_plus": "support.constant.font-name: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.font-name: #0451A5",
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{

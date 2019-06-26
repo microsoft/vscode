@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { Event } from 'vscode';
-import { dirname, sep } from 'path';
+import { Event, EventEmitter, Uri } from 'vscode';
+import { dirname, sep, join } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -35,7 +33,7 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 export const EmptyDisposable = toDisposable(() => null);
 
 export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(_ => listener.call(thisArgs), null, disposables);
+	return (listener, thisArgs = null, disposables?) => event(_ => (listener as any).call(thisArgs), null, disposables);
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
@@ -44,6 +42,18 @@ export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function latchEvent<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
@@ -59,7 +69,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 }
 
 export function done<T>(promise: Promise<T>): Promise<void> {
-	return promise.then<void>(() => void 0);
+	return promise.then<void>(() => undefined);
 }
 
 export function onceEvent<T>(event: Event<T>): Event<T> {
@@ -268,7 +278,7 @@ export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	});
 }
 
-export enum Encoding {
+export const enum Encoding {
 	UTF8 = 'utf8',
 	UTF16be = 'utf16be',
 	UTF16le = 'utf16le'
@@ -333,4 +343,20 @@ export function pathEquals(a: string, b: string): boolean {
 	}
 
 	return a === b;
+}
+
+export interface IFileWatcher extends IDisposable {
+	readonly event: Event<Uri>;
+}
+
+export function watch(location: string): IFileWatcher {
+	const dotGitWatcher = fs.watch(location);
+	const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
+	dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(join(location, e as string))));
+	dotGitWatcher.on('error', err => console.error(err));
+
+	return new class implements IFileWatcher {
+		event = onDotGitFileChangeEmitter.event;
+		dispose() { dotGitWatcher.close(); }
+	};
 }

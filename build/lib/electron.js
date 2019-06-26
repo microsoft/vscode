@@ -11,6 +11,7 @@ const root = path.dirname(path.dirname(__dirname));
 
 function getElectronVersion() {
 	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+	// @ts-ignore
 	const target = /^target "(.*)"$/m.exec(yarnrc)[1];
 
 	return target;
@@ -19,10 +20,11 @@ function getElectronVersion() {
 module.exports.getElectronVersion = getElectronVersion;
 
 // returns 0 if the right version of electron is in .build/electron
+// @ts-ignore
 if (require.main === module) {
 	const version = getElectronVersion();
 	const versionFile = path.join(root, '.build', 'electron', 'version');
-	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `v${version}`;
+	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
 
 	process.exit(isUpToDate ? 0 : 1);
 }

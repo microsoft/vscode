@@ -3,91 +3,98 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./links';
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { LinkProviderRegistry } from 'vs/editor/common/modes';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { getLinks, Link } from 'vs/editor/contrib/links/getLinks';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Position } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as async from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Position } from 'vs/editor/common/core/position';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { LinkProviderRegistry } from 'vs/editor/common/modes';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
+import { Link, getLinks, LinksList } from 'vs/editor/contrib/links/getLinks';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.mac', "Cmd + click to follow link")
-		: nls.localize('links.navigate', "Ctrl + click to follow link")
+		? nls.localize('links.navigate.mac', "Follow link (cmd + click)")
+		: nls.localize('links.navigate', "Follow link (cmd + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.mac', "Cmd + click to execute command")
-		: nls.localize('links.command', "Ctrl + click to execute command")
+		? nls.localize('links.command.mac', "Execute command (cmd + click)")
+		: nls.localize('links.command', "Execute command (cmd + click)")
 );
 
 const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.al.mac', "Option + click to follow link")
-		: nls.localize('links.navigate.al', "Alt + click to follow link")
+		? nls.localize('links.navigate.al.mac', "Follow link (cption + click)")
+		: nls.localize('links.navigate.al', "Follow link (alt + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.al.mac', "Option + click to execute command")
-		: nls.localize('links.command.al', "Alt + click to execute command")
+		? nls.localize('links.command.al.mac', "Execute command (cption + click)")
+		: nls.localize('links.command.al', "Execute command (alt + click)")
 );
 
 const decoration = {
 	meta: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	metaActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	alt: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	altCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	metaCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
 	metaCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
@@ -104,7 +111,24 @@ class LinkOccurrence {
 	}
 
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		if (/^command:/i.test(link.url)) {
+		const options = { ...this._getBaseOptions(link, useMetaKey, isActive) };
+		if (typeof link.tooltip === 'string') {
+			const message = new MarkdownString().appendText(
+				platform.isMacintosh
+					? useMetaKey
+						? nls.localize('links.custom.mac', "{0} (cmd + click)", link.tooltip)
+						: nls.localize('links.custom.mac.al', "{0} (option + click)", link.tooltip)
+					: useMetaKey
+						? nls.localize('links.custom', "{0} (ctrl + click)", link.tooltip)
+						: nls.localize('links.custom.al', "{0} (alt + click)", link.tooltip)
+			);
+			options.hoverMessage = message;
+		}
+		return options;
+	}
+
+	private static _getBaseOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
+		if (link.url && /^command:/i.test(link.url.toString())) {
 			if (useMetaKey) {
 				return (isActive ? decoration.metaCommandActive : decoration.metaCommand);
 			} else {
@@ -146,14 +170,15 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	static RECOMPUTE_TIME = 1000; // ms
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
-	private timeout: async.TimeoutTimer;
-	private computePromise: async.CancelablePromise<Link[]>;
-	private activeLinkDecorationId: string;
-	private openerService: IOpenerService;
-	private notificationService: INotificationService;
+	private readonly timeout: async.TimeoutTimer;
+	private computePromise: async.CancelablePromise<LinksList> | null;
+	private activeLinksList: LinksList | null;
+	private activeLinkDecorationId: string | null;
+	private readonly openerService: IOpenerService;
+	private readonly notificationService: INotificationService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
@@ -203,6 +228,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
+		this.activeLinksList = null;
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		this.beginCompute();
@@ -229,18 +255,25 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private async beginCompute(): Promise<void> {
-		if (!this.editor.getModel() || !this.enabled) {
+		if (!this.editor.hasModel() || !this.enabled) {
 			return;
 		}
 
-		if (!LinkProviderRegistry.has(this.editor.getModel())) {
+		const model = this.editor.getModel();
+
+		if (!LinkProviderRegistry.has(model)) {
 			return;
 		}
 
-		this.computePromise = async.createCancelablePromise(token => getLinks(this.editor.getModel(), token));
+		if (this.activeLinksList) {
+			this.activeLinksList.dispose();
+			this.activeLinksList = null;
+		}
+
+		this.computePromise = async.createCancelablePromise(token => getLinks(model, token));
 		try {
-			const links = await this.computePromise;
-			this.updateDecorations(links);
+			this.activeLinksList = await this.computePromise;
+			this.updateDecorations(this.activeLinksList.links);
 		} catch (err) {
 			onUnexpectedError(err);
 		} finally {
@@ -261,8 +294,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		let newDecorations: IModelDeltaDecoration[] = [];
 		if (links) {
 			// Not sure why this is sometimes null
-			for (let i = 0; i < links.length; i++) {
-				newDecorations.push(LinkOccurrence.decoration(links[i], useMetaKey));
+			for (const link of links) {
+				newDecorations.push(LinkOccurrence.decoration(link, useMetaKey));
 			}
 		}
 
@@ -276,7 +309,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}
 	}
 
-	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
@@ -325,23 +358,26 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		const { link } = occurrence;
 
-		link.resolve().then(uri => {
+		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
 			return this.openerService.open(uri, { openToSide });
 
 		}, err => {
 			// different error cases
 			if (err === 'invalid') {
-				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url));
+				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));
 			} else if (err === 'missing') {
 				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
 			} else {
 				onUnexpectedError(err);
 			}
-		}).done(null, onUnexpectedError);
+		});
 	}
 
-	public getLinkOccurrence(position: Position): LinkOccurrence {
+	public getLinkOccurrence(position: Position | null): LinkOccurrence | null {
+		if (!this.editor.hasModel() || !position) {
+			return null;
+		}
 		const decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
@@ -349,8 +385,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			endColumn: position.column
 		}, 0, true);
 
-		for (let i = 0; i < decorations.length; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const currentOccurrence = this.currentOccurrences[decoration.id];
 			if (currentOccurrence) {
 				return currentOccurrence;
@@ -360,15 +395,18 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return null;
 	}
 
-	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return (
-			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
+	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
+		return Boolean(
+			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
 			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
 		);
 	}
 
 	private stop(): void {
 		this.timeout.cancel();
+		if (this.activeLinksList) {
+			this.activeLinksList.dispose();
+		}
 		if (this.computePromise) {
 			this.computePromise.cancel();
 			this.computePromise = null;
@@ -389,13 +427,16 @@ class OpenLinkAction extends EditorAction {
 			id: 'editor.action.openLink',
 			label: nls.localize('label', "Open Link"),
 			alias: 'Open Link',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
 		if (!linkDetector) {
+			return;
+		}
+		if (!editor.hasModel()) {
 			return;
 		}
 
@@ -415,7 +456,7 @@ registerEditorContribution(LinkDetector);
 registerEditorAction(OpenLinkAction);
 
 registerThemingParticipant((theme, collector) => {
-	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
 	}

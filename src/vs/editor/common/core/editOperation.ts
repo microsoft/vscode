@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export class EditOperation {
@@ -25,14 +24,14 @@ export class EditOperation {
 		};
 	}
 
-	public static replace(range: Range, text: string): IIdentifiedSingleEditOperation {
+	public static replace(range: Range, text: string | null): IIdentifiedSingleEditOperation {
 		return {
 			range: range,
 			text: text
 		};
 	}
 
-	public static replaceMove(range: Range, text: string): IIdentifiedSingleEditOperation {
+	public static replaceMove(range: Range, text: string | null): IIdentifiedSingleEditOperation {
 		return {
 			range: range,
 			text: text,

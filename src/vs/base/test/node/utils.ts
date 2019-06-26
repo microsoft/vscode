@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { mkdirp, del } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 
 export interface ITestFileResult {
 	testFile: string;
-	cleanUp: () => TPromise<void>;
+	cleanUp: () => Promise<void>;
 }
 
-export function testFile(folder: string, file: string): TPromise<ITestFileResult> {
+export function testFile(folder: string, file: string): Promise<ITestFileResult> {
 	const id = generateUuid();
 	const parentDir = join(tmpdir(), 'vsctests', id);
 	const newDir = join(parentDir, 'config', id);
@@ -25,7 +22,7 @@ export function testFile(folder: string, file: string): TPromise<ITestFileResult
 	return mkdirp(newDir, 493).then(() => {
 		return {
 			testFile,
-			cleanUp: () => del(parentDir, tmpdir())
-		} as ITestFileResult;
+			cleanUp: () => rimraf(parentDir, RimRafMode.MOVE)
+		};
 	});
 }

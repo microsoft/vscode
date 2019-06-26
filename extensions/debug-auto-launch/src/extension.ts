@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 
@@ -39,7 +37,7 @@ export function deactivate(): void {
 }
 
 
-function toggleAutoAttachSetting(context: vscode.ExtensionContext) {
+function toggleAutoAttachSetting() {
 
 	const conf = vscode.workspace.getConfiguration(DEBUG_SETTINGS);
 	if (conf) {

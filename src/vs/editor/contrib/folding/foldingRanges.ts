@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 export interface ILineRange {
 	startLineNumber: number;
 	endLineNumber: number;
@@ -16,13 +14,13 @@ export const MAX_LINE_NUMBER = 0xFFFFFF;
 const MASK_INDENT = 0xFF000000;
 
 export class FoldingRegions {
-	private _startIndexes: Uint32Array;
-	private _endIndexes: Uint32Array;
-	private _collapseStates: Uint32Array;
+	private readonly _startIndexes: Uint32Array;
+	private readonly _endIndexes: Uint32Array;
+	private readonly _collapseStates: Uint32Array;
 	private _parentsComputed: boolean;
-	private _types: string[] | undefined;
+	private readonly _types: Array<string | undefined> | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: string[]) {
+	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
@@ -35,7 +33,7 @@ export class FoldingRegions {
 	private ensureParentIndices() {
 		if (!this._parentsComputed) {
 			this._parentsComputed = true;
-			let parentIndexes = [];
+			let parentIndexes: number[] = [];
 			let isInsideLast = (startLineNumber: number, endLineNumber: number) => {
 				let index = parentIndexes[parentIndexes.length - 1];
 				return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
@@ -70,7 +68,7 @@ export class FoldingRegions {
 	}
 
 	public getType(index: number): string | undefined {
-		return this._types ? this._types[index] : void 0;
+		return this._types ? this._types[index] : undefined;
 	}
 
 	public hasTypes() {
@@ -146,7 +144,7 @@ export class FoldingRegions {
 	}
 
 	public toString() {
-		let res = [];
+		let res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
 			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
@@ -156,7 +154,7 @@ export class FoldingRegions {
 
 export class FoldingRegion {
 
-	constructor(private ranges: FoldingRegions, private index: number) {
+	constructor(private readonly ranges: FoldingRegions, private index: number) {
 	}
 
 	public get startLineNumber() {

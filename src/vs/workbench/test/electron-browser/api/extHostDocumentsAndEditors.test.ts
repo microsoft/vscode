@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { URI } from 'vs/base/common/uri';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
@@ -15,9 +13,9 @@ suite('ExtHostDocumentsAndEditors', () => {
 
 	setup(function () {
 		editors = new ExtHostDocumentsAndEditors({
-			getProxy: () => { return undefined; },
-			set: undefined,
-			assertRegistered: undefined
+			getProxy: () => { return undefined!; },
+			set: undefined!,
+			assertRegistered: undefined!
 		});
 	});
 

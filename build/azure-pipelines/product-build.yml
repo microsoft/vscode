@@ -1,0 +1,109 @@
+resources:
+  containers:
+  - container: vscode-x64
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
+    endpoint: VSCodeHub
+  - container: snapcraft
+    image: snapcore/snapcraft:stable
+
+jobs:
+- job: Windows
+  condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: VS2017-Win2016
+  variables:
+    VSCODE_ARCH: x64
+  steps:
+  - template: win32/product-build-win32.yml
+
+- job: Windows32
+  condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: VS2017-Win2016
+  variables:
+    VSCODE_ARCH: ia32
+  steps:
+  - template: win32/product-build-win32.yml
+
+- job: Linux
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  container: vscode-x64
+  steps:
+  - template: linux/product-build-linux.yml
+
+- job: LinuxSnap
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  container: snapcraft
+  dependsOn: Linux
+  steps:
+  - template: linux/snap-build-linux.yml
+
+- job: LinuxArmhf
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: armhf
+  steps:
+  - template: linux/product-build-linux-arm.yml
+
+- job: LinuxAlpine
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable')))
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: alpine
+  steps:
+  - template: linux/product-build-linux-alpine.yml
+
+- job: macOS
+  condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
+  timeoutInMinutes: 120
+  pool:
+    vmImage: macOS 10.13
+  steps:
+  - template: darwin/product-build-darwin.yml
+
+- job: Release
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-4.0.x'))))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - LinuxArmhf
+  - LinuxAlpine
+  - macOS
+  steps:
+  - template: release.yml
+
+- job: Mooncake
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  condition: true
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - LinuxArmhf
+  - LinuxAlpine
+  - macOS
+  steps:
+  - template: sync-mooncake.yml

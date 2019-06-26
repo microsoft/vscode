@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
@@ -13,7 +11,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 
@@ -21,17 +19,17 @@ export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditor
 
 export interface IBreadcrumbsService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
-	getWidget(group: GroupIdentifier): BreadcrumbsWidget;
+	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
 }
 
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
@@ -45,12 +43,12 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 		};
 	}
 
-	getWidget(group: number): BreadcrumbsWidget {
+	getWidget(group: number): BreadcrumbsWidget | undefined {
 		return this._map.get(group);
 	}
 }
 
-registerSingleton(IBreadcrumbsService, BreadcrumbsService);
+registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 
 //#region config
@@ -61,7 +59,7 @@ export abstract class BreadcrumbsConfig<T> {
 	onDidChange: Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
-	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Thenable<void>;
+	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -72,7 +70,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
-	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
+	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -91,10 +89,18 @@ export abstract class BreadcrumbsConfig<T> {
 					readonly name = name;
 					readonly onDidChange = onDidChange.event;
 					getValue(overrides?: IConfigurationOverrides): T {
-						return service.getValue(name, overrides);
+						if (overrides) {
+							return service.getValue(name, overrides);
+						} else {
+							return service.getValue(name);
+						}
 					}
-					updateValue(newValue: T, overrides?: IConfigurationOverrides): Thenable<void> {
-						return service.updateValue(name, newValue, overrides);
+					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
+						if (overrides) {
+							return service.updateValue(name, newValue, overrides);
+						} else {
+							return service.updateValue(name, newValue);
+						}
 					}
 					dispose(): void {
 						listener.dispose();
@@ -113,9 +119,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			description: localize('enabled', "Enable/disable navigation breadcrumbs"),
+			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		// 'breadcrumbs.useQuickPick': {
 		// 	description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
@@ -144,11 +150,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
 			]
 		},
-		// 'breadcrumbs.filterOnType': {
-		// 	description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
-		// 	type: 'boolean',
-		// 	default: false
-		// },
+		'breadcrumbs.symbolSortOrder': {
+			description: localize('symbolSortOrder', "Controls how symbols are sorted in the breadcrumbs outline view."),
+			type: 'string',
+			default: 'position',
+			enum: ['position', 'name', 'type'],
+			enumDescriptions: [
+				localize('symbolSortOrder.position', "Show symbol outline in file position order."),
+				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
+				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
+			]
+		}
 	}
 });
 

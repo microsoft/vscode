@@ -1,7 +1,7 @@
 [
 	{
 		"c": "<",
-		"t": "text.html.basic meta.tag.custom.start.html punctuation.definition.tag.begin.html",
+		"t": "text.html.derivative meta.tag.custom.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": "ion-view",
-		"t": "text.html.basic meta.tag.custom.start.html entity.name.tag.html",
+		"t": "text.html.derivative meta.tag.custom.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.basic meta.tag.custom.start.html punctuation.definition.tag.end.html",
+		"t": "text.html.derivative meta.tag.custom.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.basic meta.tag.custom.start.html punctuation.definition.tag.begin.html",
+		"t": "text.html.derivative meta.tag.custom.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "button-view",
-		"t": "text.html.basic meta.tag.custom.start.html entity.name.tag.html",
+		"t": "text.html.derivative meta.tag.custom.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "/>",
-		"t": "text.html.basic meta.tag.custom.start.html punctuation.definition.tag.end.html",
+		"t": "text.html.derivative meta.tag.custom.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.basic meta.tag.custom.start.html punctuation.definition.tag.begin.html",
+		"t": "text.html.derivative meta.tag.custom.start.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "font-face",
-		"t": "text.html.basic meta.tag.custom.start.html entity.name.tag.html",
+		"t": "text.html.derivative meta.tag.custom.start.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.basic meta.tag.custom.start.html punctuation.definition.tag.end.html",
+		"t": "text.html.derivative meta.tag.custom.start.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.basic meta.tag.custom.end.html punctuation.definition.tag.begin.html",
+		"t": "text.html.derivative meta.tag.custom.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "font-face",
-		"t": "text.html.basic meta.tag.custom.end.html entity.name.tag.html",
+		"t": "text.html.derivative meta.tag.custom.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.basic meta.tag.custom.end.html punctuation.definition.tag.end.html",
+		"t": "text.html.derivative meta.tag.custom.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "</",
-		"t": "text.html.basic meta.tag.custom.end.html punctuation.definition.tag.begin.html",
+		"t": "text.html.derivative meta.tag.custom.end.html punctuation.definition.tag.begin.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": "ion-view",
-		"t": "text.html.basic meta.tag.custom.end.html entity.name.tag.html",
+		"t": "text.html.derivative meta.tag.custom.end.html entity.name.tag.html",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.basic meta.tag.custom.end.html punctuation.definition.tag.end.html",
+		"t": "text.html.derivative meta.tag.custom.end.html punctuation.definition.tag.end.html",
 		"r": {
 			"dark_plus": "punctuation.definition.tag: #808080",
 			"light_plus": "punctuation.definition.tag: #800000",

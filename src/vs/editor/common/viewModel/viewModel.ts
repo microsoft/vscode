@@ -2,20 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions, IActiveIndentGuideInfo } from 'vs/editor/common/model';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
+import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
+import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import * as strings from 'vs/base/common/strings';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -67,7 +66,7 @@ export interface IViewLayout {
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	// --------------- Begin vertical whitespace management
 
@@ -120,6 +119,7 @@ export interface IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
+	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
@@ -129,7 +129,7 @@ export interface IViewModel {
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
-	getTabSize(): number;
+	getOptions(): TextModelResolvedOptions;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
@@ -145,20 +145,21 @@ export interface IViewModel {
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
+	validateModelRange(range: IRange): Range;
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getEOL(): string;
 	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
-	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | null;
 }
 
 export class MinimapLinesRenderingData {
 	public readonly tabSize: number;
-	public readonly data: ViewLineData[];
+	public readonly data: Array<ViewLineData | null>;
 
 	constructor(
 		tabSize: number,
-		data: ViewLineData[]
+		data: Array<ViewLineData | null>
 	) {
 		this.tabSize = tabSize;
 		this.data = data;

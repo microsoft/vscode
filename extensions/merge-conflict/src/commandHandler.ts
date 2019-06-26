@@ -88,18 +88,54 @@ export default class CommandHandler implements vscode.Disposable {
 			}
 		}
 
+		const conflicts = await this.tracker.getConflicts(editor.document);
+
+		// Still failed to find conflict, warn the user and exit
+		if (!conflicts) {
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
+			return;
+		}
+
 		const scheme = editor.document.uri.scheme;
 		let range = conflict.current.content;
+		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
+		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify({ scheme, range })
+			query: JSON.stringify({ scheme, range: range, ranges: leftRanges })
 		});
 
+
 		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range }) });
+		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
+
+		let mergeConflictLineOffsets = 0;
+		for (let nextconflict of conflicts) {
+			if (nextconflict.range.isEqual(conflict.range)) {
+				break;
+			} else {
+				mergeConflictLineOffsets += (nextconflict.range.end.line - nextconflict.range.start.line) - (nextconflict.incoming.content.end.line - nextconflict.incoming.content.start.line);
+			}
+		}
+		const selection = new vscode.Range(
+			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character,
+			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character
+		);
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
+		const opts: vscode.TextDocumentShowOptions = {
+			viewColumn: openToTheSide === 'Beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+			selection
+		};
+
+		if (openToTheSide === 'Below') {
+			await vscode.commands.executeCommand('workbench.action.newGroupBelow');
+		}
+
+		await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
 	}
 
 	navigateNext(editor: vscode.TextEditor): Promise<void> {
@@ -158,6 +194,11 @@ export default class CommandHandler implements vscode.Disposable {
 		let navigationResult = await this.findConflictForNavigation(editor, direction);
 
 		if (!navigationResult) {
+			// Check for autoNavigateNextConflict, if it's enabled(which indicating no conflict remain), then do not show warning
+			const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+			if (mergeConflictConfig.get<boolean>('autoNavigateNextConflict.enabled')) {
+				return;
+			}
 			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
 			return;
 		}
@@ -196,6 +237,13 @@ export default class CommandHandler implements vscode.Disposable {
 		// Tracker can forget as we know we are going to do an edit
 		this.tracker.forget(editor.document);
 		conflict.commitEdit(type, editor);
+
+		// navigate to the next merge conflict
+		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+		if (mergeConflictConfig.get<boolean>('autoNavigateNextConflict.enabled')) {
+			this.navigateNext(editor);
+		}
+
 	}
 
 	private async acceptAll(type: interfaces.CommitType, editor: vscode.TextEditor): Promise<void> {
@@ -225,9 +273,9 @@ export default class CommandHandler implements vscode.Disposable {
 			return null;
 		}
 
-		for (let i = 0; i < conflicts.length; i++) {
-			if (conflicts[i].range.contains(editor.selection.active)) {
-				return conflicts[i];
+		for (const conflict of conflicts) {
+			if (conflict.range.contains(editor.selection.active)) {
+				return conflict;
 			}
 		}
 
@@ -270,11 +318,11 @@ export default class CommandHandler implements vscode.Disposable {
 			throw new Error(`Unsupported direction ${direction}`);
 		}
 
-		for (let i = 0; i < conflicts.length; i++) {
-			if (predicate(conflicts[i]) && !conflicts[i].range.contains(selection)) {
+		for (const conflict of conflicts) {
+			if (predicate(conflict) && !conflict.range.contains(selection)) {
 				return {
 					canNavigate: true,
-					conflict: conflicts[i]
+					conflict: conflict
 				};
 			}
 		}

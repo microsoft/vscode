@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./colorPicker';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Widget } from 'vs/base/browser/ui/widget';
-import * as dom from 'vs/base/browser/dom';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { Color, RGBA, HSVA } from 'vs/base/common/color';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Color, HSVA, RGBA } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {
 
-	private domNode: HTMLElement;
-	private pickedColorNode: HTMLElement;
+	private readonly domNode: HTMLElement;
+	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, themeService: IThemeService) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
 		super();
 
 		this.domNode = $('.colorpicker-header');
@@ -63,12 +63,12 @@ export class ColorPickerHeader extends Disposable {
 
 export class ColorPickerBody extends Disposable {
 
-	private domNode: HTMLElement;
-	private saturationBox: SaturationBox;
-	private hueStrip: Strip;
-	private opacityStrip: Strip;
+	private readonly domNode: HTMLElement;
+	private readonly saturationBox: SaturationBox;
+	private readonly hueStrip: Strip;
+	private readonly opacityStrip: Strip;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.colorpicker-body');
@@ -120,20 +120,20 @@ export class ColorPickerBody extends Disposable {
 
 class SaturationBox extends Disposable {
 
-	private domNode: HTMLElement;
-	private selection: HTMLElement;
-	private canvas: HTMLCanvasElement;
+	private readonly domNode: HTMLElement;
+	private readonly selection: HTMLElement;
+	private readonly canvas: HTMLCanvasElement;
 	private width: number;
 	private height: number;
 
-	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
 	private _onDidChange = new Emitter<{ s: number, v: number }>();
 	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
 	private _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.saturation-wrap');
@@ -168,8 +168,10 @@ class SaturationBox extends Disposable {
 		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
-			this.monitor.stopMonitoring(true);
-			this.monitor = null;
+			if (this.monitor) {
+				this.monitor.stopMonitoring(true);
+				this.monitor = null;
+			}
 		}, true);
 	}
 
@@ -195,7 +197,7 @@ class SaturationBox extends Disposable {
 	private paint(): void {
 		const hsva = this.model.color.hsva;
 		const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
-		const ctx = this.canvas.getContext('2d');
+		const ctx = this.canvas.getContext('2d')!;
 
 		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
 		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
@@ -207,7 +209,7 @@ class SaturationBox extends Disposable {
 		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
 
 		ctx.rect(0, 0, this.canvas.width, this.canvas.height);
-		ctx.fillStyle = Color.Format.CSS.format(saturatedColor);
+		ctx.fillStyle = Color.Format.CSS.format(saturatedColor)!;
 		ctx.fill();
 		ctx.fillStyle = whiteGradient;
 		ctx.fill();
@@ -333,7 +335,7 @@ export class ColorPickerWidget extends Widget {
 
 	body: ColorPickerBody;
 
-	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
+	constructor(container: Node, private readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));

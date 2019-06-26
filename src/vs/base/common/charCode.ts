@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 // Names from https://blog.codinghorror.com/ascii-pronunciation-rules-for-programmers/
 
@@ -12,6 +11,10 @@
  */
 export const enum CharCode {
 	Null = 0,
+	/**
+	 * The `\b` character.
+	 */
+	Backspace = 8,
 	/**
 	 * The `\t` character.
 	 */

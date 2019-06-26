@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -29,7 +28,7 @@ interface TouchData {
 }
 
 export interface GestureEvent extends MouseEvent {
-	initialTarget: EventTarget;
+	initialTarget: EventTarget | undefined;
 	translationX: number;
 	translationY: number;
 	pageX: number;
@@ -72,7 +71,7 @@ export class Gesture extends Disposable {
 
 	private dispatched: boolean;
 	private targets: HTMLElement[];
-	private handle: IDisposable;
+	private handle: IDisposable | null;
 
 	private activeTouches: { [id: number]: TouchData; };
 
@@ -82,9 +81,9 @@ export class Gesture extends Disposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
 	}
 
 	public static addTarget(element: HTMLElement): void {
@@ -215,10 +214,10 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private newGestureEvent(type: string, intialTarget?: EventTarget): GestureEvent {
+	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
 		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
 		event.initEvent(type, false, true);
-		event.initialTarget = intialTarget;
+		event.initialTarget = initialTarget;
 		return event;
 	}
 

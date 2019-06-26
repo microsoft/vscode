@@ -8,12 +8,23 @@ const path = require('path');
 const fs = require('fs');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
+/**
+ * @param {string} location
+ * @param {*} [opts]
+ */
 function yarnInstall(location, opts) {
 	opts = opts || {};
 	opts.cwd = location;
 	opts.stdio = 'inherit';
 
-	const result = cp.spawnSync(yarn, ['install'], opts);
+	const raw = process.env['npm_config_argv'] || '{}';
+	const argv = JSON.parse(raw);
+	const original = argv.original || [];
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+
+	console.log(`Installing dependencies in ${location}...`);
+	console.log(`$ yarn ${args.join(' ')}`);
+	const result = cp.spawnSync(yarn, args, opts);
 
 	if (result.error || result.status !== 0) {
 		process.exit(1);
@@ -21,6 +32,8 @@ function yarnInstall(location, opts) {
 }
 
 yarnInstall('extensions'); // node modules shared by all extensions
+
+yarnInstall('remote'); // node modules used by vscode server
 
 const allExtensionFolders = fs.readdirSync('extensions');
 const extensions = allExtensionFolders.filter(e => {
@@ -57,3 +70,10 @@ runtime "${runtime}"`;
 yarnInstall(`build`); // node modules required for build
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
+
+// Remove the windows process tree typings as this causes duplicate identifier errors in tsc builds
+const processTreeDts = path.join('node_modules', 'windows-process-tree', 'typings', 'windows-process-tree.d.ts');
+if (fs.existsSync(processTreeDts)) {
+	console.log('Removing windows-process-tree.d.ts');
+	fs.unlinkSync(processTreeDts);
+}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
@@ -116,6 +114,8 @@ export class GitContentProvider {
 			const uriString = fileUri.toString();
 			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
+		} else if (/^~\d$/.test(ref)) {
+			ref = `:${ref[1]}`;
 		}
 
 		try {

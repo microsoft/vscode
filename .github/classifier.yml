@@ -12,15 +12,18 @@
         cli: [],
         color-palette: [],
         config: [],
-        css-less-scss: [ aeschli ],
+        css-less-scss: [],
         debug-console: [],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: [],
         dropdown: [],
-        editor: [],
+        editor: {
+            assignees: [],
+            assignLabel: false
+        },
         editor-1000-limit: [],
         editor-autoclosing: [],
         editor-autoindent: [],
@@ -49,7 +52,7 @@
         editor-symbols: [],
         editor-textbuffer: [],
         editor-wrapping: [],
-        emmet: [ ramya-rao-a ],
+        emmet: [ octref ],
         error-list: [],
         explorer-custom: [],
         extension-host: [],
@@ -73,10 +76,10 @@
             assignLabel: false
         },
         formatting: [],
-        git: [ joaomoreno ],
+        git: [],
         grammar: [],
-        hot-exit: [ Tyriar ],
-        html: [ aeschli ],
+        hot-exit: [],
+        html: [],
         install-update: [],
         integrated-terminal: [ Tyriar ],
         integration-test: [],
@@ -128,7 +131,7 @@
             assignLabel: false
         },
         suggest: [],
-        tasks: [ dbaeumer ],
+        tasks: [ alexr00 ],
         telemetry: [],
         themes: [],
         tokenization: [],

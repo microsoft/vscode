@@ -5,6 +5,7 @@
   "displayName": "%displayName%",
   "icon": "images/cowboy_hat.png",
   "version": "1.0.0",
+  "license": "MIT",
   "engines": {
     "vscode": "*"
   },
@@ -16,10 +17,10 @@
     "watch": "gulp watch-extension:jake"
   },
   "dependencies": {
-    "vscode-nls": "^3.2.4"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.14.8"
   },
   "main": "./out/main",
   "activationEvents": [

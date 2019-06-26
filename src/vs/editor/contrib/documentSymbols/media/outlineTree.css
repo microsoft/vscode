@@ -3,53 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-tree.focused .selected .outline-element-label, .monaco-tree.focused .selected .outline-element-decoration {
+.monaco-list .monaco-list-row.focused.selected .outline-element .monaco-highlighted-label,
+.monaco-list .monaco-list-row.focused.selected .outline-element-decoration {
 	/* make sure selection color wins when a label is being selected */
 	color: inherit !important;
 }
 
-.monaco-tree .outline-element {
+.monaco-list .outline-element {
 	display: flex;
 	flex: 1;
 	flex-flow: row nowrap;
 	align-items: center;
 }
 
-.monaco-tree .outline-element .outline-element-icon {
-	padding-right: 3px;
-}
-
-/* .monaco-tree.no-icons .outline-element .outline-element-icon {
-	display: none;
-} */
-
-.monaco-tree .outline-element .outline-element-label {
-	text-overflow: ellipsis;
-	overflow: hidden;
+.monaco-list .outline-element .monaco-highlighted-label {
 	color: var(--outline-element-color);
-}
-
-.monaco-tree .outline-element .outline-element-label .monaco-highlighted-label .highlight {
-	font-weight: bold;
-}
-
-.monaco-tree .outline-element .outline-element-detail {
-	visibility: hidden;
-	flex: 1;
-	flex-basis: 10%;
-	opacity: 0.8;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	font-size: 90%;
-	padding-left: 4px;
-	padding-top: 3px;
 }
 
 .monaco-tree .monaco-tree-row.focused .outline-element .outline-element-detail {
 	visibility: inherit;
 }
 
-.monaco-tree .outline-element .outline-element-decoration {
+.monaco-list .outline-element .outline-element-decoration {
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
@@ -59,7 +34,7 @@
 	color: var(--outline-element-color);
 }
 
-.monaco-tree .outline-element .outline-element-decoration.bubble {
+.monaco-list .outline-element .outline-element-decoration.bubble {
 	font-family: octicons;
 	font-size: 14px;
 	opacity: 0.4;

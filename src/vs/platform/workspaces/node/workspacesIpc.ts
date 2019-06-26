@@ -3,56 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 
-export interface IWorkspacesChannel extends IChannel {
-	call(command: 'createWorkspace', arg: [IWorkspaceFolderCreationData[]]): TPromise<string>;
-	call(command: string, arg?: any): TPromise<any>;
-}
-
-export class WorkspacesChannel implements IWorkspacesChannel {
+export class WorkspacesChannel implements IServerChannel {
 
 	constructor(private service: IWorkspacesMainService) { }
 
-	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+	listen<T>(_: unknown, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'createWorkspace': {
-				const rawFolders: IWorkspaceFolderCreationData[] = arg;
-				let folders: IWorkspaceFolderCreationData[];
+			case 'createUntitledWorkspace': {
+				const rawFolders: IWorkspaceFolderCreationData[] = arg[0];
+				const remoteAuthority: string = arg[1];
+				let folders: IWorkspaceFolderCreationData[] | undefined = undefined;
 				if (Array.isArray(rawFolders)) {
 					folders = rawFolders.map(rawFolder => {
 						return {
 							uri: URI.revive(rawFolder.uri), // convert raw URI back to real URI
 							name: rawFolder.name
-						} as IWorkspaceFolderCreationData;
+						};
 					});
 				}
 
-				return this.service.createWorkspace(folders);
+				return this.service.createUntitledWorkspace(folders, remoteAuthority);
+			}
+			case 'deleteUntitledWorkspace': {
+				const w: IWorkspaceIdentifier = arg;
+				return this.service.deleteUntitledWorkspace({ id: w.id, configPath: URI.revive(w.configPath) });
+			}
+			case 'getWorkspaceIdentifier': {
+				return this.service.getWorkspaceIdentifier(URI.revive(arg));
 			}
 		}
 
-		return void 0;
-	}
-}
-
-export class WorkspacesChannelClient implements IWorkspacesService {
-
-	_serviceBrand: any;
-
-	constructor(private channel: IWorkspacesChannel) { }
-
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
-		return this.channel.call('createWorkspace', folders);
+		throw new Error(`Call not found: ${command}`);
 	}
 }
