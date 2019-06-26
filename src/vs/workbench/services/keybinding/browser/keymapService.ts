@@ -153,6 +153,10 @@ export class BrowserKeyboardMapperFactoryBase {
 		return this._activeKeymapInfo && keymap && this._activeKeymapInfo.fuzzyEqual(keymap);
 	}
 
+	setUSKeyboardLayout() {
+		this._activeKeymapInfo = this.getUSStandardLayout();
+	}
+
 	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
 		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
 		if (matchedKeyboardLayout) {
