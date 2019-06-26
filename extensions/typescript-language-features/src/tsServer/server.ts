@@ -340,6 +340,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		'selectionRange',
 		'format',
 		'formatonkey',
+		'docCommentTemplate',
 	]);
 	private static readonly sharedCommands = new Set<keyof TypeScriptRequests>([
 		'change',
