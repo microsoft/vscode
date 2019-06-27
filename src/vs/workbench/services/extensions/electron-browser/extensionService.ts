@@ -340,7 +340,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let extensions: Promise<IExtensionDescription[]>;
 		if (isInitialStart) {
 			autoStart = false;
-			extensions = this._extensionScanner.scannedExtensions;
+			extensions = this._extensionScanner.scannedExtensions.then(extensions => extensions.filter(extension => this._isEnabled(extension))); // remove disabled extensions
 		} else {
 			// restart case
 			autoStart = true;
