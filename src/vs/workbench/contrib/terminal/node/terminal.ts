@@ -119,6 +119,10 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
+		],
+		Cygwin: [
+			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 		]
 	};
 	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
