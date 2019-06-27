@@ -21,6 +21,7 @@ import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IdleValue } from 'vs/base/common/async';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -208,6 +209,8 @@ export const enum OutlineSortOrder {
 
 export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
+	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+
 	constructor(
 		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
 	) { }
@@ -218,11 +221,11 @@ export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
 			if (this.type === OutlineSortOrder.ByKind) {
-				return a.symbol.kind - b.symbol.kind || a.symbol.name.localeCompare(b.symbol.name, undefined, { numeric: true });
+				return a.symbol.kind - b.symbol.kind || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			} else if (this.type === OutlineSortOrder.ByName) {
-				return a.symbol.name.localeCompare(b.symbol.name, undefined, { numeric: true }) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+				return this._collator.getValue().compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
 			} else if (this.type === OutlineSortOrder.ByPosition) {
-				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || a.symbol.name.localeCompare(b.symbol.name, undefined, { numeric: true });
+				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			}
 		}
 		return 0;
