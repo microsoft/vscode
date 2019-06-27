@@ -2070,7 +2070,7 @@ declare module 'vscode' {
 		/**
 		 * An array of diagnostics.
 		 */
-		readonly diagnostics: Diagnostic[];
+		readonly diagnostics: ReadonlyArray<Diagnostic>;
 
 		/**
 		 * Requested kind of actions to return.
