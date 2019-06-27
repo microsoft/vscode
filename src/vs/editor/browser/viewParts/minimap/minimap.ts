@@ -527,6 +527,7 @@ export class Minimap extends ViewPart {
 
 		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
 			e.preventDefault();
+			e.stopPropagation();
 			if (e.leftButton && this._lastRenderData) {
 
 				const initialMousePosition = e.posy;
