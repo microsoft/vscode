@@ -73,6 +73,10 @@ steps:
     mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
     mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
     mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+
+    echo $BUILD_SOURCESDIRECTORY/.build/telemetry
+    ls -la $BUILD_SOURCESDIRECTORY/.build/telemetry
+    exit 1
   displayName: Extract Telemetry
 
 - script: |
