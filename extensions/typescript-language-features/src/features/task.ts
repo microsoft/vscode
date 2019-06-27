@@ -234,8 +234,10 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
-			return path.posix.relative(path.posix.normalize(project.workspaceFolder.uri.path), path.posix.normalize(project.posixPath));
+			const workspaceNormalizedUri = vscode.Uri.file(path.normalize(project.workspaceFolder.uri.fsPath)); // Make sure the drive letter is lowercase
+			return path.posix.relative(workspaceNormalizedUri.path, project.posixPath);
 		}
+
 		return project.posixPath;
 	}
 
