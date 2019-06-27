@@ -453,7 +453,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				}
 				this.logService.info('Installation completed.', identifier.id);
 				if (metadata) {
-					local.metadata = metadata;
+					this.setMetadata(local, metadata);
 					return this.saveMetadataForLocalExtension(local);
 				}
 				return local;
@@ -783,10 +783,19 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)) : null;
 					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : null;
-					const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: metadata ? metadata.id : null };
-					return <ILocalExtension>{ type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
+					const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+					const local = <ILocalExtension>{ type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
+					if (metadata) {
+						this.setMetadata(local, metadata);
+					}
+					return local;
 				}))
 			.then(undefined, () => null);
+	}
+
+	private setMetadata(local: ILocalExtension, metadata: IGalleryMetadata): void {
+		local.metadata = metadata;
+		local.identifier.uuid = metadata.id;
 	}
 
 	async removeDeprecatedExtensions(): Promise<void> {
