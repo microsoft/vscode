@@ -119,7 +119,7 @@ export class MenuBar extends Disposable {
 
 			if (event.equals(KeyCode.LeftArrow) || (isMacintosh && event.equals(KeyCode.Tab | KeyMod.Shift))) {
 				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
+			} else if (event.equals(KeyCode.RightArrow) || (isMacintosh && event.equals(KeyCode.Tab))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
@@ -128,6 +128,11 @@ export class MenuBar extends Disposable {
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
+			}
+
+			// Never allow default tab behavior
+			if (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab)) {
+				event.preventDefault();
 			}
 
 			if (eventHandled) {
