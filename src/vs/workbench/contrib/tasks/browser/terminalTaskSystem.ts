@@ -787,7 +787,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					shellLaunchConfig.args = [];
 				}
 			}
-			let shellArgs = <string[]>shellLaunchConfig.args!.slice(0);
+			let shellArgs = Array.isArray(shellLaunchConfig.args!) ? <string[]>shellLaunchConfig.args!.slice(0) : [shellLaunchConfig.args!];
 			let toAdd: string[] = [];
 			let commandLine = this.buildShellCommandLine(platform, shellLaunchConfig.executable!, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
