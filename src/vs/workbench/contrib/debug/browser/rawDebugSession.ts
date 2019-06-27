@@ -16,6 +16,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -606,7 +607,15 @@ export class RawDebugSession {
 			}
 		}
 
-		return this.windowsService.openExtensionDevelopmentHostWindow(args);
+		let env: IProcessEnvironment = {};
+		if (vscodeArgs.env) {
+			// merge environment variables into a copy of the process.env
+			env = objects.mixin(objects.mixin(env, process.env), vscodeArgs.env);
+			// and delete some if necessary
+			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
+		}
+
+		return this.windowsService.openExtensionDevelopmentHostWindow(args, env);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {
