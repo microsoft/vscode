@@ -50,15 +50,15 @@ export class StatusBar {
 			case StatusBarElement.PROBLEMS_STATUS:
 				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-error`;
 			case StatusBarElement.SELECTION_STATUS:
-				return `${this.mainSelector} ${this.rightSelector} a[title="Go to Line"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Go to Line"]`;
 			case StatusBarElement.INDENTATION_STATUS:
-				return `${this.mainSelector} ${this.rightSelector} a[title="Select Indentation"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select Indentation"]`;
 			case StatusBarElement.ENCODING_STATUS:
-				return `${this.mainSelector} ${this.rightSelector} a[title="Select Encoding"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select Encoding"]`;
 			case StatusBarElement.EOL_STATUS:
-				return `${this.mainSelector} ${this.rightSelector} a[title="Select End of Line Sequence"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select End of Line Sequence"]`;
 			case StatusBarElement.LANGUAGE_STATUS:
-				return `${this.mainSelector} ${this.rightSelector} a[title="Select Language Mode"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select Language Mode"]`;
 			case StatusBarElement.FEEDBACK_ICON:
 				return `${this.mainSelector} ${this.rightSelector} .monaco-dropdown.send-feedback`;
 			default:

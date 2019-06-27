@@ -603,7 +603,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
-		itemContainer.title = name;
 		itemContainer.id = id;
 
 		addClass(itemContainer, 'statusbar-item');
@@ -683,12 +682,12 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
-		// Update: Tooltip
+		// Update: Tooltip (on the container, because label can be disabled)
 		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
 			if (entry.tooltip) {
-				this.labelContainer.title = entry.tooltip;
+				this.container.title = entry.tooltip;
 			} else {
-				delete this.labelContainer.title;
+				delete this.container.title;
 			}
 		}
 
