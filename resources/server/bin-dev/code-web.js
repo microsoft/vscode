@@ -18,20 +18,17 @@ const RUNTIMES = {
 	'win32': {
 		folder: 'vscode-server-win32-x64-web',
 		node: 'node.exe',
-		download: 'https://update.code.visualstudio.com/latest/server-win32-x64-web/insider',
-		latest: 'https://update.code.visualstudio.com/api/update/win32-x64/insider/latest'
+		updateUrl: 'https://update.code.visualstudio.com/api/update/server-win32-x64-web/insider'
 	},
 	'darwin': {
 		folder: 'vscode-server-darwin-web',
 		node: 'node',
-		download: 'https://update.code.visualstudio.com/latest/server-darwin-web/insider',
-		latest: 'https://update.code.visualstudio.com/api/update/darwin/insider/latest'
+		updateUrl: 'https://update.code.visualstudio.com/api/update/server-darwin-web/insider'
 	},
 	'linux': {
 		folder: 'vscode-server-linux-x64-web',
 		node: 'node',
-		download: 'https://update.code.visualstudio.com/latest/server-linux-x64-web/insider',
-		latest: 'https://update.code.visualstudio.com/api/update/linux-x64/insider/latest'
+		updateUrl: 'https://update.code.visualstudio.com/api/update/server-linux-x64-web/insider'
 	}
 };
 
@@ -92,24 +89,21 @@ if (SELFHOST) {
 			console.log(`Installing latest released insider server into ${serverLocation}...`);
 		}
 
-		let waitForHandleExisting = Promise.resolve(true);
-		if (executableExists) {
-			const existingVersion = readCommit(serverLocation);
+		let waitForHandleExisting = Promise.resolve(undefined);
+		const existingVersion = readCommit(serverLocation);
 
-			waitForHandleExisting = jsonRequest(runtime.latest).then(result => {
-				if (existingVersion === result.version) {
-					return false; // no update needed
-				}
+		waitForHandleExisting = checkForUpdates(`${runtime.updateUrl}/${existingVersion}`).then(result => {
+			if (!result) {
+				return undefined; // no update needed
+			}
 
-				console.log(`Updating server at ${serverLocation} to latest released insider version...`);
+			console.log(`Updating server at ${serverLocation} to latest released insider version...`);
+			return util.promisify(rimraf)(serverLocation).then(() => result.url);
+		});
 
-				return util.promisify(rimraf)(serverLocation).then(() => true); // update needed
-			});
-		}
-
-		waitForUpdate = waitForHandleExisting.then(updateNeeded => {
-			if (updateNeeded) {
-				return download(runtime.download, targetServerZipDestination).then(() => {
+		waitForUpdate = waitForHandleExisting.then(updateUrl => {
+			if (updateUrl) {
+				return download(updateUrl, targetServerZipDestination).then(() => {
 					unzip(targetServerZipDestination);
 					fs.unlinkSync(targetServerZipDestination);
 				});
@@ -135,19 +129,12 @@ waitForUpdate.then(() => startServer(), console.error);
 function download(downloadUrl, destination) {
 	return new Promise((resolve, reject) => {
 		https.get(downloadUrl, res => {
-			if (res.statusCode !== 302 || !res.headers.location) {
-				reject(`Failed to get VS Web Code Server archive location, expected a 302 redirect but got ${res.statusCode}`);
-				return;
-			}
+			const outStream = fs.createWriteStream(destination);
+			outStream.on('close', () => resolve(destination));
+			outStream.on('error', reject);
 
-			https.get(res.headers.location, res => {
-				const outStream = fs.createWriteStream(destination);
-				outStream.on('close', () => resolve(destination));
-				outStream.on('error', reject);
-
-				res.on('error', reject);
-				res.pipe(outStream);
-			});
+			res.on('error', reject);
+			res.pipe(outStream);
 		});
 	});
 }
@@ -155,9 +142,13 @@ function download(downloadUrl, destination) {
 /**
  * @param {string} url
  */
-function jsonRequest(url) {
+function checkForUpdates(url) {
 	return new Promise((resolve, reject) => {
 		https.get(url, res => {
+			if (res.statusCode === 204) {
+				return resolve(undefined); // no update available
+			}
+
 			if (res.statusCode !== 200) {
 				reject('Failed to get JSON');
 				return;
@@ -177,13 +168,9 @@ function jsonRequest(url) {
  */
 function readCommit(folder) {
 	try {
-		const rawProduct = fs.readFileSync(path.join(folder, 'product.json'));
-
-		return JSON.parse(rawProduct.toString()).commit;
+		return JSON.parse(fs.readFileSync(path.join(folder, 'product.json')).toString()).commit;
 	} catch (error) {
-		console.error(error);
-
-		return '';
+		return 'latest'; // enforces to download latest version
 	}
 }
 
