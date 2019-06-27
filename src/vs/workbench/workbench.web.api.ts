@@ -7,7 +7,6 @@ import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -40,12 +39,11 @@ export interface IWorkbenchConstructionOptions {
 	userDataProvider?: {
 		readonly onDidChangeFile: Event<string[]>;
 
-		readFile(path: string): Promise<VSBuffer>;
-		readDirectory(path: string): Promise<string[]>;
+		readFile(path: string): Promise<Uint8Array>;
+		writeFile(path: string, content: Uint8Array): Promise<void>;
+		deleteFile(path: string): Promise<void>;
 
-		writeFile(path: string, content: VSBuffer): Promise<void>;
-
-		delete(path: string): Promise<void>;
+		listFiles(path: string): Promise<string[]>;
 	};
 }
 
