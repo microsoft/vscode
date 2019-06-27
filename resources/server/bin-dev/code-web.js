@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// @ts-check
+
 const opn = require('opn');
 const cp = require('child_process');
 const path = require('path');
@@ -16,24 +18,27 @@ const RUNTIMES = {
 	'win32': {
 		folder: 'vscode-server-win32-x64-web',
 		node: 'node.exe',
-		download: 'https://update.code.visualstudio.com/latest/server-win32-x64-web/insider'
+		download: 'https://update.code.visualstudio.com/latest/server-win32-x64-web/insider',
+		latest: 'https://update.code.visualstudio.com/api/update/win32-x64/insider/latest'
 	},
 	'darwin': {
 		folder: 'vscode-server-darwin-web',
 		node: 'node',
-		download: 'https://update.code.visualstudio.com/latest/server-darwin-web/insider'
+		download: 'https://update.code.visualstudio.com/latest/server-darwin-web/insider',
+		latest: 'https://update.code.visualstudio.com/api/update/darwin/insider/latest'
 	},
 	'linux': {
 		folder: 'vscode-server-linux-x64-web',
 		node: 'node',
-		download: 'https://update.code.visualstudio.com/latest/server-linux-x64-web/insider'
+		download: 'https://update.code.visualstudio.com/latest/server-linux-x64-web/insider',
+		latest: 'https://update.code.visualstudio.com/api/update/linux-x64/insider/latest'
 	}
 };
 
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 const HAS_PORT = process.argv.indexOf('--port') !== -1;
 const INSIDERS = process.argv.indexOf('--insiders') !== -1;
-const UPDATE = process.argv.indexOf('--update') !== -1;
+const SKIP_UPDATE = process.argv.indexOf('--disable-update') !== -1;
 const HAS_WORKSPACE = process.argv.indexOf('--folder') !== -1 || process.argv.indexOf('--workspace') !== -1;
 
 // Workspace Config
@@ -45,12 +50,12 @@ if (!HAS_WORKSPACE && SELFHOST) {
 let PORT = SELFHOST ? 9777 : 9888;
 process.argv.forEach((arg, idx) => {
 	if (arg.indexOf('--port') !== -1 && process.argv.length >= idx + 1) {
-		PORT = process.argv[idx + 1];
+		PORT = Number(process.argv[idx + 1]);
 	}
 });
 
 if (!HAS_PORT) {
-	process.argv.push('--port', new String(PORT));
+	process.argv.push('--port', String(PORT));
 }
 
 // Insiders Config
@@ -67,36 +72,48 @@ process.argv.forEach((arg, idx) => {
 	}
 });
 
-let node, entryPoint;
+let node;
+let entryPoint;
 let waitForUpdate = Promise.resolve();
 if (SELFHOST) {
 	const runtime = RUNTIMES[process.platform];
 
-	let serverLocation = path.join(path.dirname(path.dirname(path.dirname(path.dirname(__dirname)))), runtime.folder);
+	const serverLocation = path.join(path.dirname(path.dirname(path.dirname(path.dirname(__dirname)))), runtime.folder);
 	node = path.join(serverLocation, runtime.node);
 	entryPoint = path.join(serverLocation, 'out', 'vs', 'server', 'main.js');
 
 	const executableExists = fs.existsSync(node);
-	if (UPDATE || !executableExists) {
+	if (!executableExists || !SKIP_UPDATE) {
 		const targetServerZipDestination = process.platform === 'linux' ? `${serverLocation}.tgz` : `${serverLocation}.zip`;
 
 		if (executableExists) {
-			console.log(`Updating server at ${serverLocation} to latest released insider version...`);
+			console.log(`Checking for update of server at ${serverLocation}...`);
 		} else {
 			console.log(`Installing latest released insider server into ${serverLocation}...`);
 		}
 
-		let waitForRimRaf = Promise.resolve();
+		let waitForHandleExisting = Promise.resolve(true);
 		if (executableExists) {
-			// console.log(`\tDeleting existing server at ${serverLocation}...`);
-			waitForRimRaf = util.promisify(rimraf)(serverLocation);
+			const existingVersion = readCommit(serverLocation);
+
+			waitForHandleExisting = jsonRequest(runtime.latest).then(result => {
+				if (existingVersion === result.version) {
+					return false; // no update needed
+				}
+
+				console.log(`Updating server at ${serverLocation} to latest released insider version...`);
+
+				return util.promisify(rimraf)(serverLocation).then(() => true); // update needed
+			});
 		}
 
-		waitForUpdate = waitForRimRaf.then(() => {
-			return download(runtime.download, targetServerZipDestination).then(() => {
-				unzip(targetServerZipDestination);
-				fs.unlinkSync(targetServerZipDestination);
-			});
+		waitForUpdate = waitForHandleExisting.then(updateNeeded => {
+			if (updateNeeded) {
+				return download(runtime.download, targetServerZipDestination).then(() => {
+					unzip(targetServerZipDestination);
+					fs.unlinkSync(targetServerZipDestination);
+				});
+			}
 		});
 	}
 } else {
@@ -111,10 +128,12 @@ waitForUpdate.then(() => startServer(), console.error);
 // --- Helpers ---
 // ---------------
 
+/**
+ * @param {string | import("https").RequestOptions | import("url").URL} downloadUrl
+ * @param {import("fs").PathLike} destination
+ */
 function download(downloadUrl, destination) {
 	return new Promise((resolve, reject) => {
-		// console.log(`\tDownloading VS Code Web Server from: ${downloadUrl}`);
-
 		https.get(downloadUrl, res => {
 			if (res.statusCode !== 302 || !res.headers.location) {
 				reject(`Failed to get VS Web Code Server archive location, expected a 302 redirect but got ${res.statusCode}`);
@@ -133,10 +152,46 @@ function download(downloadUrl, destination) {
 	});
 }
 
+/**
+ * @param {string} url
+ */
+function jsonRequest(url) {
+	return new Promise((resolve, reject) => {
+		https.get(url, res => {
+			if (res.statusCode !== 200) {
+				reject('Failed to get JSON');
+				return;
+			}
+
+			let data = '';
+
+			res.on('data', chunk => data += chunk);
+			res.on('end', () => resolve(JSON.parse(data)));
+			res.on('error', err => reject(err));
+		});
+	});
+}
+
+/**
+ * @param {string} folder
+ */
+function readCommit(folder) {
+	try {
+		const rawProduct = fs.readFileSync(path.join(folder, 'product.json'));
+
+		return JSON.parse(rawProduct.toString()).commit;
+	} catch (error) {
+		console.error(error);
+
+		return '';
+	}
+}
+
+/**
+ * @param {string} source
+ */
 function unzip(source) {
 	const destination = path.dirname(source);
-
-	// console.log('\tExtracting VS Code Web Server...');
 
 	if (source.endsWith('.zip')) {
 		if (process.platform === 'win32') {
@@ -161,6 +216,9 @@ function unzip(source) {
 	}
 }
 
+/**
+ * @param {{ toLowerCase: () => void; }} requestedBrowser
+ */
 function getApp(requestedBrowser) {
 	if (typeof requestedBrowser !== 'string') {
 		return undefined;
