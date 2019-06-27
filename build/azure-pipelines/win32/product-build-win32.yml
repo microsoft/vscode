@@ -74,11 +74,11 @@ steps:
     git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
     npm i
     npm run setup-extension-repos
-    node .\out\cli-extract.js --sourceDir $env:BUILD_SOURCES_DIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
+    node .\out\cli-extract.js --sourceDir $env:BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
     node .\out\cli-extract-extensions.js --sourceDir .\src\telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
-    mkdir $env:BUILD_SOURCES_DIRECTORY\.build\telemetry -ea 0
-    mv declarations-resolved.json $env:BUILD_SOURCES_DIRECTORY\.build\telemetry\telemetry-core.json
-    mv declarations-extensions-resolved.json $env:BUILD_SOURCES_DIRECTORY\.build\telemetry\telemetry-extensions.json
+    mkdir $env:BUILD_SOURCESDIRECTORY\.build\telemetry -ea 0
+    mv declarations-resolved.json $env:BUILD_SOURCESDIRECTORY\.build\telemetry\telemetry-core.json
+    mv declarations-extensions-resolved.json $env:BUILD_SOURCESDIRECTORY\.build\telemetry\telemetry-extensions.json
   displayName: Extract Telemetry
 
 - powershell: |
