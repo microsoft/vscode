@@ -451,7 +451,7 @@ export class Minimap extends ViewPart {
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
-	private _decorationsChanged: boolean = false;
+	private _renderDecorations: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
 	constructor(context: ViewContext) {
@@ -498,7 +498,7 @@ export class Minimap extends ViewPart {
 
 		this._applyLayout();
 
-		this._mouseDownListener = dom.addStandardDisposableListener(this._canvas.domNode, 'mousedown', (e) => {
+		this._mouseDownListener = dom.addStandardDisposableListener(this._domNode.domNode, 'mousedown', (e) => {
 			e.preventDefault();
 
 			const renderMinimap = this._options.renderMinimap;
@@ -650,6 +650,7 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._renderDecorations = true;
 		return true;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
@@ -669,7 +670,7 @@ export class Minimap extends ViewPart {
 	}
 
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		this._decorationsChanged = true;
+		this._renderDecorations = true;
 		return true;
 	}
 
@@ -720,9 +721,8 @@ export class Minimap extends ViewPart {
 	}
 
 	private renderDecorations(layout: MinimapLayout) {
-		const scrollHasChanged = this._lastRenderData && !this._lastRenderData.scrollEquals(layout);
-		if (scrollHasChanged || this._decorationsChanged) {
-			this._decorationsChanged = false;
+		if (this._renderDecorations) {
+			this._renderDecorations = false;
 			const decorations = this._context.model.getDecorationsInViewport(new Range(layout.startLineNumber, 1, layout.endLineNumber, this._context.model.getLineMaxColumn(layout.endLineNumber)));
 
 			const { renderMinimap, canvasInnerWidth, canvasInnerHeight } = this._options;
@@ -790,11 +790,11 @@ export class Minimap extends ViewPart {
 			const x = lineIndexToXOffset[startColumn - 1];
 			const width = lineIndexToXOffset[endColumn - 1] - x;
 
-			this.renderADecoration(canvasContext, <ModelDecorationMinimapOptions>currentDecoration.options.minimap, x, y, width, height);
+			this.renderDecoration(canvasContext, <ModelDecorationMinimapOptions>currentDecoration.options.minimap, x, y, width, height);
 		}
 	}
 
-	private renderADecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {
+	private renderDecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {
 		const decorationColor = minimapOptions.getColor(this._context.theme);
 
 		canvasContext.fillStyle = decorationColor;

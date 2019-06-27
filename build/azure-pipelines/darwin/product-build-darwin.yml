@@ -37,7 +37,7 @@ steps:
 
 - script: |
     set -e
-    yarn
+    yarn --frozen-lockfile
   displayName: Install dependencies
 
 - script: |

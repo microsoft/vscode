@@ -738,8 +738,8 @@ suite('window namespace tests', () => {
 			terminal1.show();
 		});
 
-		test('runInBackground terminal: onDidWriteData should work', done => {
-			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+		test('hideFromUser terminal: onDidWriteData should work', done => {
+			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 			let data = '';
 			terminal.onDidWriteData(e => {
 				data += e;
@@ -751,8 +751,8 @@ suite('window namespace tests', () => {
 			terminal.sendText('foo');
 		});
 
-		test('runInBackground terminal: should be available to terminals API', done => {
-			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+		test('hideFromUser terminal: should be available to terminals API', done => {
+			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 			window.onDidOpenTerminal(t => {
 				assert.equal(t, terminal);
 				assert.equal(t.name, 'bg');

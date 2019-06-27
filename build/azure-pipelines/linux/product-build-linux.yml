@@ -38,7 +38,7 @@ steps:
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 yarn
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install dependencies
 
 - script: |

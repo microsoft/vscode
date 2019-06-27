@@ -213,6 +213,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}
 
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(toAdd);
+
 		// Update extension points
 		this._rehandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
 
@@ -337,7 +340,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let extensions: Promise<IExtensionDescription[]>;
 		if (isInitialStart) {
 			autoStart = false;
-			extensions = this._extensionScanner.scannedExtensions;
+			extensions = this._extensionScanner.scannedExtensions.then(extensions => extensions.filter(extension => this._isEnabled(extension))); // remove disabled extensions
 		} else {
 			// restart case
 			autoStart = true;

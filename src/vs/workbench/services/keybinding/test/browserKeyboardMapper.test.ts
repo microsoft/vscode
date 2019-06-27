@@ -110,7 +110,7 @@ suite('keyboard layout loader', () => {
 			},
 		}), true);
 
-		TestKeyboardMapperFactory.INSTANCE.setActiveKeyMapping(null);
+		TestKeyboardMapperFactory.INSTANCE.setUSKeyboardLayout();
 		assert.equal(TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, true);
 	});
 
@@ -130,7 +130,7 @@ suite('keyboard layout loader', () => {
 			},
 		}), true);
 
-		TestKeyboardMapperFactory.INSTANCE.setActiveKeyMapping(null);
+		TestKeyboardMapperFactory.INSTANCE.setUSKeyboardLayout();
 		assert.equal(TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, true);
 	});
 });

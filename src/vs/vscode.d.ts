@@ -2070,7 +2070,7 @@ declare module 'vscode' {
 		/**
 		 * An array of diagnostics.
 		 */
-		readonly diagnostics: Diagnostic[];
+		readonly diagnostics: ReadonlyArray<Diagnostic>;
 
 		/**
 		 * Requested kind of actions to return.
@@ -3548,7 +3548,7 @@ declare module 'vscode' {
 		 * The tooltip text when you hover over this link.
 		 *
 		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
-		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
+		 * trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary depending on OS,
 		 * user settings, and localization.
 		 */
 		tooltip?: string;
@@ -7042,7 +7042,7 @@ declare module 'vscode' {
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
 		 * as normal.
 		 */
-		runInBackground?: boolean;
+		hideFromUser?: boolean;
 	}
 
 	/**
@@ -8994,7 +8994,7 @@ declare module 'vscode' {
 		/**
 		 * All extensions currently known to the system.
 		 */
-		export let all: Extension<any>[];
+		export const all: ReadonlyArray<Extension<any>>;
 
 		/**
 		 * An event which fires when `extensions.all` changes. This can happen when extensions are

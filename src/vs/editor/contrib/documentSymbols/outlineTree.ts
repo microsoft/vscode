@@ -15,7 +15,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
-import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
@@ -27,18 +26,12 @@ export type OutlineItem = OutlineGroup | OutlineElement;
 
 export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
 
-	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
-
 	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
 		if (element instanceof OutlineGroup) {
 			return element.provider.displayName || element.id;
 		} else {
 			return element.symbol.name;
 		}
-	}
-
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		return this._keybindingService.mightProducePrintableCharacter(event);
 	}
 }
 
