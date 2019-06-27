@@ -109,7 +109,7 @@ export class Menu extends ActionBar {
 
 			// Stop tab navigation of menus
 			if (event.equals(KeyCode.Tab)) {
-				EventHelper.stop(e, true);
+				e.preventDefault();
 			}
 		});
 
