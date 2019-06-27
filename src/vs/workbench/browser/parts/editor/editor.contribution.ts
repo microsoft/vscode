@@ -511,16 +511,16 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: 'split-editor-vertical-inverse.svg',
-		iconLight: 'split-editor-vertical.svg'
+		iconDark: 'split-editor-vertical-dark.svg',
+		iconLight: 'split-editor-vertical-light.svg'
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: 'split-editor-horizontal-inverse.svg',
-		iconLight: 'split-editor-horizontal.svg'
+		iconDark: 'split-editor-horizontal-dark.svg',
+		iconLight: 'split-editor-horizontal-light.svg'
 	}
 );
 
