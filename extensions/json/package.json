@@ -24,7 +24,6 @@
           ".bowerrc",
           ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
           ".swcrc",
           ".webmanifest",
           ".js.map",
@@ -49,7 +48,9 @@
         "extensions": [
           ".hintrc",
           ".babelrc",
-          ".jsonc"
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json"
         ],
         "configuration": "./language-configuration.json"
       }

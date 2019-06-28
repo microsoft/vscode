@@ -22,23 +22,64 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     "machine monacotools.visualstudio.com`npassword $(devops-pat)`nmachine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
-    $env:npm_config_arch="$(VSCODE_ARCH)"
-    $env:CHILD_CONCURRENCY="1"
 
     exec { git config user.email "vscode@microsoft.com" }
     exec { git config user.name "VSCode" }
+  displayName: Prepare tooling
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git" }
     exec { git fetch distro }
     exec { git merge $(node -p "require('./package.json').distro") }
+  displayName: Merge distro
 
-    exec { yarn }
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    $env:npm_config_arch="$(VSCODE_ARCH)"
+    $env:CHILD_CONCURRENCY="1"
+    exec { yarn --frozen-lockfile }
+  displayName: Install dependencies
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { yarn gulp mixin }
+  displayName: Mix in quality
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { yarn gulp hygiene }
     exec { yarn monaco-compile-check }
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     exec { node build/azure-pipelines/common/installDistroDependencies.js }
     exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
     exec { node build/lib/builtInExtensions.js }
-  displayName: Prepare build
+  displayName: Install distro dependencies and extensions
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    cd $env:BUILD_STAGINGDIRECTORY
+    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
+    cd vscode-telemetry-extractor
+    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
+    npm i
+    npm run setup-extension-repos
+    node .\out\cli-extract.js --sourceDir $env:BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
+    node .\out\cli-extract-extensions.js --sourceDir .\src\telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
+    mkdir $env:BUILD_SOURCESDIRECTORY\.build\telemetry -ea 0
+    mv declarations-resolved.json $env:BUILD_SOURCESDIRECTORY\.build\telemetry\telemetry-core.json
+    mv declarations-extensions-resolved.json $env:BUILD_SOURCESDIRECTORY\.build\telemetry\telemetry-extensions.json
+  displayName: Extract Telemetry
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -52,8 +93,8 @@ steps:
     $ErrorActionPreference = "Stop"
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
-    # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
   displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -61,6 +102,7 @@ steps:
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
   displayName: Run integration tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
@@ -142,6 +184,7 @@ steps:
     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
     $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
     $env:VSCODE_HOCKEYAPP_TOKEN = "$(vscode-hockeyapp-token)"
+    $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     .\build\azure-pipelines\win32\publish.ps1
   displayName: Publish
 

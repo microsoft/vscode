@@ -225,6 +225,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			}
 		},
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
+			...options.keyboardNavigationLabelProvider,
 			getKeyboardNavigationLabel(e) {
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}

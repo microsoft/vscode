@@ -742,7 +742,7 @@ CommandsRegistry.registerCommand(SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, serviceA
 	if (control instanceof SettingsEditor2) {
 		control.focusSearch(`@tag:usesOnlineServices`);
 	} else {
-		serviceAccessor.get(IPreferencesService).openSettings(undefined, '@tag:usesOnlineServices');
+		serviceAccessor.get(IPreferencesService).openSettings(false, '@tag:usesOnlineServices');
 	}
 });
 

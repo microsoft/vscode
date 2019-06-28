@@ -412,7 +412,7 @@ export class MarkdownPreview extends Disposable {
 
 		this.currentVersion = pendingVersion;
 		if (this._resource === resource) {
-			const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
+			const content = await this._contentProvider.provideTextDocumentContent(document, await this.editor.webview.resourceRoot, this._previewConfigurations, this.line, this.state);
 			// Another call to `doUpdate` may have happened.
 			// Make sure we are still updating for the correct document
 			if (this.currentVersion && this.currentVersion.equals(pendingVersion)) {

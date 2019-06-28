@@ -36,7 +36,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -916,7 +916,9 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
-				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				if (stat.resource.toString() !== targetResource.toString()) {
+					textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				}
 			}
 			explorerService.setEditable(stat, null);
 		}
@@ -982,18 +984,11 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const textFileService = accessor.get(ITextFileService);
-	const fileDialogService = accessor.get(IFileDialogService);
 
 	if (explorerContext.stat) {
 		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 		stats.forEach(async s => {
-			const resource = await fileDialogService.showSaveDialog({
-				availableFileSystems: [Schemas.file],
-				defaultFileName: basename(s.resource.path)
-			});
-			if (resource) {
-				await textFileService.saveAs(s.resource, resource);
-			}
+			await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
 		});
 	}
 };

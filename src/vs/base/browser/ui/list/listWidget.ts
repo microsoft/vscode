@@ -857,6 +857,7 @@ export interface IListStyles {
 	listFilterWidgetOutline?: Color;
 	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
+	treeIndentGuidesStroke?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -867,7 +868,8 @@ const defaultStyles: IListStyles = {
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
-	listDropBackground: Color.fromHex('#383B3D')
+	listDropBackground: Color.fromHex('#383B3D'),
+	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
 };
 
 const DefaultOptions = {
@@ -1112,6 +1114,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
+	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }

@@ -57,7 +57,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _namedPipeServer: Server | null;
-	private _inspectPort: number;
+	private _inspectPort: number | null;
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
 	private _messageProtocol: Promise<PersistentProtocol> | null;
@@ -123,7 +123,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 
 		if (!this._messageProtocol) {
-			this._messageProtocol = Promise.all([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
+			this._messageProtocol = Promise.all([
+				this._tryListenOnPipe(),
+				!this._environmentService.args['disable-inspect'] ? this._tryFindDebugPort() : Promise.resolve(null)
+			]).then(data => {
 				const pipeName = data[0];
 				const portData = data[1];
 
@@ -146,7 +149,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					silent: true
 				};
 
-				if (portData.actual) {
+				if (portData && portData.actual) {
 					opts.execArgv = [
 						'--nolazy',
 						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portData.actual
@@ -213,10 +216,12 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
+				if (portData) {
+					if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
+					}
+					this._inspectPort = portData.actual;
 				}
-				this._inspectPort = portData.actual;
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
@@ -394,13 +399,17 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: URI.file(this._environmentService.userHome)
+						userHome: URI.file(this._environmentService.userHome),
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace),
 						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
+					},
+					remote: {
+						authority: this._environmentService.configuration.remoteAuthority,
+						isRemote: false
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],
@@ -452,20 +461,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._onExit.fire([code, signal]);
 	}
 
-	public enableInspector(): Promise<void> {
-		if (this._inspectPort) {
-			return Promise.resolve();
-		}
-		// send SIGUSR1 and wait a little the actual port is read from the process stdout which we
-		// scan here: https://github.com/Microsoft/vscode/blob/67ffab8dcd1a6752d8b62bcd13d7020101eef568/src/vs/workbench/services/extensions/electron-browser/extensionHost.ts#L225-L240
-		if (this._extensionHostProcess) {
-			this._extensionHostProcess.kill('SIGUSR1');
-		}
-		return timeout(1000);
-	}
-
-	public getInspectPort(): number {
-		return this._inspectPort;
+	public getInspectPort(): number | undefined {
+		return withNullAsUndefined(this._inspectPort);
 	}
 
 	public terminate(): void {

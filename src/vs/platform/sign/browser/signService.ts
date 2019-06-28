@@ -11,6 +11,6 @@ export class SignService implements ISignService {
 	_serviceBrand: ServiceIdentifier<ISignService>;
 
 	async sign(value: string): Promise<string> {
-		return Promise.resolve((<any>self).WINDOW_CONFIGURATION.connectionAuthToken);
+		return Promise.resolve(document.getElementById('vscode-remote-connection-token')!.getAttribute('data-settings')!);
 	}
 }

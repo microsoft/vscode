@@ -17,22 +17,15 @@
 declare module 'vscode' {
 
 	//#region Joh - ExecutionContext
-
+	// THIS is a deprecated proposal
 	export enum ExtensionExecutionContext {
 		Local = 1,
 		Remote = 2
 	}
-
 	export interface ExtensionContext {
-		/**
-		 * Describes the context in which this extension is executed, e.g.
-		 * a Node.js-context on the same machine or on a remote machine
-		 */
 		executionContext: ExtensionExecutionContext;
 	}
-
 	//#endregion
-
 
 	//#region Joh - call hierarchy
 
@@ -139,14 +132,15 @@ declare module 'vscode' {
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
-		readonly range: Range;
+		readonly line: number;
+		readonly height: number;
 		readonly webview: Webview;
 		readonly onDidDispose: Event<void>;
 		dispose(): void;
 	}
 
 	export namespace window {
-		export function createWebviewTextEditorInset(editor: TextEditor, range: Range, options?: WebviewOptions): WebviewEditorInset;
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
@@ -1127,6 +1121,18 @@ declare module 'vscode' {
 		readonly onDidWriteData: Event<string>;
 	}
 
+
+	export interface TerminalOptions {
+		/**
+		 * When enabled the terminal will run the process as normal but not be surfaced to the user
+		 * until `Terminal.show` is called. The typical usage for this is when you need to run
+		 * something that may need interactivity but only want to tell the user about it when
+		 * interaction is needed. Note that the terminals will still be exposed to all extensions
+		 * as normal.
+		 */
+		runInBackground?: boolean;
+	}
+
 	/**
 	 * Represents the dimensions of a terminal.
 	 */
@@ -1417,22 +1423,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region DocumentLink tooltip mjbvz
-
-	interface DocumentLink {
-		/**
-		 * The tooltip text when you hover over this link.
-		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
-		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
-		 * user settings, and localization.
-		 */
-		tooltip?: string;
-	}
-
-	// #endregion
-
-
 	// #region Ben - status bar item with ID and Name
 
 	export namespace window {
@@ -1477,6 +1467,41 @@ declare module 'vscode' {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
+	}
+
+	//#endregion
+
+	//#region Webview Resource Roots
+
+	export interface Webview {
+		/**
+		 * Root url from which local resources are loaded inside of webviews.
+		 *
+		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
+		 * on the web, this points to a server endpoint.
+		 */
+		readonly resourceRoot: Thenable<string>;
+	}
+
+	//#endregion
+
+
+	//#region Joh - read/write files of any scheme
+
+	export interface FileSystem {
+		stat(uri: Uri): Thenable<FileStat>;
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		createDirectory(uri: Uri): Thenable<void>;
+		readFile(uri: Uri): Thenable<Uint8Array>;
+		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+	}
+
+	export namespace workspace {
+
+		export const fs: FileSystem;
 	}
 
 	//#endregion

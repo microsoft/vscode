@@ -462,6 +462,11 @@ class TMTokenization implements ITokenizationSupport {
 		this._containsEmbeddedLanguages = containsEmbeddedLanguages;
 		this._seenLanguages = [];
 		this._maxTokenizationLineLength = configurationService.getValue<number>('editor.maxTokenizationLineLength');
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
+				this._maxTokenizationLineLength = configurationService.getValue<number>('editor.maxTokenizationLineLength');
+			}
+		});
 	}
 
 	public getInitialState(): IState {

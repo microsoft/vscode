@@ -650,9 +650,9 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		const label = this.label;
 		const contextValue = this.contextValue;
 		const comments = this._comments.map(cmt => { return convertToModeComment2(this, this._commentController, cmt, this._commandsConverter, this._commentsMap, this._acceptInputDisposables.value!); });
-		const acceptInputCommand = this._acceptInputCommand ? this._commandsConverter.toInternal2(this._acceptInputCommand, this._acceptInputDisposables.value) : undefined;
-		const additionalCommands = (this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal2(x, this._acceptInputDisposables.value!)) : []) as CommandDto[];
-		const deleteCommand = this._deleteCommand ? this._commandsConverter.toInternal2(this._deleteCommand, this._acceptInputDisposables.value) : undefined;
+		const acceptInputCommand = this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand, this._acceptInputDisposables.value) : undefined;
+		const additionalCommands = (this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x, this._acceptInputDisposables.value!)) : []) as CommandDto[];
+		const deleteCommand = this._deleteCommand ? this._commandsConverter.toInternal(this._deleteCommand, this._acceptInputDisposables.value) : undefined;
 		const collapsibleState = convertToCollapsibleState(this._collapseState);
 
 		this._proxy.$updateCommentThread(
@@ -951,9 +951,9 @@ function convertToModeComment2(thread: ExtHostCommentThread, commentController: 
 		userName: vscodeComment.author ? vscodeComment.author.name : vscodeComment.userName,
 		userIconPath: iconPath,
 		isDraft: vscodeComment.isDraft,
-		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal2(vscodeComment.selectCommand, disposables) : undefined,
-		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal2(vscodeComment.editCommand, disposables) : undefined,
-		deleteCommand: vscodeComment.deleteCommand ? commandsConverter.toInternal2(vscodeComment.deleteCommand, disposables) : undefined,
+		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.selectCommand, disposables) : undefined,
+		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand, disposables) : undefined,
+		deleteCommand: vscodeComment.deleteCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand, disposables) : undefined,
 		label: vscodeComment.label,
 		commentReactions: reactions ? reactions.map(reaction => convertToReaction2(commentController.reactionProvider, reaction)) : undefined
 	};
@@ -971,7 +971,7 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		userIconPath: iconPath,
 		canEdit: canEdit,
 		canDelete: canDelete,
-		selectCommand: vscodeComment.command ? commandsConverter.toInternal2(vscodeComment.command, disposables) : undefined,
+		selectCommand: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command, disposables) : undefined,
 		isDraft: vscodeComment.isDraft,
 		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction(provider, reaction)) : undefined
 	};

@@ -99,8 +99,8 @@
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
 	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   preProcessHtml?: (text: string) => void,
-	 *   focusIframeOnCreate?: boolean
+	 *   focusIframeOnCreate?: boolean,
+	 *   ready?: Promise<void>
 	 * }} HostCommunications
 	 */
 
@@ -120,25 +120,6 @@
 
 		// Service worker for resource loading
 		const FAKE_LOAD = !!navigator.serviceWorker;
-		if (navigator.serviceWorker) {
-			navigator.serviceWorker.register('service-worker.js');
-
-			navigator.serviceWorker.ready.then(registration => {
-				registration.active.postMessage('ping');
-
-				host.onMessage('loaded-resource', event => {
-					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
-				});
-			});
-
-			navigator.serviceWorker.addEventListener('message', event => {
-				switch (event.data.channel) {
-					case 'load-resource':
-						host.postMessage('load-resource', { path: event.data.path });
-						return;
-				}
-			});
-		}
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -233,6 +214,8 @@
 		};
 
 		document.addEventListener('DOMContentLoaded', () => {
+			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
+			const ID = idMatch ? idMatch[1] : undefined;
 			if (!document.body) {
 				return;
 			}
@@ -259,11 +242,19 @@
 				}
 			});
 
+
 			// update iframe-contents
-			host.onMessage('content', (_event, data) => {
+			let updateId = 0;
+			host.onMessage('content', async (_event, data) => {
+				const currentUpdateId = ++updateId;
+				await host.ready;
+				if (currentUpdateId !== updateId) {
+					return;
+				}
+
 				const options = data.options;
 
-				const text = host.preProcessHtml ? host.preProcessHtml(data.contents) : data.contents;
+				const text = data.contents;
 				const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 				newDocument.querySelectorAll('a').forEach(a => {
@@ -364,7 +355,7 @@
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
 					// into it to get around this.
-					newFrame.src = '/fake.html';
+					newFrame.src = `/fake.html?id=${ID}`;
 				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -379,26 +370,15 @@
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
 					if (FAKE_LOAD) {
 						newFrame.contentDocument.open();
-						newFrame.contentDocument.write('<!DOCTYPE html>');
-						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+						newFrame.contentDocument.write('<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML);
 						newFrame.contentDocument.close();
+						hookupOnLoadHandlers(newFrame);
 					}
 					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 					if (contentDocument) {
 						applyStyles(contentDocument, contentDocument.body);
 					}
 				});
-
-				newFrame.contentWindow.onbeforeunload = () => {
-					if (isInDevelopmentMode) { // Allow reloads while developing a webview
-						host.postMessage('do-reload');
-						return false;
-					}
-
-					// Block navigation when not in development mode
-					console.log('prevented webview navigation');
-					return false;
-				};
 
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
@@ -430,24 +410,69 @@
 					}
 				};
 
-				clearTimeout(loadTimeout);
-				loadTimeout = undefined;
-				loadTimeout = setTimeout(() => {
+				/**
+				 * @param {HTMLIFrameElement} newFrame
+				 */
+				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
-					onLoad(newFrame.contentDocument, newFrame.contentWindow);
-				}, 200);
-
-				newFrame.contentWindow.addEventListener('load', function (e) {
-					if (loadTimeout) {
+					loadTimeout = setTimeout(() => {
 						clearTimeout(loadTimeout);
 						loadTimeout = undefined;
-						onLoad(e.target, this);
-					}
-				});
+						onLoad(newFrame.contentDocument, newFrame.contentWindow);
+					}, 200);
 
-				// Bubble out link clicks
-				newFrame.contentWindow.addEventListener('click', handleInnerClick);
+					newFrame.contentWindow.addEventListener('load', function (e) {
+						if (loadTimeout) {
+							clearTimeout(loadTimeout);
+							loadTimeout = undefined;
+							onLoad(e.target, this);
+						}
+					});
+
+					if (!FAKE_LOAD) {
+						newFrame.contentWindow.onbeforeunload = () => {
+							if (isInDevelopmentMode) { // Allow reloads while developing a webview
+								host.postMessage('do-reload');
+								return false;
+							}
+
+							// Block navigation when not in development mode
+							console.log('prevented webview navigation');
+							return false;
+						};
+					}
+
+					// Bubble out link clicks
+					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+
+					// Electron 4 eats mouseup events from inside webviews
+					// https://github.com/microsoft/vscode/issues/75090
+					// Try to fix this by rebroadcasting mouse moves and mouseups so that we can
+					// emulate these on the main window
+					if (!FAKE_LOAD) {
+						let isMouseDown = false;
+
+						newFrame.contentWindow.addEventListener('mousedown', () => {
+							isMouseDown = true;
+						});
+
+						const tryDispatchSyntheticMouseEvent = (e) => {
+							if (!isMouseDown) {
+								host.postMessage('synthetic-mouse-event', { type: e.type, screenX: e.screenX, screenY: e.screenY, clientX: e.clientX, clientY: e.clientY });
+							}
+						};
+						newFrame.contentWindow.addEventListener('mouseup', e => {
+							tryDispatchSyntheticMouseEvent(e);
+							isMouseDown = false;
+						});
+						newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
+					}
+				}
+
+				if (!FAKE_LOAD) {
+					hookupOnLoadHandlers(newFrame);
+				}
 
 				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden

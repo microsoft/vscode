@@ -201,6 +201,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		return this._rows;
 	}
+	public get maxCols(): number { return this._cols; }
+	public get maxRows(): number { return this._rows; }
 	// TODO: Ideally processId would be merged into processReady
 	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
 	// TODO: How does this work with detached processes?
@@ -232,6 +234,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 	private readonly _onDimensionsChanged = new Emitter<void>();
 	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
+	private readonly _onMaximumDimensionsChanged = new Emitter<void>();
+	public get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
 	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
 
@@ -349,12 +353,20 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
 		}
-		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+		const newCols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
 		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
 		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
-		this._rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+		const newRows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+
+		if (this._cols !== newCols || this._rows !== newRows) {
+			this._cols = newCols;
+			this._rows = newRows;
+			if (this.shellLaunchConfig.isRendererOnly) {
+				this._onMaximumDimensionsChanged.fire();
+			}
+		}
 
 		return dimension.width;
 	}
@@ -958,7 +970,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
 		}, 0);
 	}
 
@@ -1237,7 +1249,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this.disableLayout) {
 			return;
 		}
-
 
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {

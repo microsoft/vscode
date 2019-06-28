@@ -23,6 +23,7 @@ import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/commo
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {
@@ -54,6 +55,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IProductService private readonly _productService: IProductService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -75,7 +77,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}));
 
 		this._register(lifecycleService.onBeforeShutdown(e => {
-			e.veto(this._onBeforeShutdown());
+			this._onBeforeShutdown();
+			e.veto(false); // Don't veto shutdown
 		}, this));
 	}
 
@@ -136,6 +139,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebview(handle);
 		webview.setOptions(reviveWebviewOptions(options as any /*todo@mat */));
+	}
+
+	async $getResourceRoot(_handle: WebviewPanelHandle): Promise<string> {
+		return this._environmentService.webviewResourceRoot;
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
@@ -217,13 +224,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return `mainThreadWebview-${viewType}`;
 	}
 
-	private _onBeforeShutdown(): boolean {
+	private _onBeforeShutdown(): void {
 		this._webviews.forEach((webview) => {
 			if (!webview.isDisposed() && webview.state && this._revivers.has(webview.state.viewType)) {
 				webview.state.state = webview.webviewState;
 			}
 		});
-		return false; // Don't veto shutdown
 	}
 
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {

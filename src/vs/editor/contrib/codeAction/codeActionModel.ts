@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getCodeActions, CodeActionSet } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
 
@@ -167,7 +167,7 @@ export class CodeActionModel extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
-		private readonly _progressService?: ILocalProgressService
+		private readonly _progressService?: IEditorProgressService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);

@@ -282,7 +282,8 @@ export class BreadcrumbsControl {
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {
-			return this._widget.setSelection(event.item);
+			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+			this._widget.setSelection(event.item);
 		}
 	}
 
@@ -327,6 +328,7 @@ export class BreadcrumbsControl {
 
 		// show picker
 		let picker: BreadcrumbsPicker;
+		let pickerAnchor: { x: number; y: number };
 		let editor = this._getActiveCodeEditor();
 		let editorDecorations: string[] = [];
 		let editorViewState: ICodeEditorViewState | undefined;
@@ -393,34 +395,37 @@ export class BreadcrumbsControl {
 				);
 			},
 			getAnchor: () => {
-				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
-				let maxHeight = Math.min(window.innerHeight * 0.7, 300);
+				if (!pickerAnchor) {
+					let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
+					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
-				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-				let pickerArrowSize = 8;
-				let pickerArrowOffset: number;
+					let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
+					let pickerArrowSize = 8;
+					let pickerArrowOffset: number;
 
-				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-				let y = data.top + data.height + pickerArrowSize;
-				if (y + maxHeight >= window.innerHeight) {
-					maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
-				}
-				let x = data.left;
-				if (x + pickerWidth >= maxInnerWidth) {
-					x = maxInnerWidth - pickerWidth;
-				}
-				if (event.payload instanceof StandardMouseEvent) {
-					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
-					pickerArrowOffset = event.payload.posx - x;
-					if (pickerArrowOffset > maxPickerArrowOffset) {
-						x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
-						pickerArrowOffset = maxPickerArrowOffset;
+					let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+					let y = data.top + data.height + pickerArrowSize;
+					if (y + maxHeight >= window.innerHeight) {
+						maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
 					}
-				} else {
-					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
+					let x = data.left;
+					if (x + pickerWidth >= maxInnerWidth) {
+						x = maxInnerWidth - pickerWidth;
+					}
+					if (event.payload instanceof StandardMouseEvent) {
+						let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+						pickerArrowOffset = event.payload.posx - x;
+						if (pickerArrowOffset > maxPickerArrowOffset) {
+							x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
+							pickerArrowOffset = maxPickerArrowOffset;
+						}
+					} else {
+						pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
+					}
+					picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+					pickerAnchor = { x, y };
 				}
-				picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
-				return { x, y };
+				return pickerAnchor;
 			},
 			onHide: (data) => {
 				if (editor) {
@@ -606,6 +611,42 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusNextWithPicker',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.RightArrow,
+	},
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusNext();
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusPreviousWithPicker',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.LeftArrow,
+	},
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusPrev();
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectFocused',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Enter,
@@ -664,7 +705,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const editors = accessor.get(IEditorService);
 		const lists = accessor.get(IListService);
-		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus() : undefined;
+		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus()[0] : undefined;
 		if (element instanceof OutlineElement) {
 			const outlineElement = OutlineModel.get(element);
 			if (!outlineElement) {

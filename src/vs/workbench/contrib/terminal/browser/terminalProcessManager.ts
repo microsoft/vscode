@@ -100,7 +100,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
-		rows: number
+		rows: number,
+		isScreenReaderModeEnabled: boolean
 	): Promise<void> {
 		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
@@ -127,7 +128,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 		} else {
-			this._process = await this._launchProcess(shellLaunchConfig, cols, rows);
+			this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
@@ -161,9 +162,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}, LAUNCHING_DURATION);
 	}
 
-	private async _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<ITerminalChildProcess> {
+	private async _launchProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number,
+		isScreenReaderModeEnabled: boolean
+	): Promise<ITerminalChildProcess> {
 		if (!shellLaunchConfig.executable) {
-			this._terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this._terminalInstanceService.getDefaultShell(platform.platform), this._configHelper);
+			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs();
+			shellLaunchConfig.executable = defaultConfig.shell;
+			shellLaunchConfig.args = defaultConfig.args;
 		}
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -176,7 +184,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const baseEnv = this._configHelper.config.inheritEnv ? process.env as platform.IProcessEnvironment : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables, baseEnv);
 
-		const useConpty = this._configHelper.config.windowsEnableConpty;
+		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 

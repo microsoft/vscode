@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -129,7 +129,7 @@ class SnippetsService implements ISnippetsService {
 
 	readonly _serviceBrand: any;
 
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 	private readonly _pendingWork: Promise<any>[] = [];
 	private readonly _files = new Map<string, SnippetFile>();
 
@@ -151,7 +151,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	private _joinSnippets(): Promise<any> {
@@ -256,20 +256,18 @@ class SnippetsService implements ISnippetsService {
 
 	private _initWorkspaceSnippets(): void {
 		// workspace stuff
-		let disposables: IDisposable[] = [];
+		let disposables = new DisposableStore();
 		let updateWorkspaceSnippets = () => {
-			disposables = dispose(disposables);
+			disposables.clear();
 			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
-		this._disposables.push({
-			dispose() { dispose(disposables); }
-		});
-		this._disposables.push(this._contextService.onDidChangeWorkspaceFolders(updateWorkspaceSnippets));
-		this._disposables.push(this._contextService.onDidChangeWorkbenchState(updateWorkspaceSnippets));
+		this._disposables.add(disposables);
+		this._disposables.add(this._contextService.onDidChangeWorkspaceFolders(updateWorkspaceSnippets));
+		this._disposables.add(this._contextService.onDidChangeWorkbenchState(updateWorkspaceSnippets));
 		updateWorkspaceSnippets();
 	}
 
-	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Promise<any> {
+	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<any> {
 		let promises = workspace.folders.map(folder => {
 			const snippetFolder = folder.toResource('.vscode');
 			return this._fileService.exists(snippetFolder).then(value => {
@@ -277,8 +275,8 @@ class SnippetsService implements ISnippetsService {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
 					// watch
-					bucket.push(watch(this._fileService, snippetFolder, (type) => {
-						if (type === FileChangeType.ADDED) {
+					bucket.add(this._fileService.onFileChanges(e => {
+						if (e.contains(snippetFolder, FileChangeType.ADDED)) {
 							this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 						}
 					}));
@@ -293,7 +291,7 @@ class SnippetsService implements ISnippetsService {
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 
-	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Promise<any> {
+	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
 		const disposables = new DisposableStore();
 		const addFolderSnippets = (type?: FileChangeType) => {
 			disposables.clear();
@@ -310,8 +308,8 @@ class SnippetsService implements ISnippetsService {
 			});
 		};
 
-		bucket.push(watch(this._fileService, folder, addFolderSnippets));
-		bucket.push(disposables);
+		bucket.add(watch(this._fileService, folder, addFolderSnippets));
+		bucket.add(disposables);
 		return addFolderSnippets();
 	}
 

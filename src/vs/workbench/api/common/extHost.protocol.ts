@@ -46,6 +46,7 @@ import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHi
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -84,7 +85,7 @@ export interface IInitData {
 	logLevel: LogLevel;
 	logsLocation: URI;
 	autoStart: boolean;
-	remoteAuthority?: string | null;
+	remote: { isRemote: boolean; authority: string | undefined; };
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -389,7 +390,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string | null }, waitOnExit?: boolean, strictEnv?: boolean, runInBackground?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string | null }, waitOnExit?: boolean, strictEnv?: boolean, hideFromUser?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -507,15 +508,17 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
+	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
 	$setOptions(handle: number, options: modes.IWebviewOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
+	$getResourceRoot(handle: number): Promise<string>;
 }
 
 export interface ExtHostEditorInsetsShape {
@@ -540,6 +543,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
+	$getResourceRoot(handle: WebviewPanelHandle): Promise<string>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
@@ -591,6 +595,15 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
 	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
+
+	$stat(uri: UriComponents): Promise<files.IStat>;
+	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
+	$readFile(resource: UriComponents): Promise<VSBuffer>;
+	$writeFile(resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
+	$rename(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
+	$mkdir(resource: UriComponents): Promise<void>;
+	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
 }
 
 export interface MainThreadSearchShape extends IDisposable {
@@ -1106,6 +1119,16 @@ export interface ShellLaunchConfigDto {
 	env?: { [key: string]: string | null };
 }
 
+export interface IShellDefinitionDto {
+	label: string;
+	path: string;
+}
+
+export interface IShellAndArgsDto {
+	shell: string;
+	args: string[] | string | undefined;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void;
 	$acceptTerminalOpened(id: number, name: string): void;
@@ -1115,6 +1138,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
+	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
@@ -1123,6 +1147,8 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
+	$requestDefaultShellAndArgs(): Promise<IShellAndArgsDto>;
 }
 
 export interface ExtHostSCMShape {

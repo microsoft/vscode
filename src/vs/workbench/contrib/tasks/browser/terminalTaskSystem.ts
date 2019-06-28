@@ -43,6 +43,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -144,9 +145,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 	};
 
 	private static osShellQuotes: IStringDictionary<ShellQuotingOptions> = {
-		'linux': TerminalTaskSystem.shellQuotes['bash'],
-		'darwin': TerminalTaskSystem.shellQuotes['bash'],
-		'win32': TerminalTaskSystem.shellQuotes['powershell']
+		'Linux': TerminalTaskSystem.shellQuotes['bash'],
+		'Mac': TerminalTaskSystem.shellQuotes['bash'],
+		'Windows': TerminalTaskSystem.shellQuotes['powershell']
 	};
 
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
@@ -172,6 +173,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private outputChannelId: string,
 		private fileService: IFileService,
 		private terminalInstanceService: ITerminalInstanceService,
+		private remoteAgentService: IRemoteAgentService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -506,69 +508,74 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): Promise<ITaskSummary> {
+	private async executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let executedCommand: string | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
-			promise = new Promise<ITaskSummary>((resolve, reject) => {
-				const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
-				let toDispose: IDisposable[] | undefined = [];
-				let eventCounter: number = 0;
-				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
-					if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
-						eventCounter++;
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-					} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
-						eventCounter--;
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
-						if (eventCounter === 0) {
-							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
-								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
-								let reveal = task.command.presentation!.reveal;
-								let revealProblems = task.command.presentation!.revealProblems;
-								if (revealProblems === RevealProblemKind.OnProblem) {
-									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-								} else if (reveal === RevealKind.Silent) {
-									this.terminalService.setActiveInstance(terminal!);
-									this.terminalService.showPanel(false);
-								}
+			const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
+			let toDispose: IDisposable[] | undefined = [];
+			let eventCounter: number = 0;
+			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
+				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
+					eventCounter++;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+					eventCounter--;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+					if (eventCounter === 0) {
+						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
+							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+							let reveal = task.command.presentation!.reveal;
+							let revealProblems = task.command.presentation!.revealProblems;
+							if (revealProblems === RevealProblemKind.OnProblem) {
+								this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+							} else if (reveal === RevealKind.Silent) {
+								this.terminalService.setActiveInstance(terminal!);
+								this.terminalService.showPanel(false);
 							}
 						}
 					}
-				}));
-				watchingProblemMatcher.aboutToStart();
-				let delayer: Async.Delayer<any> | undefined = undefined;
-				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
-				if (error || !terminal) {
-					return;
 				}
-				let processStartedSignaled = false;
-				terminal.processReady.then(() => {
-					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.CustomExecution) {
-							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
-						}
-						processStartedSignaled = true;
+			}));
+			watchingProblemMatcher.aboutToStart();
+			let delayer: Async.Delayer<any> | undefined = undefined;
+			[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
+
+			if (error) {
+				return Promise.reject(new Error((<TaskError>error).message));
+			}
+			if (!terminal) {
+				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
+			}
+
+			let processStartedSignaled = false;
+			terminal.processReady.then(() => {
+				if (!processStartedSignaled) {
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 					}
-				}, (_error) => {
-					// The process never got ready. Need to think how to handle this.
+					processStartedSignaled = true;
+				}
+			}, (_error) => {
+				// The process never got ready. Need to think how to handle this.
+			});
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			const onData = terminal.onLineData((line) => {
+				watchingProblemMatcher.processLine(line);
+				if (!delayer) {
+					delayer = new Async.Delayer(3000);
+				}
+				delayer.trigger(() => {
+					watchingProblemMatcher.forceDelivery();
+					delayer = undefined;
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
-				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
-				const onData = terminal.onLineData((line) => {
-					watchingProblemMatcher.processLine(line);
-					if (!delayer) {
-						delayer = new Async.Delayer(3000);
-					}
-					delayer.trigger(() => {
-						watchingProblemMatcher.forceDelivery();
-						delayer = undefined;
-					});
-				});
-				const onExit = terminal.onExit((exitCode) => {
+			});
+			promise = new Promise<ITaskSummary>((resolve, reject) => {
+				const onExit = terminal!.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
@@ -615,32 +622,36 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		} else {
-			promise = new Promise<ITaskSummary>((resolve, reject) => {
-				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
-				if (!terminal || error) {
-					return;
-				}
+			[terminal, executedCommand, error] = await this.createTerminal(task, resolver);
 
-				let processStartedSignaled = false;
-				terminal.processReady.then(() => {
-					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.CustomExecution) {
-							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
-						}
-						processStartedSignaled = true;
+			if (error) {
+				return Promise.reject(new Error((<TaskError>error).message));
+			}
+			if (!terminal) {
+				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
+			}
+
+			let processStartedSignaled = false;
+			terminal.processReady.then(() => {
+				if (!processStartedSignaled) {
+					if (task.command.runtime !== RuntimeType.CustomExecution) {
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 					}
-				}, (_error) => {
-					// The process never got ready. Need to think how to handle this.
-				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-				let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
-				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
-				const onData = terminal.onLineData((line) => {
-					startStopProblemMatcher.processLine(line);
-				});
-				const onExit = terminal.onExit((exitCode) => {
+					processStartedSignaled = true;
+				}
+			}, (_error) => {
+				// The process never got ready. Need to think how to handle this.
+			});
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
+			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			const onData = terminal.onLineData((line) => {
+				startStopProblemMatcher.processLine(line);
+			});
+			promise = new Promise<ITaskSummary>((resolve, reject) => {
+				const onExit = terminal!.onExit((exitCode) => {
 					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
@@ -687,12 +698,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 			});
 		}
-		if (error) {
-			return Promise.reject(new Error((<TaskError>error).message));
-		}
-		if (!terminal) {
-			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
-		}
+
 		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
@@ -751,34 +757,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
 
-	private getDefaultShell(platform: Platform.Platform): string {
-		let defaultShell: string | undefined = undefined;
-		try {
-			defaultShell = this.terminalInstanceService.getDefaultShell(platform);
-		} catch {
-			// Do nothing
+	private async getUserHome(): Promise<URI> {
+		const env = await this.remoteAgentService.getEnvironment();
+		if (env) {
+			return env.userHome;
 		}
-		if (!defaultShell) {
-			// Make up a guess for the default shell.
-			if (platform === Platform.Platform.Windows) {
-				defaultShell = 'cmd.exe';
-			} else {
-				defaultShell = 'bash';
-			}
-			console.warn('Cannot get the default shell.');
-		}
-		return defaultShell;
+		return URI.from({ scheme: Schemas.file, path: this.environmentService.userHome });
 	}
 
-	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
+	private async createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.currentTask.workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), this.terminalService.configHelper, platform);
+			const defaultConfig = await this.terminalInstanceService.getDefaultShellAndArgs(platform);
+			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
@@ -792,23 +787,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 					shellLaunchConfig.args = [];
 				}
 			}
-			let shellArgs = <string[]>shellLaunchConfig.args!.slice(0);
+			let shellArgs = Array.isArray(shellLaunchConfig.args!) ? <string[]>shellLaunchConfig.args!.slice(0) : [shellLaunchConfig.args!];
 			let toAdd: string[] = [];
 			let commandLine = this.buildShellCommandLine(platform, shellLaunchConfig.executable!, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
 			if (platform === Platform.Platform.Windows) {
-				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-				// safe to assume that this was used by accident as Sysnative does not
-				// exist and will break the terminal in non-WoW64 environments.
-				if (!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
-					const sysnativePath = path.join(process.env.windir!, 'Sysnative').toLowerCase();
-					if (shellLaunchConfig.executable!.toLowerCase().indexOf(sysnativePath) === 0) {
-						shellLaunchConfig.executable = path.join(process.env.windir!, 'System32', shellLaunchConfig.executable!.substr(sysnativePath.length));
-					}
-				}
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
-				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(process.cwd())))) {
+				// If we don't have a cwd, then the terminal uses the home dir.
+				const userHome = await this.getUserHome();
+				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
 					return undefined;
 				}
 				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
@@ -903,7 +891,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return shellLaunchConfig;
 	}
 
-	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance | undefined, string | undefined, TaskError | undefined] {
+	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
 
@@ -940,7 +928,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			args = resolvedResult.args;
 			commandExecutable = CommandString.value(command);
 
-			this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
+			this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : await this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
 			if (this.currentTask.shellLaunchConfig === undefined) {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
@@ -1031,7 +1019,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: ShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {
 		let basename = path.parse(shellExecutable).name.toLowerCase();
-		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
+		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions, platform);
 
 		function needsQuotes(value: string): boolean {
 			if (value.length >= 2) {
@@ -1131,11 +1119,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return commandLine;
 	}
 
-	private getQuotingOptions(shellBasename: string, shellOptions: ShellConfiguration | undefined): ShellQuotingOptions {
+	private getQuotingOptions(shellBasename: string, shellOptions: ShellConfiguration | undefined, platform: Platform.Platform): ShellQuotingOptions {
 		if (shellOptions && shellOptions.quoting) {
 			return shellOptions.quoting;
 		}
-		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[process.platform];
+		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[Platform.PlatformToString(platform)];
 	}
 
 	private collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {

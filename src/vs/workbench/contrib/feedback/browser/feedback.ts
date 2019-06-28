@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import * as dom from 'vs/base/browser/dom';
@@ -17,7 +17,6 @@ import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inp
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/product';
 
@@ -68,15 +67,7 @@ export class FeedbackDropdown extends Dropdown {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IProductService productService: IProductService
 	) {
-		super(container, {
-			contextViewProvider: options.contextViewProvider,
-			labelRenderer: (container: HTMLElement): IDisposable => {
-				const label = new OcticonLabel(container);
-				label.text = '$(smiley)';
-
-				return Disposable.None;
-			}
-		});
+		super(container, options);
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);

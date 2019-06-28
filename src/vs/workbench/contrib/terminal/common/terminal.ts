@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -55,6 +56,8 @@ export const TerminalCursorStyle = {
 };
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
@@ -201,7 +204,7 @@ export interface IShellLaunchConfig {
 	 * interaction is needed. Note that the terminals will still be exposed to all extensions
 	 * as normal.
 	 */
-	runInBackground?: boolean;
+	hideFromUser?: boolean;
 }
 
 export interface ITerminalService {
@@ -218,10 +221,12 @@ export interface ITerminalService {
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
+	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
+	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 
 	/**
 	 * Creates a terminal.
@@ -239,7 +244,7 @@ export interface ITerminalService {
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
-	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance | null;
@@ -266,6 +271,8 @@ export interface ITerminalService {
 	getFindState(): FindReplaceState;
 	findNext(): void;
 	findPrevious(): void;
+
+	selectDefaultWindowsShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
@@ -299,7 +306,11 @@ export interface ITerminalNativeService {
 	getWindowsBuildNumber(): number;
 	whenFileDeleted(path: URI): Promise<void>;
 	getWslPath(path: string): Promise<string>;
-	selectDefaultWindowsShell(): Promise<string | undefined>;
+}
+
+export interface IShellDefinition {
+	label: string;
+	path: string;
 }
 
 export const enum Direction {
@@ -367,6 +378,8 @@ export interface ITerminalInstance {
 
 	readonly cols: number;
 	readonly rows: number;
+	readonly maxCols: number;
+	readonly maxRows: number;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -385,12 +398,10 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onFocused: Event<ITerminalInstance>;
-
 	onProcessIdReady: Event<ITerminalInstance>;
-
 	onRequestExtHostProcess: Event<ITerminalInstance>;
-
 	onDimensionsChanged: Event<void>;
+	onMaximumDimensionsChanged: Event<void>;
 
 	onFocus: Event<ITerminalInstance>;
 
@@ -690,7 +701,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<void>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
@@ -744,6 +755,14 @@ export interface ITerminalProcessExtHostRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+}
+
+export interface IAvailableShellsRequest {
+	(shells: IShellDefinition[]): void;
+}
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
 }
 
 export enum LinuxDistro {

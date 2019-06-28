@@ -104,6 +104,9 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
+	@memoize
+	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
+
 	get appNameLong(): string { return product.nameLong; }
 
 	get appQuality(): string | undefined { return product.quality; }
@@ -134,6 +137,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
+
+	@memoize
+	get keyboardLayoutResource(): URI { return resources.joinPath(this.appSettingsHome, 'keyboardLayout.json'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
@@ -266,6 +272,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
+	get webviewResourceRoot(): string {
+		return 'vscode-resource:';
+	}
+
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
@@ -284,7 +294,7 @@ export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParam
 	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
 }
 
-export function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
 	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
 	const brk = port ? Boolean(!!debugBrkArg) : false;

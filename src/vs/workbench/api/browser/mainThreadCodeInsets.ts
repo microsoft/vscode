@@ -7,12 +7,12 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { MainContext, MainThreadEditorInsetsShape, IExtHostContext, ExtHostEditorInsetsShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { IRange } from 'vs/editor/common/core/range';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // todo@joh move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -32,13 +32,15 @@ class EditorWebviewZone implements IViewZone {
 
 	constructor(
 		readonly editor: IActiveCodeEditor,
-		readonly range: IRange,
+		readonly line: number,
+		readonly height: number,
 		readonly webview: Webview,
 	) {
 		this.domNode = document.createElement('div');
-		this.afterLineNumber = range.startLineNumber;
-		this.afterColumn = range.startColumn;
-		this.heightInLines = range.endLineNumber - range.startLineNumber;
+		this.domNode.style.zIndex = '10'; // without this, the webview is not interactive
+		this.afterLineNumber = line;
+		this.afterColumn = 1;
+		this.heightInLines = height;
 
 		editor.changeViewZones(accessor => this._id = accessor.addZone(this));
 		webview.mountTo(this.domNode);
@@ -58,6 +60,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	constructor(
 		context: IExtHostContext,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
@@ -68,7 +71,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		this._disposables.dispose();
 	}
 
-	async $createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
+	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
 		id = id.substr(0, id.indexOf(',')); //todo@joh HACK
@@ -92,10 +95,11 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 			allowSvgs: false,
 			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
-				allowScripts: options.enableScripts
+				allowScripts: options.enableScripts,
+				localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
 			});
 
-		const webviewZone = new EditorWebviewZone(editor, range, webview);
+		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 
 		const remove = () => {
 			disposables.dispose();
@@ -141,5 +145,9 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 			return Promise.resolve(true);
 		}
 		return Promise.resolve(false);
+	}
+
+	async $getResourceRoot(_handle: number): Promise<string> {
+		return this._environmentService.webviewResourceRoot;
 	}
 }

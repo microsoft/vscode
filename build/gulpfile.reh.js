@@ -19,6 +19,8 @@ const untar = require('gulp-untar');
 const File = require('vinyl');
 const fs = require('fs');
 
+const cp = require('child_process');
+
 const REPO_ROOT = path.dirname(__dirname);
 
 const noop = () => { return Promise.resolve(); };
@@ -28,6 +30,7 @@ gulp.task('vscode-reh-win32-x64-min', noop);
 gulp.task('vscode-reh-darwin-min', noop);
 gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
+gulp.task('vscode-reh-linux-alpine-min', noop);
 
 
 function getNodeVersion() {
@@ -84,6 +87,18 @@ function nodejs(platform, arch) {
 		);
 	}
 
+	if (arch === 'alpine') {
+		return es.readArray([
+			new File({
+				path: 'node',
+				contents: cp.execSync(`docker run --rm node:${VERSION}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' }),
+				stat: {
+					mode: parseInt('755', 8)
+				}
+			})
+		]);
+	}
+
 	if (platform === 'darwin') {
 		arch = 'x64';
 	}
@@ -115,3 +130,33 @@ function nodejs(platform, arch) {
 			}))
 	);
 }
+
+function mixinServer(watch) {
+	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
+	function exec(cmdLine) {
+		console.log(cmdLine);
+		cp.execSync(cmdLine, { stdio: "inherit" });
+	}
+	function checkout() {
+		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());
+		exec('git fetch distro');
+		exec(`git checkout ${packageJSON['distro']} -- src/vs/server resources/server`);
+		exec('git reset HEAD src/vs/server resources/server');
+	}
+	checkout();
+	if (watch) {
+		console.log('Enter watch mode (observing package.json)');
+		const watcher = fs.watch(packageJSONPath);
+		watcher.addListener('change', () => {
+			try {
+				checkout();
+			} catch (e) {
+				console.log(e);
+			}
+		});
+	}
+	return Promise.resolve();
+}
+
+gulp.task(task.define('mixin-server', () => mixinServer(false)));
+gulp.task(task.define('mixin-server-watch', () => mixinServer(true)));

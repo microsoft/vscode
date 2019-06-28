@@ -60,11 +60,6 @@ export interface ISaveDialogOptions {
 	defaultUri?: URI;
 
 	/**
-	 * If the defaultUri is not provided use the default file name.
-	 */
-	defaultFileName?: string;
-
-	/**
 	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
 	 * like "TypeScript", and an array of extensions.
 	 */

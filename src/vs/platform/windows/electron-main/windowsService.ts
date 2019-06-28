@@ -21,7 +21,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
@@ -304,6 +304,18 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.logService.trace('windowsService#openNewWindow ' + JSON.stringify(options));
 
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
+	}
+
+	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
+
+		if (args.extensionDevelopmentPath) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
+				context: OpenContext.API,
+				cli: args,
+				userEnv: Object.keys(env).length > 0 ? env : undefined
+			});
+		}
 	}
 
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {

@@ -569,7 +569,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	suite('Terminal', () => {
+	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/75689 */ : suite)('Terminal', () => {
 		test('sendText immediately after createTerminal should not throw', () => {
 			const terminal = window.createTerminal();
 			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
@@ -738,8 +738,8 @@ suite('window namespace tests', () => {
 			terminal1.show();
 		});
 
-		test('runInBackground terminal: onDidWriteData should work', done => {
-			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+		test('hideFromUser terminal: onDidWriteData should work', done => {
+			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 			let data = '';
 			terminal.onDidWriteData(e => {
 				data += e;
@@ -751,8 +751,8 @@ suite('window namespace tests', () => {
 			terminal.sendText('foo');
 		});
 
-		test('runInBackground terminal: should be available to terminals API', done => {
-			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+		test('hideFromUser terminal: should be available to terminals API', done => {
+			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 			window.onDidOpenTerminal(t => {
 				assert.equal(t, terminal);
 				assert.equal(t.name, 'bg');
