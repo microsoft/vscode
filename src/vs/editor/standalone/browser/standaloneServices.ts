@@ -44,11 +44,10 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
-import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ICodeLensCache, CodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
+import { getServices } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -99,6 +98,11 @@ export module StaticServices {
 	export function init(overrides: IEditorOverrideServices): [ServiceCollection, IInstantiationService] {
 		// Create a fresh service collection
 		let result = new ServiceCollection();
+
+		// make sure to add all services that use `registerSingleton`
+		for (const { id, descriptor } of getServices()) {
+			result.set(id, descriptor);
+		}
 
 		// Initialize the service collection with the overrides
 		for (let serviceId in overrides) {
@@ -157,10 +161,6 @@ export module StaticServices {
 	export const logService = define(ILogService, () => new NullLogService());
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
-
-	export const suggestMemoryService = define(ISuggestMemoryService, (o) => new SuggestMemoryService(storageService.get(o), configurationService.get(o)));
-
-	export const codeLensCacheService = define(ICodeLensCache, (o) => new CodeLensCache(storageService.get(o)));
 }
 
 export class DynamicStandaloneServices extends Disposable {
