@@ -39,8 +39,9 @@ export class WebviewPortMappingManager extends Disposable {
 		const uri = URI.parse(url);
 		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri);
 		if (!requestLocalHostInfo) {
-			return requestLocalHostInfo;
+			return undefined;
 		}
+
 		for (const mapping of this.mappings()) {
 			if (mapping.webviewPort === requestLocalHostInfo.port) {
 				if (this.extensionLocation && this.extensionLocation.scheme === REMOTE_HOST_SCHEME) {

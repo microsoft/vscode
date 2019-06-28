@@ -2070,7 +2070,7 @@ declare module 'vscode' {
 		/**
 		 * An array of diagnostics.
 		 */
-		readonly diagnostics: Diagnostic[];
+		readonly diagnostics: ReadonlyArray<Diagnostic>;
 
 		/**
 		 * Requested kind of actions to return.
@@ -3548,7 +3548,7 @@ declare module 'vscode' {
 		 * The tooltip text when you hover over this link.
 		 *
 		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
-		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
+		 * trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary depending on OS,
 		 * user settings, and localization.
 		 */
 		tooltip?: string;
@@ -4675,6 +4675,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * In a remote window the extension kind describes if an extension
+	 * runs where the UI (window) runs or if an extension runs remotely.
+	 */
+	export enum ExtensionKind {
+
+		/**
+		 * Extension runs where the UI runs.
+		 */
+		UI = 1,
+
+		/**
+		 * Extension runs where the remote extension host runs.
+		 */
+		Workspace = 2
+	}
+
+	/**
 	 * Represents an extension.
 	 *
 	 * To get an instance of an `Extension` use [getExtension](#extensions.getExtension).
@@ -4700,6 +4717,15 @@ declare module 'vscode' {
 		 * The parsed contents of the extension's package.json.
 		 */
 		readonly packageJSON: any;
+
+		/**
+		 * The extension kind describes if an extension runs where the UI runs
+		 * or if an extension runs where the remote extension host runs. The extension kind
+		 * if defined in the `package.json` file of extensions but can also be refined
+		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
+		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
+		 */
+		extensionKind: ExtensionKind;
 
 		/**
 		 * The public API exported by this extension. It is an invalid action
@@ -6043,6 +6069,17 @@ declare module 'vscode' {
 		export const sessionId: string;
 
 		/**
+		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
+		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
+		 *
+		 * *Note* that the value is `undefined` when there is no remote extension host but that the
+		 * value is defined in all extension hosts (local and remote) in case a remote extension host
+		 * exists. Use [`Extension#extensionKind`](#Extension.extensionKind) to know if
+		 * a specific extension runs remote or not.
+		 */
+		export const remoteName: string | undefined;
+
+		/**
 		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
 		 * default application.
 		 *
@@ -7005,7 +7042,7 @@ declare module 'vscode' {
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
 		 * as normal.
 		 */
-		runInBackground?: boolean;
+		hideFromUser?: boolean;
 	}
 
 	/**
@@ -8957,7 +8994,7 @@ declare module 'vscode' {
 		/**
 		 * All extensions currently known to the system.
 		 */
-		export let all: Extension<any>[];
+		export const all: ReadonlyArray<Extension<any>>;
 
 		/**
 		 * An event which fires when `extensions.all` changes. This can happen when extensions are

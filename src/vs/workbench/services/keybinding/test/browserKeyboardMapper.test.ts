@@ -10,8 +10,6 @@ import { BrowserKeyboardMapperFactoryBase } from '../browser/keymapService';
 import { KeymapInfo, IKeymapInfo } from '../common/keymapInfo';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	public static readonly INSTANCE = new TestKeyboardMapperFactory();
-
 	constructor() {
 		super();
 
@@ -25,14 +23,15 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 
 
 suite('keyboard layout loader', () => {
+	const instance: TestKeyboardMapperFactory = new TestKeyboardMapperFactory();
 
 	test('load default US keyboard layout', () => {
-		assert.notEqual(TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout, null);
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, true);
+		assert.notEqual(instance.activeKeyboardLayout, null);
+		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 
 	test('isKeyMappingActive', () => {
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.isKeyMappingActive({
+		assert.equal(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',
 				valueIsDeadKey: false,
@@ -45,7 +44,7 @@ suite('keyboard layout loader', () => {
 			}
 		}), true);
 
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.isKeyMappingActive({
+		assert.equal(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',
 				valueIsDeadKey: false,
@@ -68,7 +67,7 @@ suite('keyboard layout loader', () => {
 			}
 		}), true);
 
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.isKeyMappingActive({
+		assert.equal(instance.isKeyMappingActive({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -84,7 +83,7 @@ suite('keyboard layout loader', () => {
 	});
 
 	test('Switch keymapping', () => {
-		TestKeyboardMapperFactory.INSTANCE.setActiveKeyMapping({
+		instance.setActiveKeyMapping({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -96,8 +95,8 @@ suite('keyboard layout loader', () => {
 				withShiftAltGrIsDeadKey: false
 			}
 		});
-		assert.equal(!!TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, false);
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.isKeyMappingActive({
+		assert.equal(!!instance.activeKeyboardLayout!.isUSStandard, false);
+		assert.equal(instance.isKeyMappingActive({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -110,14 +109,14 @@ suite('keyboard layout loader', () => {
 			},
 		}), true);
 
-		TestKeyboardMapperFactory.INSTANCE.setActiveKeyMapping(null);
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, true);
+		instance.setUSKeyboardLayout();
+		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 
 	test('Switch keyboard layout info', () => {
-		TestKeyboardMapperFactory.INSTANCE.setKeyboardLayout('com.apple.keylayout.German');
-		assert.equal(!!TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, false);
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.isKeyMappingActive({
+		instance.setKeyboardLayout('com.apple.keylayout.German');
+		assert.equal(!!instance.activeKeyboardLayout!.isUSStandard, false);
+		assert.equal(instance.isKeyMappingActive({
 			KeyZ: {
 				value: 'y',
 				valueIsDeadKey: false,
@@ -130,7 +129,7 @@ suite('keyboard layout loader', () => {
 			},
 		}), true);
 
-		TestKeyboardMapperFactory.INSTANCE.setActiveKeyMapping(null);
-		assert.equal(TestKeyboardMapperFactory.INSTANCE.activeKeyboardLayout!.isUSStandard, true);
+		instance.setUSKeyboardLayout();
+		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 });

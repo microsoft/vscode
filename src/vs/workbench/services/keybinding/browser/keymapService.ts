@@ -153,8 +153,25 @@ export class BrowserKeyboardMapperFactoryBase {
 		return this._activeKeymapInfo && keymap && this._activeKeymapInfo.fuzzyEqual(keymap);
 	}
 
+	setUSKeyboardLayout() {
+		this._activeKeymapInfo = this.getUSStandardLayout();
+	}
+
 	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
-		this._activeKeymapInfo = this.getMatchedKeymapInfo(keymap) || this.getUSStandardLayout();
+		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
+		if (matchedKeyboardLayout) {
+			if (!this._activeKeymapInfo) {
+				this._activeKeymapInfo = matchedKeyboardLayout;
+			} else if (keymap) {
+				if (matchedKeyboardLayout.getScore(keymap) > this._activeKeymapInfo.getScore(keymap)) {
+					this._activeKeymapInfo = matchedKeyboardLayout;
+				}
+			}
+		}
+
+		if (!this._activeKeymapInfo) {
+			this._activeKeymapInfo = this.getUSStandardLayout();
+		}
 
 		if (!this._activeKeymapInfo) {
 			return;
@@ -348,7 +365,7 @@ export class BrowserKeyboardMapperFactoryBase {
 			const matchedKeyboardLayout = this.getMatchedKeymapInfo(ret);
 
 			if (matchedKeyboardLayout) {
-				return matchedKeyboardLayout.mapping;
+				return ret;
 			}
 
 			return null;
@@ -521,6 +538,7 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 					BrowserKeyboardMapperFactory.INSTANCE.onKeyboardLayoutChanged();
 				} else {
 					BrowserKeyboardMapperFactory.INSTANCE.setKeyboardLayout(layout);
+					this.layoutChangeListener.clear();
 				}
 			}
 		}));

@@ -16,7 +16,7 @@ if grep -qi Microsoft /proc/version; then
 		WSL_BUILD=18362
 	else
 		WSL_BUILD=$(uname -r | sed -E 's/^.+-([0-9]+)-Microsoft/\1/')
-		if ! [ -z "$WSL_BUILD" ]; then
+		if [ -z "$WSL_BUILD" ]; then
 			WSL_BUILD=0
 		fi
 	fi

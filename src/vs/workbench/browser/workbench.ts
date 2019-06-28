@@ -6,10 +6,9 @@
 import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
-import { setFileNameComparer } from 'vs/base/common/comparers';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
-import { runWhenIdle, IdleValue } from 'vs/base/common/async';
+import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -113,15 +112,6 @@ export class Workbench extends Layout {
 
 			// Configure emitter leak warning threshold
 			setGlobalLeakWarningThreshold(175);
-
-			// Setup Intl for comparers
-			setFileNameComparer(new IdleValue(() => {
-				const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-				return {
-					collator: collator,
-					collatorIsNumeric: collator.resolvedOptions().numeric
-				};
-			}));
 
 			// ARIA
 			setARIAContainer(document.body);

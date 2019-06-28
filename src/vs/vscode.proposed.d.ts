@@ -27,53 +27,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Joh - ExtensionKind, vscode.env.remoteKind
-
-	/**
-	 * In a remote window the extension kind describes if an extension
-	 * runs where the UI (window) runs or if an extension runs remotely.
-	 */
-	export enum ExtensionKind {
-
-		/**
-		 * Extension runs where the UI runs.
-		 */
-		UI = 1,
-
-		/**
-		 * Extension runs where the remote extension host runs.
-		 */
-		Workspace = 2
-	}
-
-	export interface Extension<T> {
-
-		/**
-		 * The extension kind describes if an extension runs where the UI runs
-		 * or if an extension runs where the remote extension host runs. The extension kind
-		 * if defined in the `package.json` file of extensions but can also be refined
-		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
-		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
-		 */
-		extensionKind: ExtensionKind;
-	}
-
-	export namespace env {
-		/**
-		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
-		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
-		 *
-		 * *Note* that the value is `undefined` when there is no remote extension host but that the
-		 * value is defined in all extension hosts (local and remote) in case a remote extension host
-		 * exists. Use [`Extension#extensionKind`](#Extension.extensionKind) to know if
-		 * a specific extension runs remote or not.
-		 */
-		export const remoteName: string | undefined;
-	}
-
-	//#endregion
-
-
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
@@ -1168,6 +1121,18 @@ declare module 'vscode' {
 		readonly onDidWriteData: Event<string>;
 	}
 
+
+	export interface TerminalOptions {
+		/**
+		 * When enabled the terminal will run the process as normal but not be surfaced to the user
+		 * until `Terminal.show` is called. The typical usage for this is when you need to run
+		 * something that may need interactivity but only want to tell the user about it when
+		 * interaction is needed. Note that the terminals will still be exposed to all extensions
+		 * as normal.
+		 */
+		runInBackground?: boolean;
+	}
+
 	/**
 	 * Represents the dimensions of a terminal.
 	 */
@@ -1508,14 +1473,14 @@ declare module 'vscode' {
 
 	//#region Webview Resource Roots
 
-	export namespace env {
+	export interface Webview {
 		/**
 		 * Root url from which local resources are loaded inside of webviews.
 		 *
 		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
 		 * on the web, this points to a server endpoint.
 		 */
-		export const webviewResourceRoot: string;
+		readonly resourceRoot: Thenable<string>;
 	}
 
 	//#endregion
