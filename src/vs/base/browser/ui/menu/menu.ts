@@ -18,7 +18,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 
 function createMenuMnemonicRegExp() {
 	try {
@@ -91,7 +91,7 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
-			triggerKeys: { keys: [KeyCode.Enter], keyDown: true }
+			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh ? [KeyCode.Space] : [])], keyDown: true }
 		});
 
 		this.menuElement = menuElement;
@@ -109,7 +109,7 @@ export class Menu extends ActionBar {
 
 			// Stop tab navigation of menus
 			if (event.equals(KeyCode.Tab)) {
-				EventHelper.stop(e, true);
+				e.preventDefault();
 			}
 		});
 

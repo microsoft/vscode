@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition, IAvailableShellsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -17,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
@@ -67,8 +67,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	protected readonly _onRequestAvailableShells = new Emitter<(shells: IShellDefinition[]) => void>();
-	public get onRequestAvailableShells(): Event<(shells: IShellDefinition[]) => void> { return this._onRequestAvailableShells.event; }
+	protected readonly _onRequestAvailableShells = new Emitter<IAvailableShellsRequest>();
+	public get onRequestAvailableShells(): Event<IAvailableShellsRequest> { return this._onRequestAvailableShells.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -282,9 +282,9 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
-		// If this was a runInBackground terminal created by the API this was triggered by show,
+		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal tab
-		if (terminalInstance.shellLaunchConfig.runInBackground) {
+		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
@@ -549,7 +549,14 @@ export abstract class TerminalService implements ITerminalService {
 					return undefined;
 				}
 				const shell = value.description;
-				await this._configurationService.updateValue('terminal.integrated.shell.windows', shell, ConfigurationTarget.USER).then(() => shell);
+				const env = await this._remoteAgentService.getEnvironment();
+				let platformKey: string;
+				if (env) {
+					platformKey = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+				} else {
+					platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+				}
+				await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER).then(() => shell);
 				return Promise.resolve();
 			});
 		});

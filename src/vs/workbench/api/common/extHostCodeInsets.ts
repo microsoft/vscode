@@ -61,6 +61,10 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			private _html: string = '';
 			private _options: vscode.WebviewOptions;
 
+			get resourceRoot(): Promise<string> {
+				return that._proxy.$getResourceRoot(handle);
+			}
+
 			set options(value: vscode.WebviewOptions) {
 				this._options = value;
 				that._proxy.$setOptions(handle, value);

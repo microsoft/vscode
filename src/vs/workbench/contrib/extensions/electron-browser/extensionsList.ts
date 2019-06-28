@@ -154,7 +154,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const updateEnablement = async () => {
 			const runningExtensions = await this.extensionService.getExtensions();
 			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
-				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
+				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
 				const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
 			} else {

@@ -124,7 +124,7 @@ class ConsumerFileSystem implements vscode.FileSystem {
 		return this._proxy.$writeFile(uri, VSBuffer.wrap(content), options);
 	}
 	delete(uri: vscode.Uri, options: { recursive: boolean; } = { recursive: false }): Promise<void> {
-		return this._proxy.$delete(uri, { ...options, useTrash: true }); //todo@joh useTrash
+		return this._proxy.$delete(uri, { ...options, useTrash: false }); //todo@joh useTrash
 	}
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean; } = { overwrite: false }): Promise<void> {
 		return this._proxy.$rename(oldUri, newUri, options);

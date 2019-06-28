@@ -150,26 +150,6 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class ReloadWindowAction extends Action {
-
-	static readonly ID = 'workbench.action.reloadWindow';
-	static LABEL = nls.localize('reloadWindow', "Reload Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService private readonly windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<boolean> {
-		await this.windowService.reloadWindow();
-
-		return true;
-	}
-}
-
 export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';

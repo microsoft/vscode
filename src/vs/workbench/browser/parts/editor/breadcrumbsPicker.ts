@@ -15,7 +15,7 @@ import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -102,10 +102,6 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
-
-		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
-		this._disposables.push(filterConfig);
-
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 		this._tree = this._createTree(this._treeContainer);
 
@@ -127,13 +123,6 @@ export abstract class BreadcrumbsPicker {
 		}));
 		this._disposables.push(this._tree.onDidChangeContentHeight(() => {
 			this._layout();
-		}));
-
-		// filter on type: state
-		const cfgFilterOnType = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
-		this._tree.updateOptions({ filterOnType: cfgFilterOnType.getValue() });
-		this._disposables.push(this._tree.onDidUpdateOptions(e => {
-			this._configurationService.updateValue(cfgFilterOnType.name, e.filterOnType, ConfigurationTarget.MEMORY);
 		}));
 
 		this._domNode.focus();
@@ -389,7 +378,6 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		this._disposables.push(labels);
 
 		return this._instantiationService.createInstance(WorkbenchAsyncDataTree, container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
-			filterOnType: true,
 			multipleSelectionSupport: false,
 			sorter: new FileSorter(),
 			filter: this._instantiationService.createInstance(FileFilter),
@@ -467,12 +455,11 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			[new OutlineGroupRenderer(), this._instantiationService.createInstance(OutlineElementRenderer)],
 			new OutlineDataSource(),
 			{
-				filterOnType: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
 			}
 		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 	}

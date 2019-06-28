@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -79,7 +79,7 @@ export interface ILinuxKeyboardLayoutInfo {
 /* __GDPR__FRAGMENT__
 	"IKeyboardLayoutInfo" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"localizedName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
@@ -286,6 +286,12 @@ export class KeymapInfo {
 				// keymap from Chromium is probably wrong.
 				continue;
 			}
+
+			if (isLinux && (key === 'Backspace' || key === 'Escape')) {
+				// native keymap doesn't align with keyboard event
+				continue;
+			}
+
 			if (this.mapping[key] === undefined) {
 				score -= 1;
 			}

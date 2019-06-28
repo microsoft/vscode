@@ -9,12 +9,10 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
+import { IsFullscreenContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-const viewCategory = nls.localize('view', "View");
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ToggleFullScreenAction extends Action {
 
@@ -31,11 +29,45 @@ export class ToggleFullScreenAction extends Action {
 
 	run(): Promise<void> {
 		const container = this.layoutService.getWorkbenchElement();
+
 		return this.windowService.toggleFullScreen(container);
 	}
 }
 
+export class ReloadWindowAction extends Action {
+
+	static readonly ID = 'workbench.action.reloadWindow';
+	static LABEL = nls.localize('reloadWindow', "Reload Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private readonly windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<boolean> {
+		await this.windowService.reloadWindow();
+
+		return true;
+	}
+}
+
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+
+const viewCategory = nls.localize('view', "View");
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
+
+const developerCategory = nls.localize('developer', "Developer");
+registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Developer: Reload Window', developerCategory);
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: ReloadWindowAction.ID,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: IsDevelopmentContext,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_R
+});
 
 // Appereance menu
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {

@@ -262,12 +262,7 @@ export function createApiFactory(
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
-			get webviewResourceRoot() {
-				checkProposedApiEnabled(extension);
-				return initData.environment.webviewResourceRoot;
-			},
 			get remoteName() {
-				checkProposedApiEnabled(extension);
 				if (!initData.remote.authority) {
 					return undefined;
 				}
@@ -529,6 +524,7 @@ export function createApiFactory(
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
+					nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
