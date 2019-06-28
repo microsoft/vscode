@@ -146,18 +146,6 @@ export class WebviewEditor extends BaseEditor {
 		this.withWebview(webview => webview.selectAll());
 	}
 
-	public copy(): void {
-		this.withWebview(webview => webview.copy());
-	}
-
-	public paste(): void {
-		this.withWebview(webview => webview.paste());
-	}
-
-	public cut(): void {
-		this.withWebview(webview => webview.cut());
-	}
-
 	public undo(): void {
 		this.withWebview(webview => webview.undo());
 	}
@@ -166,7 +154,7 @@ export class WebviewEditor extends BaseEditor {
 		this.withWebview(webview => webview.redo());
 	}
 
-	private withWebview(f: (element: Webview) => void): void {
+	public withWebview(f: (element: Webview) => void): void {
 		if (this._webview) {
 			f(this._webview);
 		}

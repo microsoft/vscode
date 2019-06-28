@@ -18,7 +18,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
-import { CopyWebviewEditorCommand, CutWebviewEditorCommand, HideWebViewEditorFindCommand, PasteWebviewEditorCommand, RedoWebviewEditorCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetCommand, UndoWebviewEditorCommand } from '../browser/webviewCommands';
+import { HideWebViewEditorFindCommand, RedoWebviewEditorCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetCommand, UndoWebviewEditorCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewEditorInput } from '../browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
@@ -72,34 +72,6 @@ export function registerWebViewCommands(editorId: string): void {
 
 	// These commands are only needed on MacOS where we have to disable the menu bar commands
 	if (isMacintosh) {
-		(new CopyWebviewEditorCommand({
-			id: CopyWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
-		(new PasteWebviewEditorCommand({
-			id: PasteWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
-
-		(new CutWebviewEditorCommand({
-			id: CutWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
 		(new UndoWebviewEditorCommand({
 			id: UndoWebviewEditorCommand.ID,
 			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),

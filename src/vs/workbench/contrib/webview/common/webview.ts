@@ -75,9 +75,6 @@ export interface Webview extends IDisposable {
 
 	reload(): void;
 	selectAll(): void;
-	copy(): void;
-	paste(): void;
-	cut(): void;
 	undo(): void;
 	redo(): void;
 
