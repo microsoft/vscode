@@ -167,6 +167,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 				} catch (err) {
 					fileName = this.getName();
 				}
+				fileName = fileName || this.getName();
 				const mode = this.cachedModel.getMode();
 				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
 					return suggestFilename(mode, fileName);
