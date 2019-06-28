@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/localProgressService';
+import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -16,106 +16,55 @@ class TestViewlet implements IViewlet {
 
 	constructor(private id: string) { }
 
-	getId(): string {
-		return this.id;
-	}
-
-	/**
-	 * Returns the name of this composite to show in the title area.
-	 */
-	getTitle(): string {
-		return this.id;
-	}
-
-	/**
-	 * Returns the primary actions of the composite.
-	 */
-	getActions(): IAction[] {
-		return [];
-	}
-
-	/**
-	 * Returns the secondary actions of the composite.
-	 */
-	getSecondaryActions(): IAction[] {
-		return [];
-	}
-
-	/**
-	 * Returns an array of actions to show in the context menu of the composite
-	 */
-	public getContextMenuActions(): IAction[] {
-		return [];
-	}
-
-	/**
-	 * Returns the action item for a specific action.
-	 */
-	getActionViewItem(action: IAction): IActionViewItem {
-		return null!;
-	}
-
-	/**
-	 * Returns the underlying control of this composite.
-	 */
-	getControl(): IEditorControl {
-		return null!;
-	}
-
-	/**
-	 * Asks the underlying control to focus.
-	 */
-	focus(): void {
-	}
-
-	getOptimalWidth(): number {
-		return 10;
-	}
+	getId(): string { return this.id; }
+	getTitle(): string { return this.id; }
+	getActions(): IAction[] { return []; }
+	getSecondaryActions(): IAction[] { return []; }
+	getContextMenuActions(): IAction[] { return []; }
+	getActionViewItem(action: IAction): IActionViewItem { return null!; }
+	getControl(): IEditorControl { return null!; }
+	focus(): void { }
+	getOptimalWidth(): number { return 10; }
 }
 
-class TestScopedService extends ScopedService {
-	public isActive: boolean;
+class TestCompositeScope extends CompositeScope {
+	isActive: boolean;
 
 	constructor(viewletService: IViewletService, panelService: IPanelService, scopeId: string) {
 		super(viewletService, panelService, scopeId);
 	}
-	public onScopeActivated() {
-		this.isActive = true;
-	}
 
-	public onScopeDeactivated() {
-		this.isActive = false;
-	}
+	onScopeActivated() { this.isActive = true; }
+	onScopeDeactivated() { this.isActive = false; }
 }
 
 class TestProgressBar {
-	public fTotal: number;
-	public fWorked: number;
-	public fInfinite: boolean;
-	public fDone: boolean;
+	fTotal: number;
+	fWorked: number;
+	fInfinite: boolean;
+	fDone: boolean;
 
-	constructor() {
-	}
+	constructor() { }
 
-	public infinite() {
+	infinite() {
 		this.fDone = null!;
 		this.fInfinite = true;
 
 		return this;
 	}
 
-	public total(total: number) {
+	total(total: number) {
 		this.fDone = null!;
 		this.fTotal = total;
 
 		return this;
 	}
 
-	public hasTotal() {
+	hasTotal() {
 		return !!this.fTotal;
 	}
 
-	public worked(worked: number) {
+	worked(worked: number) {
 		this.fDone = null!;
 
 		if (this.fWorked) {
@@ -127,7 +76,7 @@ class TestProgressBar {
 		return this;
 	}
 
-	public done() {
+	done() {
 		this.fDone = true;
 
 		this.fInfinite = null!;
@@ -137,25 +86,21 @@ class TestProgressBar {
 		return this;
 	}
 
-	public stop() {
+	stop() {
 		return this.done();
 	}
 
-	public show(): void {
+	show(): void { }
 
-	}
-
-	public hide(): void {
-
-	}
+	hide(): void { }
 }
 
-suite('Progress Service', () => {
+suite('Progress Indicator', () => {
 
-	test('ScopedService', () => {
+	test('CompositeScope', () => {
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
-		let service = new TestScopedService(viewletService, panelService, 'test.scopeId');
+		let service = new TestCompositeScope(viewletService, panelService, 'test.scopeId');
 		const testViewlet = new TestViewlet('test.scopeId');
 
 		assert(!service.isActive);
@@ -167,11 +112,11 @@ suite('Progress Service', () => {
 
 	});
 
-	test('WorkbenchProgressService', async () => {
+	test('CompositeProgressIndicator', async () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
-		let service = new ScopedProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
+		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
