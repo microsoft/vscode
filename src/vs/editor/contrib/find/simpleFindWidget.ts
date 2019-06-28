@@ -58,7 +58,7 @@ export abstract class SimpleFindWidget extends Widget {
 					return null;
 				} catch (e) {
 					this.foundMatch = false;
-					this.updateButtons();
+					this._updateButtons();
 					return { content: e.message };
 				}
 			}
@@ -69,7 +69,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
-			this.updateButtons();
+			this._updateButtons();
 			this._delayedUpdateHistory();
 		});
 
@@ -219,7 +219,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons();
+		this._updateButtons();
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
@@ -250,7 +250,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
-				this.updateButtons();
+				this._updateButtons();
 				dom.removeClass(this._innerDomNode, 'visible');
 			}, 200);
 		}
@@ -276,7 +276,7 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getCaseSensitive();
 	}
 
-	private updateButtons() {
+	private _updateButtons() {
 		let hasInput = this.inputValue.length > 0;
 		this.prevBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
