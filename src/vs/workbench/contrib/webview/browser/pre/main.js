@@ -95,6 +95,45 @@
 	}`;
 
 	/**
+	 * @param {*} [state]
+	 * @return {string}
+	 */
+	function getVsCodeApiScript(state) {
+		return `
+			const acquireVsCodeApi = (function() {
+				const originalPostMessage = window.parent.postMessage.bind(window.parent);
+				const targetOrigin = '*';
+				let acquired = false;
+
+				let state = ${state ? `JSON.parse(${JSON.stringify(state)})` : undefined};
+
+				return () => {
+					if (acquired) {
+						throw new Error('An instance of the VS Code API has already been acquired');
+					}
+					acquired = true;
+					return Object.freeze({
+						postMessage: function(msg) {
+							return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
+						},
+						setState: function(newState) {
+							state = newState;
+							originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
+							return newState;
+						},
+						getState: function() {
+							return state;
+						}
+					});
+				};
+			})();
+			delete window.parent;
+			delete window.top;
+			delete window.frameElement;
+		`;
+	}
+
+	/**
 	 * @typedef {{
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
@@ -266,39 +305,7 @@
 				// apply default script
 				if (options.allowScripts) {
 					const defaultScript = newDocument.createElement('script');
-					defaultScript.textContent = `
-					const acquireVsCodeApi = (function() {
-						const originalPostMessage = window.parent.postMessage.bind(window.parent);
-						const targetOrigin = '*';
-						let acquired = false;
-
-						let state = ${data.state ? `JSON.parse(${JSON.stringify(data.state)})` : undefined};
-
-						return () => {
-							if (acquired) {
-								throw new Error('An instance of the VS Code API has already been acquired');
-							}
-							acquired = true;
-							return Object.freeze({
-								postMessage: function(msg) {
-									return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
-								},
-								setState: function(newState) {
-									state = newState;
-									originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
-									return newState;
-								},
-								getState: function() {
-									return state;
-								}
-							});
-						};
-					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
-				`;
-
+					defaultScript.textContent = getVsCodeApiScript(data.state);
 					newDocument.head.prepend(defaultScript);
 				}
 
