@@ -38,7 +38,7 @@ export class StatusBar {
 	}
 
 	async waitForStatusbarText(title: string, text: string): Promise<void> {
-		await this.code.waitForTextContent(`${this.mainSelector} span[title="${title}"]`, text);
+		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[title="${title}"]`, text);
 	}
 
 	private getSelector(element: StatusBarElement): string {
