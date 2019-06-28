@@ -251,6 +251,40 @@
 			});
 		};
 
+		/**
+		 * @return {string}
+		 */
+		function toContentHtml(data) {
+			const options = data.options;
+			const text = data.contents;
+			const newDocument = new DOMParser().parseFromString(text, 'text/html');
+
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.getAttribute('href');
+				}
+			});
+
+			// apply default script
+			if (options.allowScripts) {
+				const defaultScript = newDocument.createElement('script');
+				defaultScript.textContent = getVsCodeApiScript(data.state);
+				newDocument.head.prepend(defaultScript);
+			}
+
+			// apply default styles
+			const defaultStyles = newDocument.createElement('style');
+			defaultStyles.id = '_defaultStyles';
+			defaultStyles.innerHTML = defaultCssRules;
+			newDocument.head.prepend(defaultStyles);
+
+			applyStyles(newDocument, newDocument.body);
+
+			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
+		}
+
 		document.addEventListener('DOMContentLoaded', () => {
 			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
 			const ID = idMatch ? idMatch[1] : undefined;
@@ -280,7 +314,6 @@
 				}
 			});
 
-
 			// update iframe-contents
 			let updateId = 0;
 			host.onMessage('content', async (_event, data) => {
@@ -291,30 +324,7 @@
 				}
 
 				const options = data.options;
-
-				const text = data.contents;
-				const newDocument = new DOMParser().parseFromString(text, 'text/html');
-
-				newDocument.querySelectorAll('a').forEach(a => {
-					if (!a.title) {
-						a.title = a.getAttribute('href');
-					}
-				});
-
-				// apply default script
-				if (options.allowScripts) {
-					const defaultScript = newDocument.createElement('script');
-					defaultScript.textContent = getVsCodeApiScript(data.state);
-					newDocument.head.prepend(defaultScript);
-				}
-
-				// apply default styles
-				const defaultStyles = newDocument.createElement('style');
-				defaultStyles.id = '_defaultStyles';
-				defaultStyles.innerHTML = defaultCssRules;
-				newDocument.head.prepend(defaultStyles);
-
-				applyStyles(newDocument, newDocument.body);
+				const newDocument = toContentHtml(data);
 
 				const frame = getActiveFrame();
 				const wasFirstLoad = firstLoad;
@@ -372,7 +382,7 @@
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
 					if (FAKE_LOAD) {
 						newFrame.contentDocument.open();
-						newFrame.contentDocument.write('<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML);
+						newFrame.contentDocument.write(newDocument);
 						newFrame.contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
 					}
@@ -477,9 +487,7 @@
 				}
 
 				if (!FAKE_LOAD) {
-					// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-					// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-					newFrame.contentDocument.write('<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML);
+					newFrame.contentDocument.write(newDocument);
 					newFrame.contentDocument.close();
 				}
 
