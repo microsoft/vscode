@@ -542,7 +542,7 @@ export class CommentNode extends Disposable {
 	}
 
 	private createDeleteAction(): Action {
-		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'octicon octicon-x', true, () => {
+		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'delete', true, () => {
 			return this.dialogService.confirm({
 				message: nls.localize('confirmDelete', "Delete comment?"),
 				type: 'question',
@@ -612,7 +612,7 @@ export class CommentNode extends Disposable {
 	}
 
 	private createEditAction(commentDetailsContainer: HTMLElement): Action {
-		return new Action('comment.edit', nls.localize('label.edit', "Edit"), 'octicon octicon-pencil', true, () => {
+		return new Action('comment.edit', nls.localize('label.edit', "Edit"), 'edit', true, () => {
 			return this.editCommentAction(commentDetailsContainer);
 		});
 	}
