@@ -32,11 +32,19 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 	}
 }
 
+export class SelectAllWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.selectAll';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		withActiveWebviewBasedWebview(accessor, webview => webview.selectAll());
+	}
+}
+
 export class CopyWebviewEditorCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.copy';
 
 	public runCommand(accessor: ServicesAccessor, _args: any): void {
-		return withActiveWebviewBasedWebview(accessor, webview => webview.copy());
+		withActiveWebviewBasedWebview(accessor, webview => webview.copy());
 	}
 }
 
@@ -44,7 +52,7 @@ export class PasteWebviewEditorCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.paste';
 
 	public runCommand(accessor: ServicesAccessor, _args: any): void {
-		return withActiveWebviewBasedWebview(accessor, webview => webview.paste());
+		withActiveWebviewBasedWebview(accessor, webview => webview.paste());
 	}
 }
 
@@ -52,7 +60,23 @@ export class CutWebviewEditorCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.cut';
 
 	public runCommand(accessor: ServicesAccessor, _args: any): void {
-		return withActiveWebviewBasedWebview(accessor, webview => webview.cut());
+		withActiveWebviewBasedWebview(accessor, webview => webview.cut());
+	}
+}
+
+export class UndoWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.undo';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		withActiveWebviewBasedWebview(accessor, webview => webview.undo());
+	}
+}
+
+export class RedoWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.redo';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		withActiveWebviewBasedWebview(accessor, webview => webview.redo());
 	}
 }
 

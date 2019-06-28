@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -140,18 +140,6 @@ export class WebviewEditor extends BaseEditor {
 			});
 		}
 		this.withWebview(webview => webview.focus());
-	}
-
-	public selectAll(): void {
-		this.withWebview(webview => webview.selectAll());
-	}
-
-	public undo(): void {
-		this.withWebview(webview => webview.undo());
-	}
-
-	public redo(): void {
-		this.withWebview(webview => webview.redo());
 	}
 
 	public withWebview(f: (element: Webview) => void): void {

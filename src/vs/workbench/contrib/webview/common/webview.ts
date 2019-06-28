@@ -72,11 +72,7 @@ export interface Webview extends IDisposable {
 	layout(): void;
 	mountTo(parent: HTMLElement): void;
 	focus(): void;
-
 	reload(): void;
-	selectAll(): void;
-	undo(): void;
-	redo(): void;
 
 	showFind(): void;
 	hideFind(): void;
