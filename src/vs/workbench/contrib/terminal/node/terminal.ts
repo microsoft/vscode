@@ -138,7 +138,7 @@ async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {
 	});
 }
 
-function validateShellPaths(label: string, potentialPaths: string[]): Promise<IShellDefinition | undefined> {
+async function validateShellPaths(label: string, potentialPaths: string[]): Promise<IShellDefinition | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -146,15 +146,16 @@ function validateShellPaths(label: string, potentialPaths: string[]): Promise<IS
 	if (current! === '') {
 		return validateShellPaths(label, potentialPaths);
 	}
-	return stat(normalize(current)).then(stat => {
-		if (!stat.isFile && !stat.isSymbolicLink) {
-			return validateShellPaths(label, potentialPaths);
+	try {
+		const result = await stat(normalize(current));
+		if (result.isFile || result.isSymbolicLink) {
+			return {
+				label,
+				path: current
+			};
 		}
-		return {
-			label,
-			path: current
-		};
-	});
+	} catch { /* noop */ }
+	return validateShellPaths(label, potentialPaths);
 }
 
 async function getShellPathFromRegistry(shellName: string): Promise<string> {

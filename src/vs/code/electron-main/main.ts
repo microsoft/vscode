@@ -33,7 +33,6 @@ import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -41,6 +40,7 @@ import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -146,7 +146,6 @@ class CodeMain {
 		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 		services.set(IStateService, new SyncDescriptor(StateService));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
 
@@ -277,7 +276,13 @@ class CodeMain {
 			// Process Info
 			if (environmentService.args.status) {
 				return instantiationService.invokeFunction(async accessor => {
-					const diagnostics = await accessor.get(IDiagnosticsService).getDiagnostics(launchClient);
+					// Create a diagnostic service connected to the existing shared process
+					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
+					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
+					const diagnosticsService = new DiagnosticsService(diagnosticsChannel);
+					const mainProcessInfo = await launchClient.getMainProcessInfo();
+					const remoteDiagnostics = await launchClient.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
+					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
 					console.log(diagnostics);
 
 					throw new ExpectedError();

@@ -42,7 +42,7 @@ export abstract class MenubarControl extends Disposable {
 	protected keys = [
 		'window.menuBarVisibility',
 		'window.enableMenuBarMnemonics',
-		'window.disableCustomMenuBarAltFocus',
+		'window.customMenuBarAltFocus',
 		'window.nativeTabs'
 	];
 
@@ -610,9 +610,11 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
-		let disableMenuBarAltBehavior = this.configurationService.getValue<boolean>('window.disableCustomMenuBarAltFocus');
-		if (typeof disableMenuBarAltBehavior !== 'boolean') {
-			disableMenuBarAltBehavior = false;
+		let settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
+
+		let disableMenuBarAltBehavior = false;
+		if (typeof settingValue === 'boolean') {
+			disableMenuBarAltBehavior = !settingValue;
 		}
 
 		return disableMenuBarAltBehavior;

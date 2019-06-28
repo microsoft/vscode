@@ -327,7 +327,7 @@ export class OutlinePanel extends ViewletPanel {
 				filterOnType: this._outlineViewState.filterOnType,
 				sorter: this._treeComparator,
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
 			}
 		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 

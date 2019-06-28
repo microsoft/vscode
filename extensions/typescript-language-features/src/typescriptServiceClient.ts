@@ -25,7 +25,7 @@ import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import { TypeScriptServerSpawner } from './tsServer/spanwer';
+import { TypeScriptServerSpawner } from './tsServer/spawner';
 
 const localize = nls.loadMessageBundle();
 

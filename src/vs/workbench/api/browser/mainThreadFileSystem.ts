@@ -96,19 +96,19 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	async $rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite);
+		await this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite);
 	}
 
 	async $copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite);
+		await this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite);
 	}
 
 	async $mkdir(uri: UriComponents): Promise<void> {
-		this._fileService.createFolder(URI.revive(uri));
+		await this._fileService.createFolder(URI.revive(uri));
 	}
 
 	async $delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
-		this._fileService.del(URI.revive(uri), opts);
+		await this._fileService.del(URI.revive(uri), opts);
 	}
 }
 

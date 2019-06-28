@@ -869,16 +869,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-			return true; // default
-		}
+		return true;
+		// const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		// if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		// 	return true; // default
+		// }
 
-		if (windowConfig.nativeTabs) {
-			return true; // https://github.com/electron/electron/issues/16142
-		}
+		// if (windowConfig.nativeTabs) {
+		// 	return true; // https://github.com/electron/electron/issues/16142
+		// }
 
-		return windowConfig.nativeFullScreen !== false;
+		// return windowConfig.nativeFullScreen !== false;
 	}
 
 	isMinimized(): boolean {

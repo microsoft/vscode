@@ -52,6 +52,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 //#region Backup File
 
@@ -401,12 +402,13 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -488,12 +490,13 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -760,6 +763,14 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				browser.setFullscreen(false);
 			}
 		}));
+
+		this._register(addDisposableListener(document, EventType.WK_FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
 	}
 
 	isFocused(): Promise<boolean> {
@@ -787,6 +798,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	reloadWindow(): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
@@ -832,10 +845,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true); // we have to set this proactively because Safari doesn't emit fullscreenchange event.
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(false);
 				}
 			} catch {
 				console.warn('Enter/Exit Full Screen failed');
@@ -1109,7 +1120,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 

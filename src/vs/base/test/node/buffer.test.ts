@@ -364,4 +364,42 @@ suite('Buffer', () => {
 		assert.equal(ended, false);
 		assert.equal(errors.length, 0);
 	});
+
+	test('Performance issue with VSBuffer#slice #76076', function () {
+		// Buffer#slice creates a view
+		{
+			const buff = Buffer.from([10, 20, 30, 40]);
+			const b2 = buff.slice(1, 3);
+			assert.equal(buff[1], 20);
+			assert.equal(b2[0], 20);
+
+			buff[1] = 17; // modify buff AND b2
+			assert.equal(buff[1], 17);
+			assert.equal(b2[0], 17);
+		}
+
+		// TypedArray#slice creates a copy
+		{
+			const unit = new Uint8Array([10, 20, 30, 40]);
+			const u2 = unit.slice(1, 3);
+			assert.equal(unit[1], 20);
+			assert.equal(u2[0], 20);
+
+			unit[1] = 17; // modify unit, NOT b2
+			assert.equal(unit[1], 17);
+			assert.equal(u2[0], 20);
+		}
+
+		// TypedArray#subarray creates a view
+		{
+			const unit = new Uint8Array([10, 20, 30, 40]);
+			const u2 = unit.subarray(1, 3);
+			assert.equal(unit[1], 20);
+			assert.equal(u2[0], 20);
+
+			unit[1] = 17; // modify unit AND b2
+			assert.equal(unit[1], 17);
+			assert.equal(u2[0], 17);
+		}
+	});
 });

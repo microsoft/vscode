@@ -34,7 +34,7 @@ import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAg
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import Severity from 'vs/base/common/severity';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
