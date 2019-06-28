@@ -246,13 +246,3 @@
 	border-radius: 5px;
 	cursor: pointer;
 }
-
-.title-actions .action-item .icon.collapseAll,
-.editor-actions .action-item .icon.collapseAll {
-	background: url('collapseAll.svg') center center no-repeat;
-}
-
-.vs-dark .title-actions .action-item .icon.collapseAll,
-.vs-dark .editor-actions .action-item .icon.collapseAll {
-	background: url('collapseAll_inverse.svg') center center no-repeat;
-}
