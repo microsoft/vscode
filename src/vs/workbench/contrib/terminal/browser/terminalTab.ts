@@ -9,7 +9,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 const TERMINAL_MIN_USEFUL_SIZE = 250;
@@ -27,7 +27,8 @@ class SplitPaneContainer {
 
 	constructor(
 		private _container: HTMLElement,
-		public orientation: Orientation
+		public orientation: Orientation,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
 	) {
 		this._width = this._container.offsetWidth;
 		this._height = this._container.offsetHeight;
@@ -46,51 +47,55 @@ class SplitPaneContainer {
 	}
 
 	public resizePane(index: number, direction: Direction, amount: number): void {
-		// TODO: Should resize pane up/down resize the panel?
+		const isHorizontal = (direction === Direction.Left) || (direction === Direction.Right);
 
-		// Only resize the correct dimension
-		const isHorizontal = direction === Direction.Left || direction === Direction.Right;
-		if (isHorizontal && this.orientation !== Orientation.HORIZONTAL ||
-			!isHorizontal && this.orientation !== Orientation.VERTICAL) {
-			return;
-		}
+		if ((isHorizontal && this.orientation !== Orientation.HORIZONTAL) ||
+			(!isHorizontal && this.orientation !== Orientation.VERTICAL)) {
+			// Resize the entire pane as a whole
+			if ((this.orientation === Orientation.HORIZONTAL && direction === Direction.Down) ||
+				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
+				amount *= -1;
+			}
+			this._layoutService.resizePart(Parts.PANEL_PART, amount);
+		} else {
+			// Resize left/right in horizontal or up/down in vertical
+			// Only resize when there is more than one pane
+			if (this._children.length <= 1) {
+				return;
+			}
 
-		// Only resize when there is mor ethan one pane
-		if (this._children.length <= 1) {
-			return;
-		}
+			// Get sizes
+			const sizes: number[] = [];
+			for (let i = 0; i < this._splitView.length; i++) {
+				sizes.push(this._splitView.getViewSize(i));
+			}
 
-		// Get sizes
-		const sizes: number[] = [];
-		for (let i = 0; i < this._splitView.length; i++) {
-			sizes.push(this._splitView.getViewSize(i));
-		}
+			// Remove size from right pane, unless index is the last pane in which case use left pane
+			const isSizingEndPane = index !== this._children.length - 1;
+			const indexToChange = isSizingEndPane ? index + 1 : index - 1;
+			if (isSizingEndPane && direction === Direction.Left) {
+				amount *= -1;
+			} else if (!isSizingEndPane && direction === Direction.Right) {
+				amount *= -1;
+			} else if (isSizingEndPane && direction === Direction.Up) {
+				amount *= -1;
+			} else if (!isSizingEndPane && direction === Direction.Down) {
+				amount *= -1;
+			}
 
-		// Remove size from right pane, unless index is the last pane in which case use left pane
-		const isSizingEndPane = index !== this._children.length - 1;
-		const indexToChange = isSizingEndPane ? index + 1 : index - 1;
-		if (isSizingEndPane && direction === Direction.Left) {
-			amount *= -1;
-		} else if (!isSizingEndPane && direction === Direction.Right) {
-			amount *= -1;
-		} else if (isSizingEndPane && direction === Direction.Up) {
-			amount *= -1;
-		} else if (!isSizingEndPane && direction === Direction.Down) {
-			amount *= -1;
-		}
+			// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
+			if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
+				amount = SPLIT_PANE_MIN_SIZE - sizes[index];
+			} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
+				amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
+			}
 
-		// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
-		if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
-			amount = SPLIT_PANE_MIN_SIZE - sizes[index];
-		} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
-			amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
-		}
-
-		// Apply the size change
-		sizes[index] += amount;
-		sizes[indexToChange] -= amount;
-		for (let i = 0; i < this._splitView.length - 1; i++) {
-			this._splitView.resizeView(i, sizes[i]);
+			// Apply the size change
+			sizes[index] += amount;
+			sizes[indexToChange] -= amount;
+			for (let i = 0; i < this._splitView.length - 1; i++) {
+				this._splitView.resizeView(i, sizes[i]);
+			}
 		}
 	}
 
@@ -348,7 +353,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const newLocal = new SplitPaneContainer(this._tabElement, orientation);
+			const newLocal = new SplitPaneContainer(this._tabElement, orientation, this._layoutService);
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
