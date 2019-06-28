@@ -25,7 +25,8 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
 		|| !!argv['uninstall-extension']
-		|| !!argv['locate-extension'];
+		|| !!argv['locate-extension']
+		|| !!argv['telemetry'];
 }
 
 interface IMainCli {
@@ -57,6 +58,7 @@ export async function main(argv: string[]): Promise<any> {
 	else if (shouldSpawnCliProcess(args)) {
 		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
 		await cli.main(args);
+
 		return;
 	}
 
@@ -124,7 +126,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
 
-		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
+		const verbose = args.verbose || args.status;
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -257,7 +259,7 @@ export async function main(argv: string[]): Promise<any> {
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
-			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
+			writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
 			processCallbacks.push(async _child => {
 
@@ -329,7 +331,7 @@ export async function main(argv: string[]): Promise<any> {
 					await extHost.stop();
 
 					// re-create the marker file to signal that profiling is done
-					fs.writeFileSync(filenamePrefix, '');
+					writeFileSync(filenamePrefix, '');
 
 				} catch (e) {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
@@ -349,9 +351,7 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== 'undefined') {
-			options['stdio'] = ['pipe', 'pipe', 'pipe'];
-		} else if (!verbose) {
+		if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 

@@ -323,6 +323,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
 
 	public run(): Promise<any> {
@@ -331,7 +332,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name);
+		const focusedExpression = this.debugService.getViewModel().getSelectedExpression();
+		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
 	}
 }
 

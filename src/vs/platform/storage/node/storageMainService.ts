@@ -10,7 +10,6 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
 import { join } from 'vs/base/common/path';
-import { exists } from 'vs/base/node/pfs';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -121,25 +120,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private doInitialize(): Promise<void> {
-		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
+		this.storage.dispose();
+		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
+			logging: this.createLogginOptions()
+		}));
 
-		let globalStorageExists: Promise<boolean>;
-		if (useInMemoryStorage) {
-			globalStorageExists = Promise.resolve(true);
-		} else {
-			globalStorageExists = exists(this.storagePath);
-		}
+		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-		return globalStorageExists.then(exists => {
-			this.storage.dispose();
-			this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
-				logging: this.createLogginOptions()
-			}));
-
-			this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
-
-			return this.storage.init();
-		});
+		return this.storage.init();
 	}
 
 	get(key: string, fallbackValue: string): string;

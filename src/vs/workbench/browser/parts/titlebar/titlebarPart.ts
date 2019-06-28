@@ -15,19 +15,19 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
+import { MenubarControl, NativeMenubarControl, CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -50,8 +50,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
-	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+	get minimumHeight(): number { return isMacintosh && !isWeb ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+	get maximumHeight(): number { return isMacintosh && !isWeb ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 
 	//#endregion
 
@@ -75,8 +75,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private isInactive: boolean;
 
-	private properties: ITitleProperties;
-	private activeEditorListeners: IDisposable[];
+	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false };
+	private readonly activeEditorListeners = this._register(new DisposableStore());
 
 	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
@@ -95,9 +95,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.properties = { isPure: true, isAdmin: false };
-		this.activeEditorListeners = [];
 
 		this.registerListeners();
 	}
@@ -135,9 +132,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onMenubarVisibilityChanged(visible: boolean) {
-		if (isWindows || isLinux) {
+		if (isWeb || isWindows || isLinux) {
 			// Hide title when toggling menu bar
-			if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
+			if (!isWeb && this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 				hide(this.dragRegion);
 				setTimeout(() => show(this.dragRegion), 50);
@@ -150,7 +147,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onMenubarFocusChanged(focused: boolean) {
-		if (isWindows || isLinux) {
+		if (!isWeb && (isWindows || isLinux)) {
 			if (focused) {
 				hide(this.dragRegion);
 			} else {
@@ -162,8 +159,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onActiveEditorChange(): void {
 
 		// Dispose old listeners
-		dispose(this.activeEditorListeners);
-		this.activeEditorListeners = [];
+		this.activeEditorListeners.clear();
 
 		// Calculate New Window Title
 		this.titleUpdater.schedule();
@@ -171,8 +167,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof EditorInput) {
-			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
-			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
 
 		// Represented File Name
@@ -207,7 +203,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.pendingTitle = title;
 		}
 
-		if ((isWindows || isLinux) && this.title) {
+		if ((isWeb || isWindows || isLinux) && this.title) {
 			if (this.lastLayoutDimensions) {
 				this.updateLayout(this.lastLayoutDimensions);
 			}
@@ -322,10 +318,12 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.element = parent;
 
 		// Draggable region that we can manipulate for #52522
-		this.dragRegion = append(this.element, $('div.titlebar-drag-region'));
+		if (!isWeb) {
+			this.dragRegion = append(this.element, $('div.titlebar-drag-region'));
+		}
 
-		// App Icon (Windows/Linux)
-		if (!isMacintosh) {
+		// App Icon (Native Windows/Linux)
+		if (!isMacintosh && !isWeb) {
 			this.appIcon = append(this.element, $('div.window-appicon'));
 			this.onUpdateAppIconDragBehavior();
 
@@ -335,15 +333,18 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
-		this.menubarPart = this.instantiationService.createInstance(MenubarControl);
-		this.menubar = append(this.element, $('div.menubar'));
-		this.menubar.setAttribute('role', 'menubar');
+		if ((isMacintosh && !isWeb) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+			this.menubarPart = this.instantiationService.createInstance(NativeMenubarControl);
+		} else {
+			const customMenubarControl = this.instantiationService.createInstance(CustomMenubarControl);
+			this.menubarPart = customMenubarControl;
+			this.menubar = append(this.element, $('div.menubar'));
+			this.menubar.setAttribute('role', 'menubar');
 
-		this.menubarPart.create(this.menubar);
+			customMenubarControl.create(this.menubar);
 
-		if (!isMacintosh) {
-			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
-			this._register(this.menubarPart.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
+			this._register(customMenubarControl.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+			this._register(customMenubarControl.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 
 		// Title
@@ -355,7 +356,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Maximize/Restore on doubleclick
-		if (isMacintosh) {
+		if (isMacintosh && !isWeb) {
 			this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
 				EventHelper.stop(e);
 
@@ -374,8 +375,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 		});
 
-		// Window Controls (Windows/Linux)
-		if (!isMacintosh) {
+		// Window Controls (Native Windows/Linux)
+		if (!isMacintosh && !isWeb) {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
 
 
@@ -391,14 +392,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			const restoreIconContainer = append(this.windowControls, $('div.window-icon-bg'));
 			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
 			addClass(this.maxRestoreControl, 'window-max-restore');
-			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, e => {
-				this.windowService.isMaximized().then((maximized) => {
-					if (maximized) {
-						return this.windowService.unmaximizeWindow();
-					}
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
+				const maximized = await this.windowService.isMaximized();
+				if (maximized) {
+					return this.windowService.unmaximizeWindow();
+				}
 
-					return this.windowService.maximizeWindow();
-				});
+				return this.windowService.maximizeWindow();
 			}));
 
 			// Close
@@ -547,17 +547,24 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private adjustTitleMarginToCenter(): void {
-		if (!isMacintosh &&
-			(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.element.clientWidth - this.title.clientWidth) / 2 ||
-				this.element.clientWidth - this.windowControls.clientWidth - 10 < (this.element.clientWidth + this.title.clientWidth) / 2)) {
-			this.title.style.position = null;
-			this.title.style.left = null;
-			this.title.style.transform = null;
-		} else {
-			this.title.style.position = 'absolute';
-			this.title.style.left = '50%';
-			this.title.style.transform = 'translate(-50%, 0)';
+		if (this.menubarPart instanceof CustomMenubarControl) {
+			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
+			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
+
+			// Not enough space to center the titlebar within window,
+			// Center between menu and window controls
+			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
+				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
+				this.title.style.position = null;
+				this.title.style.left = null;
+				this.title.style.transform = null;
+				return;
+			}
 		}
+
+		this.title.style.position = 'absolute';
+		this.title.style.left = '50%';
+		this.title.style.transform = 'translate(-50%, 0)';
 	}
 
 	updateLayout(dimension: Dimension): void {
@@ -565,15 +572,15 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
-			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
+			if ((!isWeb && isMacintosh) || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;
-				if (isWindows || isLinux) {
+				if (!isWeb && (isWindows || isLinux)) {
 					this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
 					this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
 				}
 			} else {
 				this.title.style.zoom = null;
-				if (isWindows || isLinux) {
+				if (!isWeb && (isWindows || isLinux)) {
 					this.appIcon.style.zoom = null;
 					this.windowControls.style.zoom = null;
 				}
@@ -581,7 +588,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
-			if (this.menubarPart) {
+			if (this.menubarPart instanceof CustomMenubarControl) {
 				const menubarDimension = new Dimension(0, dimension.height);
 				this.menubarPart.layout(menubarDimension);
 			}

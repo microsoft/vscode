@@ -23,7 +23,7 @@ import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,8 +33,8 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -59,7 +59,7 @@ import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Memento } from 'vs/workbench/common/memento';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const $ = dom.$;
@@ -102,8 +102,8 @@ export class SearchView extends ViewletPanel {
 
 	private tree: WorkbenchObjectTree<RenderableMatch>;
 	private treeLabels: ResourceLabels;
-	private viewletState: object;
-	private globalMemento: object;
+	private viewletState: MementoObject;
+	private globalMemento: MementoObject;
 	private messagesElement: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainerElement: HTMLElement;
@@ -342,6 +342,9 @@ export class SearchView extends ViewletPanel {
 		return this.inputPatternExcludes;
 	}
 
+	/**
+	 * Warning: a bit expensive due to updating the view title
+	 */
 	protected updateActions(): void {
 		for (const action of this.actions) {
 			action.update();
@@ -514,12 +517,18 @@ export class SearchView extends ViewletPanel {
 			return;
 		}
 
-		const progressRunner = this.progressService.show(100);
-
 		const occurrences = this.viewModel.searchResult.count();
 		const fileCount = this.viewModel.searchResult.fileCount();
 		const replaceValue = this.searchWidget.getReplaceValue() || '';
 		const afterReplaceAllMessage = this.buildAfterReplaceAllMessage(occurrences, fileCount, replaceValue);
+
+		let progressComplete: () => void;
+		let progressReporter: IProgress<IProgressStep>;
+		this.progressService.withProgress({ location: VIEWLET_ID, delay: 100, total: occurrences }, p => {
+			progressReporter = p;
+
+			return new Promise(resolve => progressComplete = resolve);
+		});
 
 		const confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
@@ -531,12 +540,12 @@ export class SearchView extends ViewletPanel {
 		this.dialogService.confirm(confirmation).then(res => {
 			if (res.confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
-				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
-					progressRunner.done();
+				this.viewModel.searchResult.replaceAll(progressReporter).then(() => {
+					progressComplete();
 					const messageEl = this.clearMessage();
 					dom.append(messageEl, $('p', undefined, afterReplaceAllMessage));
 				}, (error) => {
-					progressRunner.done();
+					progressComplete();
 					errors.isPromiseCanceledError(error);
 					this.notificationService.error(error);
 				});
@@ -682,11 +691,7 @@ export class SearchView extends ViewletPanel {
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch>): void {
-		if (!e.element) {
-			return;
-		}
-
+	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
 		if (!this.contextMenu) {
 			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
 		}
@@ -694,14 +699,14 @@ export class SearchView extends ViewletPanel {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-			getActionsContext: () => e.element
+			getActions: () => actions,
+			getActionsContext: () => e.element,
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 
@@ -1194,7 +1199,7 @@ export class SearchView extends ViewletPanel {
 
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
@@ -1266,7 +1271,10 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
-		const progressRunner = this.progressService.show(/*infinite=*/true);
+		let progressComplete: () => void;
+		this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+			return new Promise(resolve => progressComplete = resolve);
+		});
 
 		this.searchWidget.searchInput.clearMessage();
 		this.searching = true;
@@ -1281,7 +1289,7 @@ export class SearchView extends ViewletPanel {
 			this.searching = false;
 
 			// Complete up to 100% as needed
-			progressRunner.done();
+			progressComplete();
 
 			// Do final render, then expand if just 1 file with less than 50 matches
 			this.onSearchResultsChanged();
@@ -1327,8 +1335,6 @@ export class SearchView extends ViewletPanel {
 				// Indicate as status to ARIA
 				aria.status(message);
 
-				dom.hide(this.resultsElement);
-
 				const messageEl = this.clearMessage();
 				const p = dom.append(messageEl, $('p', undefined, message));
 
@@ -1363,6 +1369,7 @@ export class SearchView extends ViewletPanel {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.showSearchWithoutFolderMessage();
 				}
+				this.reLayout();
 			} else {
 				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
@@ -1377,7 +1384,7 @@ export class SearchView extends ViewletPanel {
 			} else {
 				this.searching = false;
 				this.updateActions();
-				progressRunner.done();
+				progressComplete();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
@@ -1390,6 +1397,8 @@ export class SearchView extends ViewletPanel {
 		};
 
 		let visibleMatches = 0;
+
+		let updatedActionsForFileCount = false;
 
 		// Handle UI updates in an interval to show frequent progress and results
 		const uiRefreshHandle: any = setInterval(() => {
@@ -1404,7 +1413,9 @@ export class SearchView extends ViewletPanel {
 				visibleMatches = fileCount;
 				this.refreshAndUpdateCount();
 			}
-			if (fileCount > 0) {
+
+			if (fileCount > 0 && !updatedActionsForFileCount) {
+				updatedActionsForFileCount = true;
 				this.updateActions();
 			}
 		}, 100);
@@ -1505,7 +1516,7 @@ export class SearchView extends ViewletPanel {
 		this.searchWithoutFolderMessageElement = this.clearMessage();
 
 		const textEl = dom.append(this.searchWithoutFolderMessageElement,
-			$('p', undefined, nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ")));
+			$('p', undefined, nls.localize('searchWithoutFolder', "You have not opened or specified a folder. Only open files are currently searched - ")));
 
 		const openFolderLink = dom.append(textEl,
 			$('a.pointer.prominent', { tabindex: 0 }, nls.localize('openFolder', "Open Folder")));
@@ -1693,21 +1704,9 @@ export class SearchView extends ViewletPanel {
 		super.saveState();
 	}
 
-	private _toDispose: IDisposable[] = [];
-	protected _register<T extends IDisposable>(t: T): T {
-		if (this.isDisposed) {
-			console.warn('Registering disposable on object that has already been disposed.');
-			t.dispose();
-		} else {
-			this._toDispose.push(t);
-		}
-		return t;
-	}
-
 	dispose(): void {
 		this.isDisposed = true;
 		this.saveState();
-		this._toDispose = dispose(this._toDispose);
 		super.dispose();
 	}
 }

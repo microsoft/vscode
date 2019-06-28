@@ -205,7 +205,7 @@
 		},
 		{
 			"name": "Class name",
-			"scope": "entity.name.type, entity.name.class",
+			"scope": "entity.name.type, entity.name.class, entity.name.namespace, entity.name.scope-resolution",
 			"settings": {
 				"fontStyle": "underline",
 				"foreground": "#A6E22E"

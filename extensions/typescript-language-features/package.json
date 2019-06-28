@@ -17,13 +17,15 @@
   ],
   "dependencies": {
     "jsonc-parser": "^2.0.1",
+    "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "8.0.33",
+    "@types/node": "^10.14.8",
     "@types/semver": "^5.5.0",
+    "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -588,6 +590,12 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.surveys.enabled%",
+          "scope": "window"
+        },
+        "typescript.experimental.useSeparateSyntaxServer": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.experimental.useSeparateSyntaxServer%",
           "scope": "window"
         }
       }

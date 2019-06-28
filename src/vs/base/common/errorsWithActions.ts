@@ -6,11 +6,11 @@
 import { IAction } from 'vs/base/common/actions';
 
 export interface IErrorOptions {
-	actions?: IAction[];
+	actions?: ReadonlyArray<IAction>;
 }
 
 export interface IErrorWithActions {
-	actions?: IAction[];
+	actions?: ReadonlyArray<IAction>;
 }
 
 export function isErrorWithActions(obj: any): obj is IErrorWithActions {

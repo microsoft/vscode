@@ -17,7 +17,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -26,7 +25,7 @@ class ToggleBreakpointAction extends EditorAction {
 			id: TOGGLE_BREAKPOINT_ID,
 			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 			alias: 'Debug: Toggle Breakpoint',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9,
@@ -63,7 +62,7 @@ class ConditionalBreakpointAction extends EditorAction {
 			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
 			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
 			alias: 'Debug: Add Conditional Breakpoint...',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -85,7 +84,7 @@ class LogPointAction extends EditorAction {
 			id: TOGGLE_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -99,7 +98,7 @@ class LogPointAction extends EditorAction {
 	}
 }
 
-class RunToCursorAction extends EditorAction {
+export class RunToCursorAction extends EditorAction {
 
 	public static ID = 'editor.debug.action.runToCursor';
 	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
@@ -288,7 +287,7 @@ class GoToNextBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToNextBreakpoint',
 			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
 			alias: 'Debug: Go To Next Breakpoint',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -299,7 +298,7 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToPreviousBreakpoint',
 			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
 			alias: 'Debug: Go To Previous Breakpoint',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -313,12 +312,3 @@ registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
 registerEditorAction(GoToNextBreakpointAction);
 registerEditorAction(GoToPreviousBreakpointAction);
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: RunToCursorAction.ID,
-		title: { value: RunToCursorAction.LABEL, original: 'Debug: Run to Cursor' },
-		category: nls.localize('debug', "Debug")
-	},
-	group: 'debug',
-	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
-});

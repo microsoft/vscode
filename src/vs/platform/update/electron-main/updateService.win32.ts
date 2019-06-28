@@ -237,10 +237,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${product.win32MutexName}-ready`;
-		const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
+		const mutex = await import('windows-mutex');
 
 		// poll for mutex-ready
-		pollUntil(() => isActive(readyMutexName))
+		pollUntil(() => mutex.isActive(readyMutexName))
 			.then(() => this.setState(State.Ready(update)));
 	}
 

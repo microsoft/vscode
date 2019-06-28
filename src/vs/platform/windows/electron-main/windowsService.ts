@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/product/node/product';
@@ -21,14 +21,15 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
+export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = this._register(new DisposableStore());
 
 	private _activeWindowId: number | undefined;
 
@@ -52,6 +53,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		urlService.registerHandler(this);
 
 		// remember last active window id
@@ -303,6 +306,18 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
 	}
 
+	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
+
+		if (args.extensionDevelopmentPath) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
+				context: OpenContext.API,
+				cli: args,
+				userEnv: Object.keys(env).length > 0 ? env : undefined
+			});
+		}
+	}
+
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		this.logService.trace('windowsService#getWindows');
 
@@ -401,19 +416,20 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			buttons = [ok, copy];
 		}
 
-		this.windowsMainService.showMessageBox({
+		const result = await this.windowsMainService.showMessageBox({
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
 			noLink: true,
-			defaultId: buttons.indexOf(ok)
-		}, this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow()).then(result => {
-			if (buttons[result.button] === copy) {
-				clipboard.writeText(detail);
-			}
-		});
+			defaultId: buttons.indexOf(ok),
+			cancelId: buttons.indexOf(ok)
+		}, this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow());
+
+		if (buttons[result.button] === copy) {
+			clipboard.writeText(detail);
+		}
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {
@@ -458,9 +474,5 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		}
 
 		return undefined;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

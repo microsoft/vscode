@@ -16,6 +16,17 @@
 
 declare module 'vscode' {
 
+	//#region Joh - ExecutionContext
+	// THIS is a deprecated proposal
+	export enum ExtensionExecutionContext {
+		Local = 1,
+		Remote = 2
+	}
+	export interface ExtensionContext {
+		executionContext: ExtensionExecutionContext;
+	}
+	//#endregion
+
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
@@ -119,31 +130,20 @@ declare module 'vscode' {
 
 	// #region Joh - code insets
 
-	/**
-	 */
-	export class CodeInset {
-		range: Range;
-		height?: number;
-		constructor(range: Range, height?: number);
+	export interface WebviewEditorInset {
+		readonly editor: TextEditor;
+		readonly line: number;
+		readonly height: number;
+		readonly webview: Webview;
+		readonly onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
-	export interface CodeInsetProvider {
-		onDidChangeCodeInsets?: Event<void>;
-		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a code inset provider.
-		 *
-		 */
-		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	export namespace window {
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
-
 
 	//#region Joh - read/write in chunks
 
@@ -624,6 +624,12 @@ declare module 'vscode' {
 		export const logLevel: LogLevel;
 
 		/**
+		 * The detected default shell for the extension host, this is overridden by the
+		 * `terminal.integrated.shell` setting for the extension host's platform.
+		 */
+		export const shell: string;
+
+		/**
 		 * An [event](#Event) that fires when the log level has changed.
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
@@ -810,17 +816,17 @@ declare module 'vscode' {
 		/**
 		 * Added comment threads.
 		 */
-		readonly added: CommentThread[];
+		readonly added: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Removed comment threads.
 		 */
-		readonly removed: CommentThread[];
+		readonly removed: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Changed comment threads.
 		 */
-		readonly changed: CommentThread[];
+		readonly changed: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Changed draft mode
@@ -833,9 +839,6 @@ declare module 'vscode' {
 	 * Stay in proposed.
 	 */
 	interface CommentReaction {
-		readonly label?: string;
-		readonly iconPath?: string | Uri;
-		count?: number;
 		readonly hasReacted?: boolean;
 	}
 
@@ -939,15 +942,6 @@ declare module 'vscode' {
 		reactionProvider?: CommentReactionProvider;
 	}
 
-	export interface CommentController {
-		/**
-		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
-		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
-		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
-		 */
-		readonly activeCommentThread: CommentThread | undefined;
-	}
-
 	namespace workspace {
 		/**
 		 * DEPRECATED
@@ -959,21 +953,6 @@ declare module 'vscode' {
 		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
 		 */
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
-	}
-
-	/**
-	 * Collapsible state of a [comment thread](#CommentThread)
-	 */
-	export enum CommentThreadCollapsibleState {
-		/**
-		 * Determines an item is collapsed
-		 */
-		Collapsed = 0,
-
-		/**
-		 * Determines an item is expanded
-		 */
-		Expanded = 1
 	}
 
 	/**
@@ -991,28 +970,6 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the first line of the range.
-		 */
-		readonly range: Range;
-
-		/**
-		 * The ordered comments of the thread.
-		 */
-		comments: Comment[];
-
-		/**
-		 * Whether the thread should be collapsed or expanded when opening the document.
-		 * Defaults to Collapsed.
-		 */
-		collapsibleState: CommentThreadCollapsibleState;
-
-		/**
-		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
-		 */
-		label?: string;
-
-		/**
 		 * Optional accept input command
 		 *
 		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
@@ -1020,46 +977,6 @@ declare module 'vscode' {
 		 * This command will disabled when the comment editor is empty.
 		 */
 		acceptInputCommand?: Command;
-
-
-		/**
-		 * Dispose this comment thread.
-		 *
-		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
-		 */
-		dispose(): void;
-	}
-
-	/**
-	 * Author information of a [comment](#Comment)
-	 */
-
-	export interface CommentAuthorInformation {
-		/**
-		 * The display name of the author of the comment
-		 */
-		name: string;
-
-		/**
-		 * The optional icon path for the author
-		 */
-		iconPath?: Uri;
-	}
-
-	/**
-	 * Author information of a [comment](#Comment)
-	 */
-
-	export interface CommentAuthorInformation {
-		/**
-		 * The display name of the author of the comment
-		 */
-		name: string;
-
-		/**
-		 * The optional icon path for the author
-		 */
-		iconPath?: Uri;
 	}
 
 	/**
@@ -1070,22 +987,6 @@ declare module 'vscode' {
 		 * The id of the comment
 		 */
 		id: string;
-
-		/**
-		 * The human-readable comment body
-		 */
-		body: MarkdownString;
-
-		/**
-		 * The author information of the comment
-		 */
-		author: CommentAuthorInformation;
-
-		/**
-		 * Optional label describing the [Comment](#Comment)
-		 * Label will be rendered next to authorName if exists.
-		 */
-		label?: string;
 
 		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
@@ -1106,16 +1007,6 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the comment input box
 		 */
 		value: string;
-
-		/**
-		 * The uri of the document comment input box has been created on
-		 */
-		resource: Uri;
-
-		/**
-		 * The range the comment input box is located within the document
-		 */
-		range: Range;
 	}
 
 	/**
@@ -1128,36 +1019,12 @@ declare module 'vscode' {
 		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
-	/**
-	 * Comment thread template for new comment thread creation.
-	 */
-	export interface CommentThreadTemplate {
+	export interface EmptyCommentThreadFactory {
 		/**
-		 * The human-readable label describing the [Comment Thread](#CommentThread)
+		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
+		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
 		 */
-		readonly label: string;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		readonly acceptInputCommand?: Command;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		readonly additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		readonly deleteCommand?: Command;
+		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
 	}
 
 	/**
@@ -1165,41 +1032,12 @@ declare module 'vscode' {
 	 * provide users various ways to interact with comments.
 	 */
 	export interface CommentController {
-		/**
-		 * The id of this comment controller.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable label of this comment controller.
-		 */
-		readonly label: string;
 
 		/**
 		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
 		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
 		 */
-		readonly inputBox: CommentInputBox | undefined;
-
-		/**
-		 * Optional comment thread template information.
-		 *
-		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
-		 * from the gutter or command palette.
-		 *
-		 * When users run `CommentThreadTemplate.acceptInputCommand` or `CommentThreadTemplate.additionalCommands`, extensions should create
-		 * the approriate [CommentThread](#CommentThread).
-		 *
-		 * If not provided, users won't be able to create new comment threads in the editor.
-		 */
-		template?: CommentThreadTemplate;
-
-		/**
-		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
-		 *
-		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
-		 */
-		commentingRangeProvider?: CommentingRangeProvider;
+		readonly inputBox?: CommentInputBox;
 
 		/**
 		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
@@ -1210,7 +1048,17 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional new comment thread factory.
+		 */
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
+
+		/**
+		 * Optional reaction provider
+		 */
+		reactionProvider?: CommentReactionProvider;
 
 		/**
 		 * Dispose this comment controller.
@@ -1271,6 +1119,18 @@ declare module 'vscode' {
 		 * including VT sequences.
 		 */
 		readonly onDidWriteData: Event<string>;
+	}
+
+
+	export interface TerminalOptions {
+		/**
+		 * When enabled the terminal will run the process as normal but not be surfaced to the user
+		 * until `Terminal.show` is called. The typical usage for this is when you need to run
+		 * something that may need interactivity but only want to tell the user about it when
+		 * interaction is needed. Note that the terminals will still be exposed to all extensions
+		 * as normal.
+		 */
+		runInBackground?: boolean;
 	}
 
 	/**
@@ -1563,4 +1423,86 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// #region Ben - status bar item with ID and Name
+
+	export namespace window {
+
+		/**
+		 * Options to configure the status bar item.
+		 */
+		export interface StatusBarItemOptions {
+
+			/**
+			 * A unique identifier of the status bar item. The identifier
+			 * is for example used to allow a user to show or hide the
+			 * status bar item in the UI.
+			 */
+			id: string;
+
+			/**
+			 * A human readable name of the status bar item. The name is
+			 * for example used as a label in the UI to show or hide the
+			 * status bar item.
+			 */
+			name: string;
+
+			/**
+			 * The alignment of the status bar item.
+			 */
+			alignment?: StatusBarAlignment;
+
+			/**
+			 * The priority of the status bar item. Higher value means the item should
+			 * be shown more to the left.
+			 */
+			priority?: number;
+		}
+
+		/**
+		 * Creates a status bar [item](#StatusBarItem).
+		 *
+		 * @param options The options of the item. If not provided, some default values
+		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
+		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
+	}
+
+	//#endregion
+
+	//#region Webview Resource Roots
+
+	export interface Webview {
+		/**
+		 * Root url from which local resources are loaded inside of webviews.
+		 *
+		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
+		 * on the web, this points to a server endpoint.
+		 */
+		readonly resourceRoot: Thenable<string>;
+	}
+
+	//#endregion
+
+
+	//#region Joh - read/write files of any scheme
+
+	export interface FileSystem {
+		stat(uri: Uri): Thenable<FileStat>;
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		createDirectory(uri: Uri): Thenable<void>;
+		readFile(uri: Uri): Thenable<Uint8Array>;
+		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+	}
+
+	export namespace workspace {
+
+		export const fs: FileSystem;
+	}
+
+	//#endregion
 }

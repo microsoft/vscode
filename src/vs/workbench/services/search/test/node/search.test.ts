@@ -290,25 +290,25 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
-	// test('Files: NPE (CamelCase)', function (done: () => void) {
-	// 	this.timeout(testTimeout);
-	// 	const engine = new FileSearchEngine({
-	// 		type: QueryType.File,
-	// 		folderQueries: ROOT_FOLDER_QUERY,
-	// 		filePattern: 'NullPE'
-	// 	});
+	test('Files: NPE (CamelCase)', function (done: () => void) {
+		this.timeout(testTimeout);
+		const engine = new FileSearchEngine({
+			type: QueryType.File,
+			folderQueries: ROOT_FOLDER_QUERY,
+			filePattern: 'NullPE'
+		});
 
-	// 	let count = 0;
-	// 	engine.search((result) => {
-	// 		if (result) {
-	// 			count++;
-	// 		}
-	// 	}, () => { }, (error) => {
-	// 		assert.ok(!error);
-	// 		assert.equal(count, 1);
-	// 		done();
-	// 	});
-	// });
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
 
 	test('Files: *.*', function (done: () => void) {
 		this.timeout(testTimeout);

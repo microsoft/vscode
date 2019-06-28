@@ -21,7 +21,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -29,6 +29,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -63,7 +64,7 @@ export class CallStackView extends ViewletPanel {
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		this.disposables.push(this.contributedContextMenu);
+		this._register(this.contributedContextMenu);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
@@ -149,8 +150,8 @@ export class CallStackView extends ViewletPanel {
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
-		this.disposables.push(callstackNavigator);
-		this.disposables.push(callstackNavigator.onDidOpenResource(e => {
+		this._register(callstackNavigator);
+		this._register(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}
@@ -189,7 +190,7 @@ export class CallStackView extends ViewletPanel {
 			}
 		}));
 
-		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
+		this._register(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
@@ -200,7 +201,7 @@ export class CallStackView extends ViewletPanel {
 			}
 		}));
 		const onCallStackChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
-		this.disposables.push(onCallStackChange(() => {
+		this._register(onCallStackChange(() => {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
@@ -211,20 +212,20 @@ export class CallStackView extends ViewletPanel {
 
 			this.updateTreeSelection();
 		}));
-		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule(0);
 		}
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
 
-		this.disposables.push(this.debugService.onDidNewSession(s => {
+		this._register(this.debugService.onDidNewSession(s => {
 			if (s.parentSession) {
 				// Auto expand sessions that have sub sessions
 				this.parentSessionToExpand.add(s.parentSession);
@@ -296,14 +297,14 @@ export class CallStackView extends ViewletPanel {
 			this.callStackItemType.reset();
 		}
 
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-			getActionsContext: () => element
+			getActions: () => actions,
+			getActionsContext: () => element,
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 
