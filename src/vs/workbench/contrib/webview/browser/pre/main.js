@@ -474,11 +474,10 @@
 					hookupOnLoadHandlers(newFrame);
 				}
 
-				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
 				if (!FAKE_LOAD) {
-					newFrame.contentDocument.write('<!DOCTYPE html>');
-					newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+					// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+					// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+					newFrame.contentDocument.write('<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML);
 					newFrame.contentDocument.close();
 				}
 
