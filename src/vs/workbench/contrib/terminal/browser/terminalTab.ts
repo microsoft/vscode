@@ -10,6 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 const TERMINAL_MIN_USEFUL_SIZE = 250;
@@ -232,7 +233,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		private _container: HTMLElement,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._onDisposed = new Emitter<ITerminalTab>();
@@ -353,7 +355,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const newLocal = new SplitPaneContainer(this._tabElement, orientation, this._layoutService);
+			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._tabElement, orientation);
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
