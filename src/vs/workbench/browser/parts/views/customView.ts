@@ -376,7 +376,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				multipleSelectionSupport: true,
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (item: ITreeItem) => {
-						return item.label ? item.label.label : undefined; // TODO: why don't I get a nice highlight?
+						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined); // TODO: why don't I get a nice highlight?
 					}
 				},
 				filter: new Filter(),
