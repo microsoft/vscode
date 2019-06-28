@@ -327,6 +327,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 			nodejs(process.platform, arch)
 		);
 
+		if (process.env['VSCODE_WEB_BUILD']) {
+			all = es.merge(all,
+				gulp.src('resources/server/favicon.ico'));
+		}
+
 		let result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions());

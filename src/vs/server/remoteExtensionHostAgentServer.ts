@@ -148,7 +148,15 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
-				} else {
+				}
+
+				// Favicon
+				else if (pathname === '/favicon.ico') {
+					filePath = path.join(APP_ROOT, 'resources', 'server', 'favicon.ico');
+				}
+
+				// Anything else
+				else {
 					filePath = path.join(APP_ROOT, path.normalize(pathname!));
 				}
 
