@@ -160,10 +160,18 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
 			if (this.cachedModel) {
+				let fileName: string;
+				try {
+					let fileData = this.cachedModel.createSnapshot()!.read();
+					fileName = fileData ? fileData.trimLeft().split('\n')[0] : this.getName();
+				} catch (err) {
+					fileName = this.getName();
+				}
 				const mode = this.cachedModel.getMode();
 				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					return suggestFilename(mode, this.getName());
+					return suggestFilename(mode, fileName);
 				}
+				return fileName;
 			}
 		}
 
