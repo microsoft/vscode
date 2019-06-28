@@ -345,6 +345,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
+		if (browser.isStandalone) {
+			return false;
+		}
+
 		if (browser.isFullscreen() && (<any>navigator).keyboard) {
 			return false;
 		}
