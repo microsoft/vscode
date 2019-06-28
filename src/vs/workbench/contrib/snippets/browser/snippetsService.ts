@@ -277,8 +277,8 @@ class SnippetsService implements ISnippetsService {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
 					// watch
-					bucket.push(watch(this._fileService, snippetFolder, (type) => {
-						if (type === FileChangeType.ADDED) {
+					bucket.push(this._fileService.onFileChanges(e => {
+						if (e.contains(snippetFolder, FileChangeType.ADDED)) {
 							this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 						}
 					}));
