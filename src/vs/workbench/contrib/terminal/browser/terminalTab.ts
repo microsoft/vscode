@@ -22,7 +22,6 @@ class SplitPaneContainer {
 	private _splitViewDisposables: IDisposable[];
 	private _children: SplitPane[] = [];
 
-
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
@@ -58,45 +57,46 @@ class SplitPaneContainer {
 				amount *= -1;
 			}
 			this._layoutService.resizePart(Parts.PANEL_PART, amount);
-		} else {
-			// Resize left/right in horizontal or up/down in vertical
-			// Only resize when there is more than one pane
-			if (this._children.length <= 1) {
-				return;
-			}
+			return;
+		}
 
-			// Get sizes
-			const sizes: number[] = [];
-			for (let i = 0; i < this._splitView.length; i++) {
-				sizes.push(this._splitView.getViewSize(i));
-			}
+		// Resize left/right in horizontal or up/down in vertical
+		// Only resize when there is more than one pane
+		if (this._children.length <= 1) {
+			return;
+		}
 
-			// Remove size from right pane, unless index is the last pane in which case use left pane
-			const isSizingEndPane = index !== this._children.length - 1;
-			const indexToChange = isSizingEndPane ? index + 1 : index - 1;
-			if (isSizingEndPane && direction === Direction.Left) {
-				amount *= -1;
-			} else if (!isSizingEndPane && direction === Direction.Right) {
-				amount *= -1;
-			} else if (isSizingEndPane && direction === Direction.Up) {
-				amount *= -1;
-			} else if (!isSizingEndPane && direction === Direction.Down) {
-				amount *= -1;
-			}
+		// Get sizes
+		const sizes: number[] = [];
+		for (let i = 0; i < this._splitView.length; i++) {
+			sizes.push(this._splitView.getViewSize(i));
+		}
 
-			// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
-			if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
-				amount = SPLIT_PANE_MIN_SIZE - sizes[index];
-			} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
-				amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
-			}
+		// Remove size from right pane, unless index is the last pane in which case use left pane
+		const isSizingEndPane = index !== this._children.length - 1;
+		const indexToChange = isSizingEndPane ? index + 1 : index - 1;
+		if (isSizingEndPane && direction === Direction.Left) {
+			amount *= -1;
+		} else if (!isSizingEndPane && direction === Direction.Right) {
+			amount *= -1;
+		} else if (isSizingEndPane && direction === Direction.Up) {
+			amount *= -1;
+		} else if (!isSizingEndPane && direction === Direction.Down) {
+			amount *= -1;
+		}
 
-			// Apply the size change
-			sizes[index] += amount;
-			sizes[indexToChange] -= amount;
-			for (let i = 0; i < this._splitView.length - 1; i++) {
-				this._splitView.resizeView(i, sizes[i]);
-			}
+		// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
+		if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
+			amount = SPLIT_PANE_MIN_SIZE - sizes[index];
+		} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
+			amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
+		}
+
+		// Apply the size change
+		sizes[index] += amount;
+		sizes[indexToChange] -= amount;
+		for (let i = 0; i < this._splitView.length - 1; i++) {
+			this._splitView.resizeView(i, sizes[i]);
 		}
 	}
 
