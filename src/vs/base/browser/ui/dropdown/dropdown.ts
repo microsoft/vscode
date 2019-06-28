@@ -108,6 +108,10 @@ export class BaseDropdown extends ActionRunner {
 		this.visible = false;
 	}
 
+	isVisible(): boolean {
+		return this.visible;
+	}
+
 	protected onEvent(e: Event, activeElement: HTMLElement): void {
 		this.hide();
 	}

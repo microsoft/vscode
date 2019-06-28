@@ -7,7 +7,7 @@ import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
@@ -286,7 +286,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		return this.withCompositeProgress(this.panelService.getProgressIndicator(panelid), task, options);
 	}
 
-	private withCompositeProgress<P extends Promise<R>, R = unknown>(compositeProgressService: ILocalProgressService | null, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | null, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 		let progressRunner: IProgressRunner | undefined = undefined;
 
 		const promise = task({
@@ -305,12 +305,12 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		});
 
-		if (compositeProgressService) {
+		if (progressIndicator) {
 			if (typeof options.total === 'number') {
-				progressRunner = compositeProgressService.show(options.total, options.delay);
+				progressRunner = progressIndicator.show(options.total, options.delay);
 				promise.catch(() => undefined /* ignore */).finally(() => progressRunner ? progressRunner.done() : undefined);
 			} else {
-				compositeProgressService.showWhile(promise, options.delay);
+				progressIndicator.showWhile(promise, options.delay);
 			}
 		}
 
