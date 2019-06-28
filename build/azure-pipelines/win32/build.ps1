@@ -2,6 +2,5 @@
 $ErrorActionPreference = "Stop"
 exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min" }
 exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min" }
-$env:VSCODE_WEB_BUILD = 'true'
-exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min" }
+exec { yarn gulp "vscode-web-win32-$env:VSCODE_ARCH-min" }
 exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }

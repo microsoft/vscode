@@ -33,7 +33,7 @@ fi
 
 # Publish Remote Extension Host (Web)
 if [[ "$VSCODE_ARCH" != "ia32" ]]; then
-	LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX-web"
+	LEGACY_SERVER_BUILD_NAME="vscode-web-$PLATFORM_LINUX"
 	SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
 	SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
 	SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
