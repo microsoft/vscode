@@ -43,7 +43,7 @@ import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRender
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 
 export class CustomTreeViewPanel extends ViewletPanel {
@@ -362,31 +362,24 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource2, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
-		const renderer = this.instantiationService.createInstance(TreeRenderer2, this.id, this.treeMenus, this.treeLabels, actionViewItemProvider);
+		const renderer = this.instantiationService.createInstance(TreeRenderer2, this.id, this.treeMenus, this.treeLabels, actionViewItemProvider, this._onDidExpandItem, this._onDidCollapseItem);
 		DOM.addClass(this.treeContainer, 'file-icon-themable-tree');
 		DOM.addClass(this.treeContainer, 'show-file-icons');
 		this.tree2 = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
-				// accessibilityProvider: new ExplorerAccessibilityProvider(),
-				ariaLabel: localize('treeAriaLabel', "Files Explorer"),
-				// identityProvider: {
-				// 	getId: (stat: ITreeItem) => {
-				// 		if (stat instanceof NewExplorerItem) {
-				// 			return `new:${stat.resource}`;
-				// 		}
-
-				// 		return stat.resource;
-				// 	}
-				// },
-				keyboardNavigationLabelProvider: { // todo: test if this is needed.
-					getKeyboardNavigationLabel: (item: ITreeItem) => {
-						return item.label;
+				accessibilityProvider: {
+					getAriaLabel(element: ITreeItem): string {
+						return element.label ? element.label.label : '';
 					}
 				},
+				ariaLabel: localize('treeAriaLabel', "Custom Tree"),
 				multipleSelectionSupport: true,
-				// filter: this.filter,
-				// sorter: this.instantiationService.createInstance(FileSorter),
-				// dnd: this.instantiationService.createInstance(FileDragAndDrop),
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (item: ITreeItem) => {
+						return item.label ? item.label.label : undefined; // TODO: why don't I get a nice highlight?
+					}
+				},
+				filter: new Filter(),
 				autoExpandSingleChildren: true
 			}) as WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
 		this._register(this.tree2);
@@ -395,8 +388,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.tree2.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree2.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree2.onContextMenu(e => this.onContextMenu(e)));
-		// this._register(this.tree2.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement()))); todo: figure out where expand goes
-		// this._register(this.tree2.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement()))); todo: figure out where collapse goes
 		this._register(this.tree2.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
 		this.tree2.setInput(this.root).then(() => this.updateContentAreas());
 	}
@@ -547,7 +538,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	setSelection(items: ITreeItem[]): void {
 		if (this.tree2) {
-			this.tree2.setSelection(items); // TODO: consider adding { source: 'api' })
+			this.tree2.setSelection(items);
 		}
 	}
 
@@ -582,7 +573,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree2) {
 			this.refreshing = true;
 			for (let i = 0; i < elements.length; i++) {
-				await this.tree2.updateChildren(elements[i], true); // todo, is recursive needed?
+				await this.tree2.updateChildren(elements[i], true);
 			}
 			this.refreshing = false;
 			this.updateContentAreas();
@@ -687,26 +678,38 @@ registerThemingParticipant((theme, collector) => {
 export interface ITreeExplorerTemplateData2 {
 	elementDisposable: IDisposable;
 	container: HTMLElement;
-	resourceLabel: IResourceLabel; // todo: label
+	resourceLabel: IResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
 	aligner: Aligner;
 }
 
-class TreeRenderer2 implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData2> {
+class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData2> {
 	static readonly ITEM_HEIGHT = 22;
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 	private _tree: WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
+	private _onDidChangeTwistieState = this._register(new Emitter<ITreeItem>());
+	onDidChangeTwistieState: Event<ITreeItem> = this._onDidChangeTwistieState.event;
 
 	constructor(
 		private treeViewId: string,
 		private menus: TreeMenus,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
+		private _onDidExpandItem: Emitter<ITreeItem>,
+		private _onDidCollapseItem: Emitter<ITreeItem>,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
+		super();
+		this._register(this.onDidChangeTwistieState(e => {
+			if (e.collapsibleState === TreeItemCollapsibleState.Expanded) {
+				this._onDidExpandItem.fire(e);
+			} else if (e.collapsibleState === TreeItemCollapsibleState.Collapsed) {
+				this._onDidCollapseItem.fire(e);
+			}
+		}));
 	}
 
 	get templateId(): string {
@@ -717,7 +720,6 @@ class TreeRenderer2 implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplore
 		this._tree = tree;
 	}
 
-	// onDidChangeTwistieState?: Event<ITreeItem> | undefined;
 	renderTemplate(container: HTMLElement): ITreeExplorerTemplateData2 {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
@@ -779,6 +781,19 @@ class TreeRenderer2 implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplore
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 		templateData.aligner.dispose();
+	}
+}
+
+export class Filter implements ITreeFilter<ITreeItem, FuzzyScore> {
+
+	constructor() { }
+
+	filter(item: ITreeItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+		if (parentVisibility === TreeVisibility.Hidden) {
+			return false;
+		}
+
+		return true;
 	}
 }
 
