@@ -251,7 +251,7 @@ function startServer() {
 			launched = true;
 
 			setTimeout(() => {
-				const url = `http://127.0.0.1:${PORT}`;
+				const url = `http://localhost:${PORT}`;
 
 				console.log(`Opening ${url} in your browser...`);
 
