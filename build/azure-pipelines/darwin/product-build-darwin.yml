@@ -64,7 +64,7 @@ steps:
     cd $BUILD_STAGINGDIRECTORY
     git clone https://github.com/microsoft/vscode-telemetry-extractor.git
     cd vscode-telemetry-extractor
-    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
+    git checkout d0b642bcb0edc33c70c99dad3b48e92fa28f79d7
     npm i
     npm run setup-extension-repos
     node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
