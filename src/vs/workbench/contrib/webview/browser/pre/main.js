@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+
+/**
+ * @typedef {{
+ *   postMessage: (channel: string, data?: any) => void,
+ *   onMessage: (channel: string, handler: any) => void,
+ *   focusIframeOnCreate?: boolean,
+ *   ready?: Promise<void>,
+ *   onIframeLoaded: (iframe: HTMLIFrameElement) => void
+ * }} WebviewHost
+ */
+
 (function () {
 	'use strict';
 
@@ -134,23 +145,13 @@
 	}
 
 	/**
-	 * @typedef {{
-	 *   postMessage: (channel: string, data?: any) => void,
-	 *   onMessage: (channel: string, handler: any) => void,
-	 *   focusIframeOnCreate?: boolean,
-	 *   ready?: Promise<void>
-	 * }} HostCommunications
-	 */
-
-	/**
-	 * @param {HostCommunications} host
+	 * @param {WebviewHost} host
 	 */
 	function createWebviewManager(host) {
 		// state
 		let firstLoad = true;
 		let loadTimeout;
 		let pendingMessages = [];
-		let isInDevelopmentMode = false;
 
 		const initData = {
 			initialScrollProgress: undefined
@@ -442,44 +443,10 @@
 						}
 					});
 
-					if (!FAKE_LOAD) {
-						newFrame.contentWindow.onbeforeunload = () => {
-							if (isInDevelopmentMode) { // Allow reloads while developing a webview
-								host.postMessage('do-reload');
-								return false;
-							}
-
-							// Block navigation when not in development mode
-							console.log('prevented webview navigation');
-							return false;
-						};
-					}
-
 					// Bubble out link clicks
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 
-					// Electron 4 eats mouseup events from inside webviews
-					// https://github.com/microsoft/vscode/issues/75090
-					// Try to fix this by rebroadcasting mouse moves and mouseups so that we can
-					// emulate these on the main window
-					if (!FAKE_LOAD) {
-						let isMouseDown = false;
-
-						newFrame.contentWindow.addEventListener('mousedown', () => {
-							isMouseDown = true;
-						});
-
-						const tryDispatchSyntheticMouseEvent = (e) => {
-							if (!isMouseDown) {
-								host.postMessage('synthetic-mouse-event', { type: e.type, screenX: e.screenX, screenY: e.screenY, clientX: e.clientX, clientY: e.clientY });
-							}
-						};
-						newFrame.contentWindow.addEventListener('mouseup', e => {
-							tryDispatchSyntheticMouseEvent(e);
-							isMouseDown = false;
-						});
-						newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
-					}
+					host.onIframeLoaded(newFrame);
 				}
 
 				if (!FAKE_LOAD) {
@@ -511,9 +478,6 @@
 				initData.initialScrollProgress = progress;
 			});
 
-			host.onMessage('devtools-opened', () => {
-				isInDevelopmentMode = true;
-			});
 
 			trackFocus({
 				onFocus: () => host.postMessage('did-focus'),
