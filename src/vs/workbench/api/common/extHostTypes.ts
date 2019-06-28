@@ -1440,6 +1440,8 @@ export class DocumentLink {
 
 	target?: URI;
 
+	tooltip?: string;
+
 	constructor(range: Range, target: URI | undefined) {
 		if (target && !(target instanceof URI)) {
 			throw illegalArgument('target');
@@ -2287,61 +2289,6 @@ export enum FoldingRangeKind {
 //#endregion
 
 //#region Comment
-@es5ClassCompat
-export class Comment {
-	id: string;
-	body: MarkdownString;
-	userName: string;
-	label?: string;
-	userIconPath?: URI;
-	selectCommand?: vscode.Command;
-	editCommand?: vscode.Command;
-	deleteCommand?: vscode.Command;
-
-	/**
-	 * The id of the comment
-	 *
-	 * @deprecated Use Id instead
-	 */
-	commentId: string;
-
-	/**
-	 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
-	 */
-	gravatar?: string;
-
-	/**
-	 * @deprecated, use editCommand
-	 */
-	canEdit?: boolean;
-
-	/**
-	 * @deprecated, use deleteCommand
-	 */
-	canDelete?: boolean;
-
-	/**
-	 * @deprecated
-	 */
-	command?: vscode.Command;
-
-	/**
-	 * @deprecated
-	 */
-	isDraft?: boolean;
-
-	/**
-	 * Proposed Comment Reaction
-	 */
-	commentReactions?: vscode.CommentReaction[];
-
-	constructor(id: string, body: MarkdownString, userName: string) {
-		this.id = id;
-		this.body = body;
-		this.userName = userName;
-	}
-}
-
 export enum CommentThreadCollapsibleState {
 	/**
 	 * Determines an item is collapsed
@@ -2352,6 +2299,12 @@ export enum CommentThreadCollapsibleState {
 	 */
 	Expanded = 1
 }
+
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -2360,4 +2313,14 @@ export class QuickInputButtons {
 	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
 
 	private constructor() { }
+}
+
+export enum ExtensionExecutionContext {
+	Local = 1,
+	Remote = 2
+}
+
+export enum ExtensionKind {
+	UI = 1,
+	Workspace = 2
 }

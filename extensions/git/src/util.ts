@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vscode';
-import { dirname, sep } from 'path';
+import { Event, EventEmitter, Uri } from 'vscode';
+import { dirname, sep, join } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -343,4 +343,20 @@ export function pathEquals(a: string, b: string): boolean {
 	}
 
 	return a === b;
+}
+
+export interface IFileWatcher extends IDisposable {
+	readonly event: Event<Uri>;
+}
+
+export function watch(location: string): IFileWatcher {
+	const dotGitWatcher = fs.watch(location);
+	const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
+	dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(join(location, e as string))));
+	dotGitWatcher.on('error', err => console.error(err));
+
+	return new class implements IFileWatcher {
+		event = onDotGitFileChangeEmitter.event;
+		dispose() { dotGitWatcher.close(); }
+	};
 }

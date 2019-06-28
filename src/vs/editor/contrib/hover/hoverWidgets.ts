@@ -8,7 +8,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -25,7 +24,6 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
 	private readonly scrollbar: DomScrollableElement;
-	private disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -53,7 +51,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._domNode.className = 'monaco-editor-hover-content';
 
 		this.scrollbar = new DomScrollableElement(this._domNode, {});
-		this.disposables.push(this.scrollbar);
+		this._register(this.scrollbar);
 		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
 
 		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
@@ -129,7 +127,6 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 	public dispose(): void {
 		this._editor.removeContentWidget(this);
-		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 

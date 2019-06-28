@@ -11,13 +11,12 @@ import * as platform from 'vs/base/common/platform';
 
 declare var process: any;
 
-export interface ISocket {
+export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
 	onClose(listener: () => void): IDisposable;
 	onEnd(listener: () => void): IDisposable;
 	write(buffer: VSBuffer): void;
 	end(): void;
-	dispose(): void;
 }
 
 let emptyBuffer: VSBuffer | null = null;
@@ -218,7 +217,7 @@ class ProtocolReader extends Disposable {
 				// save new state => next time will read the body
 				this._state.readHead = false;
 				this._state.readLen = buff.readUInt32BE(9);
-				this._state.messageType = <ProtocolMessageType>buff.readUInt8(0);
+				this._state.messageType = buff.readUInt8(0);
 				this._state.id = buff.readUInt32BE(1);
 				this._state.ack = buff.readUInt32BE(5);
 			} else {
@@ -407,7 +406,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 /**
  * Will ensure no messages are lost if there are no event listeners.
  */
-function createBufferedEvent<T>(source: Event<T>): Event<T> {
+export function createBufferedEvent<T>(source: Event<T>): Event<T> {
 	let emitter: Emitter<T>;
 	let hasListeners = false;
 	let isDeliveringMessages = false;
@@ -514,7 +513,7 @@ class Queue<T> {
  * Same as Protocol, but will actually track messages and acks.
  * Moreover, it will ensure no messages are lost if there are no event listeners.
  */
-export class PersistentProtocol {
+export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _isReconnecting: boolean;
 

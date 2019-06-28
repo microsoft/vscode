@@ -6,7 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
@@ -46,8 +46,6 @@ export interface WalkThroughInputOptions {
 
 export class WalkThroughInput extends EditorInput {
 
-	private disposables: IDisposable[] = [];
-
 	private promise: Promise<WalkThroughModel> | null = null;
 
 	private maxTopScroll = 0;
@@ -80,7 +78,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.telemetryFrom;
 	}
 
-	getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
 		/* __GDPR__FRAGMENT__
@@ -139,8 +137,6 @@ export class WalkThroughInput extends EditorInput {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
-
 		if (this.promise) {
 			this.promise.then(model => model.dispose());
 			this.promise = null;

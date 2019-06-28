@@ -121,12 +121,12 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private _configurationActions: IAction[]
+		private readonly _configurationActions: ReadonlyArray<IAction>
 	) {
 		super(id, label, 'configure-notification-action');
 	}
 
-	get configurationActions(): IAction[] {
+	get configurationActions(): ReadonlyArray<IAction> {
 		return this._configurationActions;
 	}
 }
@@ -160,7 +160,7 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected runAction(action: IAction, context: INotificationViewItem): Promise<any> {
+	protected async runAction(action: IAction, context: INotificationViewItem): Promise<any> {
 
 		/* __GDPR__
 			"workbenchActionExecuted" : {
@@ -171,8 +171,10 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again
-		super.runAction(action, context).then(undefined, error => this.notificationService.error(error));
-
-		return Promise.resolve();
+		try {
+			await super.runAction(action, context);
+		} catch (error) {
+			this.notificationService.error(error);
+		}
 	}
 }

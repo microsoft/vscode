@@ -17,7 +17,7 @@ class ToggleHighContrast extends EditorAction {
 			id: 'editor.action.toggleHighContrast',
 			label: ToggleHighContrastNLS.toggleHighContrast,
 			alias: 'Toggle High Contrast Theme',
-			precondition: null
+			precondition: undefined
 		});
 		this._originalThemeName = null;
 	}

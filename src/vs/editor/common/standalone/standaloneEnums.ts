@@ -229,6 +229,13 @@ export enum OverviewRulerLane {
 }
 
 /**
+ * Position in the minimap to render the decoration.
+ */
+export enum MinimapPosition {
+	Inline = 1
+}
+
+/**
  * End of line character preference.
  */
 export enum EndOfLinePreference {

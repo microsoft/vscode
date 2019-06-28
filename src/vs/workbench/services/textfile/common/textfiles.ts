@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -125,7 +125,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<void>;
+	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.
@@ -136,12 +136,12 @@ export interface ITextFileService extends IDisposable {
 	confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 
 	/**
-	 * Convinient fast access to the current auto save mode.
+	 * Convenient fast access to the current auto save mode.
 	 */
 	getAutoSaveMode(): AutoSaveMode;
 
 	/**
-	 * Convinient fast access to the raw configured auto save settings.
+	 * Convenient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 }
@@ -368,6 +368,11 @@ export interface IModelLoadOrCreateOptions {
 	reason?: LoadReason;
 
 	/**
+	 * The language mode to use for the model text content.
+	 */
+	mode?: string;
+
+	/**
 	 * The encoding to use when resolving the model text content.
 	 */
 	encoding?: string;
@@ -423,6 +428,7 @@ export interface ISaveOptions {
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
+	availableFileSystems?: string[];
 }
 
 export interface ILoadOptions {
@@ -443,18 +449,14 @@ export interface ILoadOptions {
 	reason?: LoadReason;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport {
 
 	readonly onDidContentChange: Event<StateChange>;
 	readonly onDidStateChange: Event<StateChange>;
 
-	getVersionId(): number;
-
 	getResource(): URI;
 
 	hasState(state: ModelState): boolean;
-
-	getETag(): string | null;
 
 	updatePreferredEncoding(encoding: string): void;
 
@@ -464,16 +466,17 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): Promise<void>;
 
-	createSnapshot(): ITextSnapshot | null;
+	backup(target?: URI): Promise<void>;
 
 	isDirty(): boolean;
 
-	isResolved(): boolean;
+	isResolved(): this is IResolvedTextFileEditorModel;
 
 	isDisposed(): boolean;
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+
 	readonly textEditorModel: ITextModel;
 
 	createSnapshot(): ITextSnapshot;

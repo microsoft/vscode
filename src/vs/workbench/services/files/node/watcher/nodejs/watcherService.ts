@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { statLink, readlink } from 'vs/base/node/pfs';
+import { statLink } from 'vs/base/node/pfs';
+import { realpath } from 'vs/base/node/extpath';
 import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -20,13 +21,16 @@ export class FileWatcher extends Disposable {
 	constructor(
 		private path: string,
 		private onFileChanges: (changes: IDiskFileChange[]) => void,
-		private errorLogger: (msg: string) => void,
-		private verboseLogger: (msg: string) => void,
+		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
 		super();
 
 		this.startWatching();
+	}
+
+	setVerboseLogging(verboseLogging: boolean): void {
+		this.verboseLogging = verboseLogging;
 	}
 
 	private async startWatching(): Promise<void> {
@@ -40,7 +44,7 @@ export class FileWatcher extends Disposable {
 			let pathToWatch = this.path;
 			if (isSymbolicLink) {
 				try {
-					pathToWatch = await readlink(pathToWatch);
+					pathToWatch = await realpath(pathToWatch);
 				} catch (error) {
 					this.onError(error);
 				}
@@ -77,7 +81,7 @@ export class FileWatcher extends Disposable {
 
 		// Logging
 		if (this.verboseLogging) {
-			this.onVerbose(`[File Watcher (node.js)] ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+			this.onVerbose(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
 		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
@@ -91,7 +95,7 @@ export class FileWatcher extends Disposable {
 			// Logging
 			if (this.verboseLogging) {
 				normalizedFileChanges.forEach(event => {
-					this.onVerbose(`[File Watcher (node.js)] >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 				});
 			}
 
@@ -106,13 +110,13 @@ export class FileWatcher extends Disposable {
 
 	private onError(error: string): void {
 		if (!this.isDisposed) {
-			this.errorLogger(error);
+			this.onLogMessage({ type: 'error', message: `[File Watcher (node.js)] ${error}` });
 		}
 	}
 
-	private onVerbose(msg: string): void {
+	private onVerbose(message: string): void {
 		if (!this.isDisposed) {
-			this.verboseLogger(msg);
+			this.onLogMessage({ type: 'trace', message: `[File Watcher (node.js)] ${message}` });
 		}
 	}
 

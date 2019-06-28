@@ -15,11 +15,11 @@ import { WorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 
-const helpCategory = nls.localize('help', "Help");
+const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 if (!!product.reportIssueUrl) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueUsingReporterAction, ReportPerformanceIssueUsingReporterAction.ID, ReportPerformanceIssueUsingReporterAction.LABEL), 'Help: Report Performance Issue', helpCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueUsingReporterAction, ReportPerformanceIssueUsingReporterAction.ID, ReportPerformanceIssueUsingReporterAction.LABEL), 'Help: Report Performance Issue', helpCategory.value);
 
 	const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 	const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
@@ -35,7 +35,7 @@ if (!!product.reportIssueUrl) {
 
 	const command: ICommandAction = {
 		id: OpenIssueReporterActionId,
-		title: { value: OpenIssueReporterActionLabel, original: 'Help: Open Issue Reporter' },
+		title: { value: OpenIssueReporterActionLabel, original: 'Report Issue' },
 		category: helpCategory
 	};
 
