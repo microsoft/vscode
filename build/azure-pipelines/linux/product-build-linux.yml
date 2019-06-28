@@ -82,7 +82,9 @@ steps:
         yarn gulp vscode-linux-$VSCODE_ARCH-min
     else
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-linux-$VSCODE_ARCH-min vscode-reh-linux-$VSCODE_ARCH-min vscode-web-linux-$VSCODE_ARCH-min
+        yarn gulp vscode-linux-$VSCODE_ARCH-min
+        yarn gulp vscode-reh-linux-$VSCODE_ARCH-min
+        yarn gulp vscode-web-linux-$VSCODE_ARCH-min
     fi
   displayName: Build
 
