@@ -137,7 +137,6 @@
 	 * @typedef {{
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
-	 *   injectHtml?: (document: HTMLDocument) => void,
 	 *   focusIframeOnCreate?: boolean,
 	 *   ready?: Promise<void>
 	 * }} HostCommunications
@@ -316,10 +315,6 @@
 				newDocument.head.prepend(defaultStyles);
 
 				applyStyles(newDocument, newDocument.body);
-
-				if (host.injectHtml) {
-					host.injectHtml(newDocument);
-				}
 
 				const frame = getActiveFrame();
 				const wasFirstLoad = firstLoad;
