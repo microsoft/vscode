@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -24,6 +24,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _initialCwd: string;
+	private _foundExecutableInPath: boolean = false;
 
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -65,16 +66,48 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			conptyInheritCursor: true
 		};
 
-		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
-		// fs.stat(shellLaunchConfig.executable!, (err) => {
-		// 	if (err && err.code === 'ENOENT') {
-		// 		this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-		// 		this._queueProcessExit();
-		// 		this._processStartupComplete = Promise.resolve(undefined);
-		// 		return;
-		// 	}
-		this.setupPtyProcess(shellLaunchConfig, options);
-		// });
+		fs.stat(shellLaunchConfig.executable!, (err) => {
+			if (err && err.code === 'ENOENT' && !this.checkIfExistsInPath(shellLaunchConfig.executable!)) {
+				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
+				this._queueProcessExit();
+				this._processStartupComplete = Promise.resolve(undefined);
+				return;
+			}
+			this.setupPtyProcess(shellLaunchConfig, options);
+		});
+	}
+
+	private checkInsideDirRecursively(execPath: string, executable: string): void {
+		try {
+			fs.readdirSync(execPath).forEach((file) => {
+				const pathToFile = path.join(execPath, file);
+				const isDirectory = fs.statSync(pathToFile).isDirectory();
+				if (!isDirectory) {
+					if (executable === file) {
+						this._foundExecutableInPath = true;
+					}
+				} else {
+					this.checkInsideDirRecursively(execPath, executable);
+				}
+			});
+		}
+		catch (err) {
+			if (err.code !== 'ENOENT') {
+				throw err;
+			}
+		}
+	}
+
+	private checkIfExistsInPath(executable: string): boolean {
+		if (process.env.PATH) {
+			const envPath = process.env.PATH.split(path.delimiter);
+			envPath.forEach(eachPath => {
+				if (!path.isAbsolute(eachPath)) {
+					this.checkInsideDirRecursively(eachPath, executable);
+				}
+			});
+		}
+		return this._foundExecutableInPath;
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
