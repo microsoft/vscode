@@ -65,14 +65,14 @@ export class EditorControl extends Disposable {
 		if (!descriptor) {
 			throw new Error('No editor descriptor found');
 		}
-		const control = this.doShowEditorControl(descriptor);
+		const control = await this.doShowEditorControl(descriptor);
 
 		// Set input
 		const editorChanged = await this.doSetInput(control, editor, withUndefinedAsNull(options));
 		return { control, editorChanged };
 	}
 
-	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
+	private async doShowEditorControl(descriptor: IEditorDescriptor): Promise<BaseEditor> {
 
 		// Return early if the currently active editor control can handle the input
 		if (this._activeControl && descriptor.describes(this._activeControl)) {
@@ -83,7 +83,7 @@ export class EditorControl extends Disposable {
 		this.doHideActiveEditorControl();
 
 		// Create editor
-		const control = this.doCreateEditorControl(descriptor);
+		const control = await this.doCreateEditorControl(descriptor);
 
 		// Set editor as active
 		this.doSetActiveControl(control);
@@ -103,10 +103,10 @@ export class EditorControl extends Disposable {
 		return control;
 	}
 
-	private doCreateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
+	private async doCreateEditorControl(descriptor: IEditorDescriptor): Promise<BaseEditor> {
 
 		// Instantiate editor
-		const control = this.doInstantiateEditorControl(descriptor);
+		const control = await this.doInstantiateEditorControl(descriptor);
 
 		// Create editor container as needed
 		if (!control.getContainer()) {
@@ -120,7 +120,7 @@ export class EditorControl extends Disposable {
 		return control;
 	}
 
-	private doInstantiateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
+	private async doInstantiateEditorControl(descriptor: IEditorDescriptor): Promise<BaseEditor> {
 
 		// Return early if already instantiated
 		const existingControl = this.controls.filter(control => descriptor.describes(control))[0];
@@ -129,7 +129,7 @@ export class EditorControl extends Disposable {
 		}
 
 		// Otherwise instantiate new
-		const control = this._register(descriptor.instantiate(this.instantiationService));
+		const control = this._register(await descriptor.instantiate(this.instantiationService));
 		this.controls.push(control);
 
 		return control;

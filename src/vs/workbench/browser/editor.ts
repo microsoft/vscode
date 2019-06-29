@@ -11,7 +11,7 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
 import { isArray } from 'vs/base/common/types';
 
 export interface IEditorDescriptor {
-	instantiate(instantiationService: IInstantiationService): BaseEditor;
+	instantiate(instantiationService: IInstantiationService): Promise<BaseEditor>;
 
 	getId(): string;
 	getName(): string;
@@ -54,18 +54,16 @@ export interface IEditorRegistry {
  * can load lazily in the workbench.
  */
 export class EditorDescriptor implements IEditorDescriptor {
-	private ctor: IConstructorSignature0<BaseEditor>;
 	private id: string;
 	private name: string;
 
-	constructor(ctor: IConstructorSignature0<BaseEditor>, id: string, name: string) {
-		this.ctor = ctor;
+	constructor(private readonly ctor: () => Promise<IConstructorSignature0<BaseEditor>>, id: string, name: string) {
 		this.id = id;
 		this.name = name;
 	}
 
-	instantiate(instantiationService: IInstantiationService): BaseEditor {
-		return instantiationService.createInstance(this.ctor);
+	async instantiate(instantiationService: IInstantiationService): Promise<BaseEditor> {
+		return instantiationService.createInstance(await this.ctor());
 	}
 
 	getId(): string {

@@ -8,7 +8,7 @@ import { Command } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
+type WebviewEditor = import('vs/workbench/contrib/webview/browser/webviewEditor').WebviewEditor;
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';

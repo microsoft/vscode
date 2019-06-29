@@ -94,7 +94,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
-	ExtensionEditor,
+	async () => ExtensionEditor,
 	ExtensionEditor.ID,
 	localize('extension', "Extension")
 );
@@ -105,7 +105,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 // Running Extensions Editor
 
 const runtimeExtensionsEditorDescriptor = new EditorDescriptor(
-	RuntimeExtensionsEditor,
+	async () => RuntimeExtensionsEditor,
 	RuntimeExtensionsEditor.ID,
 	localize('runtimeExtension', "Running Extensions")
 );

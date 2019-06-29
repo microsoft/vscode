@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import * as nls from 'vs/nls';
 import { Command, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import * as nls from 'vs/nls';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+type WebviewEditor = import('vs/workbench/contrib/webview/browser/webviewEditor').WebviewEditor;
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';

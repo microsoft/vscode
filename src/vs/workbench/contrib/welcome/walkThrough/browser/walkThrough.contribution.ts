@@ -21,7 +21,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(new EditorDescriptor(
-		WalkThroughPart,
+		async () => WalkThroughPart,
 		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),
 	),

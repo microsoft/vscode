@@ -115,14 +115,14 @@ suite('Workbench base editor', () => {
 	});
 
 	test('EditorDescriptor', () => {
-		let d = new EditorDescriptor(MyEditor, 'id', 'name');
+		let d = new EditorDescriptor(async () => MyEditor, 'id', 'name');
 		assert.strictEqual(d.getId(), 'id');
 		assert.strictEqual(d.getName(), 'name');
 	});
 
 	test('Editor Registration', function () {
-		let d1 = new EditorDescriptor(MyEditor, 'id1', 'name');
-		let d2 = new EditorDescriptor(MyOtherEditor, 'id2', 'name');
+		let d1 = new EditorDescriptor(async () => MyEditor, 'id1', 'name');
+		let d2 = new EditorDescriptor(async () => MyOtherEditor, 'id2', 'name');
 
 		let oldEditorsCnt = EditorRegistry.getEditors().length;
 		let oldInputCnt = (<any>EditorRegistry).getEditorInputs().length;
@@ -141,9 +141,9 @@ suite('Workbench base editor', () => {
 		assert(!EditorRegistry.getEditorById('id3'));
 	});
 
-	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
-		let d1 = new EditorDescriptor(MyEditor, 'id1', 'name');
-		let d2 = new EditorDescriptor(MyOtherEditor, 'id2', 'name');
+	test('Editor Lookup favors specific class over superclass (match on specific class)', async function () {
+		let d1 = new EditorDescriptor(async () => MyEditor, 'id1', 'name');
+		let d2 = new EditorDescriptor(async () => MyOtherEditor, 'id2', 'name');
 
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
@@ -153,17 +153,17 @@ suite('Workbench base editor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const editor = await EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const otherEditor = await EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'myOtherEditor');
 
 		(<any>EditorRegistry).setEditors(oldEditors);
 	});
 
-	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
-		let d1 = new EditorDescriptor(MyOtherEditor, 'id1', 'name');
+	test('Editor Lookup favors specific class over superclass (match on super class)', async function () {
+		let d1 = new EditorDescriptor(async () => MyOtherEditor, 'id1', 'name');
 
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
@@ -172,7 +172,7 @@ suite('Workbench base editor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const editor = await EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual('myOtherEditor', editor.getId());
 
 		(<any>EditorRegistry).setEditors(oldEditors);

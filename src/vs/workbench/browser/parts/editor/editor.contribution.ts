@@ -55,7 +55,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextResourceEditor,
+		async () => TextResourceEditor,
 		TextResourceEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
 	),
@@ -68,7 +68,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Register Text Diff Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextDiffEditor,
+		async () => TextDiffEditor,
 		TextDiffEditor.ID,
 		nls.localize('textDiffEditor', "Text Diff Editor")
 	),
@@ -80,7 +80,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Register Binary Resource Diff Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		BinaryResourceDiffEditor,
+		async () => BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
 		nls.localize('binaryDiffEditor', "Binary Diff Editor")
 	),
@@ -91,7 +91,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		SideBySideEditor,
+		async () => SideBySideEditor,
 		SideBySideEditor.ID,
 		nls.localize('sideBySideEditor', "Side by Side Editor")
 	),

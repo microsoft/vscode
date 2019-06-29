@@ -101,7 +101,7 @@ registry.registerWorkbenchAction(
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextFileEditor,
+		async () => TextFileEditor,
 		TextFileEditor.ID,
 		nls.localize('textFileEditor', "Text File Editor")
 	),
@@ -112,7 +112,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		BinaryFileEditor,
+		async () => BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")
 	),

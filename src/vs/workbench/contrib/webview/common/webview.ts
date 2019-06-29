@@ -79,3 +79,5 @@ export interface Webview extends IDisposable {
 }
 
 export const webviewDeveloperCategory = nls.localize('developer', "Developer");
+
+export const webviewEditorId = 'WebviewEditor';

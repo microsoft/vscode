@@ -12,8 +12,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
-import { IWebviewService, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, webviewDeveloperCategory, webviewEditorId } from 'vs/workbench/contrib/webview/common/webview';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
 import { WebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
 
@@ -89,4 +88,4 @@ function registerWebViewCommands(editorId: string): void {
 	}
 }
 
-registerWebViewCommands(WebviewEditor.ID);
+registerWebViewCommands(webviewEditorId);

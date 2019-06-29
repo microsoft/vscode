@@ -17,17 +17,14 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, webviewEditorId } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-
 
 export class WebviewEditor extends BaseEditor {
 
 	protected _webview: Webview | undefined;
 	protected findWidgetVisible: IContextKey<boolean>;
-
-	public static readonly ID = 'WebviewEditor';
 
 	private _editorFrame: HTMLElement;
 	private _content?: HTMLElement;
@@ -51,7 +48,7 @@ export class WebviewEditor extends BaseEditor {
 		@IWindowService private readonly _windowService: IWindowService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, storageService);
+		super(webviewEditorId, telemetryService, themeService, storageService);
 		if (_contextKeyService) {
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 		}

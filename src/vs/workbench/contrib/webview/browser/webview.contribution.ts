@@ -15,15 +15,14 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory, webviewEditorId } from 'vs/workbench/contrib/webview/common/webview';
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from '../browser/webviewCommands';
-import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewEditorInput } from '../browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
-	WebviewEditor,
-	WebviewEditor.ID,
+	async () => (await import('../browser/webviewEditor')).WebviewEditor,
+	webviewEditorId,
 	localize('webview.editor.label', "webview editor")),
 	[new SyncDescriptor(WebviewEditorInput)]);
 
@@ -60,7 +59,7 @@ function registerWebViewCommands(editorId: string): void {
 	})).register();
 }
 
-registerWebViewCommands(WebviewEditor.ID);
+registerWebViewCommands(webviewEditorId);
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
