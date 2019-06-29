@@ -133,7 +133,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getSessions(true).length, 1);
 	});
 
-	test('threads multiple wtih allThreadsStopped', () => {
+	test.skip('threads multiple wtih allThreadsStopped', () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;
@@ -221,7 +221,7 @@ suite('Debug - Model', () => {
 		assert.equal(session.getAllThreads().length, 0);
 	});
 
-	test('threads mutltiple without allThreadsStopped', () => {
+	test.skip('threads mutltiple without allThreadsStopped', () => {
 		const sessionStub = sinon.spy(rawSession, 'stackTrace');
 
 		const stoppedThreadId = 1;
