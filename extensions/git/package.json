@@ -391,6 +391,11 @@
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
         "category": "Git"
+      },
+      {
+        "command": "git.dropStash",
+        "title": "%command.dropStash%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -642,6 +647,10 @@
         {
           "command": "git.stashApplyLatest",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.dropStash",
+          "when": "config.get.enabled && gitOpeneRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -792,6 +801,11 @@
         },
         {
           "command": "git.stashApplyLatest",
+          "group": "6_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.dropStash",
           "group": "6_stash",
           "when": "scmProvider == git"
         },
