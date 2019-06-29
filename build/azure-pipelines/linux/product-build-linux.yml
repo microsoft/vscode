@@ -16,9 +16,6 @@ steps:
 - script: |
     set -e
     export npm_config_arch="$(VSCODE_ARCH)"
-    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
-      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    fi
 
     cat << EOF > ~/.netrc
     machine monacotools.visualstudio.com
@@ -30,17 +27,53 @@ steps:
 
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
+  displayName: Prepare tooling
+
+- script: |
+    set -e
     git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
     git fetch distro
     git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
 
-    CHILD_CONCURRENCY=1 yarn
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+  displayName: Install dependencies
+
+- script: |
+    set -e
     yarn gulp mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
     yarn gulp hygiene
     yarn monaco-compile-check
-    node build/azure-pipelines/common/installDistro.js
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
     node build/lib/builtInExtensions.js
-  displayName: Prepare build
+  displayName: Install distro dependencies and extensions
+
+- script: |
+    set -e
+    cd $BUILD_STAGINGDIRECTORY
+    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
+    cd vscode-telemetry-extractor
+    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
+    npm i
+    npm run setup-extension-repos
+    node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
+    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
+    mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
+    mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
+    mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+  displayName: Extract Telemetry
 
 - script: |
     set -e
@@ -58,6 +91,7 @@ steps:
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
   displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env } from 'vscode';
+import { env, extensions, ExtensionKind } from 'vscode';
 
 suite('env-namespace', () => {
 
@@ -22,6 +22,24 @@ suite('env-namespace', () => {
 		assert.throws(() => (env as any).appName = '234');
 		assert.throws(() => (env as any).machineId = '234');
 		assert.throws(() => (env as any).sessionId = '234');
+	});
+
+	test('env.remoteName', function () {
+		const remoteName = env.remoteName;
+		const apiTestExtension = extensions.getExtension('vscode.vscode-api-tests');
+		const testResolverExtension = extensions.getExtension('vscode.vscode-test-resolver');
+		if (typeof remoteName === 'undefined') {
+			assert.ok(apiTestExtension);
+			assert.ok(testResolverExtension);
+			assert.equal(ExtensionKind.UI, apiTestExtension!.extensionKind);
+			assert.equal(ExtensionKind.UI, testResolverExtension!.extensionKind);
+		} else if (typeof remoteName === 'string') {
+			assert.ok(apiTestExtension);
+			assert.ok(!testResolverExtension); // we currently can only access extensions that run on same host
+			assert.equal(ExtensionKind.Workspace, apiTestExtension!.extensionKind);
+		} else {
+			assert.fail();
+		}
 	});
 
 });

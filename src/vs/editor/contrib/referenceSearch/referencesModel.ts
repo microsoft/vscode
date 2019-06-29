@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -166,7 +166,7 @@ export class FileReferences implements IDisposable {
 
 export class ReferencesModel implements IDisposable {
 
-	private readonly _disposables: IDisposable[];
+	private readonly _disposables = new DisposableStore();
 	readonly groups: FileReferences[] = [];
 	readonly references: OneReference[] = [];
 
@@ -174,7 +174,7 @@ export class ReferencesModel implements IDisposable {
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
 	constructor(references: LocationLink[]) {
-		this._disposables = [];
+
 		// grouping and sorting
 		const [providersFirst] = references;
 		references.sort(ReferencesModel._compareReferences);
@@ -192,7 +192,7 @@ export class ReferencesModel implements IDisposable {
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
 				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range, providersFirst === ref);
-				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
+				this._disposables.add(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this.references.push(oneRef);
 				current.children.push(oneRef);
 			}
@@ -282,9 +282,8 @@ export class ReferencesModel implements IDisposable {
 
 	dispose(): void {
 		dispose(this.groups);
-		dispose(this._disposables);
+		this._disposables.dispose();
 		this.groups.length = 0;
-		this._disposables.length = 0;
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {

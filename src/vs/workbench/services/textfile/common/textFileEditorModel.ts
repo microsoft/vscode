@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -26,9 +25,9 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { hash } from 'vs/base/common/hash';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, extname, basename } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 
@@ -76,7 +75,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSaveDisposable?: IDisposable;
+	private readonly autoSaveDisposable = this._register(new MutableDisposable());
 
 	private saveSequentializer: SaveSequentializer;
 	private lastSaveAttemptTime: number;
@@ -244,7 +243,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Cancel any running auto-save
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		// Unset flags
 		const undo = this.setDirty(false);
@@ -568,7 +567,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace(`doAutoSave() - enter for versionId ${versionId}`, this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		// Create new save timer and store it for disposal as needed
 		const handle = setTimeout(() => {
@@ -579,25 +578,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}, this.autoSaveAfterMillies);
 
-		this.autoSaveDisposable = toDisposable(() => clearTimeout(handle));
+		this.autoSaveDisposable.value = toDisposable(() => clearTimeout(handle));
 	}
 
-	private cancelPendingAutoSave(): void {
-		if (this.autoSaveDisposable) {
-			this.autoSaveDisposable.dispose();
-			this.autoSaveDisposable = undefined;
-		}
-	}
-
-	save(options: ISaveOptions = Object.create(null)): Promise<void> {
+	async save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve();
+			return;
 		}
 
 		this.logService.trace('save() - enter', this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		return this.doSave(this.versionId, options);
 	}
@@ -783,22 +775,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for global settings file
-		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.settingsResource, !isLinux)) {
 			return 'global-settings';
 		}
 
 		// Check for keybindings file
-		if (isEqual(this.resource, URI.file(this.environmentService.appKeybindingsPath), !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.keybindingsResource, !isLinux)) {
 			return 'keybindings';
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+		if (isEqual(this.resource, joinPath(this.environmentService.appSettingsHome, 'locale.json'), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'snippets')))) {
+		if (isEqualOrParent(this.resource, joinPath(this.environmentService.appSettingsHome, 'snippets'))) {
 			return 'snippets';
 		}
 
@@ -821,7 +813,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const fileName = basename(this.resource);
 		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(path).join(', '),
+			mimeType: guessMimeTypes(this.resource).join(', '),
 			ext,
 			path: hash(path),
 			reason
@@ -1038,8 +1030,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
-
-		this.cancelPendingAutoSave();
 
 		super.dispose();
 	}

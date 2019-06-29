@@ -93,5 +93,6 @@ export interface IKeybindingService {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 
 	_dumpDebugInfo(): string;
+	_dumpDebugInfoJSON(): string;
 }
 

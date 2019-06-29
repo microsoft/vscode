@@ -137,9 +137,16 @@ export interface ITreeEvent<T> {
 	browserEvent?: UIEvent;
 }
 
+export enum TreeMouseEventTarget {
+	Unknown,
+	Twistie,
+	Element
+}
+
 export interface ITreeMouseEvent<T> {
 	browserEvent: MouseEvent;
 	element: T | null;
+	target: TreeMouseEventTarget;
 }
 
 export interface ITreeContextMenuEvent<T> {

@@ -12,8 +12,9 @@ import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/s
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export interface IExtensionMemento {
+	get<T>(key: string): T | undefined;
 	get<T>(key: string, defaultValue: T): T;
-	update(key: string, value: any): Promise<boolean>;
+	update(key: string, value: any): Promise<void>;
 }
 
 export interface IExtensionContext {

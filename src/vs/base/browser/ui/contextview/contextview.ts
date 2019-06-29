@@ -131,13 +131,13 @@ export class ContextView extends Disposable {
 			const toDisposeOnSetContainer = new DisposableStore();
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
+				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
+				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, true);
 				}, true));
 			});
@@ -260,11 +260,12 @@ export class ContextView extends Disposable {
 	}
 
 	hide(data?: any): void {
-		if (this.delegate && this.delegate.onHide) {
-			this.delegate.onHide(data);
-		}
-
+		const delegate = this.delegate;
 		this.delegate = null;
+
+		if (delegate && delegate.onHide) {
+			delegate.onHide(data);
+		}
 
 		if (this.toDisposeOnClean) {
 			this.toDisposeOnClean.dispose();

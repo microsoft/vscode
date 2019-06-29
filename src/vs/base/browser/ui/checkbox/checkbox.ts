@@ -31,20 +31,19 @@ const defaultOpts = {
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
 	private checkbox: Checkbox;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
 		this.element = container;
 
-		this.disposables.dispose();
-		this.disposables = new DisposableStore();
+		this.disposables.clear();
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,
 			title: this._action.label
 		});
-		this.disposables.push(this.checkbox);
-		this.disposables.push(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
+		this.disposables.add(this.checkbox);
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 

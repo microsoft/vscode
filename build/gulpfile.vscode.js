@@ -315,6 +315,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
+		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
+
 		const depsSrc = [
 			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
 			// @ts-ignore JSON checking: dependencies is optional
@@ -327,10 +329,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
 
 		let all = es.merge(
-		packageJsonStream,
+			packageJsonStream,
 			productJsonStream,
 			license,
 			api,
+			telemetry,
 			sources,
 			deps
 		);
@@ -380,7 +383,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform, arch, ffmpegChromium: true })))
-			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
+			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version'], { dot: true }));
 
 		// result = es.merge(result, gulp.src('resources/completions/**', { base: '.' }));
 
@@ -397,6 +400,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@VERSION@@', version))
 				.pipe(replace('@@COMMIT@@', commit))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
+				.pipe(replace('@@DATAFOLDER@@', product.dataFolderName))
 				.pipe(replace('@@QUALITY@@', quality))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 
@@ -537,14 +541,14 @@ gulp.task('vscode-translations-import', function () {
 // Sourcemaps
 
 gulp.task('upload-vscode-sourcemaps', () => {
-	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
+	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' }) // client source-maps only
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
 
-	const extensionsOut = gulp.src('extensions/**/out/**/*.map', { base: '.' });
-	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
+	const extensionsOut = gulp.src(['extensions/**/out/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
+	const extensionsDist = gulp.src(['extensions/**/dist/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
 
 	return es.merge(vs, extensionsOut, extensionsDist)
 		.pipe(es.through(function (data) {

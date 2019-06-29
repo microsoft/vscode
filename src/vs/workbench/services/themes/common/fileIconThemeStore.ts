@@ -13,6 +13,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
 import { URI } from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
@@ -46,16 +47,16 @@ export interface FileIconThemeChangeEvent {
 	added: FileIconThemeData[];
 }
 
-export class FileIconThemeStore {
+export class FileIconThemeStore extends Disposable {
 
 	private knownIconThemes: FileIconThemeData[];
-	private readonly onDidChangeEmitter: Emitter<FileIconThemeChangeEvent>;
 
-	public get onDidChange(): Event<FileIconThemeChangeEvent> { return this.onDidChangeEmitter.event; }
+	private readonly onDidChangeEmitter = this._register(new Emitter<FileIconThemeChangeEvent>());
+	readonly onDidChange: Event<FileIconThemeChangeEvent> = this.onDidChangeEmitter.event;
 
 	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
+		super();
 		this.knownIconThemes = [];
-		this.onDidChangeEmitter = new Emitter<FileIconThemeChangeEvent>();
 		this.initialize();
 	}
 
@@ -167,5 +168,4 @@ export class FileIconThemeStore {
 			return this.knownIconThemes;
 		});
 	}
-
 }

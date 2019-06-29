@@ -14,6 +14,7 @@ arguments=(
 	'--user-data-dir[specify the directory that user data is kept in]:directory:_directories'
 	'(- *)'{-v,--version}'[print version]'
 	'(- *)'{-h,--help}'[print usage]'
+	'(- *)'{--telemetry}'[Shows all telemetry events which VS code collects.]'
 	'--extensions-dir[set the root path for extensions]:root path:_directories'
 	'--list-extensions[list the installed extensions]'
 	'--show-versions[show versions of installed extensions, when using --list-extension]'
@@ -30,7 +31,6 @@ arguments=(
 	'--inspect-extensions[allow debugging and profiling of extensions]'
 	'--inspect-brk-extensions[allow debugging and profiling of extensions with the extension host being paused after start]'
 	'--disable-gpu[disable GPU hardware acceleration]'
-	'--upload-logs[upload logs from current session to a secure endpoint]:confirm:(iConfirmLogsUpload)'
 	'--max-memory=[max memory size for a window (in Mbytes)]:size (Mbytes)'
 	'*:file or directory:_files'
 )

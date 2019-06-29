@@ -27,7 +27,8 @@ gulp.task('mixin', function () {
 	fancyLog(ansiColors.blue('[mixin]'), `Mixing in sources:`);
 	return vfs
 		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
-		.pipe(filter(function (f) { return !f.isDirectory(); }))
+		.pipe(filter(f => !f.isDirectory()))
+		.pipe(filter(['**', '!**/package.json']))
 		.pipe(productJsonFilter)
 		.pipe(buffer())
 		.pipe(json(o => Object.assign({}, require('../product.json'), o)))

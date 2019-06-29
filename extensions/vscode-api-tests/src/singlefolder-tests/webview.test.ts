@@ -251,7 +251,7 @@ suite('Webview tests', () => {
 				});
 			</script>`);
 
-		const workspaceRootUri = vscode.Uri.file(vscode.workspace.rootPath!).with({ scheme: 'vscode-resource' });
+		const workspaceRootUri = webview.webview.resourceRoot + vscode.Uri.file(vscode.workspace.rootPath!).path;
 
 		{
 			const imagePath = workspaceRootUri.toString() + '/image.png';

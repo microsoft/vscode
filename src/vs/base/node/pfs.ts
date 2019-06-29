@@ -226,7 +226,7 @@ export function readFile(path: string, encoding?: string): Promise<Buffer | stri
 // According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
-const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
+const writeFilePathQueues: Map<string, Queue<void>> = new Map();
 
 export function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
@@ -249,17 +249,19 @@ function toQueueKey(path: string): string {
 }
 
 function ensureWriteFileQueue(queueKey: string): Queue<void> {
-	let writeFileQueue = writeFilePathQueue[queueKey];
-	if (!writeFileQueue) {
-		writeFileQueue = new Queue<void>();
-		writeFilePathQueue[queueKey] = writeFileQueue;
-
-		const onFinish = Event.once(writeFileQueue.onFinished);
-		onFinish(() => {
-			delete writeFilePathQueue[queueKey];
-			writeFileQueue.dispose();
-		});
+	const existingWriteFileQueue = writeFilePathQueues.get(queueKey);
+	if (existingWriteFileQueue) {
+		return existingWriteFileQueue;
 	}
+
+	const writeFileQueue = new Queue<void>();
+	writeFilePathQueues.set(queueKey, writeFileQueue);
+
+	const onFinish = Event.once(writeFileQueue.onFinished);
+	onFinish(() => {
+		writeFilePathQueues.delete(queueKey);
+		writeFileQueue.dispose();
+	});
 
 	return writeFileQueue;
 }

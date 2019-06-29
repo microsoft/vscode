@@ -8,7 +8,7 @@ import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEdit
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { coalesce } from 'vs/base/common/arrays';
@@ -270,30 +270,30 @@ export class EditorGroup extends Disposable {
 	}
 
 	private registerEditorListeners(editor: EditorInput): void {
-		const unbind: IDisposable[] = [];
+		const listeners = new DisposableStore();
 
 		// Re-emit disposal of editor input as our own event
 		const onceDispose = Event.once(editor.onDispose);
-		unbind.push(onceDispose(() => {
+		listeners.add(onceDispose(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onDidEditorDispose.fire(editor);
 			}
 		}));
 
 		// Re-Emit dirty state changes
-		unbind.push(editor.onDidChangeDirty(() => {
+		listeners.add(editor.onDidChangeDirty(() => {
 			this._onDidEditorBecomeDirty.fire(editor);
 		}));
 
 		// Re-Emit label changes
-		unbind.push(editor.onDidChangeLabel(() => {
+		listeners.add(editor.onDidChangeLabel(() => {
 			this._onDidEditorLabelChange.fire(editor);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
-		unbind.push(this.onDidEditorClose(event => {
+		listeners.add(this.onDidEditorClose(event => {
 			if (event.editor.matches(editor)) {
-				dispose(unbind);
+				dispose(listeners);
 			}
 		}));
 	}

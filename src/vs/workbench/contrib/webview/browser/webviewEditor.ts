@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -33,8 +33,8 @@ export class WebviewEditor extends BaseEditor {
 	private _content?: HTMLElement;
 	private _webviewContent: HTMLElement | undefined;
 
-	private readonly _webviewFocusTrackerDisposables = new DisposableStore();
-	private _onFocusWindowHandler?: IDisposable;
+	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
+	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
@@ -89,12 +89,6 @@ export class WebviewEditor extends BaseEditor {
 			this._content = undefined;
 		}
 
-		this._webviewFocusTrackerDisposables.dispose();
-
-		if (this._onFocusWindowHandler) {
-			this._onFocusWindowHandler.dispose();
-		}
-
 		super.dispose();
 	}
 
@@ -136,10 +130,10 @@ export class WebviewEditor extends BaseEditor {
 
 	public focus(): void {
 		super.focus();
-		if (!this._onFocusWindowHandler) {
+		if (!this._onFocusWindowHandler.value) {
 
 			// Make sure we restore focus when switching back to a VS Code window
-			this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
+			this._onFocusWindowHandler.value = this._windowService.onDidChangeFocus(focused => {
 				if (focused && this._editorService.activeControl === this) {
 					this.focus();
 				}
@@ -148,31 +142,7 @@ export class WebviewEditor extends BaseEditor {
 		this.withWebview(webview => webview.focus());
 	}
 
-	public selectAll(): void {
-		this.withWebview(webview => webview.selectAll());
-	}
-
-	public copy(): void {
-		this.withWebview(webview => webview.copy());
-	}
-
-	public paste(): void {
-		this.withWebview(webview => webview.paste());
-	}
-
-	public cut(): void {
-		this.withWebview(webview => webview.cut());
-	}
-
-	public undo(): void {
-		this.withWebview(webview => webview.undo());
-	}
-
-	public redo(): void {
-		this.withWebview(webview => webview.redo());
-	}
-
-	private withWebview(f: (element: Webview) => void): void {
+	public withWebview(f: (element: Webview) => void): void {
 		if (this._webview) {
 			f(this._webview);
 		}
@@ -308,10 +278,10 @@ export class WebviewEditor extends BaseEditor {
 
 		// Track focus in webview content
 		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent!);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker);
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.push(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }

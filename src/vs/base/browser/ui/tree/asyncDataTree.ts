@@ -133,7 +133,8 @@ function asTreeEvent<TInput, T>(e: ITreeEvent<IAsyncDataTreeNode<TInput, T>>): I
 function asTreeMouseEvent<TInput, T>(e: ITreeMouseEvent<IAsyncDataTreeNode<TInput, T>>): ITreeMouseEvent<T> {
 	return {
 		browserEvent: e.browserEvent,
-		element: e.element && e.element.element as T
+		element: e.element && e.element.element as T,
+		target: e.target
 	};
 }
 
@@ -224,6 +225,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			}
 		},
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
+			...options.keyboardNavigationLabelProvider,
 			getKeyboardNavigationLabel(e) {
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}

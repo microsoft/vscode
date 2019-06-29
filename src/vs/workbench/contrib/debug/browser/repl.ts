@@ -62,7 +62,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const $ = dom.$;
 
@@ -134,11 +134,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}
 			this.selectSession();
 		}));
-		this._register(this.debugService.onWillNewSession(() => {
+		this._register(this.debugService.onWillNewSession(newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
-				this.selectSession();
+				this.selectSession(newSession);
 			}
 			this.updateTitleArea();
 		}));
@@ -274,6 +274,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
+			variableSetEmitter.fire();
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
 			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 			if (shouldRelayout) {
@@ -302,9 +303,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight, dimension.width);
+			if (lastElementVisible) {
+				revealLastElement(this.tree);
+			}
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -371,6 +376,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
+		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
@@ -382,11 +388,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
-				horizontalScrolling: false,
+				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: true
+				supportDynamicHeights: wordWrap
 			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
-
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(this.tree.onMouseClick(() => {
@@ -547,6 +552,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (this.replElementsChangeListener) {
 			this.replElementsChangeListener.dispose();
 		}
+		this.refreshScheduler.dispose();
 		super.dispose();
 	}
 }
@@ -600,7 +606,7 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, I
 		const expression = element.element;
 		templateData.label.set(expression.name, createMatches(element.filterData));
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: true,
+			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
 			colorize: true
 		});
@@ -734,24 +740,36 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
+		const countNumberOfLines = (str: string) => Math.max(1, (str.match(/\r\n|\n/g) || []).length);
+
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
-		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const fontSize = config.console.fontSize;
 		const rowHeight = Math.ceil(1.4 * fontSize);
-		if (element instanceof Expression && element.hasChildren) {
-			return 2 * rowHeight;
+		const wordWrap = config.console.wordWrap;
+		if (!wordWrap) {
+			return element instanceof Expression ? 2 * rowHeight : rowHeight;
 		}
 
 		// In order to keep scroll position we need to give a good approximation to the tree
-		if (element instanceof SimpleReplElement) {
-			// For every 150 characters increase the number of lines needed
-			let count = Math.ceil(element.value.length / 150);
-			for (let i = 0; i < element.value.length; i++) {
-				if (element.value[i] === '\n' || element.value[i] === '\r\n') {
-					count++;
-				}
+		// For every 150 characters increase the number of lines needed
+		if (element instanceof Expression) {
+			let { name, value } = element;
+			let nameRows = countNumberOfLines(name) + Math.floor(name.length / 150);
+
+			if (element.hasChildren) {
+				return (nameRows + 1) * rowHeight;
 			}
 
-			return Math.max(1, count) * rowHeight;
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			return rowHeight * (nameRows + valueRows);
+		}
+
+		if (element instanceof SimpleReplElement) {
+			let value = element.value;
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+
+			return valueRows * rowHeight;
 		}
 
 		return rowHeight;

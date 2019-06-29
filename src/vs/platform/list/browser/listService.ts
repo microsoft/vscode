@@ -29,7 +29,7 @@ import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTr
 import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
-import { IKeyboardNavigationEventFilter, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
@@ -114,6 +114,7 @@ export const horizontalScrollingKey = 'workbench.list.horizontalScrolling';
 export const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
 export const automaticKeyboardNavigationSettingKey = 'workbench.list.automaticKeyboardNavigation';
 const treeIndentKey = 'workbench.tree.indent';
+const treeRenderIndentGuidesKey = 'workbench.tree.renderIndentGuides';
 
 function getHorizontalScrollingSetting(configurationService: IConfigurationService): boolean {
 	return getMigratedSettingValue<boolean>(configurationService, horizontalScrollingKey, 'workbench.tree.horizontalScrolling');
@@ -204,12 +205,12 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
 		const multipleSelectionController = new MultipleSelectionController(configurationService);
 		result.multipleSelectionController = multipleSelectionController;
-		disposables.push(multipleSelectionController);
+		disposables.add(multipleSelectionController);
 	}
 
 	const openController = new WorkbenchOpenController(configurationService, options.openController);
 	result.openController = openController;
-	disposables.push(openController);
+	disposables.add(openController);
 
 	if (options.keyboardNavigationLabelProvider) {
 		const tlp = options.keyboardNavigationLabelProvider;
@@ -350,7 +351,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		);
 
 		this.disposables = new DisposableStore();
-		this.disposables.push(workbenchListOptionsDisposable);
+		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.configurationService = configurationService;
@@ -360,15 +361,15 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
-		this.disposables.push(this.contextKeyService);
-		this.disposables.push((listService as ListService).register(this));
-		this.disposables.push(attachListStyler(this, themeService));
+		this.disposables.add(this.contextKeyService);
+		this.disposables.add((listService as ListService).register(this));
+		this.disposables.add(attachListStyler(this, themeService));
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
@@ -546,7 +547,7 @@ export class WorkbenchTreeController extends DefaultController {
 	}
 
 	private registerListeners(): void {
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(openModeSettingKey)) {
 				this.setOpenMode(this.getOpenModeSetting());
 			}
@@ -897,6 +898,7 @@ function workbenchTreeDataPreamble<T, TFilterData>(
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...workbenchListOptions,
 			indent: configurationService.getValue<number>(treeIndentKey),
+			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
 			automaticKeyboardNavigation: getAutomaticKeyboardNavigation(),
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
@@ -977,6 +979,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					const indent = configurationService.getValue<number>(treeIndentKey);
 					tree.updateOptions({ indent });
 				}
+				if (e.affectsConfiguration(treeRenderIndentGuidesKey)) {
+					const renderIndentGuides = configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
+					tree.updateOptions({ renderIndentGuides });
+				}
 				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
 					updateKeyboardNavigation();
 				}
@@ -1052,6 +1058,12 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			maximum: 40,
 			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
+		},
+		[treeRenderIndentGuidesKey]: {
+			type: 'string',
+			enum: ['none', 'onHover', 'always'],
+			default: 'onHover',
+			description: localize('render tree indent guides', "Controls whether the tree should render indent guides.")
 		},
 		[keyboardNavigationSettingKey]: {
 			'type': 'string',

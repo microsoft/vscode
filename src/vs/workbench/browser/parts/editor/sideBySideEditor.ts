@@ -213,8 +213,6 @@ export class SideBySideEditor extends BaseEditor {
 			this.detailsEditor.setInput(detailsInput, null, token),
 			this.masterEditor.setInput(masterInput, options, token)]
 		);
-
-		return this.focus();
 	}
 
 	updateStyles(): void {

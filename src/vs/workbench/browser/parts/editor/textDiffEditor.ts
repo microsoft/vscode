@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
-	private diffNavigatorDisposables: IDisposable[] = [];
+	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -75,7 +75,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
-		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
+		this.diffNavigatorDisposables.clear();
 
 		// Remember view settings if input changes
 		this.saveTextDiffEditorViewState(this.input);
@@ -117,7 +117,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			this.diffNavigator = new DiffNavigator(diffEditor, {
 				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 			});
-			this.diffNavigatorDisposables.push(this.diffNavigator);
+			this.diffNavigatorDisposables.add(this.diffNavigator);
 
 			// Readonly flag
 			diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
@@ -238,7 +238,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	clearInput(): void {
 
 		// Dispose previous diff navigator
-		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
+		this.diffNavigatorDisposables.clear();
 
 		// Keep editor view state in settings to restore when coming back
 		this.saveTextDiffEditorViewState(this.input);
@@ -329,11 +329,5 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 		// create a URI that is the Base64 concatenation of original + modified resource
 		return URI.from({ scheme: 'diff', path: `${btoa(original.toString())}${btoa(modified.toString())}` });
-	}
-
-	dispose(): void {
-		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
-
-		super.dispose();
 	}
 }

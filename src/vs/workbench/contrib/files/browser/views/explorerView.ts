@@ -9,11 +9,10 @@ import * as perf from 'vs/base/common/performance';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash } from 'vs/workbench/contrib/files/common/files';
-import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
+import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -35,7 +34,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -50,6 +49,7 @@ import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { dispose } from 'vs/base/common/lifecycle';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -93,7 +93,7 @@ export class ExplorerView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
-		this.disposables.push(this.resourceContext);
+		this._register(this.resourceContext);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
@@ -101,8 +101,8 @@ export class ExplorerView extends ViewletPanel {
 
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
 		decorationService.registerDecorationsProvider(decorationProvider);
-		this.disposables.push(decorationProvider);
-		this.disposables.push(this.resourceContext);
+		this._register(decorationProvider);
+		this._register(this.resourceContext);
 	}
 
 	get name(): string {
@@ -120,7 +120,7 @@ export class ExplorerView extends ViewletPanel {
 	// Memoized locals
 	@memoize private get contributedContextMenu(): IMenu {
 		const contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, this.tree.contextKeyService);
-		this.disposables.push(contributedContextMenu);
+		this._register(contributedContextMenu);
 		return contributedContextMenu;
 	}
 
@@ -148,8 +148,8 @@ export class ExplorerView extends ViewletPanel {
 			titleElement.title = title;
 		};
 
-		this.disposables.push(this.contextService.onDidChangeWorkspaceName(setHeader));
-		this.disposables.push(this.labelService.onDidChangeFormatters(setHeader));
+		this._register(this.contextService.onDidChangeWorkspaceName(setHeader));
+		this._register(this.labelService.onDidChangeFormatters(setHeader));
 		setHeader();
 	}
 
@@ -165,14 +165,13 @@ export class ExplorerView extends ViewletPanel {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
+		this._register(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
-			this.refresh(true);
 		}));
 
-		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
-		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e.recursive, e.item)));
-		this.disposables.push(this.explorerService.onDidChangeEditable(async e => {
+		this._register(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
+		this._register(this.explorerService.onDidChangeItem(e => this.refresh(e.recursive, e.item)));
+		this._register(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
 			if (isEditing) {
@@ -190,22 +189,22 @@ export class ExplorerView extends ViewletPanel {
 				this.tree.domFocus();
 			}
 		}));
-		this.disposables.push(this.explorerService.onDidSelectResource(e => this.onSelectResource(e.resource, e.reveal)));
-		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
+		this._register(this.explorerService.onDidSelectResource(e => this.onSelectResource(e.resource, e.reveal)));
+		this._register(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
-		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
+		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.selectActiveFile(true);
 		}));
 
 		// Also handle configuration updates
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 
-		this.disposables.push(this.onDidChangeBodyVisibility(async visible => {
+		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
 				// If a refresh was requested and we are now visible, run it
 				if (this.shouldRefresh) {
@@ -224,7 +223,7 @@ export class ExplorerView extends ViewletPanel {
 		actions.push(this.instantiationService.createInstance(NewFileAction));
 		actions.push(this.instantiationService.createInstance(NewFolderAction));
 		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
-		actions.push(this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer'));
+		actions.push(this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL));
 
 		return actions;
 	}
@@ -266,15 +265,15 @@ export class ExplorerView extends ViewletPanel {
 
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
-		this.disposables.push(this.filter);
+		this._register(this.filter);
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.disposables.push(explorerLabels);
+		this._register(explorerLabels);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
 		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
-		this.disposables.push(filesRenderer);
+		this._register(filesRenderer);
 
-		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
+		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
@@ -304,19 +303,19 @@ export class ExplorerView extends ViewletPanel {
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
 			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
-		this.disposables.push(this.tree);
+		this._register(this.tree);
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 
 		// Update resource context based on focused element
-		this.disposables.push(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
 		this.onFocusChanged([]);
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
-		this.disposables.push(explorerNavigator);
+		this._register(explorerNavigator);
 		// Open when selecting via keyboard
-		this.disposables.push(explorerNavigator.onDidOpenResource(e => {
+		this._register(explorerNavigator.onDidOpenResource(e => {
 			const selection = this.tree.getSelection();
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
@@ -339,12 +338,12 @@ export class ExplorerView extends ViewletPanel {
 			}
 		}));
 
-		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		// save view state on shutdown
-		this.storageService.onWillSaveState(() => {
+		this._register(this.storageService.onWillSaveState(() => {
 			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE);
-		}, null, this.disposables);
+		}, null));
 	}
 
 	// React on events
@@ -386,20 +385,21 @@ export class ExplorerView extends ViewletPanel {
 		this.setContextKeys(stat);
 
 		const selection = this.tree.getSelection();
+
+		const actions: IAction[] = [];
+		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
+		const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				// If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
-				const roots = this.explorerService.roots;
-				const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
-				fillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
+			getActions: () => actions,
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					this.tree.domFocus();
 				}
+
+				dispose(actionsDisposable);
 			},
 			getActionsContext: () => stat && selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)

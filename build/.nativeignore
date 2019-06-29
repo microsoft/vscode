@@ -1,5 +1,8 @@
 # cleanup rules for native node modules, .gitignore style
 
+nan/**
+*/node_modules/nan/**
+
 fsevents/binding.gyp
 fsevents/fsevents.cc
 fsevents/build/**
@@ -64,14 +67,6 @@ windows-process-tree/build/**
 windows-process-tree/src/**
 !windows-process-tree/**/*.node
 
-gc-signals/binding.gyp
-gc-signals/build/**
-gc-signals/src/**
-gc-signals/deps/**
-
-!gc-signals/build/Release/*.node
-!gc-signals/src/index.js
-
 keytar/binding.gyp
 keytar/build/**
 keytar/src/**
@@ -83,6 +78,7 @@ node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**
 node-pty/tools/**
+node-pty/deps/**
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node

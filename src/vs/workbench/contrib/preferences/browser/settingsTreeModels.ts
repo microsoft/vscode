@@ -14,6 +14,7 @@ import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/prefere
 import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -221,7 +222,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 	}
 
-	matchesScope(scope: SettingsTarget): boolean {
+	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {
 		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
 
 		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
@@ -234,6 +235,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
 			return this.setting.scope === ConfigurationScope.MACHINE || this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		if (configTarget === ConfigurationTarget.USER_LOCAL && isRemote) {
+			return this.setting.scope !== ConfigurationScope.MACHINE;
 		}
 
 		return true;
@@ -479,7 +484,8 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	constructor(
 		viewState: ISettingsEditorViewState,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(viewState, configurationService);
 		this.update({ id: 'searchResultModel', label: '' });
@@ -537,8 +543,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		});
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		const isRemote = !!this.environmentService.configuration.remoteAuthority;
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget) && child.matchesAnyExtension(this._viewState.extensionFilters));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();

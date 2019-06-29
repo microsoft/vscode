@@ -148,7 +148,14 @@ export function getLinks(model: ITextModel, token: CancellationToken): Promise<L
 		}, onUnexpectedExternalError);
 	});
 
-	return Promise.all(promises).then(() => new LinksList(coalesce(lists)));
+	return Promise.all(promises).then(() => {
+		const result = new LinksList(coalesce(lists));
+		if (!token.isCancellationRequested) {
+			return result;
+		}
+		result.dispose();
+		return new LinksList([]);
+	});
 }
 
 

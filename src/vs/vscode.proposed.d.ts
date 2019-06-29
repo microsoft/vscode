@@ -17,22 +17,15 @@
 declare module 'vscode' {
 
 	//#region Joh - ExecutionContext
-
+	// THIS is a deprecated proposal
 	export enum ExtensionExecutionContext {
 		Local = 1,
 		Remote = 2
 	}
-
 	export interface ExtensionContext {
-		/**
-		 * Describes the context in which this extension is executed, e.g.
-		 * a Node.js-context on the same machine or on a remote machine
-		 */
 		executionContext: ExtensionExecutionContext;
 	}
-
 	//#endregion
-
 
 	//#region Joh - call hierarchy
 
@@ -137,31 +130,20 @@ declare module 'vscode' {
 
 	// #region Joh - code insets
 
-	/**
-	 */
-	export class CodeInset {
-		range: Range;
-		height?: number;
-		constructor(range: Range, height?: number);
+	export interface WebviewEditorInset {
+		readonly editor: TextEditor;
+		readonly line: number;
+		readonly height: number;
+		readonly webview: Webview;
+		readonly onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
-	export interface CodeInsetProvider {
-		onDidChangeCodeInsets?: Event<void>;
-		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a code inset provider.
-		 *
-		 */
-		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	export namespace window {
+		export function createWebviewTextEditorInset(editor: TextEditor, line: number, height: number, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
-
 
 	//#region Joh - read/write in chunks
 
@@ -642,6 +624,12 @@ declare module 'vscode' {
 		export const logLevel: LogLevel;
 
 		/**
+		 * The detected default shell for the extension host, this is overridden by the
+		 * `terminal.integrated.shell` setting for the extension host's platform.
+		 */
+		export const shell: string;
+
+		/**
 		 * An [event](#Event) that fires when the log level has changed.
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
@@ -828,17 +816,17 @@ declare module 'vscode' {
 		/**
 		 * Added comment threads.
 		 */
-		readonly added: CommentThread[];
+		readonly added: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Removed comment threads.
 		 */
-		readonly removed: CommentThread[];
+		readonly removed: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Changed comment threads.
 		 */
-		readonly changed: CommentThread[];
+		readonly changed: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Changed draft mode
@@ -851,9 +839,6 @@ declare module 'vscode' {
 	 * Stay in proposed.
 	 */
 	interface CommentReaction {
-		readonly label?: string;
-		readonly iconPath?: string | Uri;
-		count?: number;
 		readonly hasReacted?: boolean;
 	}
 
@@ -1063,7 +1048,7 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Optional new comment thread factory.
@@ -1098,17 +1083,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Terminal
-
-	export interface TerminalOptions {
-		/**
-		 * When enabled the terminal will run the process as normal but not be surfaced to the user
-		 * until `Terminal.show` is called. The typical usage for this is when you need to run
-		 * something that may need interactivity but only want to tell the user about it when
-		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
-		 */
-		runInBackground?: boolean;
-	}
 
 	/**
 	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
@@ -1145,6 +1119,18 @@ declare module 'vscode' {
 		 * including VT sequences.
 		 */
 		readonly onDidWriteData: Event<string>;
+	}
+
+
+	export interface TerminalOptions {
+		/**
+		 * When enabled the terminal will run the process as normal but not be surfaced to the user
+		 * until `Terminal.show` is called. The typical usage for this is when you need to run
+		 * something that may need interactivity but only want to tell the user about it when
+		 * interaction is needed. Note that the terminals will still be exposed to all extensions
+		 * as normal.
+		 */
+		runInBackground?: boolean;
 	}
 
 	/**
@@ -1437,14 +1423,86 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region DocumentLink tooltip mjbvz
+	// #region Ben - status bar item with ID and Name
 
-	interface DocumentLink {
+	export namespace window {
+
 		/**
-		 * The tooltip text when you hover over this link.
+		 * Options to configure the status bar item.
 		 */
-		tooltip?: string;
+		export interface StatusBarItemOptions {
+
+			/**
+			 * A unique identifier of the status bar item. The identifier
+			 * is for example used to allow a user to show or hide the
+			 * status bar item in the UI.
+			 */
+			id: string;
+
+			/**
+			 * A human readable name of the status bar item. The name is
+			 * for example used as a label in the UI to show or hide the
+			 * status bar item.
+			 */
+			name: string;
+
+			/**
+			 * The alignment of the status bar item.
+			 */
+			alignment?: StatusBarAlignment;
+
+			/**
+			 * The priority of the status bar item. Higher value means the item should
+			 * be shown more to the left.
+			 */
+			priority?: number;
+		}
+
+		/**
+		 * Creates a status bar [item](#StatusBarItem).
+		 *
+		 * @param options The options of the item. If not provided, some default values
+		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
+		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
 	}
 
-	// #endregion
+	//#endregion
+
+	//#region Webview Resource Roots
+
+	export interface Webview {
+		/**
+		 * Root url from which local resources are loaded inside of webviews.
+		 *
+		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
+		 * on the web, this points to a server endpoint.
+		 */
+		readonly resourceRoot: Thenable<string>;
+	}
+
+	//#endregion
+
+
+	//#region Joh - read/write files of any scheme
+
+	export interface FileSystem {
+		stat(uri: Uri): Thenable<FileStat>;
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		createDirectory(uri: Uri): Thenable<void>;
+		readFile(uri: Uri): Thenable<Uint8Array>;
+		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+	}
+
+	export namespace workspace {
+
+		export const fs: FileSystem;
+	}
+
+	//#endregion
 }
