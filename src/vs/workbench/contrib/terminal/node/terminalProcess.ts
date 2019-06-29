@@ -15,6 +15,8 @@ import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
+import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { URI } from 'vs/base/common/uri';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
@@ -25,7 +27,6 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _initialCwd: string;
-	private _foundExecutableInPath: boolean = false;
 
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -69,54 +70,25 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 
 		stat(shellLaunchConfig.executable!).then(stat => {
 			if (!stat.isFile() && !stat.isSymbolicLink()) {
-				this._exitCode = stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE;
-				this._queueProcessExit();
-				this._processStartupComplete = Promise.resolve(undefined);
-				return;
+				return this._launchFailed(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
 			}
 			this.setupPtyProcess(shellLaunchConfig, options);
-		}, (err) => {
-			if (err && err.code === 'ENOENT' && !this.checkIfExistsInPath(shellLaunchConfig.executable!)) {
-				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-				this._queueProcessExit();
-				this._processStartupComplete = Promise.resolve(undefined);
-				return;
+		}, async (err) => {
+			if (err && err.code === 'ENOENT') {
+				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
+				const executable = await findExecutable(shellLaunchConfig.executable!, cwd);
+				if (!executable) {
+					return this._launchFailed(SHELL_PATH_INVALID_EXIT_CODE);
+				}
 			}
 			this.setupPtyProcess(shellLaunchConfig, options);
 		});
 	}
 
-	private checkInsideDirRecursively(execPath: string, executable: string): void {
-		try {
-			fs.readdirSync(execPath).forEach((file) => {
-				const pathToFile = path.join(execPath, file);
-				const isDirectory = fs.statSync(pathToFile).isDirectory();
-				if (!isDirectory) {
-					if (executable === file) {
-						this._foundExecutableInPath = true;
-					}
-				} else {
-					this.checkInsideDirRecursively(execPath, executable);
-				}
-			});
-		}
-		catch (err) {
-			if (err.code !== 'ENOENT') {
-				throw err;
-			}
-		}
-	}
-
-	private checkIfExistsInPath(executable: string): boolean {
-		if (process.env.PATH) {
-			const envPath = process.env.PATH.split(path.delimiter);
-			envPath.forEach(eachPath => {
-				if (!path.isAbsolute(eachPath)) {
-					this.checkInsideDirRecursively(eachPath, executable);
-				}
-			});
-		}
-		return this._foundExecutableInPath;
+	private _launchFailed(exitCode: number): void {
+		this._exitCode = exitCode;
+		this._queueProcessExit();
+		this._processStartupComplete = Promise.resolve(undefined);
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
