@@ -11,9 +11,10 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
+import { stat } from 'vs/base/node/pfs';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
@@ -66,7 +67,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			conptyInheritCursor: true
 		};
 
-		fs.stat(shellLaunchConfig.executable!, (err) => {
+		stat(shellLaunchConfig.executable!).then(stat => {
+			if (!stat.isFile() && !stat.isSymbolicLink()) {
+				this._exitCode = stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE;
+				this._queueProcessExit();
+				this._processStartupComplete = Promise.resolve(undefined);
+				return;
+			}
+			this.setupPtyProcess(shellLaunchConfig, options);
+		}, (err) => {
 			if (err && err.code === 'ENOENT' && !this.checkIfExistsInPath(shellLaunchConfig.executable!)) {
 				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
 				this._queueProcessExit();
