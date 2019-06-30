@@ -56,7 +56,7 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (shell.runInBackground) {
+		if (shell.hideFromUser) {
 			const instance = this.createInstance(this._terminalFocusContextKey,
 				this.configHelper,
 				undefined,
@@ -86,7 +86,7 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
-		instance.shellLaunchConfig.runInBackground = false;
+		instance.shellLaunchConfig.hideFromUser = false;
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this.configHelper,

@@ -630,7 +630,7 @@ export class MarkersViewModel extends Disposable {
 	}
 
 	add(marker: Marker): void {
-		if (!this.markersViewStates.has(marker.hash)) {
+		if (!this.markersViewStates.has(marker.id)) {
 			const viewModel = this.instantiationService.createInstance(MarkerViewModel, marker);
 			const disposables: IDisposable[] = [viewModel];
 			viewModel.multiline = this.multiline;
@@ -639,7 +639,7 @@ export class MarkersViewModel extends Disposable {
 					this._onDidChange.fire(marker);
 				}
 			}, this, disposables);
-			this.markersViewStates.set(marker.hash, { viewModel, disposables });
+			this.markersViewStates.set(marker.id, { viewModel, disposables });
 
 			const markers = this.markersPerResource.get(marker.resource.toString()) || [];
 			markers.push(marker);
@@ -650,11 +650,11 @@ export class MarkersViewModel extends Disposable {
 	remove(resource: URI): void {
 		const markers = this.markersPerResource.get(resource.toString()) || [];
 		for (const marker of markers) {
-			const value = this.markersViewStates.get(marker.hash);
+			const value = this.markersViewStates.get(marker.id);
 			if (value) {
 				dispose(value.disposables);
 			}
-			this.markersViewStates.delete(marker.hash);
+			this.markersViewStates.delete(marker.id);
 			if (this.hoveredMarker === marker) {
 				this.hoveredMarker = null;
 			}
@@ -663,7 +663,7 @@ export class MarkersViewModel extends Disposable {
 	}
 
 	getViewModel(marker: Marker): MarkerViewModel | null {
-		const value = this.markersViewStates.get(marker.hash);
+		const value = this.markersViewStates.get(marker.id);
 		return value ? value.viewModel : null;
 	}
 

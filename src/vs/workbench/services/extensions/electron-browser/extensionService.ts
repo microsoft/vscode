@@ -26,7 +26,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -166,13 +166,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
-			if (extension.location.scheme !== Schemas.file) {
-				continue;
-			}
-
-			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
-			if (existingExtensionDescription) {
-				// this extension is already running (most likely at a different version)
+			if (!this._canAddExtension(extension)) {
 				continue;
 			}
 
@@ -213,6 +207,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}
 
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(toAdd);
+
 		// Update extension points
 		this._rehandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
 
@@ -232,21 +229,28 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._doHandleExtensionPoints(extensionDescriptions);
 	}
 
-	public canAddExtension(extension: IExtensionDescription): boolean {
+	public canAddExtension(extensionDescription: IExtensionDescription): boolean {
+		return this._canAddExtension(toExtension(extensionDescription));
+	}
+
+	public _canAddExtension(extension: IExtension): boolean {
 		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
 		}
 
-		if (extension.extensionLocation.scheme !== Schemas.file) {
+		if (extension.location.scheme !== Schemas.file) {
 			return false;
 		}
 
-		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+		const extensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
 		if (extensionDescription) {
-			// ignore adding an extension which is already running and cannot be removed
-			if (!this._canRemoveExtension(extensionDescription)) {
-				return false;
-			}
+			// this extension is already running (most likely at a different version)
+			return false;
+		}
+
+		// Check if extension is renamed
+		if (extension.identifier.uuid && this._registry.getAllExtensionDescriptions().some(e => e.uuid === extension.identifier.uuid)) {
+			return false;
 		}
 
 		return true;
@@ -337,7 +341,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let extensions: Promise<IExtensionDescription[]>;
 		if (isInitialStart) {
 			autoStart = false;
-			extensions = this._extensionScanner.scannedExtensions;
+			extensions = this._extensionScanner.scannedExtensions.then(extensions => extensions.filter(extension => this._isEnabled(extension))); // remove disabled extensions
 		} else {
 			// restart case
 			autoStart = true;

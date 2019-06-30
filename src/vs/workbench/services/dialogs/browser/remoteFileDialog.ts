@@ -331,6 +331,7 @@ export class RemoteFileDialog {
 							}
 						} else {
 							this.filePickBox.activeItems = [];
+							this.userEnteredPathSegment = '';
 						}
 					}
 				} catch {
@@ -369,7 +370,11 @@ export class RemoteFileDialog {
 	}
 
 	private constructFullUserPath(): string {
-		return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
+		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
+			return this.pathFromUri(this.currentFolder);
+		} else {
+			return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
+		}
 	}
 
 	private filePickBoxValue(): URI {
@@ -492,11 +497,13 @@ export class RemoteFileDialog {
 		const userPath = this.constructFullUserPath();
 		if (equalsIgnoreCase(userPath, value.substring(0, userPath.length))) {
 			let hasMatch = false;
-			for (let i = 0; i < this.filePickBox.items.length; i++) {
-				const item = <FileQuickPickItem>this.filePickBox.items[i];
-				if (this.setAutoComplete(value, inputBasename, item)) {
-					hasMatch = true;
-					break;
+			if (inputBasename.length > this.userEnteredPathSegment.length) {
+				for (let i = 0; i < this.filePickBox.items.length; i++) {
+					const item = <FileQuickPickItem>this.filePickBox.items[i];
+					if (this.setAutoComplete(value, inputBasename, item)) {
+						hasMatch = true;
+						break;
+					}
 				}
 			}
 			if (!hasMatch) {
@@ -505,11 +512,7 @@ export class RemoteFileDialog {
 				this.filePickBox.activeItems = [];
 			}
 		} else {
-			if (!equalsIgnoreCase(inputBasename, resources.basename(this.currentFolder))) {
-				this.userEnteredPathSegment = inputBasename;
-			} else {
-				this.userEnteredPathSegment = '';
-			}
+			this.userEnteredPathSegment = inputBasename;
 			this.autoCompletePathSegment = '';
 		}
 	}

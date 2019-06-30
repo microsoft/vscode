@@ -100,6 +100,13 @@ function parseReporterOption(value) {
 
 app.on('ready', () => {
 
+	ipcMain.on('error', (_, err) => {
+		if (!argv.debug) {
+			console.error(err);
+			app.exit(1);
+		}
+	});
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,

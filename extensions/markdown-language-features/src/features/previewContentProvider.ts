@@ -51,6 +51,7 @@ export class MarkdownContentProvider {
 
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,
+		webviewResourceRoot: string,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined,
 		state?: any
@@ -65,14 +66,14 @@ export class MarkdownContentProvider {
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
 			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings(),
-			webviewResourceRoot: vscode.env.webviewResourceRoot,
+			webviewResourceRoot: webviewResourceRoot,
 		};
 
 		this.logger.log('provideTextDocumentContent', initialData);
 
 		// Content Security Policy
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-		const csp = this.getCspForResource(sourceUri, nonce);
+		const csp = this.getCspForResource(webviewResourceRoot, sourceUri, nonce);
 
 		const body = await this.engine.render(markdownDocument);
 		return `<!DOCTYPE html>
@@ -84,14 +85,14 @@ export class MarkdownContentProvider {
 					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
 					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
 					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
-				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
-				${this.getStyles(sourceUri, nonce, config, state)}
-				<base href="${toResoruceUri(markdownDocument.uri)}">
+				<script src="${this.extensionResourcePath(webviewResourceRoot, 'pre.js')}" nonce="${nonce}"></script>
+				${this.getStyles(webviewResourceRoot, sourceUri, nonce, config, state)}
+				<base href="${toResoruceUri(webviewResourceRoot, markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body}
 				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
-				${this.getScripts(nonce)}
+				${this.getScripts(webviewResourceRoot, nonce)}
 			</body>
 			</html>`;
 	}
@@ -109,12 +110,12 @@ export class MarkdownContentProvider {
 			</html>`;
 	}
 
-	private extensionResourcePath(mediaFile: string): string {
-		return toResoruceUri(vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))))
+	private extensionResourcePath(webviewResourceRoot: string, mediaFile: string): string {
+		return toResoruceUri(webviewResourceRoot, vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))))
 			.toString();
 	}
 
-	private fixHref(resource: vscode.Uri, href: string): string {
+	private fixHref(webviewResourceRoot: string, resource: vscode.Uri, href: string): string {
 		if (!href) {
 			return href;
 		}
@@ -125,23 +126,23 @@ export class MarkdownContentProvider {
 
 		// Assume it must be a local file
 		if (path.isAbsolute(href)) {
-			return toResoruceUri(vscode.Uri.file(href)).toString();
+			return toResoruceUri(webviewResourceRoot, vscode.Uri.file(href)).toString();
 		}
 
 		// Use a workspace relative path if there is a workspace
 		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
-			return toResoruceUri(vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
+			return toResoruceUri(webviewResourceRoot, vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
 		}
 
 		// Otherwise look relative to the markdown file
-		return toResoruceUri(vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))).toString();
+		return toResoruceUri(webviewResourceRoot, vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))).toString();
 	}
 
-	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
+	private computeCustomStyleSheetIncludes(webviewResourceRoot: string, resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
 		if (Array.isArray(config.styles)) {
 			return config.styles.map(style => {
-				return `<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this.fixHref(resource, style))}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this.fixHref(webviewResourceRoot, resource, style))}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';
@@ -172,37 +173,41 @@ export class MarkdownContentProvider {
 		return ret;
 	}
 
-	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration, state?: any): string {
+	private getStyles(webviewResourceRoot: string, resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration, state?: any): string {
 		const baseStyles = this.contributionProvider.contributions.previewStyles
-			.map(resource => `<link rel="stylesheet" type="text/css" href="${escapeAttribute(resource.toString())}">`)
+			.map(resource => `<link rel="stylesheet" type="text/css" href="${escapeAttribute(toResoruceUri(webviewResourceRoot, resource).toString())}">`)
 			.join('\n');
 
 		return `${baseStyles}
 			${this.getSettingsOverrideStyles(nonce, config)}
-			${this.computeCustomStyleSheetIncludes(resource, config)}
+			${this.computeCustomStyleSheetIncludes(webviewResourceRoot, resource, config)}
 			${this.getImageStabilizerStyles(state)}`;
 	}
 
-	private getScripts(nonce: string): string {
+	private getScripts(resourceRoot: string, nonce: string): string {
 		return this.contributionProvider.contributions.previewScripts
-			.map(resource => `<script async src="${escapeAttribute(resource.toString())}" nonce="${nonce}" charset="UTF-8"></script>`)
+			.map(resource => `<script async src="${escapeAttribute(toResoruceUri(resourceRoot, resource).toString())}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}
 
-	private getCspForResource(resource: vscode.Uri, nonce: string): string {
+	private getCspForResource(
+		webviewResourceRoot: string,
+		resource: vscode.Uri,
+		nonce: string
+	): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${vscode.env.webviewResourceRoot} http: https: data:; media-src 'self' ${vscode.env.webviewResourceRoot} http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${vscode.env.webviewResourceRoot} 'unsafe-inline' http: https: data:; font-src 'self' ${vscode.env.webviewResourceRoot} http: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${webviewResourceRoot} http: https: data:; media-src 'self' ${webviewResourceRoot} http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${webviewResourceRoot} 'unsafe-inline' http: https: data:; font-src 'self' ${webviewResourceRoot} http: https: data:;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowInsecureLocalContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${vscode.env.webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*; media-src 'self' ${vscode.env.webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' ${vscode.env.webviewResourceRoot} 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src 'self' ${vscode.env.webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*; media-src 'self' ${webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' ${webviewResourceRoot} 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src 'self' ${webviewResourceRoot} https: data: http://localhost:* http://127.0.0.1:*;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
 				return '';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${vscode.env.webviewResourceRoot} https: data:; media-src 'self' ${vscode.env.webviewResourceRoot} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${vscode.env.webviewResourceRoot} 'unsafe-inline' https: data:; font-src 'self' ${vscode.env.webviewResourceRoot} https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${webviewResourceRoot} https: data:; media-src 'self' ${webviewResourceRoot} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${webviewResourceRoot} 'unsafe-inline' https: data:; font-src 'self' ${webviewResourceRoot} https: data:;">`;
 		}
 	}
 }
