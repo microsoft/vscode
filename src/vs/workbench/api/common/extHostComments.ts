@@ -571,11 +571,11 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	private _deleteCommand?: vscode.Command;
-	get deleteComand(): vscode.Command | undefined {
+	get deleteCommand(): vscode.Command | undefined {
 		return this._deleteCommand;
 	}
 
-	set deleteCommand(deleteCommand: vscode.Command) {
+	set deleteCommand(deleteCommand: vscode.Command | undefined) {
 		this._deleteCommand = deleteCommand;
 		this._onDidUpdateCommentThread.fire();
 	}
