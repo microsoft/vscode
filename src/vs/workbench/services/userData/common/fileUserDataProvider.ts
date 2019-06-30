@@ -42,30 +42,30 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 		}
 	}
 
-	async readFile(path: string): Promise<VSBuffer> {
+	async readFile(path: string): Promise<Uint8Array> {
 		const resource = this.toResource(path);
 		try {
 			const content = await this.fileService.readFile(resource);
-			return content.value;
+			return content.value.buffer;
 		} catch (e) {
 			const exists = await this.fileService.exists(resource);
 			if (exists) {
 				throw e;
 			}
 		}
-		return VSBuffer.fromString('');
+		return VSBuffer.fromString('').buffer;
 	}
 
-	writeFile(path: string, value: VSBuffer): Promise<void> {
-		return this.fileService.writeFile(this.toResource(path), value).then(() => undefined);
+	writeFile(path: string, value: Uint8Array): Promise<void> {
+		return this.fileService.writeFile(this.toResource(path), VSBuffer.wrap(value)).then(() => undefined);
 	}
 
-	async readDirectory(path: string): Promise<string[]> {
+	async listFiles(path: string): Promise<string[]> {
 		const result = await this.fileService.resolve(this.toResource(path));
 		return result.children ? result.children.map(c => this.toKey(c.resource)!) : [];
 	}
 
-	delete(path: string): Promise<void> {
+	deleteFile(path: string): Promise<void> {
 		return this.fileService.del(this.toResource(path));
 	}
 

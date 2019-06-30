@@ -7,7 +7,6 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, FileWriteOptions, IStat, FileType, FileDeleteOptions, IWatchOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileChange, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -65,8 +64,7 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 		if (!path) {
 			throw new Error(`Invalud user data resource ${resource}`);
 		}
-		const content = await this.userDataProvider.readFile(path);
-		return content.buffer;
+		return this.userDataProvider.readFile(path);
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
@@ -74,7 +72,7 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 		if (!path) {
 			throw new Error(`Invalud user data resource ${resource}`);
 		}
-		const children = await this.userDataProvider.readDirectory(path);
+		const children = await this.userDataProvider.listFiles(path);
 		return children.map(c => [c, FileType.Unknown]);
 	}
 
@@ -83,7 +81,7 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 		if (!path) {
 			throw new Error(`Invalud user data resource ${resource}`);
 		}
-		return this.userDataProvider.writeFile(path, VSBuffer.wrap(content));
+		return this.userDataProvider.writeFile(path, content);
 	}
 
 	private toPath(resource: URI): string | undefined {

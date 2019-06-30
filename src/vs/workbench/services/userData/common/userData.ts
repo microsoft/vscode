@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IUserDataProvider {
 
-	onDidChangeFile: Event<string[]>;
+	readonly onDidChangeFile: Event<string[]>;
 
-	readFile(path: string): Promise<VSBuffer>;
+	readFile(path: string): Promise<Uint8Array>;
+	writeFile(path: string, content: Uint8Array): Promise<void>;
+	deleteFile(path: string): Promise<void>;
 
-	readDirectory(path: string): Promise<string[]>;
-
-	writeFile(path: string, content: VSBuffer): Promise<void>;
-
-	delete(path: string): Promise<void>;
+	listFiles(path: string): Promise<string[]>;
 }

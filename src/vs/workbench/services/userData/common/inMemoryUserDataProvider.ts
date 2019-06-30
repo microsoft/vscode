@@ -21,27 +21,27 @@ export class InMemoryUserDataProvider extends Disposable implements IUserDataPro
 		this._register(toDisposable(() => this.store.clear()));
 	}
 
-	async readDirectory(path: string): Promise<string[]> {
+	async listFiles(path: string): Promise<string[]> {
 		return [];
 	}
 
-	async readFile(path: string): Promise<VSBuffer> {
-		return VSBuffer.fromString(this.getValue(path));
+	async readFile(path: string): Promise<Uint8Array> {
+		return VSBuffer.fromString(this.getValue(path)).buffer;
 	}
 
-	async writeFile(path: string, value: VSBuffer): Promise<void> {
-		const content = value.toString();
+	async writeFile(path: string, value: Uint8Array): Promise<void> {
+		const content = VSBuffer.wrap(value).toString();
 		if (content !== this.getValue(path)) {
 			if (content) {
 				this.store.set(path, content);
 				this._onDidChangeFile.fire([path]);
 			} else {
-				this.delete(path);
+				this.deleteFile(path);
 			}
 		}
 	}
 
-	async delete(path: string): Promise<void> {
+	async deleteFile(path: string): Promise<void> {
 		if (this.store.has(path)) {
 			this.store.delete(path);
 			this._onDidChangeFile.fire([path]);
