@@ -26,6 +26,9 @@ import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import product from 'vs/platform/product/node/product';
+import { REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL } from '../contrib/files/browser/fileCommands';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 // Actions
 (function registerActions(): void {
@@ -59,6 +62,17 @@ import product from 'vs/platform/product/node/product';
 			when: recentFilesPickerContext,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
 			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
+		});
+
+		MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+			command: { id: REVEAL_IN_OS_COMMAND_ID, title: REVEAL_IN_OS_LABEL },
+			when: ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+			group: '2_files'
+		});
+		MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+			command: { id: REVEAL_IN_OS_COMMAND_ID, title: REVEAL_IN_OS_LABEL },
+			when: ResourceContextKey.Scheme.isEqualTo(Schemas.userData),
+			group: '2_files'
 		});
 	})();
 
