@@ -446,11 +446,16 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			compileExtensionsBuildTask,
+		const vscodeCITaskWhat = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
+		));
+		gulp.task(vscodeCITaskWhat);
+
+		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			compileExtensionsBuildTask,
+			vscodeCITaskWhat
 		));
 		gulp.task(vscodeTask);
 	});
