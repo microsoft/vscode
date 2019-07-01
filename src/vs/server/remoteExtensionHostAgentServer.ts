@@ -310,17 +310,22 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private async _getWorkspace(url: string | undefined): Promise<{ workspacePath?: string, isFolder?: boolean }> {
 		const cwd = process.env['VSCODE_CWD'] || process.cwd();
 
+		const queryWorkspace = this._getQueryValue(url, 'workspace');
+		const queryFolder = this._getQueryValue(url, 'folder');
+
 		// check for workspace argument
-		const workspaceCandidate: string = this._getQueryValue(url, 'workspace') || this._environmentService.args['workspace'];
-		if (workspaceCandidate && workspaceCandidate.length > 0) {
-			const workspace = sanitizeFilePath(workspaceCandidate, cwd);
-			if (await util.promisify(fs.exists)(workspace)) {
-				return { workspacePath: workspace };
+		if (queryWorkspace || !queryFolder /* queries always have higher priority */) {
+			const workspaceCandidate: string = queryWorkspace || this._environmentService.args['workspace'];
+			if (workspaceCandidate && workspaceCandidate.length > 0) {
+				const workspace = sanitizeFilePath(workspaceCandidate, cwd);
+				if (await util.promisify(fs.exists)(workspace)) {
+					return { workspacePath: workspace };
+				}
 			}
 		}
 
 		// check for folder argument
-		const folderCandidate: string = this._getQueryValue(url, 'folder') || this._environmentService.args['folder'];
+		const folderCandidate: string = queryFolder || this._environmentService.args['folder'];
 		if (folderCandidate && folderCandidate.length > 0) {
 			const folder = sanitizeFilePath(folderCandidate, cwd);
 			if (await util.promisify(fs.exists)(folder)) {
