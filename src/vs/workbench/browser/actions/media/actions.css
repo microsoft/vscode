@@ -11,6 +11,10 @@
 	background-image: url('layout-dark.svg');
 }
 
+.hc-black .monaco-workbench .flip-editor-layout {
+	background-image: url('layout-hc.svg');
+}
+
 .vs .action-remove-from-recently-opened {
 	background: url("remove-light.svg") center center no-repeat;
 }
