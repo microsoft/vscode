@@ -348,7 +348,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
-	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
+	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], metadata: ISerializedSignatureHelpProviderMetadata): void;
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
