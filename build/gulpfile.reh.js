@@ -323,13 +323,16 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
 
+		const nodePath = `.build/node/v${nodeVersion}/${platform}-${arch}`;
+		const node = gulp.src(`${nodePath}/**`, { base: nodePath, dot: true });
+
 		let all = es.merge(
 			packageJsonStream,
 			productJsonStream,
 			license,
 			sources,
 			deps,
-			nodejs(process.platform, arch)
+			node
 		);
 
 		if (process.env['VSCODE_WEB_BUILD']) {
@@ -437,6 +440,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 			const vscodeServerCITask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
+				gulp.task(`node-${platform}-${arch}`),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
 			));
 			gulp.task(vscodeServerCITask);
