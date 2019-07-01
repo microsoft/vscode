@@ -10,10 +10,10 @@ set NODE_ENV=development
 set VSCODE_DEV=1
 
 :: Sync built-in extensions
-call node build\lib\builtInExtensions.js
+call yarn download-builtin-extensions
 
 :: Download nodejs executable for remote
-call node .\node_modules\gulp\bin\gulp.js node-remote
+call yarn gulp node
 
 echo Using node from .build\node-remote\node
 

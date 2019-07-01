@@ -11,14 +11,10 @@ function code() {
 	cd $ROOT
 
 	# Sync built-in extensions
-	node build/lib/builtInExtensions.js
+	yarn download-builtin-extensions
 
 	# Load remote node
-	if [[ -e "./.build/node-remote/node" ]]; then
-		echo 'Skipping node download...'
-	else
-		./node_modules/.bin/gulp node-remote
-	fi
+	yarn node
 
 	echo 'Using node from ./.build/node-remote/node'
 
