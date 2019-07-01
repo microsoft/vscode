@@ -36,7 +36,11 @@
 	}();
 
 	const workerReady = new Promise(async (resolveWorkerReady) => {
-		if (!navigator.serviceWorker) {
+		try {
+			if (!navigator.serviceWorker) {
+				return resolveWorkerReady();
+			}
+		} catch (e) {
 			return resolveWorkerReady();
 		}
 

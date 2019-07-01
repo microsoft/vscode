@@ -158,7 +158,12 @@
 		};
 
 		// Service worker for resource loading
-		const FAKE_LOAD = !!navigator.serviceWorker;
+		let FAKE_LOAD = false;
+		try {
+			FAKE_LOAD = !!navigator.serviceWorker;
+		} catch (e) {
+			// noop
+		}
 
 		/**
 		 * @param {HTMLDocument?} document
