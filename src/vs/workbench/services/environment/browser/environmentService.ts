@@ -71,7 +71,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		this.configuration.remoteAuthority = configuration.remoteAuthority;
 
 		if (remoteUserDataUri) {
-			this.appSettingsHome = remoteUserDataUri || URI.file('/User').with({ scheme: Schemas.userData });
+			this.appSettingsHome = remoteUserDataUri;
 			this.settingsResource = joinPath(this.appSettingsHome, 'settings.json').with({ scheme: Schemas.userData });
 			this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json').with({ scheme: Schemas.userData });
 		} else {

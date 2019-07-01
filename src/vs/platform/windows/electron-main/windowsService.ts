@@ -337,14 +337,13 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		console[severity].apply(console, ...messages);
 	}
 
-	async showItemInFolder(path: URI): Promise<void> {
+	async showItemInFolder(resource: URI): Promise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 
-		if (path.scheme === Schemas.file) {
-			shell.showItemInFolder(path.fsPath);
-		}
-		if (path.scheme === Schemas.userData) {
-			shell.showItemInFolder(path.path);
+		if (resource.scheme === Schemas.file) {
+			shell.showItemInFolder(resource.fsPath);
+		} else if (resource.scheme === Schemas.userData) {
+			shell.showItemInFolder(resource.path);
 		}
 	}
 
