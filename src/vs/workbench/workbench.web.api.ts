@@ -32,6 +32,10 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	workspaceUri?: UriComponents;
 
+	/**
+	 * Experimental: The userDataProvider is used to handle user specific application
+	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
+	 */
 	userDataProvider?: IUserDataProvider;
 }
 
