@@ -68,6 +68,32 @@ gulp.task(task.define('linux-x64-min', task.series(
 	gulp.task('vscode-web-linux-x64-min-ci')
 )));
 
+gulp.task(task.define('linux-armhf', task.series(
+	gulp.task('compile-build'),
+	gulp.task('compile-extensions-build'),
+	gulp.task('vscode-reh-linux-armhf-ci')
+)));
+
+gulp.task(task.define('linux-armhf-min', task.series(
+	gulp.task('compile-build'),
+	gulp.task('compile-extensions-build'),
+	gulp.task('vscode-reh-linux-armhf-min-ci')
+)));
+
+gulp.task(task.define('linux-alpine', task.series(
+	gulp.task('compile-build'),
+	gulp.task('compile-extensions-build'),
+	gulp.task('vscode-reh-linux-alpine-ci'),
+	gulp.task('vscode-web-linux-alpine-ci')
+)));
+
+gulp.task(task.define('linux-alpine-min', task.series(
+	gulp.task('compile-build'),
+	gulp.task('compile-extensions-build'),
+	gulp.task('vscode-reh-linux-alpine-min-ci'),
+	gulp.task('vscode-web-linux-alpine-min-ci')
+)));
+
 gulp.task(task.define('darwin', task.series(
 	gulp.task('compile-build'),
 	gulp.task('compile-extensions-build'),

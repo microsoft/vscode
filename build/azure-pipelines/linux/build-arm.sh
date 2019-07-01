@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -e
-yarn gulp vscode-reh-linux-armhf-min
+yarn gulp linux-armhf-min
