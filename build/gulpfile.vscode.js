@@ -92,10 +92,7 @@ const BUNDLED_FILE_HEADER = [
 ].join('\n');
 
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
-	task.parallel(
-		util.rimraf('out-vscode'),
-		compileBuildTask
-	),
+	util.rimraf('out-vscode'),
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: vscodeEntryPoints,
@@ -107,23 +104,16 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	})
 ));
 
-
-const optimizeIndexJSTask = task.define('optimize-index-js', task.series(
+const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	optimizeVSCodeTask,
+	util.rimraf('out-vscode-min'),
 	() => {
 		const fullpath = path.join(process.cwd(), 'out-vscode/bootstrap-window.js');
 		const contents = fs.readFileSync(fullpath).toString();
 		const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 		fs.writeFileSync(fullpath, newContents);
-	}
-));
-
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
-const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	task.parallel(
-		util.rimraf('out-vscode-min'),
-		optimizeIndexJSTask
-	),
+	},
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 
@@ -446,16 +436,17 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeCITaskWhat = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
-			util.rimraf(path.join(buildRoot, destinationFolderName)),
+		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 			minified ? minifyVSCodeTask : optimizeVSCodeTask,
+			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		));
-		gulp.task(vscodeCITaskWhat);
+		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			compileBuildTask,
 			compileExtensionsBuildTask,
-			vscodeCITaskWhat
+			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
 	});
