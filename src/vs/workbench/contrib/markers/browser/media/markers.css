@@ -57,12 +57,16 @@
 }
 
 .vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('excludeSettings.svg') center center no-repeat;
+	background: url('exclude-settings-light.svg') center center no-repeat;
 }
 
 .vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
 .hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('excludeSettings-dark.svg') center center no-repeat;
+	background: url('exclude-settings-dark.svg') center center no-repeat;
+}
+
+.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	background: url('exclude-settings-hc.svg') center center no-repeat;
 }
 
 .markers-panel .markers-panel-container {
@@ -163,21 +167,28 @@
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb.svg') center/80% no-repeat;
+	background: url('lightbulb-light.svg') center no-repeat;
 	margin-right: 0px;
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix.svg') center center no-repeat;
+	background: url('lightbulb-autofix-light.svg') center center no-repeat;
 }
 
 .vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-dark.svg') center/80% no-repeat;
+	background: url('lightbulb-dark.svg') center no-repeat;
 }
 
-.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable,
-.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb-hc.svg') center no-repeat;
+}
+
+.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
 	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
+}
+
+.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	background: url('lightbulb-autofix-hc.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {

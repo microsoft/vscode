@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .activitybar > .content .monaco-action-bar .action-label.scm {
-	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
+	-webkit-mask: url('scm-activity-bar.svg') no-repeat 50% 50%;
 }
 
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
