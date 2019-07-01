@@ -170,7 +170,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private treeContainer: HTMLElement;
 	private _messageValue: string | IMarkdownString | undefined;
 	private messageElement: HTMLDivElement;
-	private tree2: WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
+	private tree: WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
 	private treeLabels: ResourceLabels;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
@@ -292,7 +292,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	getPrimaryActions(): IAction[] {
 		if (this.showCollapseAllAction) {
-			const collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree2 ? new CollapseAllAction2<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>(this.tree2, true).run() : Promise.resolve());
+			const collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction2<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve());
 			return [...this.menus.getTitleActions(), collapseAllAction];
 		} else {
 			return this.menus.getTitleActions();
@@ -314,11 +314,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.activate();
 		}
 
-		if (this.tree2) {
+		if (this.tree) {
 			if (this.isVisible) {
-				DOM.show(this.tree2.getHTMLElement());
+				DOM.show(this.tree.getHTMLElement());
 			} else {
-				DOM.hide(this.tree2.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
+				DOM.hide(this.tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 			}
 
 			if (this.isVisible && this.elementsToRefresh.length) {
@@ -331,15 +331,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	focus(): void {
-		if (this.tree2 && this.root.children && this.root.children.length > 0) {
+		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
-			const selectedElement = this.tree2.getSelection()[0];
+			const selectedElement = this.tree.getSelection()[0];
 			if (selectedElement) {
-				this.tree2.reveal(selectedElement, 0.5);
+				this.tree.reveal(selectedElement, 0.5);
 			}
 
 			// Pass Focus to Viewer
-			this.tree2.domFocus();
+			this.tree.domFocus();
 		} else {
 			this.domNode.focus();
 		}
@@ -362,11 +362,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const actionViewItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action) : undefined;
 		this.treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		const dataSource = this.instantiationService.createInstance(TreeDataSource2, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
-		const renderer = this.instantiationService.createInstance(TreeRenderer2, this.id, this.treeMenus, this.treeLabels, actionViewItemProvider);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.treeMenus, this.treeLabels, actionViewItemProvider);
 		DOM.addClass(this.treeContainer, 'file-icon-themable-tree');
 		DOM.addClass(this.treeContainer, 'show-file-icons');
-		this.tree2 = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
 				accessibilityProvider: {
 					getAriaLabel(element: ITreeItem): string {
@@ -384,14 +384,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				autoExpandSingleChildren: true,
 				expandOnlyOnTwistieClick: true
 			}) as WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
-		this._register(this.tree2);
-		renderer.tree = this.tree2;
+		this._register(this.tree);
+		renderer.tree = this.tree;
 
-		this.tree2.contextKeyService.createKey<boolean>(this.id, true);
-		this._register(this.tree2.onDidChangeSelection(e => this.onSelection(e)));
-		this._register(this.tree2.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.tree2.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
-		this._register(this.tree2.onDidChangeCollapseState(e => {
+		this.tree.contextKeyService.createKey<boolean>(this.id, true);
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
+		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element: ITreeItem = Array.isArray(e.node.element.element) ? e.node.element.element[0] : e.node.element.element;
 			if (e.node.collapsed) {
 				this._onDidCollapseItem.fire(element);
@@ -399,8 +399,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this._onDidExpandItem.fire(element);
 			}
 		}));
-		this._register(this.tree2.onDidOpen(e => this.onDidOpen(e)));
-		this.tree2.setInput(this.root).then(() => this.updateContentAreas());
+		this._register(this.tree.onDidOpen(e => this.onDidOpen(e)));
+		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 	}
 
 	onContextMenu(treeEvent: ITreeContextMenuEvent<ITreeItem>): void {
@@ -413,7 +413,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.tree2.setFocus([node]);
+		this.tree.setFocus([node]);
 		const actions = this.treeMenus.getResourceContextActions(node);
 		if (!actions.length) {
 			return;
@@ -433,13 +433,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					this.tree2.domFocus();
+					this.tree.domFocus();
 				}
 			},
 
 			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
 
-			actionRunner: new MultipleSelectionActionRunner(() => this.tree2.getSelection())
+			actionRunner: new MultipleSelectionActionRunner(() => this.tree.getSelection())
 		});
 	}
 
@@ -489,15 +489,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this._size = size;
 			const treeSize = size - DOM.getTotalHeight(this.messageElement);
 			this.treeContainer.style.height = treeSize + 'px';
-			if (this.tree2) {
-				this.tree2.layout(treeSize);
+			if (this.tree) {
+				this.tree.layout(treeSize);
 			}
 		}
 	}
 
 	getOptimalWidth(): number {
-		if (this.tree2) {
-			const parentNode = this.tree2.getHTMLElement();
+		if (this.tree) {
+			const parentNode = this.tree.getHTMLElement();
 			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
@@ -505,7 +505,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	refresh(elements?: ITreeItem[]): Promise<void> {
-		if (this.dataProvider && this.tree2) {
+		if (this.dataProvider && this.tree) {
 			if (!elements) {
 				elements = [this.root];
 				// remove all waiting elements to refresh if root is asked to refresh
@@ -534,11 +534,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
-		if (this.tree2) {
+		if (this.tree) {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			const promises: Promise<boolean>[] = [];
 			itemOrItems.forEach(element => {
-				promises.push(this.tree2.expand(element, true));
+				promises.push(this.tree.expand(element, true));
 			});
 			return Promise.all(promises).then(() => {
 				return;
@@ -548,21 +548,21 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	setSelection(items: ITreeItem[]): void {
-		if (this.tree2) {
-			this.tree2.setSelection(items);
+		if (this.tree) {
+			this.tree.setSelection(items);
 		}
 	}
 
 	setFocus(item: ITreeItem): void {
-		if (this.tree2) {
+		if (this.tree) {
 			this.focus();
-			this.tree2.setFocus([item]);
+			this.tree.setFocus([item]);
 		}
 	}
 
 	reveal(item: ITreeItem): Promise<void> {
-		if (this.tree2) {
-			return Promise.resolve(this.tree2.reveal(item));
+		if (this.tree) {
+			return Promise.resolve(this.tree.reveal(item));
 		}
 		return Promise.resolve();
 	}
@@ -581,10 +581,10 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private refreshing: boolean = false;
 	private async doRefresh(elements: ITreeItem[]): Promise<void> {
-		if (this.tree2) {
+		if (this.tree) {
 			this.refreshing = true;
 			for (let i = 0; i < elements.length; i++) {
-				await this.tree2.updateChildren(elements[i], true);
+				await this.tree.updateChildren(elements[i], true);
 			}
 			this.refreshing = false;
 			this.updateContentAreas();
@@ -610,14 +610,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (payload && (!!payload.didClickOnTwistie || payload.source === 'api')) {
 			return;
 		}
-		const selection: ITreeItem = this.tree2.getSelection()[0];
+		const selection: ITreeItem = this.tree.getSelection()[0];
 		if (selection) {
 			if (selection.command) {
 				const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
 				const isMouseEvent = payload && payload.origin === 'mouse';
 				const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
 
-				if (!isMouseEvent || this.tree2.openOnSingleClick || isDoubleClick) {
+				if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
 					this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
 				}
 			}
@@ -629,7 +629,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			if (element.command) {
 				this.commandService.executeCommand(element.command.id, ...(element.command.arguments || []));
 			} else {
-				this.tree2.expand(element);
+				this.tree.expand(element);
 			}
 		});
 	}
@@ -638,15 +638,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 class CustomTreeDelegate implements IListVirtualDelegate<ITreeItem> {
 
 	getHeight(element: ITreeItem): number {
-		return TreeRenderer2.ITEM_HEIGHT;
+		return TreeRenderer.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: ITreeItem): string {
-		return TreeRenderer2.TREE_TEMPLATE_ID;
+		return TreeRenderer.TREE_TEMPLATE_ID;
 	}
 }
 
-class TreeDataSource2 implements IAsyncDataSource<ITreeItem | ITreeItem[], ITreeItem> {
+class TreeDataSource implements IAsyncDataSource<ITreeItem | ITreeItem[], ITreeItem> {
 
 	constructor(
 		private treeView: ITreeView,
@@ -696,7 +696,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-export interface ITreeExplorerTemplateData2 {
+export interface ITreeExplorerTemplateData {
 	elementDisposable: IDisposable;
 	container: HTMLElement;
 	resourceLabel: IResourceLabel;
@@ -706,7 +706,7 @@ export interface ITreeExplorerTemplateData2 {
 	aligner: Aligner;
 }
 
-class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData2> {
+class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
 	static readonly ITEM_HEIGHT = 22;
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 	private _tree: WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
@@ -724,14 +724,14 @@ class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, Fuzzy
 	}
 
 	get templateId(): string {
-		return TreeRenderer2.TREE_TEMPLATE_ID;
+		return TreeRenderer.TREE_TEMPLATE_ID;
 	}
 
 	set tree(tree: WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>) {
 		this._tree = tree;
 	}
 
-	renderTemplate(container: HTMLElement): ITreeExplorerTemplateData2 {
+	renderTemplate(container: HTMLElement): ITreeExplorerTemplateData {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
@@ -750,7 +750,7 @@ class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, Fuzzy
 		return { resourceLabel, nonResourceLabel, icon, actionBar, aligner: new Aligner(container.parentElement!, this._tree, this.themeService), container, elementDisposable: Disposable.None };
 	}
 
-	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData2): void {
+	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
 		templateData.elementDisposable.dispose();
 		const node = element.element;
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
@@ -793,7 +793,7 @@ class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, Fuzzy
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
-	disposeTemplate(templateData: ITreeExplorerTemplateData2): void {
+	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 		templateData.aligner.dispose();

@@ -582,10 +582,6 @@ export class CollapseAllAction2<TInput, T, TFilterData = void> extends Action {
 	}
 
 	public run(context?: any): Promise<any> {
-		// TODO: alexr00 how do I get highlight on the new tree?
-		// if (this.viewer.getHighlight()) {
-		// 	return Promise.resolve(); // Global action disabled if user is in edit mode from another action
-		// }
 		this.viewer.collapseAll();
 		this.viewer.setSelection([]);
 		this.viewer.setFocus([]);
