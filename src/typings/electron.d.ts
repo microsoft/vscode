@@ -1982,7 +1982,7 @@ declare namespace Electron {
 		 * Adds a vibrancy effect to the browser window. Passing null or an empty string
 		 * will remove the vibrancy effect on the window.
 		 */
-		setVibrancy(type: 'appearance-based' | 'light' | 'dark' | 'titlebar' | 'selection' | 'menu' | 'popover' | 'sidebar' | 'medium-light' | 'ultra-dark'): void;
+		setVibrancy(type: '' | 'appearance-based' | 'light' | 'dark' | 'titlebar' | 'selection' | 'menu' | 'popover' | 'sidebar' | 'medium-light' | 'ultra-dark'): void;
 		/**
 		 * Sets whether the window should be visible on all workspaces. Note: This API does
 		 * nothing on Windows.
@@ -7581,7 +7581,7 @@ declare namespace Electron {
 		 * medium-light or ultra-dark. Please note that using frame: false in combination
 		 * with a vibrancy value requires that you use a non-default titleBarStyle as well.
 		 */
-		vibrancy?: ('appearance-based' | 'light' | 'dark' | 'titlebar' | 'selection' | 'menu' | 'popover' | 'sidebar' | 'medium-light' | 'ultra-dark');
+		vibrancy?: ('' | 'appearance-based' | 'light' | 'dark' | 'titlebar' | 'selection' | 'menu' | 'popover' | 'sidebar' | 'medium-light' | 'ultra-dark');
 		/**
 		 * Controls the behavior on macOS when option-clicking the green stoplight button
 		 * on the toolbar or by clicking the Window > Zoom menu item. If true, the window

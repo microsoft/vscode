@@ -161,7 +161,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 		}
 
-		const useVibrancy = isMacintosh && windowConfig && windowConfig.vibrancy !== 'none';
+		const useVibrancy = isMacintosh && windowConfig && windowConfig.vibrancy !== '';
 		if (useVibrancy) {
 			options.vibrancy = windowConfig.vibrancy;
 			options.backgroundColor = '#00000000';
