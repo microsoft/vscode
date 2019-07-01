@@ -1563,7 +1563,7 @@ export class CommandCenter {
 		const name = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
-			value: (repository.HEAD && repository.HEAD.name) || undefined
+			value: repository.HEAD && repository.HEAD.name
 		});
 
 		if (!name || name.trim().length === 0) {
