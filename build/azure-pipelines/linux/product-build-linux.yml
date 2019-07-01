@@ -79,12 +79,14 @@ steps:
     set -e
     if [[ "$VSCODE_ARCH" == "ia32" ]]; then
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-linux-$VSCODE_ARCH-min
+      yarn gulp vscode-linux-$VSCODE_ARCH-min
     else
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-linux-$VSCODE_ARCH-min
-        yarn gulp vscode-reh-linux-$VSCODE_ARCH-min
-        yarn gulp vscode-web-linux-$VSCODE_ARCH-min
+      yarn gulp vscode-linux-$VSCODE_ARCH-min
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-linux-$VSCODE_ARCH-min
     fi
   displayName: Build
 

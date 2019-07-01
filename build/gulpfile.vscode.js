@@ -21,7 +21,6 @@ const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
 const task = require('./lib/task');
-const ext = require('./lib/extensions');
 const buildfile = require('../src/buildfile');
 const common = require('./lib/optimize');
 const root = path.dirname(__dirname);
@@ -35,6 +34,7 @@ const getElectronVersion = require('./lib/electron').getElectronVersion;
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
+const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 // @ts-ignore
@@ -277,9 +277,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const root = path.resolve(path.join(__dirname, '..'));
 
-		const sources = es.merge(src, ext.packageExtensionsStream({
-			sourceMappingURLBase: sourceMappingURLBase
-		}));
+		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true });
+		const sources = es.merge(src, extensions);
 
 		let version = packageJson.version;
 		// @ts-ignore JSON checking: quality is optional
@@ -448,10 +447,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			task.parallel(
-				minified ? minifyVSCodeTask : optimizeVSCodeTask,
-				util.rimraf(path.join(buildRoot, destinationFolderName))
-			),
+			compileExtensionsBuildTask,
+			util.rimraf(path.join(buildRoot, destinationFolderName)),
+			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		));
 		gulp.task(vscodeTask);
