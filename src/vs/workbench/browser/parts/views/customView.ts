@@ -685,9 +685,9 @@ registerThemingParticipant((theme, collector) => {
 	if (link) {
 		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a { color: ${link}; }`);
 	}
-	const focustBorderColor = theme.getColor(focusBorder);
-	if (focustBorderColor) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a:focus { outline: 1px solid ${focustBorderColor}; outline-offset: -1px; }`);
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a:focus { outline: 1px solid ${focusBorderColor}; outline-offset: -1px; }`);
 	}
 	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {
