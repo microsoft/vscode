@@ -18,15 +18,13 @@ export function parseExtensionDevOptions(environmentService: IEnvironmentService
 	let isExtensionDevHost = environmentService.isExtensionDevelopment;
 
 	let debugOk = true;
-	let extDevLoc = environmentService.extensionDevelopmentLocationURI;
-	if (Array.isArray(extDevLoc)) {
-		for (let x of extDevLoc) {
+	let extDevLocs = environmentService.extensionDevelopmentLocationURI;
+	if (extDevLocs) {
+		for (let x of extDevLocs) {
 			if (x.scheme !== Schemas.file) {
 				debugOk = false;
 			}
 		}
-	} else if (extDevLoc && extDevLoc.scheme !== Schemas.file) {
-		debugOk = false;
 	}
 
 	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';

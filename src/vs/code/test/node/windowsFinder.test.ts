@@ -18,13 +18,15 @@ const testWorkspace: IWorkspaceIdentifier = {
 	configPath: URI.file(path.join(fixturesFolder, 'workspaces.json'))
 };
 
+const testWorkspaceFolders = toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath);
+
 function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): IBestWindowOrFolderOptions<ISimpleWindow> {
 	return {
 		windows: [],
 		newWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
-		localWorkspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null!; },
+		localWorkspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : null; },
 		...custom
 	};
 }

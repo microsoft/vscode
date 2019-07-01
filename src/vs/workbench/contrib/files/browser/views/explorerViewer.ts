@@ -7,7 +7,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -46,6 +46,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -98,7 +99,11 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return []; // we could not resolve any children because of an error
 		});
 
-		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
+		this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: this.layoutService.isRestored() ? 800 : 1200 // less ugly initial startup
+		}, _progress => promise);
+
 		return promise;
 	}
 }
@@ -217,21 +222,19 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean) => {
+		const done = once(async (success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			container.removeChild(label.element);
-			// Timeout: once done rendering only then re-render #70902
-			setTimeout(() => editableData.onFinish(value, success), 0);
+			if (finishEditing) {
+				// Timeout: once done rendering only then re-render #70902
+				setTimeout(() => editableData.onFinish(value, success), 0);
+			}
 		});
 
-		let ignoreDisposeAndBlur = true;
-		setTimeout(() => ignoreDisposeAndBlur = false, 100);
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			if (!ignoreDisposeAndBlur) {
-				done(inputBox.isInputValid());
-			}
+			done(inputBox.isInputValid(), true);
 		});
 
 		const toDispose = [
@@ -239,10 +242,10 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true);
+						done(true, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false);
+					done(false, true);
 				}
 			}),
 			blurDisposable,
@@ -251,10 +254,8 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		];
 
 		return toDisposable(() => {
-			if (!ignoreDisposeAndBlur) {
-				blurDisposable.dispose();
-				done(false);
-			}
+			blurDisposable.dispose();
+			done(false, false);
 		});
 	}
 
@@ -441,7 +442,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
 	) {
 		this.toDispose = [];
 
@@ -604,6 +606,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
+		if (this.environmentService.configuration.remoteAuthority) {
+			if (droppedResources.some(r => r.resource.authority !== this.environmentService.configuration.remoteAuthority)) {
+				return Promise.resolve();
+			}
+		}
 
 		// Check for dropped external files to be folders
 		return this.fileService.resolveAll(droppedResources).then(result => {

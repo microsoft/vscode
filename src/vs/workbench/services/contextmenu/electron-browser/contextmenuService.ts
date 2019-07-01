@@ -97,7 +97,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;
 			} else {
-				const pos = <{ x: number; y: number; }>anchor;
+				const pos: { x: number; y: number; } = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
 			}
@@ -172,7 +172,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): void {
+	private async runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
 		/* __GDPR__
 			"workbenchActionExecuted" : {
 				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -182,9 +182,15 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
-		const res = actionRunner.run(actionToRun, context) || Promise.resolve(null);
 
-		res.then(undefined, e => this.notificationService.error(e));
+		const runnable = actionRunner.run(actionToRun, context);
+		if (runnable) {
+			try {
+				await runnable;
+			} catch (error) {
+				this.notificationService.error(error);
+			}
+		}
 	}
 }
 

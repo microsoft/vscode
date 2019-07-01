@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice, Severity, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -37,7 +37,6 @@ suite('Experimental Prompts', () => {
 				commands: [
 					{
 						text: 'Yes',
-						externalLink: 'https://code.visualstudio.com'
 					},
 					{
 						text: 'No'
@@ -83,30 +82,30 @@ suite('Experimental Prompts', () => {
 	});
 
 
-	// test('Show experimental prompt if experiment should be run. Choosing option with link should mark experiment as complete', () => {
+	test('Show experimental prompt if experiment should be run. Choosing option with link should mark experiment as complete', () => {
 
-	// 	storageData = {
-	// 		enabled: true,
-	// 		state: ExperimentState.Run
-	// 	};
+		storageData = {
+			enabled: true,
+			state: ExperimentState.Run
+		};
 
-	// 	instantiationService.stub(INotificationService, {
-	// 		prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
-	// 			assert.equal(b, promptText);
-	// 			assert.equal(c.length, 2);
-	// 			c[0].run();
-	// 			return undefined!;
-	// 		}
-	// 	});
+		instantiationService.stub(INotificationService, {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
+				assert.equal(b, promptText);
+				assert.equal(c.length, 2);
+				c[0].run();
+				return undefined!;
+			}
+		});
 
-	// 	experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
-	// 	onExperimentEnabledEvent.fire(experiment);
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
+		onExperimentEnabledEvent.fire(experiment);
 
-	// 	return Promise.resolve(null).then(result => {
-	// 		assert.equal(storageData['state'], ExperimentState.Complete);
-	// 	});
+		return Promise.resolve(null).then(result => {
+			assert.equal(storageData['state'], ExperimentState.Complete);
+		});
 
-	// });
+	});
 
 	test('Show experimental prompt if experiment should be run. Choosing negative option should mark experiment as complete', () => {
 

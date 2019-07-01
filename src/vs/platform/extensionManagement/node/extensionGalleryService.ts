@@ -5,7 +5,6 @@
 
 import { tmpdir } from 'os';
 import * as path from 'vs/base/common/path';
-import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -595,10 +594,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return Promise.resolve('');
 	}
 
-	loadAllDependencies(extensions: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		return this.getDependenciesReccursively(extensions.map(e => e.id), [], token);
-	}
-
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.ExcludeNonValidated)
@@ -625,59 +620,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			}
 			return [];
 		});
-	}
-
-
-	private loadDependencies(extensionNames: string[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		if (!extensionNames || extensionNames.length === 0) {
-			return Promise.resolve([]);
-		}
-
-		let query = new Query()
-			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, extensionNames.length)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
-			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX)
-			.withFilter(FilterType.ExtensionName, ...extensionNames);
-
-		return this.queryGallery(query, token).then(result => {
-			const dependencies: IGalleryExtension[] = [];
-			const ids: string[] = [];
-
-			for (let index = 0; index < result.galleryExtensions.length; index++) {
-				const rawExtension = result.galleryExtensions[index];
-				if (ids.indexOf(rawExtension.extensionId) === -1) {
-					dependencies.push(toExtension(rawExtension, rawExtension.versions[0], index, query, 'dependencies'));
-					ids.push(rawExtension.extensionId);
-				}
-			}
-			return dependencies;
-		});
-	}
-
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		if (!toGet || !toGet.length) {
-			return Promise.resolve(result);
-		}
-		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;
-		if (!toGet.length) {
-			return Promise.resolve(result);
-		}
-
-		return this.loadDependencies(toGet, token)
-			.then(loadedDependencies => {
-				const dependenciesSet = new Set<string>();
-				for (const dep of loadedDependencies) {
-					if (dep.properties.dependencies) {
-						dep.properties.dependencies.forEach(d => dependenciesSet.add(d));
-					}
-				}
-				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
-				const dependencies: string[] = [];
-				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
-				return this.getDependenciesReccursively(dependencies, result, token);
-			});
 	}
 
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
@@ -731,7 +673,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						/* __GDPR__
 							"galleryService:requestError" : {
 								"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 								"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 							}
 						*/
@@ -747,7 +689,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (version) {
 			return version;
 		}
-		return this.getLastValidExtensionVersionReccursively(extension, versions);
+		return this.getLastValidExtensionVersionRecursively(extension, versions);
 	}
 
 	private getLastValidExtensionVersionFromProperties(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): Promise<IRawGalleryExtensionVersion> | null {
@@ -780,7 +722,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.then(manifest => manifest ? manifest.engines.vscode : Promise.reject<string>('Error while reading manifest'));
 	}
 
-	private getLastValidExtensionVersionReccursively(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): Promise<IRawGalleryExtensionVersion | null> {
+	private getLastValidExtensionVersionRecursively(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): Promise<IRawGalleryExtensionVersion | null> {
 		if (!versions.length) {
 			return Promise.resolve(null);
 		}
@@ -789,22 +731,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.getEngine(version)
 			.then(engine => {
 				if (!isEngineValid(engine)) {
-					return this.getLastValidExtensionVersionReccursively(extension, versions.slice(1));
+					return this.getLastValidExtensionVersionRecursively(extension, versions.slice(1));
 				}
 
 				version.properties = version.properties || [];
 				version.properties.push({ key: PropertyType.Engine, value: engine });
 				return version;
 			});
-	}
-
-	private static hasExtensionByName(extensions: IGalleryExtension[], name: string): boolean {
-		for (const extension of extensions) {
-			if (`${extension.publisher}.${extension.name}` === name) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {

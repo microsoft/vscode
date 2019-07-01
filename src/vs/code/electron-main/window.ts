@@ -7,8 +7,7 @@ import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IStateService } from 'vs/platform/state/common/state';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,10 +22,9 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { getBackgroundColor } from 'vs/code/electron-main/theme';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { endsWith } from 'vs/base/common/strings';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -80,14 +78,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: Electron.TouchBarSegmentedControl[];
 
-	private nodeless: boolean;
-
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 	) {
@@ -97,8 +93,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
-
-		this.nodeless = !!(environmentService.args.nodeless && !environmentService.isBuilt);
 
 		// create browser window
 		this.createBrowserWindow(config);
@@ -129,7 +123,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: this.nodeless ? undefined : getBackgroundColor(this.stateService),
+			backgroundColor: this.themeMainService.getBackgroundColor(),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -142,10 +136,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				backgroundThrottling: false
 			}
 		};
-
-		if (this.nodeless) {
-			options.webPreferences!.nodeIntegration = false; // simulate Electron 5 behaviour
-		}
 
 		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
@@ -200,10 +190,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (!this._win.isVisible()) {
 				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
-		}
-
-		if (this.nodeless) {
-			this._win.webContents.toggleDevTools();
 		}
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
@@ -321,6 +307,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
 			this.marketplaceHeadersPromise.then(headers => {
 				const requestHeaders = objects.assign(details.requestHeaders, headers);
+				if (!this.configurationService.getValue('extensions.disableExperimentalAzureSearch')) {
+					requestHeaders['Cookie'] = `${requestHeaders['Cookie'] ? requestHeaders['Cookie'] + ';' : ''}EnableExternalSearchForVSCode=true`;
+				}
 				cb({ cancel: false, requestHeaders });
 			});
 		});
@@ -555,8 +544,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
 
 		// Delete some properties we do not want during reload
-		delete configuration.filesToOpen;
-		delete configuration.filesToCreate;
+		delete configuration.filesToOpenOrCreate;
 		delete configuration.filesToDiff;
 		delete configuration.filesToWait;
 
@@ -639,10 +627,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doGetUrl(config: object): string {
-		if (this.nodeless) {
-			return `${require.toUrl('vs/code/electron-browser/workbench/workbench.nodeless.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		}
-
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
@@ -708,66 +692,55 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
-				state = withNullAsUndefined(this.validateWindowState(state));
+				state = this.validateWindowState(state);
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
-
-		if (!state) {
-			state = defaultWindowState();
-		}
-
-		return state;
+		return state || defaultWindowState();
 	}
 
-	private validateWindowState(state: IWindowState): IWindowState | null {
-		if (!state) {
-			return null;
-		}
-
+	private validateWindowState(state: IWindowState): IWindowState | undefined {
 		if (typeof state.x !== 'number'
 			|| typeof state.y !== 'number'
 			|| typeof state.width !== 'number'
 			|| typeof state.height !== 'number'
 		) {
-			return null;
+			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
-			return null;
+			return undefined;
 		}
 
 		const displays = screen.getAllDisplays();
 
 		// Single Monitor: be strict about x/y positioning
 		if (displays.length === 1) {
-			const displayBounds = displays[0].bounds;
-
-			// Careful with maximized: in that mode x/y can well be negative!
-			if (state.mode !== WindowMode.Maximized && displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
-				if (state.x < displayBounds.x) {
-					state.x = displayBounds.x; // prevent window from falling out of the screen to the left
+			const displayWorkingArea = this.getWorkingArea(displays[0]);
+			if (state.mode !== WindowMode.Maximized && displayWorkingArea) {
+				if (state.x < displayWorkingArea.x) {
+					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the left
 				}
 
-				if (state.y < displayBounds.y) {
-					state.y = displayBounds.y; // prevent window from falling out of the screen to the top
+				if (state.y < displayWorkingArea.y) {
+					state.y = displayWorkingArea.y; // prevent window from falling out of the screen to the top
 				}
 
-				if (state.x > (displayBounds.x + displayBounds.width)) {
-					state.x = displayBounds.x; // prevent window from falling out of the screen to the right
+				if (state.x > (displayWorkingArea.x + displayWorkingArea.width)) {
+					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the right
 				}
 
-				if (state.y > (displayBounds.y + displayBounds.height)) {
-					state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
+				if (state.y > (displayWorkingArea.y + displayWorkingArea.height)) {
+					state.y = displayWorkingArea.y; // prevent window from falling out of the screen to the bottom
 				}
 
-				if (state.width > displayBounds.width) {
-					state.width = displayBounds.width; // prevent window from exceeding display bounds width
+				if (state.width > displayWorkingArea.width) {
+					state.width = displayWorkingArea.width; // prevent window from exceeding display bounds width
 				}
 
-				if (state.height > displayBounds.height) {
-					state.height = displayBounds.height; // prevent window from exceeding display bounds height
+				if (state.height > displayWorkingArea.height) {
+					state.height = displayWorkingArea.height; // prevent window from exceeding display bounds height
 				}
 			}
 
@@ -793,12 +766,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
+		const displayWorkingArea = this.getWorkingArea(display);
 		if (
-			display &&												// we have a display matching the desired bounds
-			bounds.x < display.bounds.x + display.bounds.width &&	// prevent window from falling out of the screen to the right
-			bounds.y < display.bounds.y + display.bounds.height &&	// prevent window from falling out of the screen to the bottom
-			bounds.x + bounds.width > display.bounds.x &&			// prevent window from falling out of the screen to the left
-			bounds.y + bounds.height > display.bounds.y				// prevent window from falling out of the scree nto the top
+			display &&														// we have a display matching the desired bounds
+			displayWorkingArea &&											// we have valid working area bounds
+			bounds.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			bounds.y < displayWorkingArea.y + displayWorkingArea.height &&	// prevent window from falling out of the screen to the bottom
+			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
+			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
 		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
@@ -811,7 +786,25 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return state;
 		}
 
-		return null;
+		return undefined;
+	}
+
+	private getWorkingArea(display: Display): Rectangle | undefined {
+
+		// Prefer the working area of the display to account for taskbars on the
+		// desktop being positioned somewhere (https://github.com/Microsoft/vscode/issues/50830).
+		//
+		// Linux X11 sessions sometimes report wrong display bounds, so we validate
+		// the reported sizes are positive.
+		if (display.workArea.width > 0 && display.workArea.height > 0) {
+			return display.workArea;
+		}
+
+		if (display.bounds.width > 0 && display.bounds.height > 0) {
+			return display.bounds;
+		}
+
+		return undefined;
 	}
 
 	getBounds(): Electron.Rectangle {

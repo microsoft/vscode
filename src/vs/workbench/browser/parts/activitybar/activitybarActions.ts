@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
@@ -42,15 +42,15 @@ export class ViewletActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Promise<any> {
+	async run(event: any): Promise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return Promise.resolve(false); // do not run on right click
+			return false; // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
 		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return Promise.resolve(true);
+			return true;
 		}
 		this.lastRun = now;
 
@@ -61,11 +61,12 @@ export class ViewletActivityAction extends ActivityAction {
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
-			return Promise.resolve();
+			return true;
 		}
 
 		this.logAction('show');
-		return this.viewletService.openViewlet(this.activity.id, true).then(() => this.activate());
+		await this.viewletService.openViewlet(this.activity.id, true);
+		return this.activate();
 	}
 
 	private logAction(action: string) {
@@ -110,7 +111,7 @@ export class GlobalActivityAction extends ActivityAction {
 	}
 }
 
-export class GlobalActivityActionItem extends ActivityActionItem {
+export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 	constructor(
 		action: GlobalActivityAction,

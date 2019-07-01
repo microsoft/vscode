@@ -10,6 +10,7 @@ import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileSer
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -105,10 +106,6 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
-	private static _asBuffer(data: Uint8Array): Buffer {
-		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-	}
-
 	stat(resource: URI): Promise<IStat> {
 		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
 			throw err;
@@ -116,11 +113,11 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
-		return this._proxy.$readFile(this._handle, resource);
+		return this._proxy.$readFile(this._handle, resource).then(buffer => buffer.buffer);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		return this._proxy.$writeFile(this._handle, resource, RemoteFileSystemProvider._asBuffer(content), opts);
+		return this._proxy.$writeFile(this._handle, resource, VSBuffer.wrap(content), opts);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
@@ -153,12 +150,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		return this._proxy.$read(this._handle, fd, pos, length).then(readData => {
-			data.set(readData, offset);
+			data.set(readData.buffer, offset);
 			return readData.byteLength;
 		});
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$write(this._handle, fd, pos, Buffer.from(data, offset, length));
+		return this._proxy.$write(this._handle, fd, pos, VSBuffer.wrap(data).slice(offset, offset + length));
 	}
 }

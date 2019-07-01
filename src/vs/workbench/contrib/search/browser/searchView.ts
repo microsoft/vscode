@@ -23,7 +23,7 @@ import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,8 +33,8 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ILocalProgressService, IProgressService } from 'vs/platform/progress/common/progress';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -43,7 +43,7 @@ import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/act
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IEditor } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -129,6 +129,7 @@ export class SearchView extends ViewletPanel {
 		options: IViewletPanelOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ILocalProgressService private readonly localProgressService: ILocalProgressService,
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -342,6 +343,9 @@ export class SearchView extends ViewletPanel {
 		return this.inputPatternExcludes;
 	}
 
+	/**
+	 * Warning: a bit expensive due to updating the view title
+	 */
 	protected updateActions(): void {
 		for (const action of this.actions) {
 			action.update();
@@ -452,8 +456,12 @@ export class SearchView extends ViewletPanel {
 					return;
 				}
 
-				const root = element instanceof SearchResult ? null : element;
-				this.tree.setChildren(root, this.createIterator(element, collapseResults));
+				if (element instanceof SearchResult) {
+					this.tree.setChildren(null, this.createIterator(element, collapseResults));
+				} else {
+					this.tree.setChildren(element, this.createIterator(element, collapseResults));
+					this.tree.rerender(element);
+				}
 			});
 		}
 	}
@@ -510,7 +518,7 @@ export class SearchView extends ViewletPanel {
 			return;
 		}
 
-		const progressRunner = this.progressService.show(100);
+		const progressRunner = this.localProgressService.show(100);
 
 		const occurrences = this.viewModel.searchResult.count();
 		const fileCount = this.viewModel.searchResult.fileCount();
@@ -642,7 +650,7 @@ export class SearchView extends ViewletPanel {
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
-		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
+		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true, openOnSelection: false }));
 		this._register(Event.debounce(resourceNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				const selectedMatch: Match = options.element;
@@ -678,11 +686,7 @@ export class SearchView extends ViewletPanel {
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch>): void {
-		if (!e.element) {
-			return;
-		}
-
+	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
 		if (!this.contextMenu) {
 			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
 		}
@@ -1043,6 +1047,37 @@ export class SearchView extends ViewletPanel {
 		this.onQueryChanged(true);
 	}
 
+	setSearchParameters(args: IFindInFilesArgs = {}): void {
+		if (typeof args.isCaseSensitive === 'boolean') {
+			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
+		}
+		if (typeof args.matchWholeWord === 'boolean') {
+			this.searchWidget.searchInput.setWholeWords(args.matchWholeWord);
+		}
+		if (typeof args.isRegex === 'boolean') {
+			this.searchWidget.searchInput.setRegex(args.isRegex);
+		}
+		if (typeof args.filesToInclude === 'string') {
+			this.searchIncludePattern.setValue(String(args.filesToInclude));
+		}
+		if (typeof args.filesToExclude === 'string') {
+			this.searchExcludePattern.setValue(String(args.filesToExclude));
+		}
+		if (typeof args.query === 'string') {
+			this.searchWidget.searchInput.setValue(args.query);
+		}
+		if (typeof args.replace === 'string') {
+			this.searchWidget.replaceInput.value = args.replace;
+		} else {
+			if (this.searchWidget.replaceInput.value !== '') {
+				this.searchWidget.replaceInput.value = '';
+			}
+		}
+		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
+			this.onQueryChanged(true);
+		}
+	}
+
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		const cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
@@ -1231,7 +1266,10 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
-		const progressRunner = this.progressService.show(/*infinite=*/true);
+		let progressComplete: () => void;
+		this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+			return new Promise(resolve => progressComplete = resolve);
+		});
 
 		this.searchWidget.searchInput.clearMessage();
 		this.searching = true;
@@ -1246,7 +1284,7 @@ export class SearchView extends ViewletPanel {
 			this.searching = false;
 
 			// Complete up to 100% as needed
-			progressRunner.done();
+			progressComplete();
 
 			// Do final render, then expand if just 1 file with less than 50 matches
 			this.onSearchResultsChanged();
@@ -1292,8 +1330,6 @@ export class SearchView extends ViewletPanel {
 				// Indicate as status to ARIA
 				aria.status(message);
 
-				dom.hide(this.resultsElement);
-
 				const messageEl = this.clearMessage();
 				const p = dom.append(messageEl, $('p', undefined, message));
 
@@ -1328,6 +1364,7 @@ export class SearchView extends ViewletPanel {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.showSearchWithoutFolderMessage();
 				}
+				this.reLayout();
 			} else {
 				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
@@ -1342,7 +1379,7 @@ export class SearchView extends ViewletPanel {
 			} else {
 				this.searching = false;
 				this.updateActions();
-				progressRunner.done();
+				progressComplete();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
@@ -1355,6 +1392,8 @@ export class SearchView extends ViewletPanel {
 		};
 
 		let visibleMatches = 0;
+
+		let updatedActionsForFileCount = false;
 
 		// Handle UI updates in an interval to show frequent progress and results
 		const uiRefreshHandle: any = setInterval(() => {
@@ -1369,7 +1408,9 @@ export class SearchView extends ViewletPanel {
 				visibleMatches = fileCount;
 				this.refreshAndUpdateCount();
 			}
-			if (fileCount > 0) {
+
+			if (fileCount > 0 && !updatedActionsForFileCount) {
+				updatedActionsForFileCount = true;
 				this.updateActions();
 			}
 		}, 100);
@@ -1470,7 +1511,7 @@ export class SearchView extends ViewletPanel {
 		this.searchWithoutFolderMessageElement = this.clearMessage();
 
 		const textEl = dom.append(this.searchWithoutFolderMessageElement,
-			$('p', undefined, nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ")));
+			$('p', undefined, nls.localize('searchWithoutFolder', "You have not opened or specified a folder. Only open files are currently searched - ")));
 
 		const openFolderLink = dom.append(textEl,
 			$('a.pointer.prominent', { tabindex: 0 }, nls.localize('openFolder', "Open Folder")));

@@ -19,6 +19,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
@@ -71,7 +72,8 @@ export class FeedbackDropdown extends Dropdown {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
-				dom.addClasses(container, 'send-feedback', 'mask-icon');
+				const label = new OcticonLabel(container);
+				label.text = '$(smiley)';
 
 				return Disposable.None;
 			}
@@ -310,6 +312,12 @@ export class FeedbackDropdown extends Dropdown {
 		};
 	}
 
+	private updateFeedbackDescription() {
+		if (this.feedbackDescriptionInput && this.feedbackDescriptionInput.textLength > this.maxFeedbackCharacters) {
+			this.feedbackDescriptionInput.value = this.feedbackDescriptionInput.value.substring(0, this.maxFeedbackCharacters);
+		}
+	}
+
 	private getCharCountText(charCount: number): string {
 		const remaining = this.maxFeedbackCharacters - charCount;
 		const text = (remaining === 1)
@@ -349,6 +357,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
+		this.updateFeedbackDescription();
 		this.updateCharCountText();
 		if (this.feedbackDescriptionInput) {
 			this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;

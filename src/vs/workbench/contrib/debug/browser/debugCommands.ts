@@ -53,6 +53,11 @@ function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined
 	const debugService = accessor.get(IDebugService);
 	if (!(thread instanceof Thread)) {
 		thread = debugService.getViewModel().focusedThread;
+		if (!thread) {
+			const focusedSession = debugService.getViewModel().focusedSession;
+			const threads = focusedSession ? focusedSession.getAllThreads() : undefined;
+			thread = threads && threads.length ? threads[0] : undefined;
+		}
 	}
 
 	if (thread) {
@@ -185,9 +190,9 @@ export function registerCommands(): void {
 			if (!session || !session.getId) {
 				session = debugService.getViewModel().focusedSession;
 				const configurationService = accessor.get(IConfigurationService);
-				const hideSubSessions = configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+				const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 				// Stop should be sent to the root parent session
-				while (hideSubSessions && session && session.parentSession) {
+				while (!showSubSessions && session && session.parentSession) {
 					session = session.parentSession;
 				}
 			}

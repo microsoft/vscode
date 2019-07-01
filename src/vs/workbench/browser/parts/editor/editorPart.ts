@@ -227,6 +227,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._whenRestored;
 	}
 
+	get willRestoreEditors(): boolean {
+		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+	}
+
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		switch (order) {
 			case GroupsOrder.CREATION_TIME:

@@ -226,7 +226,7 @@ export class URI implements UriComponents {
 
 	// ---- modify to new -------------------------
 
-	public with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
+	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
 
 		if (!change) {
 			return this;
@@ -279,7 +279,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	public static parse(value: string, _strict: boolean = false): URI {
+	static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
 			return new _URI(_empty, _empty, _empty, _empty, _empty);
@@ -315,7 +315,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param path A file system path (see `URI#fsPath`)
 	 */
-	public static file(path: string): URI {
+	static file(path: string): URI {
 
 		let authority = _empty;
 
@@ -342,7 +342,7 @@ export class URI implements UriComponents {
 		return new _URI('file', authority, path, _empty, _empty);
 	}
 
-	public static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
+	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
 		return new _URI(
 			components.scheme,
 			components.authority,
@@ -365,23 +365,27 @@ export class URI implements UriComponents {
 	 *
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
-	public toString(skipEncoding: boolean = false): string {
+	toString(skipEncoding: boolean = false): string {
 		return _asFormatted(this, skipEncoding);
 	}
 
-	public toJSON(): object {
+	toJSON(): UriComponents {
 		return this;
 	}
 
-	static revive(data: UriComponents | any): URI {
+	static revive(data: UriComponents | URI): URI;
+	static revive(data: UriComponents | URI | undefined): URI | undefined;
+	static revive(data: UriComponents | URI | null): URI | null;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null {
 		if (!data) {
 			return data;
 		} else if (data instanceof URI) {
 			return data;
 		} else {
 			const result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
 			result._formatted = (<UriState>data).external;
+			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
 			return result;
 		}
 	}
@@ -397,10 +401,12 @@ export interface UriComponents {
 
 interface UriState extends UriComponents {
 	$mid: number;
-	fsPath: string;
 	external: string;
+	fsPath: string;
+	_sep: 1 | undefined;
 }
 
+const _pathSepMarker = isWindows ? 1 : undefined;
 
 // tslint:disable-next-line:class-name
 class _URI extends URI {
@@ -415,7 +421,7 @@ class _URI extends URI {
 		return this._fsPath;
 	}
 
-	public toString(skipEncoding: boolean = false): string {
+	toString(skipEncoding: boolean = false): string {
 		if (!skipEncoding) {
 			if (!this._formatted) {
 				this._formatted = _asFormatted(this, false);
@@ -427,13 +433,14 @@ class _URI extends URI {
 		}
 	}
 
-	toJSON(): object {
+	toJSON(): UriComponents {
 		const res = <UriState>{
 			$mid: 1
 		};
 		// cached state
 		if (this._fsPath) {
 			res.fsPath = this._fsPath;
+			res._sep = _pathSepMarker;
 		}
 		if (this._formatted) {
 			res.external = this._formatted;

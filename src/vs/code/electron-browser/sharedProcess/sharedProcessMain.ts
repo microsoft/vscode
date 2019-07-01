@@ -30,7 +30,6 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
@@ -48,6 +47,7 @@ import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contr
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -94,14 +94,14 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', mainRouter));
-	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
+	const logService = new FollowerLogService(logLevelClient, new SpdLogService('sharedprocess', environmentService.logsPath, initData.logLevel));
 	disposables.push(logService);
 
 	logService.info('main', JSON.stringify(configuration));
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
@@ -121,8 +121,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
+		const telemetryLogService = new FollowerLogService(logLevelClient, new SpdLogService('telemetry', environmentService.logsPath, initData.logLevel));
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');
 
@@ -144,7 +144,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
@@ -165,12 +165,12 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 			// update localizations cache
 			(localizationsService as LocalizationsService).update();
 			// cache clean ups
-			disposables.push(combinedDisposable([
+			disposables.push(combinedDisposable(
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
 				instantiationService2.createInstance(LogsDataCleaner)
-			]));
+			));
 			disposables.push(extensionManagementService as ExtensionManagementService);
 		});
 	});

@@ -146,6 +146,11 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('--js-flags', jsFlags);
 	}
+
+	// Disable smooth scrolling for Webviews
+	if (cliArgs['disable-smooth-scrolling']) {
+		app.commandLine.appendSwitch('disable-smooth-scrolling');
+	}
 }
 
 /**
@@ -200,7 +205,7 @@ function parseCLIArgs() {
 function setCurrentWorkingDirectory() {
 	try {
 		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
+			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
 		} else if (process.env['VSCODE_CWD']) {
 			process.chdir(process.env['VSCODE_CWD']);

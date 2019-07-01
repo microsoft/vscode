@@ -59,3 +59,18 @@ export function disposeAll(disposables: vscode.Disposable[]) {
 		}
 	}
 }
+
+export function conditionalTest(name: string, testCallback: (done: MochaDone) => void | Thenable<any>) {
+	if (isTestTypeActive()) {
+		const async = !!testCallback.length;
+		if (async) {
+			test(name, (done) => testCallback(done));
+		} else {
+			test(name, () => (<() => void | Thenable<any>>testCallback)());
+		}
+	}
+}
+
+function isTestTypeActive(): boolean {
+	return !!vscode.extensions.getExtension('vscode-resolver-test');
+}

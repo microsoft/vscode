@@ -518,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -735,6 +736,29 @@ suite('window namespace tests', () => {
 			});
 			const terminal1 = window.createTerminal({ name: 'test' });
 			terminal1.show();
+		});
+
+		test('runInBackground terminal: onDidWriteData should work', done => {
+			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+			let data = '';
+			terminal.onDidWriteData(e => {
+				data += e;
+				if (data.indexOf('foo') !== -1) {
+					terminal.dispose();
+					done();
+				}
+			});
+			terminal.sendText('foo');
+		});
+
+		test('runInBackground terminal: should be available to terminals API', done => {
+			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+			window.onDidOpenTerminal(t => {
+				assert.equal(t, terminal);
+				assert.equal(t.name, 'bg');
+				assert.ok(window.terminals.indexOf(terminal) !== -1);
+				done();
+			});
 		});
 	});
 });

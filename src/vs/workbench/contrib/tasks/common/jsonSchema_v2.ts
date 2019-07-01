@@ -100,16 +100,27 @@ const presentation: IJSONSchema = {
 			default: false,
 			description: nls.localize('JsonSchema.tasks.presentation.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
 		},
+		revealProblems: {
+			type: 'string',
+			enum: ['always', 'onProblem', 'never'],
+			enumDescriptions: [
+				nls.localize('JsonSchema.tasks.presentation.revealProblems.always', 'Always reveals the problems panel when this task is executed.'),
+				nls.localize('JsonSchema.tasks.presentation.revealProblems.onProblem', 'Only reveals the problems panel if a problem is found.'),
+				nls.localize('JsonSchema.tasks.presentation.revealProblems.never', 'Never reveals the problems panel when this task is executed.'),
+			],
+			default: 'never',
+			description: nls.localize('JsonSchema.tasks.presentation.revealProblems', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"never\".')
+		},
 		reveal: {
 			type: 'string',
 			enum: ['always', 'silent', 'never'],
 			enumDescriptions: [
 				nls.localize('JsonSchema.tasks.presentation.reveal.always', 'Always reveals the terminal when this task is executed.'),
-				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if the task exits with an error.'),
+				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if the task exits with an error or the problem matcher finds an error.'),
 				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
 			],
 			default: 'always',
-			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
+			description: nls.localize('JsonSchema.tasks.presentation.reveal', 'Controls whether the terminal running the task is revealed or not. May be overridden by option \"revealProblems\". Default is \"always\".')
 		},
 		panel: {
 			type: 'string',
@@ -411,7 +422,7 @@ taskDescription.default = {
 	problemMatcher: []
 };
 definitions.showOutputType.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.showOputput.deprecated',
+	'JsonSchema.tasks.showOutput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
 );
 taskDescriptionProperties.echoCommand.deprecationMessage = nls.localize(

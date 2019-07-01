@@ -229,18 +229,18 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-css-languageservice@^4.0.2-next.2:
-  version "4.0.2-next.2"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.0.2-next.2.tgz#21c93a46b547f34a2a27383a5b1dea729254d238"
-  integrity sha512-QMFjcYno2W91Vy9UxEelwz3SQBy3ZuVDBAceH9xszve0Q5zGAnOUnf8C3ZHi/6ukPga9AHeiwSnSF9TITWmvtA==
+vscode-css-languageservice@^4.0.2-next.3:
+  version "4.0.2-next.3"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.0.2-next.3.tgz#f81925d6037f05724d1c1fe00e8fb7fcbece72ff"
+  integrity sha512-Th6ESBGTdNo4CbZEeKNVBKi4DwGjafS1+05kuoH3hO5mFCKr6ttdvu4GxMHca7nGN1efv5tiZ6slO8PCN1bLNA==
   dependencies:
     vscode-languageserver-types "^3.14.0"
     vscode-nls "^4.0.0"
 
-vscode-html-languageservice@^3.0.0-next.6:
-  version "3.0.0-next.6"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-3.0.0-next.6.tgz#4a33567abfc3ccacc4258f4f2c1743eb064b490b"
-  integrity sha512-h5JDiJtqPvRlWlN59Ue/clLCL6/vtAVYHQql9uLLZ+zwuX6kbF/7sCCM6hAswuYushx5kniNzwq47A23V1nlUA==
+vscode-html-languageservice@^3.0.0-next.7:
+  version "3.0.0-next.7"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-3.0.0-next.7.tgz#6590cb0a6fa5bb257afca03669bbf6ad8adb58c6"
+  integrity sha512-s9dVSMVKGlrAymj6WByoEheZMen82yHqiXh7F8cz9KCqDHJ3LRpcJMKrIdOFQJ6qTcFW9I7VqO77VSB9d1RZyQ==
   dependencies:
     vscode-languageserver-types "^3.14.0"
     vscode-nls "^4.0.0"

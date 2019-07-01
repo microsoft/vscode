@@ -153,7 +153,7 @@ module.exports = function createWebviewManager(host) {
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					host.postMessage('did-click-link', node.href);
+					host.postMessage('did-click-link', node.href.baseVal || node.href);
 				}
 				event.preventDefault();
 				break;
@@ -184,6 +184,9 @@ module.exports = function createWebviewManager(host) {
 
 	let isHandlingScroll = false;
 	const handleInnerScroll = (event) => {
+		if (!event.target || !event.target.body) {
+			return;
+		}
 		if (isHandlingScroll) {
 			return;
 		}
@@ -205,6 +208,10 @@ module.exports = function createWebviewManager(host) {
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
+		if (!document.body) {
+			return;
+		}
+
 		host.onMessage('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
@@ -214,7 +221,9 @@ module.exports = function createWebviewManager(host) {
 				return;
 			}
 
-			applyStyles(target.contentDocument, target.contentDocument.body);
+			if (target.contentDocument) {
+				applyStyles(target.contentDocument, target.contentDocument.body);
+			}
 		});
 
 		// propagate focus
@@ -346,15 +355,15 @@ module.exports = function createWebviewManager(host) {
 				return false;
 			};
 
-			let onLoad = (contentDocument, contentWindow) => {
-				if (contentDocument.body) {
+			const onLoad = (contentDocument, contentWindow) => {
+				if (contentDocument && contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollY and reset if neccessary
 					setInitialScrollPosition(contentDocument.body, contentWindow);
 				}
 
 				const newFrame = getPendingFrame();
-				if (newFrame && newFrame.contentDocument === contentDocument) {
+				if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
 					const oldActiveFrame = getActiveFrame();
 					if (oldActiveFrame) {
 						document.body.removeChild(oldActiveFrame);

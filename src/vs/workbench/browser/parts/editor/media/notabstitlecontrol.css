@@ -54,7 +54,7 @@
 	background-image: none;
 }
 
-.monaco-workbench.windows .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before  {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before  {
 	content: '\\';
 }
 

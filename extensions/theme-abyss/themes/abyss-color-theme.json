@@ -400,6 +400,7 @@
 		"statusBar.noFolderBackground": "#10192c",
 		"statusBar.debuggingBackground": "#10192c",
 		// "statusBar.foreground": "",
+		"statusBarItem.remoteBackground": "#0063a5",
 		"statusBarItem.prominentBackground": "#0063a5",
 		"statusBarItem.prominentHoverBackground": "#0063a5dd",
 		// "statusBarItem.activeBackground": "",

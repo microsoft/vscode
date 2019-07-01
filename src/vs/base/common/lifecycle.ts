@@ -34,7 +34,7 @@ export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T 
 	}
 }
 
-export function combinedDisposable(disposables: IDisposable[]): IDisposable {
+export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	return { dispose: () => dispose(disposables) };
 }
 
@@ -42,29 +42,52 @@ export function toDisposable(fn: () => void): IDisposable {
 	return { dispose() { fn(); } };
 }
 
+export class DisposableStore implements IDisposable {
+	private _toDispose = new Set<IDisposable>();
+	private _isDisposed = false;
+
+	/**
+	 * Dispose of all registered disposables and mark this object as disposed.
+	 *
+	 * Any future disposables added to this object will be disposed of on `add`.
+	 */
+	public dispose(): void {
+		this._isDisposed = true;
+		this.clear();
+	}
+
+	/**
+	 * Dispose of all registered disposables but do not mark this object as disposed.
+	 */
+	public clear(): void {
+		this._toDispose.forEach(item => item.dispose());
+		this._toDispose.clear();
+	}
+
+	public add<T extends IDisposable>(t: T): T {
+		if (this._isDisposed) {
+			console.warn('Registering disposable on object that has already been disposed.');
+			t.dispose();
+		} else {
+			this._toDispose.add(t);
+		}
+
+		return t;
+	}
+}
+
 export abstract class Disposable implements IDisposable {
 
 	static None = Object.freeze<IDisposable>({ dispose() { } });
 
-	protected _toDispose: IDisposable[] = [];
-	protected get toDispose(): IDisposable[] { return this._toDispose; }
-
-	private _lifecycle_disposable_isDisposed = false;
+	private readonly _store = new DisposableStore();
 
 	public dispose(): void {
-		this._lifecycle_disposable_isDisposed = true;
-		this._toDispose = dispose(this._toDispose);
+		this._store.dispose();
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
-		if (this._lifecycle_disposable_isDisposed) {
-			console.warn('Registering disposable on object that has already been disposed.');
-			t.dispose();
-		} else {
-			this._toDispose.push(t);
-		}
-
-		return t;
+		return this._store.add(t);
 	}
 }
 

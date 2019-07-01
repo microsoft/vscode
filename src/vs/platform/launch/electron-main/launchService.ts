@@ -19,7 +19,7 @@ import { BrowserWindow, ipcMain, Event as IpcEvent } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
-import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -71,7 +71,7 @@ export interface ILaunchService {
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
 	getLogsPath(): Promise<string>;
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<IRemoteDiagnosticInfo[]>;
+	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
 }
 
 export class LaunchChannel implements IServerChannel {
@@ -290,9 +290,9 @@ export class LaunchService implements ILaunchService {
 		return Promise.resolve(this.environmentService.logsPath);
 	}
 
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<IRemoteDiagnosticInfo[]> {
+	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
-		const promises: Promise<IDiagnosticInfo | undefined>[] = windows.map(window => {
+		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
 			return new Promise((resolve, reject) => {
 				if (window.remoteAuthority) {
 					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
@@ -306,18 +306,14 @@ export class LaunchService implements ILaunchService {
 					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.
 						if (!data) {
-							resolve();
-						}
-
-						if (typeof (data) === 'string') {
-							reject(new Error(data));
+							resolve({ hostName: window.remoteAuthority!, errorMessage: `Unable to resolve connection to '${window.remoteAuthority}'.` });
 						}
 
 						resolve(data);
 					});
 
 					setTimeout(() => {
-						resolve();
+						resolve({ hostName: window.remoteAuthority!, errorMessage: `Fetching remote diagnostics for '${window.remoteAuthority}' timed out.` });
 					}, 5000);
 				} else {
 					resolve();
@@ -325,7 +321,7 @@ export class LaunchService implements ILaunchService {
 			});
 		});
 
-		return Promise.all(promises).then(diagnostics => diagnostics.filter((x): x is IRemoteDiagnosticInfo => !!x));
+		return Promise.all(promises).then(diagnostics => diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x));
 	}
 
 	private getFolderURIs(window: ICodeWindow): URI[] {

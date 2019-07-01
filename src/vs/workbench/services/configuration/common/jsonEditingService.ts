@@ -39,10 +39,11 @@ export class JSONEditingService implements IJSONEditingService {
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, value, save))); // queue up writes to prevent race conditions
 	}
 
-	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
-		return this.resolveAndValidate(resource, save)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value)
-				.then(() => reference.dispose()));
+	private async doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
+		const reference = await this.resolveAndValidate(resource, save);
+		await this.writeToBuffer(reference.object.textEditorModel, value);
+
+		reference.dispose();
 	}
 
 	private async writeToBuffer(model: ITextModel, value: IJSONValue): Promise<any> {
@@ -86,7 +87,7 @@ export class JSONEditingService implements IJSONEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.updateContent(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}
@@ -97,21 +98,21 @@ export class JSONEditingService implements IJSONEditingService {
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(resource: URI, checkDirty: boolean): Promise<IReference<IResolvedTextEditorModel>> {
-		return this.resolveModelReference(resource)
-			.then(reference => {
-				const model = reference.object.textEditorModel;
+	private async resolveAndValidate(resource: URI, checkDirty: boolean): Promise<IReference<IResolvedTextEditorModel>> {
+		const reference = await this.resolveModelReference(resource);
 
-				if (this.hasParseErrors(model)) {
-					return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
-				}
+		const model = reference.object.textEditorModel;
 
-				// Target cannot be dirty if not writing into buffer
-				if (checkDirty && this.textFileService.isDirty(resource)) {
-					return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
-				}
-				return reference;
-			});
+		if (this.hasParseErrors(model)) {
+			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
+		}
+
+		// Target cannot be dirty if not writing into buffer
+		if (checkDirty && this.textFileService.isDirty(resource)) {
+			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
+		}
+
+		return reference;
 	}
 
 	private reject<T>(code: JSONEditingErrorCode): Promise<T> {

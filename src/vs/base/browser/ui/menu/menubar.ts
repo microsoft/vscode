@@ -15,7 +15,7 @@ import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 
@@ -896,7 +896,7 @@ interface IModifierKeyStatus {
 
 class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
-	private _subscriptions: IDisposable[] = [];
+	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
@@ -909,7 +909,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			ctrlKey: false
 		};
 
-		this._subscriptions.push(domEvent(document.body, 'keydown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (e.altKey && !this._keyStatus.altKey) {
@@ -933,7 +933,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'keyup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -957,21 +957,21 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mouseup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousemove', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}));
 
-		this._subscriptions.push(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 			this._keyStatus.lastKeyReleased = undefined;
 			this._keyStatus.altKey = false;
@@ -992,6 +992,6 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 	dispose() {
 		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
+		this._subscriptions.dispose();
 	}
 }

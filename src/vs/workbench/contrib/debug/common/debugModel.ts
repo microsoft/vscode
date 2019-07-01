@@ -18,11 +18,12 @@ import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
 	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State
 } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextEditor } from 'vs/workbench/common/editor';
 
 export class SimpleReplElement implements IReplElement {
 	constructor(
@@ -381,10 +382,13 @@ export class StackFrame implements IStackFrame {
 	}
 
 	toString(): string {
-		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
+		const lineNumberToString = typeof this.range.startLineNumber === 'number' ? `:${this.range.startLineNumber}` : '';
+		const sourceToString = `${this.source.inMemory ? this.source.name : this.source.uri.fsPath}${lineNumberToString}`;
+
+		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | null> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
@@ -654,6 +658,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	get endColumn(): number | undefined {
 		const data = this.getSessionData();
 		return data ? data.endColumn : undefined;
+	}
+
+	get sessionAgnosticData(): { lineNumber: number, column: number | undefined } {
+		return {
+			lineNumber: this._lineNumber,
+			column: this._column
+		};
 	}
 
 	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {

@@ -5,11 +5,10 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext } from 'vs/workbench/common/editor';
-import { IsMacContext, IsLinuxContext, IsWindowsContext, HasMacNativeTabsContext, IsDevelopmentContext, SupportsWorkspacesContext, SupportsOpenFileFolderContext, WorkbenchStateContext, WorkspaceFolderCountContext, IsRemoteContext } from 'vs/workbench/common/contextkeys';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,6 +18,25 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+
+export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
+export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
+export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindows);
+
+export const RemoteAuthorityContext = new RawContextKey<string>('remoteAuthority', '');
+
+export const HasMacNativeTabsContext = new RawContextKey<boolean>('hasMacNativeTabs', false);
+
+export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);
+
+export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false);
+
+export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
+
+export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0);
+
+export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -87,7 +105,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
 
-		IsRemoteContext.bindTo(this.contextKeyService).set(!!this.environmentService.configuration.remoteAuthority);
+		RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.environmentService.configuration.remoteAuthority || '');
 
 		// macOS Native Tabs
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
@@ -98,7 +116,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// File Pickers
 		SupportsWorkspacesContext.bindTo(this.contextKeyService);
-		SupportsOpenFileFolderContext.bindTo(this.contextKeyService).set(!!this.environmentService.configuration.remoteAuthority);
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);

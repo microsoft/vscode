@@ -21,7 +21,9 @@ import { URI } from 'vs/base/common/uri';
 const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
-	if (xdgRuntimeDir) {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+
+	if (xdgRuntimeDir && !vscodePortable) {
 		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
 		return path.join(xdgRuntimeDir, `vscode-${scope}-${pkg.version}-${type}.sock`);
 	}
@@ -93,6 +95,7 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get userDataPath(): string {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
+
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'user-data');
 		}
@@ -109,6 +112,12 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
+
+	@memoize
+	get machineSettingsHome(): string { return path.join(this.userDataPath, 'Machine'); }
+
+	@memoize
+	get machineSettingsPath(): string { return path.join(this.machineSettingsHome, 'settings.json'); }
 
 	@memoize
 	get globalStorageHome(): string { return path.join(this.appSettingsHome, 'globalStorage'); }
@@ -164,6 +173,7 @@ export class EnvironmentService implements IEnvironmentService {
 		}
 
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
+
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'extensions');
 		}
@@ -172,7 +182,7 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 
 	@memoize
-	get extensionDevelopmentLocationURI(): URI | URI[] | undefined {
+	get extensionDevelopmentLocationURI(): URI[] | undefined {
 		const s = this._args.extensionDevelopmentPath;
 		if (Array.isArray(s)) {
 			return s.map(p => {
@@ -183,9 +193,9 @@ export class EnvironmentService implements IEnvironmentService {
 			});
 		} else if (s) {
 			if (/^[^:/?#]+?:\/\//.test(s)) {
-				return URI.parse(s);
+				return [URI.parse(s)];
 			}
-			return URI.file(path.normalize(s));
+			return [URI.file(path.normalize(s))];
 		}
 		return undefined;
 	}

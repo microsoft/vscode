@@ -5,7 +5,7 @@
 
 import { join } from 'vs/base/common/path';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -114,7 +114,7 @@ namespace snippetExt {
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
-	return combinedDisposable([
+	return combinedDisposable(
 		service.watch(resource),
 		service.onFileChanges(e => {
 			for (const change of e.changes) {
@@ -123,7 +123,7 @@ function watch(service: IFileService, resource: URI, callback: (type: FileChange
 				}
 			}
 		})
-	]);
+	);
 }
 
 class SnippetsService implements ISnippetsService {
@@ -295,15 +295,16 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Promise<any> {
-		let disposables: IDisposable[] = [];
-		let addFolderSnippets = (type?: FileChangeType) => {
-			disposables = dispose(disposables);
+		const disposables = new DisposableStore();
+		const addFolderSnippets = (type?: FileChangeType) => {
+			disposables.clear();
+
 			if (type === FileChangeType.DELETED) {
 				return Promise.resolve();
 			}
 			return this._fileService.resolve(folder).then(stat => {
 				for (const entry of stat.children || []) {
-					disposables.push(this._addSnippetFile(entry.resource, source));
+					disposables.add(this._addSnippetFile(entry.resource, source));
 				}
 			}, err => {
 				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
@@ -311,7 +312,7 @@ class SnippetsService implements ISnippetsService {
 		};
 
 		bucket.push(watch(this._fileService, folder, addFolderSnippets));
-		bucket.push(combinedDisposable(disposables));
+		bucket.push(disposables);
 		return addFolderSnippets();
 	}
 

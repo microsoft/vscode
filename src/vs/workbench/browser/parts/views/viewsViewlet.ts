@@ -207,7 +207,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 				this.viewsModel.setCollapsed(viewDescriptor.id, collapsed);
 			});
 
-			this.viewDisposables.splice(index, 0, combinedDisposable([contextMenuDisposable, collapseDisposable]));
+			this.viewDisposables.splice(index, 0, combinedDisposable(contextMenuDisposable, collapseDisposable));
 			panelsToAdd.push({ panel, size: size || panel.minimumSize, index });
 		}
 

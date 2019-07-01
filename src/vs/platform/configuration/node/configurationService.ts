@@ -9,7 +9,6 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
 
@@ -24,11 +23,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService
+		configurationPath: string
 	) {
 		super();
 
-		this.userConfiguration = this._register(new NodeBasedUserConfiguration(environmentService.appSettingsPath));
+		this.userConfiguration = this._register(new NodeBasedUserConfiguration(configurationPath));
 
 		// Initialize
 		const defaults = new DefaultConfigurationModel();

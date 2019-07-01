@@ -68,11 +68,9 @@ export class DataUriEditorInput extends EditorInput {
 			return true;
 		}
 
+		// Compare by resource
 		if (otherInput instanceof DataUriEditorInput) {
-			const otherDataUriEditorInput = <DataUriEditorInput>otherInput;
-
-			// Compare by resource
-			return otherDataUriEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

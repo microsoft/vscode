@@ -58,6 +58,10 @@
         "url": "vscode://schemas/settings/user"
       },
       {
+        "fileMatch": "%MACHINE_SETTINGS_HOME%/settings.json",
+        "url": "vscode://schemas/settings/machine"
+      },
+      {
         "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
         "url": "vscode://schemas/workspaceConfig"
       },
@@ -92,6 +96,14 @@
       {
         "fileMatch": "/.vscode/extensions.json",
         "url": "vscode://schemas/extensions"
+      },
+      {
+        "fileMatch": "/.devcontainer/devcontainer.json",
+        "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "/.devcontainer.json",
+        "url": "./schemas/devContainer.schema.json"
       }
     ]
   },

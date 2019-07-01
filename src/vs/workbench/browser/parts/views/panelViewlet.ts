@@ -13,7 +13,7 @@ import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, a
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
@@ -28,7 +28,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IView } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -66,6 +65,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
+	private titleContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -126,9 +126,9 @@ export abstract class ViewletPanel extends Panel implements IView {
 		const actions = append(container, $('.actions'));
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: action => this.getActionItem(action),
+			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => withNullAsUndefined(this.keybindingService.lookupKeybinding(action.id)),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner
 		});
 
@@ -141,7 +141,12 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', undefined, title));
+		this.titleContainer = append(container, $('h3.title', undefined, title));
+	}
+
+	protected updateTitle(title: string): void {
+		this.titleContainer.textContent = title;
+		this._onDidChangeTitleArea.fire();
 	}
 
 	focus(): void {
@@ -174,7 +179,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		return undefined;
 	}
 
@@ -260,7 +265,8 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			title = `${title}: ${this.panelItems[0].panel.title}`;
+			const panelItemTitle = this.panelItems[0].panel.title;
+			title = panelItemTitle ? `${title}: ${panelItemTitle}` : title;
 		}
 
 		return title;
@@ -282,12 +288,12 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getActionItem(action);
+			return this.panelItems[0].panel.getActionViewItem(action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	focus(): void {
@@ -349,7 +355,7 @@ export class PanelViewlet extends Viewlet {
 			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
+		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);

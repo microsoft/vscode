@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ResourceMap } from '../utils/resourceMap';
-import { DiagnosticLanguage, allDiagnosticLangauges } from '../utils/languageDescription';
+import { DiagnosticLanguage, allDiagnosticLanguages } from '../utils/languageDescription';
 
 export const enum DiagnosticKind {
 	Syntax,
@@ -71,21 +71,21 @@ class FileDiagnostics {
 	}
 }
 
-interface LangaugeDiagnosticSettings {
+interface LanguageDiagnosticSettings {
 	readonly validate: boolean;
 	readonly enableSuggestions: boolean;
 }
 
 class DiagnosticSettings {
-	private static readonly defaultSettings: LangaugeDiagnosticSettings = {
+	private static readonly defaultSettings: LanguageDiagnosticSettings = {
 		validate: true,
 		enableSuggestions: true
 	};
 
-	private readonly _languageSettings = new Map<DiagnosticLanguage, LangaugeDiagnosticSettings>();
+	private readonly _languageSettings = new Map<DiagnosticLanguage, LanguageDiagnosticSettings>();
 
 	constructor() {
-		for (const language of allDiagnosticLangauges) {
+		for (const language of allDiagnosticLanguages) {
 			this._languageSettings.set(language, DiagnosticSettings.defaultSettings);
 		}
 	}
@@ -112,11 +112,11 @@ class DiagnosticSettings {
 		}));
 	}
 
-	private get(language: DiagnosticLanguage): LangaugeDiagnosticSettings {
+	private get(language: DiagnosticLanguage): LanguageDiagnosticSettings {
 		return this._languageSettings.get(language) || DiagnosticSettings.defaultSettings;
 	}
 
-	private update(language: DiagnosticLanguage, f: (x: LangaugeDiagnosticSettings) => LangaugeDiagnosticSettings): boolean {
+	private update(language: DiagnosticLanguage, f: (x: LanguageDiagnosticSettings) => LanguageDiagnosticSettings): boolean {
 		const currentSettings = this.get(language);
 		const newSettings = f(currentSettings);
 		this._languageSettings.set(language, newSettings);

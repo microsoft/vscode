@@ -24,7 +24,8 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension'];
+		|| !!argv['uninstall-extension']
+		|| !!argv['locate-extension'];
 }
 
 interface IMainCli {
@@ -256,7 +257,7 @@ export async function main(argv: string[]): Promise<any> {
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
-			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
+			writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
 			processCallbacks.push(async _child => {
 
@@ -328,7 +329,7 @@ export async function main(argv: string[]): Promise<any> {
 					await extHost.stop();
 
 					// re-create the marker file to signal that profiling is done
-					fs.writeFileSync(filenamePrefix, '');
+					writeFileSync(filenamePrefix, '');
 
 				} catch (e) {
 					console.error('Failed to profile startup. Make sure to quit Code first.');

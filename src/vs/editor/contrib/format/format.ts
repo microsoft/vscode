@@ -8,7 +8,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorState, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerLanguageCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -143,28 +143,31 @@ export async function formatDocumentRangeWithProvider(
 	const workerService = accessor.get(IEditorWorkerService);
 
 	let model: ITextModel;
-	let validate: () => boolean;
+	let cts: CancellationTokenSource;
 	if (isCodeEditor(editorOrModel)) {
 		model = editorOrModel.getModel();
-		const state = new EditorState(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-		validate = () => state.validate(editorOrModel);
+		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, token);
 	} else {
 		model = editorOrModel;
-		const versionNow = editorOrModel.getVersionId();
-		validate = () => versionNow === editorOrModel.getVersionId();
+		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-		model,
-		range,
-		model.getFormattingOptions(),
-		token
-	);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+			model,
+			range,
+			model.getFormattingOptions(),
+			cts.token
+		);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
 
-	if (!validate()) {
-		return true;
+	} finally {
+		cts.dispose();
 	}
 
 	if (!edits || edits.length === 0) {
@@ -214,7 +217,7 @@ export async function formatDocumentWithSelectedProvider(
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
-		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, token);
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
 	}
 }
 
@@ -222,6 +225,7 @@ export async function formatDocumentWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
@@ -236,16 +240,22 @@ export async function formatDocumentWithProvider(
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	const rawEdits = await provider.provideDocumentFormattingEdits(
-		model,
-		model.getFormattingOptions(),
-		cts.token
-	);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentFormattingEdits(
+			model,
+			model.getFormattingOptions(),
+			cts.token
+		);
 
-	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	if (cts.token.isCancellationRequested) {
-		return true;
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
+
+	} finally {
+		cts.dispose();
 	}
 
 	if (!edits || edits.length === 0) {
@@ -255,10 +265,13 @@ export async function formatDocumentWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, edits);
-		alertFormattingEdits(edits);
-		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+
+		if (mode !== FormattingMode.Silent) {
+			alertFormattingEdits(edits);
+			editorOrModel.pushUndoStop();
+			editorOrModel.focus();
+			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+		}
 
 	} else {
 		// use model to apply edits

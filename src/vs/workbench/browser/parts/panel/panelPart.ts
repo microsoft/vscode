@@ -394,9 +394,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private getCachedPanels(): ICachedPanel[] {
 		const registeredPanels = this.getPanels();
 
-		const storedStates = <Array<string | ICachedPanel>>JSON.parse(this.cachedPanelsValue);
-		const cachedPanels = <ICachedPanel[]>storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedPanel>{ id: c, pinned: true, order: undefined, visible: true } : c;
+		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
+		const cachedPanels = storedStates.map(c => {
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
 			const registered = registeredPanels.some(p => p.id === serialized.id);
 			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;

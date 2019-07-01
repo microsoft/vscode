@@ -37,7 +37,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.installSourcePath),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.installSourcePath, environmentService.configuration.remoteAuthority),
 				piiPaths: [environmentService.appRoot, environmentService.extensionsPath]
 			};
 
@@ -45,6 +45,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		} else {
 			this.impl = NullTelemetryService;
 		}
+	}
+
+	setEnabled(value: boolean): void {
+		return this.impl.setEnabled(value);
 	}
 
 	get isOptedIn(): boolean {

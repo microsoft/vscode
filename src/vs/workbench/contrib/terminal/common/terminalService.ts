@@ -17,8 +17,10 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, Platform } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { timeout } from 'vs/base/common/async';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -28,18 +30,19 @@ export abstract class TerminalService implements ITerminalService {
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _terminalTabs: ITerminalTab[] = [];
+	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	protected get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
-
+	private _extHostsReady: { [authority: string]: boolean } = {};
 	private _activeTabIndex: number;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
-	private readonly _onActiveTabChanged = new Emitter<void>();
+	protected readonly _onActiveTabChanged = new Emitter<void>();
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	protected readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
@@ -65,12 +68,13 @@ export abstract class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IPanelService protected readonly _panelService: IPanelService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService readonly lifecycleService: ILifecycleService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@INotificationService protected readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IFileService protected readonly _fileService: IFileService
+		@IFileService protected readonly _fileService: IFileService,
+		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -100,9 +104,12 @@ export abstract class TerminalService implements ITerminalService {
 
 	protected abstract _getWslPath(path: string): Promise<string>;
 	protected abstract _getWindowsBuildNumber(): number;
+	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
+	public abstract refreshActiveTab(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	public abstract getDefaultShell(platform: Platform): string;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
@@ -115,14 +122,21 @@ export abstract class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
-		// Ensure extension host is ready before requesting a process
-		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-			// TODO: MainThreadTerminalService is not ready at this point, fix this
-			setTimeout(() => {
-				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
-			}, 500);
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
+		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
+			// Wait for the remoteAuthority to be ready (and listening for events) before proceeding
+			const conn = this._remoteAgentService.getConnection();
+			const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+			let retries = 0;
+			while (!this._extHostsReady[remoteAuthority] && ++retries < 50) {
+				await timeout(100);
+			}
+			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
+	}
+
+	public extHostReady(remoteAuthority: string): void {
+		this._extHostsReady[remoteAuthority] = true;
 	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {
@@ -210,6 +224,15 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getInstanceFromId(terminalId: number): ITerminalInstance {
+		let bgIndex = -1;
+		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
+			if (terminalInstance.id === terminalId) {
+				bgIndex = i;
+			}
+		});
+		if (bgIndex !== -1) {
+			return this._backgroundedTerminalInstances[bgIndex];
+		}
 		return this.terminalInstances[this._getIndexFromId(terminalId)];
 	}
 
@@ -218,6 +241,11 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
+		// If this was a runInBackground terminal created by the API this was triggered by show,
+		// in which case we need to create the terminal tab
+		if (terminalInstance.shellLaunchConfig.runInBackground) {
+			this._showBackgroundTerminal(terminalInstance);
+		}
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}
 
@@ -416,6 +444,9 @@ export abstract class TerminalService implements ITerminalService {
 			return Promise.resolve(null);
 		}
 		const current = potentialPaths.shift();
+		if (current! === '') {
+			return this._validateShellPaths(label, potentialPaths);
+		}
 		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);
@@ -426,15 +457,14 @@ export abstract class TerminalService implements ITerminalService {
 
 	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
 		return new Promise<string>(c => {
-			const exe = executable;
-			if (!exe) {
+			if (!executable) {
 				c(originalPath);
 				return;
 			}
 
 			const hasSpace = originalPath.indexOf(' ') !== -1;
 
-			const pathBasename = basename(exe, '.exe');
+			const pathBasename = basename(executable, '.exe');
 			const isPowerShell = pathBasename === 'pwsh' ||
 				title === 'pwsh' ||
 				pathBasename === 'powershell' ||
@@ -448,7 +478,9 @@ export abstract class TerminalService implements ITerminalService {
 			if (isWindows) {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
-				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (this._getWindowsBuildNumber() >= 17063)) {
+				const lowerExecutable = executable.toLowerCase();
+				if (this._getWindowsBuildNumber() >= 17063 &&
+					(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
 					c(this._getWslPath(originalPath));
 					return;
 				} else if (hasSpace) {

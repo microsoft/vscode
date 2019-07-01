@@ -7,6 +7,9 @@
 	padding: 0 5px;
 	outline-offset: 2px;
 	line-height: initial;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-action-bar .action-item .action-label.clear-extensions {
@@ -35,6 +38,7 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.extension-editor-dropdown-action,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.system-disable.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
 .monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
 	display: none;
@@ -59,6 +63,38 @@
 	color: inherit;
 	background-color: transparent;
 	font-style: italic;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.disable-status {
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable,
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.system-disable {
+	margin: 0.15em;
+}
+
+.monaco-action-bar .action-item .action-label.system-disable.icon {
+	opacity: 1;
+	height: 18px;
+	width: 10px;
+}
+
+.monaco-action-bar .action-item .action-label.system-disable.warning.icon {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-action-bar .action-item .action-label.system-disable.warning.icon {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.monaco-action-bar .action-item .action-label.system-disable.info.icon {
+	background: url('status-info.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-action-bar .action-item .action-label.system-disable.info.icon {
+	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,

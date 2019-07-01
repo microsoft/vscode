@@ -18,7 +18,6 @@ export interface ParsedArgs {
 	waitMarkerFilePath?: string;
 	diff?: boolean;
 	add?: boolean;
-	gitCredential?: string;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
@@ -50,6 +49,7 @@ export interface ParsedArgs {
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'locate-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
@@ -69,7 +69,7 @@ export interface ParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
-	'nodeless'?: boolean; // TODO@ben revisit electron5 nodeless support
+	'disable-user-env-probe'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -101,6 +101,9 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	machineSettingsHome: string;
+	machineSettingsPath: string;
+
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 
@@ -116,7 +119,7 @@ export interface IEnvironmentService {
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI | URI[];
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
