@@ -12,7 +12,6 @@ import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
@@ -238,15 +237,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._usedSchemes.delete(scheme);
 			this._fsProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
-		});
-	}
-
-	registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		const handle = this._handlePool++;
-		this._proxy.$registerResourceLabelFormatter(handle, formatter);
-
-		return toDisposable(() => {
-			this._proxy.$unregisterResourceLabelFormatter(handle);
 		});
 	}
 
