@@ -194,7 +194,7 @@ export class StatusBarController implements IWorkbenchContribution {
 				tooltip: `${label} - ${c.tooltip}`,
 				command: c.id,
 				arguments: c.arguments
-			}, MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;

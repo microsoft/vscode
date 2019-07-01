@@ -5,8 +5,19 @@
 import * as assert from 'assert';
 import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdown, renderText, renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('HtmlContent', () => {
+	const store = new DisposableStore();
+
+	setup(() => {
+		store.clear();
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
 	test('render simple element', () => {
 		let result: HTMLElement = renderText('testing');
 
@@ -55,7 +66,7 @@ suite('HtmlContent', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: []
+				disposeables: store
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
@@ -74,7 +85,7 @@ suite('HtmlContent', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: []
+				disposeables: store
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');

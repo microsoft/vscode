@@ -321,7 +321,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 			registry.registerWorkbenchAction(
 				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
-				'View: Show {0}',
+				`View: Show ${title}`,
 				localize('view', "View")
 			);
 

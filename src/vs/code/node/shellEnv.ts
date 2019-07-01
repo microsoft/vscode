@@ -96,10 +96,10 @@ export function getShellEnvironment(logService: ILogService, environmentService:
 			logService.trace('getShellEnvironment: disable-user-env-probe set, skipping');
 			_shellEnv = Promise.resolve({});
 		} else if (isWindows) {
-			logService.trace('getShellEnvironment: runing on windows, skipping');
+			logService.trace('getShellEnvironment: running on Windows, skipping');
 			_shellEnv = Promise.resolve({});
 		} else if (process.env['VSCODE_CLI'] === '1') {
-			logService.trace('getShellEnvironment: runing on CLI, skipping');
+			logService.trace('getShellEnvironment: running on CLI, skipping');
 			_shellEnv = Promise.resolve({});
 		} else {
 			logService.trace('getShellEnvironment: running on Unix');

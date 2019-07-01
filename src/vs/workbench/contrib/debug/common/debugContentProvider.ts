@@ -133,7 +133,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 					});
 				} else {
 					// create text model
-					const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
+					const mime = response.body.mimeType || guessMimeTypes(resource)[0];
 					const languageSelection = this.modeService.create(mime);
 					return this.modelService.createModel(response.body.content, languageSelection, resource);
 				}

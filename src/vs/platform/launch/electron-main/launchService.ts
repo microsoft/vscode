@@ -8,18 +8,19 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { BrowserWindow, ipcMain, Event as IpcEvent } from 'electron';
+import { URI } from 'vs/base/common/uri';
+import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -27,20 +28,6 @@ export const ILaunchService = createDecorator<ILaunchService>(ID);
 export interface IStartArguments {
 	args: ParsedArgs;
 	userEnv: IProcessEnvironment;
-}
-
-export interface IWindowInfo {
-	pid: number;
-	title: string;
-	folderURIs: UriComponents[];
-	remoteAuthority?: string;
-}
-
-export interface IMainProcessInfo {
-	mainPID: number;
-	// All arguments after argv[0], the exec path
-	mainArguments: string[];
-	windows: IWindowInfo[];
 }
 
 export interface IRemoteDiagnosticOptions {
@@ -107,7 +94,7 @@ export class LaunchChannel implements IServerChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILaunchService>;
 
 	constructor(private channel: IChannel) { }
 
@@ -134,7 +121,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 export class LaunchService implements ILaunchService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILaunchService>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -280,7 +267,9 @@ export class LaunchService implements ILaunchService {
 		return Promise.resolve({
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
-			windows
+			windows,
+			screenReader: app.isAccessibilitySupportEnabled(),
+			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}
 

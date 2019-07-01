@@ -19,7 +19,7 @@ import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
@@ -31,6 +31,7 @@ import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridv
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { MementoObject } from 'vs/workbench/common/memento';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -118,8 +119,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private _preferredSize: Dimension | undefined;
 
-	private workspaceMemento: object;
-	private globalMemento: object;
+	private readonly workspaceMemento: MementoObject;
+	private readonly globalMemento: MementoObject;
 
 	private _partOptions: IEditorPartOptions;
 
@@ -520,13 +521,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.groupViews.set(groupView.id, groupView);
 
 		// Track focus
-		let groupDisposables: IDisposable[] = [];
-		groupDisposables.push(groupView.onDidFocus(() => {
+		let groupDisposables = new DisposableStore();
+		groupDisposables.add(groupView.onDidFocus(() => {
 			this.doSetGroupActive(groupView);
 		}));
 
 		// Track editor change
-		groupDisposables.push(groupView.onDidGroupChange(e => {
+		groupDisposables.add(groupView.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				this.updateContainer();
 			}
@@ -534,7 +535,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Track dispose
 		Event.once(groupView.onWillDispose)(() => {
-			groupDisposables = dispose(groupDisposables);
+			dispose(groupDisposables);
 			this.groupViews.delete(groupView.id);
 			this.doUpdateMostRecentActive(groupView);
 		});

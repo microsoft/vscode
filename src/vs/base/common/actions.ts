@@ -29,14 +29,13 @@ export interface IActionRunner extends IDisposable {
 	onDidBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionViewItem {
+export interface IActionViewItem extends IDisposable {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
 	isEnabled(): boolean;
 	focus(): void;
 	blur(): void;
-	dispose(): void;
 }
 
 export interface IActionChangeEvent {
@@ -48,9 +47,9 @@ export interface IActionChangeEvent {
 	radio?: boolean;
 }
 
-export class Action implements IAction {
+export class Action extends Disposable implements IAction {
 
-	protected _onDidChange = new Emitter<IActionChangeEvent>();
+	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
 	readonly onDidChange: Event<IActionChangeEvent> = this._onDidChange.event;
 
 	protected _id: string;
@@ -63,6 +62,7 @@ export class Action implements IAction {
 	protected _actionCallback?: (event?: any) => Promise<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>) {
+		super();
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -170,10 +170,6 @@ export class Action implements IAction {
 		}
 
 		return Promise.resolve(true);
-	}
-
-	dispose() {
-		this._onDidChange.dispose();
 	}
 }
 

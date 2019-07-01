@@ -11,13 +11,12 @@ import * as platform from 'vs/base/common/platform';
 
 declare var process: any;
 
-export interface ISocket {
+export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
 	onClose(listener: () => void): IDisposable;
 	onEnd(listener: () => void): IDisposable;
 	write(buffer: VSBuffer): void;
 	end(): void;
-	dispose(): void;
 }
 
 let emptyBuffer: VSBuffer | null = null;

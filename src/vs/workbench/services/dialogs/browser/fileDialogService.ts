@@ -187,6 +187,25 @@ export class FileDialogService implements IFileDialogService {
 		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
+	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
+		const schema = this.getFileSystemSchema(options);
+		if (this.shouldUseSimplified(schema)) {
+			if (!options.availableFileSystems) {
+				options.availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+			}
+
+			options.title = nls.localize('saveFileAs.title', 'Save As');
+			return this.saveRemoteResource(options);
+		}
+
+		const result = await this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options));
+		if (result) {
+			return URI.file(result);
+		}
+
+		return;
+	}
+
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
 		return {
 			defaultPath: options.defaultUri && options.defaultUri.fsPath,

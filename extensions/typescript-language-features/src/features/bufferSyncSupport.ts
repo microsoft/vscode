@@ -75,7 +75,7 @@ class BufferSynchronizer {
 		}
 	}
 
-	public change(filepath: string, events: vscode.TextDocumentContentChangeEvent[]) {
+	public change(filepath: string, events: readonly vscode.TextDocumentContentChangeEvent[]) {
 		if (!events.length) {
 			return;
 		}
@@ -210,7 +210,7 @@ class SyncedBuffer {
 		this.state = BufferState.Closed;
 	}
 
-	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
+	public onContentChanged(events: readonly vscode.TextDocumentContentChangeEvent[]): void {
 		if (this.state !== BufferState.Open) {
 			console.error(`Unexpected buffer state: ${this.state}`);
 		}
@@ -470,20 +470,20 @@ export default class BufferSyncSupport extends Disposable {
 	private sendPendingDiagnostics(): void {
 		const orderedFileSet = this.pendingDiagnostics.getOrderedFileSet();
 
+		if (this.pendingGetErr) {
+			this.pendingGetErr.cancel();
+
+			for (const file of this.pendingGetErr.files.entries) {
+				orderedFileSet.set(file.resource, undefined);
+			}
+		}
+
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values) {
 			orderedFileSet.set(buffer.resource, undefined);
 		}
 
 		if (orderedFileSet.size) {
-			if (this.pendingGetErr) {
-				this.pendingGetErr.cancel();
-
-				for (const file of this.pendingGetErr.files.entries) {
-					orderedFileSet.set(file.resource, undefined);
-				}
-			}
-
 			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, orderedFileSet, () => {
 				if (this.pendingGetErr === getErr) {
 					this.pendingGetErr = undefined;

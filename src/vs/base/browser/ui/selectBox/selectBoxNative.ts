@@ -34,8 +34,7 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
-		this._onDidSelect = new Emitter<ISelectData>();
-		this._register(this._onDidSelect);
+		this._onDidSelect = this._register(new Emitter<ISelectData>());
 
 		this.styles = styles;
 

@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -272,6 +272,46 @@ import { isMacintosh } from 'vs/base/common/platform';
 				'type': 'string',
 				'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 				'markdownDescription': windowTitleDescription
+			},
+			'window.menuBarVisibility': {
+				'type': 'string',
+				'enum': ['default', 'visible', 'toggle', 'hidden'],
+				'enumDescriptions': [
+					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
+					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
+					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
+				],
+				'default': 'default',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
+				'included': isWindows || isLinux || isWeb
+			},
+			'window.enableMenuBarMnemonics': {
+				'type': 'boolean',
+				'default': true,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('enableMenuBarMnemonics', "Controls whether the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
+				'included': isWindows || isLinux
+			},
+			'window.customMenuBarAltFocus': {
+				'type': 'boolean',
+				'default': true,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': nls.localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
+				'included': isWindows || isLinux || isWeb
+			},
+			'window.openFoldersInNewWindow': {
+				'type': 'string',
+				'enum': ['on', 'off', 'default'],
+				'enumDescriptions': [
+					nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window."),
+					nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window."),
+					nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).")
+				],
+				'default': 'default',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			}
 		}
 	});

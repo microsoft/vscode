@@ -13,7 +13,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -184,13 +184,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			}
 
 			if (this.breakpoint) {
-				this.debugService.updateBreakpoints(this.breakpoint.uri, {
-					[this.breakpoint.getId()]: {
-						condition,
-						hitCondition,
-						logMessage
-					}
-				}, false);
+				const data = new Map<string, IBreakpointUpdateData>();
+				data.set(this.breakpoint.getId(), {
+					condition,
+					hitCondition,
+					logMessage
+				});
+				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false);
 			} else {
 				const model = this.editor.getModel();
 				if (model) {

@@ -390,7 +390,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		const defaultEncodingOverrides: IEncodingOverride[] = [];
 
 		// Global settings
-		defaultEncodingOverrides.push({ parent: URI.file(this.environmentService.appSettingsHome), encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.appSettingsHome, encoding: UTF8 });
 
 		// Workspace files
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });

@@ -8,13 +8,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
 
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { RemoteExtensionLogFileName, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
-import { MenuId, IMenuService, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/contrib/output/common/output';
-import * as resources from 'vs/base/common/resources';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -24,11 +22,10 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -37,10 +34,13 @@ import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAg
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import Severity from 'vs/base/common/severity';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
+const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
 
 export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -48,7 +48,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private windowCommandMenu: IMenu;
 	private hasWindowActions: boolean = false;
 	private remoteAuthority: string | undefined;
-	private disconnected: boolean = false;
+	private disconnected: boolean = true;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -60,7 +60,8 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IWindowsService windowService: IWindowsService
 	) {
 		super();
 
@@ -68,11 +69,22 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(this.windowCommandMenu);
 
 		this._register(CommandsRegistry.registerCommand(WINDOW_ACTIONS_COMMAND_ID, _ => this.showIndicatorActions(this.windowCommandMenu)));
+		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
-			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."));
+			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
+			RemoteConnectionState.bindTo(this.contextKeyService).set('initializing');
+
+			MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+				group: '6_close',
+				command: {
+					id: CLOSE_REMOTE_COMMAND_ID,
+					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "C&&lose Remote Connection")
+				},
+				order: 3.5
+			});
 		}
 
 		extensionService.whenInstalledExtensionsRegistered().then(_ => {
@@ -105,18 +117,19 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private setDisconnected(isDisconnected: boolean): void {
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
+			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
 			this.updateWindowIndicator();
 		}
 	}
 
 	private updateWindowIndicator(): void {
-		const windowActionCommand = this.windowCommandMenu.getActions().length ? WINDOW_ACTIONS_COMMAND_ID : undefined;
+		const windowActionCommand = (this.remoteAuthority || this.windowCommandMenu.getActions().length) ? WINDOW_ACTIONS_COMMAND_ID : undefined;
 		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
 			if (!this.disconnected) {
 				this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
 			} else {
-				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
+				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), windowActionCommand);
 			}
 		} else {
 			if (windowActionCommand) {
@@ -143,13 +156,13 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.windowIndicatorEntry) {
 			this.windowIndicatorEntry.update(properties);
 		} else {
-			this.windowIndicatorEntry = this.statusbarService.addEntry(properties, StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+			this.windowIndicatorEntry = this.statusbarService.addEntry(properties, 'status.host', nls.localize('status.host', "Remote Host"), StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
 	}
 
 	private showIndicatorActions(menu: IMenu) {
 
-		const actions = menu.getActions();
+		const actions = !this.disconnected || !this.remoteAuthority ? menu.getActions() : [];
 
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (let actionGroup of actions) {
@@ -172,6 +185,17 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			}
 		}
 
+		if (this.remoteAuthority) {
+			if (items.length) {
+				items.push({ type: 'separator' });
+			}
+			items.push({
+				type: 'item',
+				id: CLOSE_REMOTE_COMMAND_ID,
+				label: nls.localize('closeRemote.title', 'Close Remote Connection')
+			});
+		}
+
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.items = items;
 		quickPick.canSelectMany = false;
@@ -186,27 +210,11 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	}
 }
 
-class LogOutputChannels extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
-	) {
-		super();
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: nls.localize('remoteExtensionLog', "Remote Server"), file: resources.joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-			}
-		});
-	}
-}
-
 class RemoteChannelsContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IFileService fileService: IFileService,
 		@IDialogService dialogService: IDialogService
 	) {
 		const connection = remoteAgentService.getConnection();
@@ -391,7 +399,6 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);

@@ -15,19 +15,17 @@ import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
-import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IdleValue } from 'vs/base/common/async';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
 export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
-
-	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
 
 	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
 		if (element instanceof OutlineGroup) {
@@ -35,10 +33,6 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 		} else {
 			return element.symbol.name;
 		}
-	}
-
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		return this._keybindingService.mightProducePrintableCharacter(event);
 	}
 }
 
@@ -215,6 +209,8 @@ export const enum OutlineSortOrder {
 
 export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
+	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+
 	constructor(
 		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
 	) { }
@@ -225,11 +221,11 @@ export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
 			if (this.type === OutlineSortOrder.ByKind) {
-				return a.symbol.kind - b.symbol.kind || a.symbol.name.localeCompare(b.symbol.name);
+				return a.symbol.kind - b.symbol.kind || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			} else if (this.type === OutlineSortOrder.ByName) {
-				return a.symbol.name.localeCompare(b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+				return this._collator.getValue().compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
 			} else if (this.type === OutlineSortOrder.ByPosition) {
-				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || a.symbol.name.localeCompare(b.symbol.name);
+				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			}
 		}
 		return 0;

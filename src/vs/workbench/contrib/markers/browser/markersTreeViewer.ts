@@ -43,6 +43,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -255,7 +256,7 @@ class MarkerWidget extends Disposable {
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
 			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
-		this.icon = dom.append(parent, dom.$('.icon'));
+		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
@@ -269,7 +270,7 @@ class MarkerWidget extends Disposable {
 		}
 		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = 'marker-icon ' + MarkerWidget.iconClassNameFor(element.marker);
+		this.icon.className = `marker-icon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 		this.renderQuickfixActionbar(element);
 		this.renderMultilineActionbar(element);
 
@@ -344,20 +345,6 @@ class MarkerWidget extends Disposable {
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-	}
-
-	private static iconClassNameFor(element: IMarker): string {
-		switch (element.severity) {
-			case MarkerSeverity.Hint:
-				return 'info';
-			case MarkerSeverity.Info:
-				return 'info';
-			case MarkerSeverity.Warning:
-				return 'warning';
-			case MarkerSeverity.Error:
-				return 'error';
-		}
-		return '';
 	}
 }
 
@@ -561,7 +548,9 @@ export class MarkerViewModel extends Disposable {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
+								return this._register(actions);
+							});
 						});
 					}
 					return this.codeActionsPromise;
@@ -641,7 +630,7 @@ export class MarkersViewModel extends Disposable {
 	}
 
 	add(marker: Marker): void {
-		if (!this.markersViewStates.has(marker.hash)) {
+		if (!this.markersViewStates.has(marker.id)) {
 			const viewModel = this.instantiationService.createInstance(MarkerViewModel, marker);
 			const disposables: IDisposable[] = [viewModel];
 			viewModel.multiline = this.multiline;
@@ -650,7 +639,7 @@ export class MarkersViewModel extends Disposable {
 					this._onDidChange.fire(marker);
 				}
 			}, this, disposables);
-			this.markersViewStates.set(marker.hash, { viewModel, disposables });
+			this.markersViewStates.set(marker.id, { viewModel, disposables });
 
 			const markers = this.markersPerResource.get(marker.resource.toString()) || [];
 			markers.push(marker);
@@ -661,11 +650,11 @@ export class MarkersViewModel extends Disposable {
 	remove(resource: URI): void {
 		const markers = this.markersPerResource.get(resource.toString()) || [];
 		for (const marker of markers) {
-			const value = this.markersViewStates.get(marker.hash);
+			const value = this.markersViewStates.get(marker.id);
 			if (value) {
 				dispose(value.disposables);
 			}
-			this.markersViewStates.delete(marker.hash);
+			this.markersViewStates.delete(marker.id);
 			if (this.hoveredMarker === marker) {
 				this.hoveredMarker = null;
 			}
@@ -674,7 +663,7 @@ export class MarkersViewModel extends Disposable {
 	}
 
 	getViewModel(marker: Marker): MarkerViewModel | null {
-		const value = this.markersViewStates.get(marker.hash);
+		const value = this.markersViewStates.get(marker.id);
 		return value ? value.viewModel : null;
 	}
 

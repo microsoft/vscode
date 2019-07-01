@@ -324,8 +324,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	_serviceBrand: any;
 
-	private extensionsGalleryUrl: string;
-	private extensionsControlUrl: string;
+	private extensionsGalleryUrl: string | undefined;
+	private extensionsControlUrl: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 

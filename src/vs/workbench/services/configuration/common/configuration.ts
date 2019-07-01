@@ -5,8 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
@@ -42,24 +41,11 @@ export interface IConfigurationCache {
 
 }
 
-export interface IConfigurationFileService {
-	fileService: IFileService | null;
-	readonly onFileChanges: Event<FileChangesEvent>;
-	readonly isWatching: boolean;
-	readonly whenWatchingStarted: Promise<void>;
-	whenProviderRegistered(scheme: string): Promise<void>;
-	watch(resource: URI): IDisposable;
-	exists(resource: URI): Promise<boolean>;
-	readFile(resource: URI): Promise<string>;
-}
+export class ConfigurationFileService {
 
-export class ConfigurationFileService implements IConfigurationFileService {
-
-	constructor(public fileService: IFileService) { }
+	constructor(private readonly fileService: IFileService) { }
 
 	get onFileChanges() { return this.fileService.onFileChanges; }
-	readonly whenWatchingStarted: Promise<void> = Promise.resolve();
-	readonly isWatching: boolean = true;
 
 	whenProviderRegistered(scheme: string): Promise<void> {
 		if (this.fileService.canHandleResource(URI.from({ scheme }))) {
