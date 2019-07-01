@@ -125,7 +125,11 @@ const wordSeparators = new Set<number>();
 	.forEach(s => wordSeparators.add(s.charCodeAt(0)));
 
 function isWordSeparator(code: number): boolean {
-	return wordSeparators.has(code);
+	return isWhitespace(code) || wordSeparators.has(code);
+}
+
+function charactersMatch(codeA: number, codeB: number): boolean {
+	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
 }
 
 function isAlphanumeric(code: number): boolean {
@@ -298,7 +302,7 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 		return [];
 	} else if (j === target.length) {
 		return null;
-	} else if (word[i] !== target[j]) {
+	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
 		return null;
 	} else {
 		let result: IMatch[] | null = null;
@@ -316,9 +320,8 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 
 function nextWord(word: string, start: number): number {
 	for (let i = start; i < word.length; i++) {
-		const c = word.charCodeAt(i);
-		if (isWhitespace(c) || (i > 0 && isWhitespace(word.charCodeAt(i - 1))) ||
-			isWordSeparator(c) || (i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
+		if (isWordSeparator(word.charCodeAt(i)) ||
+			(i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
 			return i;
 		}
 	}
