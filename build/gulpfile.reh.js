@@ -18,7 +18,6 @@ const filter = require('gulp-filter');
 const json = require('gulp-json-editor');
 const _ = require('underscore');
 const deps = require('./dependencies');
-const ext = require('./lib/extensions');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -28,6 +27,7 @@ const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
+const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 
 const cp = require('child_process');
 
@@ -309,11 +309,11 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
 			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
 		const marketplaceExtensions = require('./builtInExtensions.json').map(entry => entry.name);
-		const extensionsToShip = [].concat(localWorkspaceExtensions).concat(marketplaceExtensions);
+		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions]
+			.map(name => `.build/extensions/${name}/**`);
 
-		const sources = es.merge(src, ext.packageExtensionsStream({
-			desiredExtensions: extensionsToShip
-		}));
+		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
+		const sources = es.merge(src, extensions);
 
 		let version = packageJson.version;
 		// @ts-ignore JSON checking: quality is optional
@@ -465,12 +465,16 @@ BUILD_TARGETS.forEach(buildTarget => {
 			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
-			const vscodeServerTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				task.parallel(
-					minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
-					util.rimraf(path.join(BUILD_ROOT, destinationFolderName))
-				),
+			const vscodeServerCITask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
+				minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
+			));
+			gulp.task(vscodeServerCITask);
+
+			const vscodeServerTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				compileExtensionsBuildTask,
+				vscodeServerCITask
 			));
 			gulp.task(vscodeServerTask);
 
