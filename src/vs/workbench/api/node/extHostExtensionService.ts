@@ -15,7 +15,7 @@ import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/node/ex
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -323,17 +323,32 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this._mainThreadTelemetryProxy.$publicLog('extensionActivationTimes', {
+		type ExtensionActivationTimesClassification = {
+			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
+
+		type ExtensionActivationTimesEvent = {
+			outcome: string
+		} & ActivationTimesEvent & TelemetryActivationEvent;
+
+		type ActivationTimesEvent = {
+			startup?: boolean;
+			codeLoadingTime?: number;
+			activateCallTime?: number;
+			activateResolvedTime?: number;
+		};
+
+		this._mainThreadTelemetryProxy.$publicLog2<ExtensionActivationTimesEvent, ExtensionActivationTimesClassification>('extensionActivationTimes', {
 			...event,
 			...(activationTimes || {}),
-			outcome,
+			outcome
 		});
 	}
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
-		this._mainThreadTelemetryProxy.$publicLog2<any, ActivatePluginClassification>('activatePlugin', event);
+		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
@@ -740,7 +755,17 @@ function loadCommonJSModule<T>(logService: ILogService, modulePath: string, acti
 	return Promise.resolve(r);
 }
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
+type TelemetryActivationEvent = {
+	id: string;
+	name: string;
+	extensionVersion: string;
+	publisherDisplayName: string;
+	activationEvents: string | null;
+	isBuiltin: boolean;
+	reason: string;
+};
+
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TelemetryActivationEvent {
 	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
 		reason instanceof ExtensionActivatedByAPI ? 'api' :
 			'';
