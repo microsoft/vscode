@@ -223,6 +223,12 @@ function getApp(requestedBrowser) {
 			return ({
 				'darwin': '/Applications/Safari.app',
 			})[process.platform];
+
+		case 'edge':
+			return ({
+				'win32': 'msedge',
+				'darwin': '/Applications/Microsoft Edge Dev.app',
+			})[process.platform];
 	}
 }
 
