@@ -44,6 +44,8 @@
 		"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6,**/.eslintrc.*,**/.eslintrc,**/.babelrc,**/jsconfig.json}",
 		"dbaeumer.jshint": "{**/*.js,**/*.jsx,**/*.es6,**/.babelrc,**/jsconfig.json,**/.jshintrc,**/.jshintignore}",
 		"ms-vscode.vscode-typescript-tslint-plugin": "{**/*.ts,**/*.tsx,**/tslint.json,**/tsconfig.json}",
+		"bmewburn.vscode-intelephense-client": "{**/*.php,**/php.ini}",
+		"felixfbecker.php-intellisense": "{**/*.php,**/php.ini}",
 		"felixfbecker.php-debug": "{**/*.php,**/php.ini}",
 		"ikappas.phpcs": "{**/*.php,**/php.ini}",
 		"rust-lang.rust": "{**/*.rs,**/*.rslib}",
@@ -72,7 +74,8 @@
 		"ms-azuretools.vscode-azureterraform": "**/*.tf",
 		"mauve.terraform": "**/*.tf",
 		"vsciot-vscode.vscode-arduino": "**/*.ino",
-		"ms-kubernetes-tools.vscode-kubernetes-tools ": "{**/Chart.yaml}"
+		"ms-kubernetes-tools.vscode-kubernetes-tools": "{**/Chart.yaml}",
+		"GoogleCloudTools.cloudcode": "{**/skaffold.yaml}"
 	},
 	"extensionImportantTips": {
 		"ms-vscode.csharp": {
@@ -200,7 +203,8 @@
 			"recommendations": [
 				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
-				"azuredevspaces.azds"
+				"azuredevspaces.azds",
+				"GoogleCloudTools.cloudcode"
 			]
 		},
 		"kubectl": {
@@ -209,7 +213,8 @@
 			"recommendations": [
 				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
-				"azuredevspaces.azds"
+				"azuredevspaces.azds",
+				"GoogleCloudTools.cloudcode"
 			]
 		},
 		"ng": {
@@ -274,7 +279,7 @@
 		},
 		"vi": {
 			"friendlyName": "VIM",
-			"windowsPath": "%ProgramFiles(x86)\\Vim\\vim80\\gvim.exe",
+			"windowsPath": "%ProgramFiles(x86)%\\Vim\\vim80\\gvim.exe",
 			"recommendations": [
 				"vscodevim.vim"
 			]
@@ -325,6 +330,29 @@
 			"windowsPath": "%APPDATA%\\npm\\cordova",
 			"recommendations": [
 				"vsmobile.cordova-tools"
+			]
+		},
+		"gcloud": {
+			"friendlyName": "Google GCloud CLI",
+			"windowsPath": "%ProgramFiles(x86)%\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd",
+			"recommendations": [
+				"GoogleCloudTools.cloudcode"
+			]
+		},
+		"skaffold": {
+			"friendlyName": "Skaffold Code to Cluster",
+			"recommendations": [
+				"ms-azuretools.vscode-docker",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"GoogleCloudTools.cloudcode"
+			]
+		},
+		"minikube": {
+			"friendlyName": "MiniKube Local Kubernetes Cluster",
+			"recommendations": [
+				"ms-azuretools.vscode-docker",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"GoogleCloudTools.cloudcode"
 			]
 		}
 	},
