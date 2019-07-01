@@ -668,7 +668,6 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem | ITreeItem[], ITreeI
 		return Promise.resolve([]);
 	}
 }
-// TODO: test themeing
 // todo@joh,sandy make this proper and contributable from extensions
 registerThemingParticipant((theme, collector) => {
 
