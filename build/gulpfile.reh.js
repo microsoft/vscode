@@ -329,7 +329,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 
 		if (process.env['VSCODE_WEB_BUILD']) {
 			all = es.merge(all,
-				gulp.src('resources/server/favicon.ico'));
+				gulp.src('resources/server/favicon.ico', { base: '.' })
+					.pipe(rename('resources/server/favicon.ico')));
 		}
 
 		let result = all
