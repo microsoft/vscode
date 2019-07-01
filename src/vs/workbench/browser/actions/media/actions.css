@@ -12,7 +12,7 @@
 }
 
 .vs .action-remove-from-recently-opened {
-	background: url("remove.svg") center center no-repeat;
+	background: url("remove-light.svg") center center no-repeat;
 }
 
 .vs-dark .action-remove-from-recently-opened,
