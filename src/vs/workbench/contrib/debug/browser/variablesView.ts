@@ -39,6 +39,7 @@ export class VariablesView extends ViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
 	private tree: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
+	private treeContainer: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -53,6 +54,15 @@ export class VariablesView extends ViewletPanel {
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+			if (!this.debugService.getViewModel().focusedStackFrame) {
+				// This is called even when there is no stackFrame (transition from stopped to running)
+				// We don't want to clear/udate the tree just yet. We will be called again when we have an actual
+				// stacktrace available. So, simply hide the tree. Thill help preserve the tree state better and
+				// will even remember state across a restart.
+				this.treeContainer.hidden = true;
+				return;
+			}
+			this.treeContainer.hidden = false;
 			this.needsRefresh = false;
 			this.tree.updateChildren().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -70,9 +80,9 @@ export class VariablesView extends ViewletPanel {
 
 	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-variables');
-		const treeContainer = renderViewTree(container);
+		this.treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
