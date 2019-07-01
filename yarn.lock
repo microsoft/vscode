@@ -3410,9 +3410,9 @@ fs-extra@^2.0.0:
     jsonfile "^2.1.0"
 
 fs-extra@^7.0.0:
-  version "7.0.0"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-7.0.0.tgz#8cc3f47ce07ef7b3593a11b9fb245f7e34c041d6"
-  integrity sha512-EglNDLRpmaTWiD/qraZn6HREAEAHJcJOmxNEYwq6xeMKnVMAy3GUcFB+wXt2C6k4CNvB/mP1y/U3dzvKKj5OtQ==
+  version "7.0.1"
+  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-7.0.1.tgz#4f189c44aa123b895f722804f55ea23eadc348e9"
+  integrity sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==
   dependencies:
     graceful-fs "^4.1.2"
     jsonfile "^4.0.0"
@@ -5909,6 +5909,11 @@ nan@2.8.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
   integrity sha1-7XFfP+neArV6XmJS2QqWZ14fCFo=
 
+nan@^2.0.0, nan@^2.13.2, nan@^2.14.0:
+  version "2.14.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
+  integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
+
 nan@^2.10.0:
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.11.0.tgz#574e360e4d954ab16966ec102c0c049fd961a099"
@@ -5918,11 +5923,6 @@ nan@^2.12.1:
   version "2.12.1"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.12.1.tgz#7b1aa193e9aa86057e3c7bbd0ac448e770925552"
   integrity sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
-
-nan@^2.13.2, nan@^2.14.0:
-  version "2.14.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
-  integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
 
 nan@^2.9.2, nan@~2.10.0:
   version "2.10.0"
@@ -6171,6 +6171,16 @@ npmlog@^4.0.1, npmlog@^4.0.2:
     console-control-strings "~1.1.0"
     gauge "~2.7.3"
     set-blocking "~2.0.0"
+
+nsfw@1.2.5:
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-1.2.5.tgz#febe581af616f7b042f89df133abe62416c4c803"
+  integrity sha512-m3mwZUKXiCR69PDMLfAmKmiNzy0Oe9LhFE0DYZC5cc1htNj5Hyb1sAgglXhuaDkibFy22AVvPC5cCFB3A6mYIw==
+  dependencies:
+    fs-extra "^7.0.0"
+    lodash.isinteger "^4.0.4"
+    lodash.isundefined "^3.0.1"
+    nan "^2.0.0"
 
 nth-check@~1.0.1:
   version "1.0.1"
@@ -9469,16 +9479,6 @@ vscode-nls-dev@3.2.5:
     vinyl "^2.1.0"
     xml2js "^0.4.19"
     yargs "^10.1.1"
-
-vscode-nsfw@1.1.2:
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.1.2.tgz#9cb9073b5854386801afe41f7152f721b4ea9e80"
-  integrity sha512-J0So+JNK/5kQboTO1hKNk4ie/wwUegrJilYSY5sVxU9JJlo3aQdP0zi2NtU8CEK3kkN6qRp0MbXCzbT0LKGorg==
-  dependencies:
-    fs-extra "^7.0.0"
-    lodash.isinteger "^4.0.4"
-    lodash.isundefined "^3.0.1"
-    nan "^2.10.0"
 
 vscode-proxy-agent@0.4.0:
   version "0.4.0"

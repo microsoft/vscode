@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode-nsfw' {
+declare module 'nsfw' {
 	interface NsfwWatcher {
 		start(): any;
 		stop(): any;
