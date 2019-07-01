@@ -10,6 +10,7 @@ import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { startsWith } from 'vs/base/common/strings';
 
 export class FileUserDataProvider extends Disposable implements IUserDataProvider {
 
@@ -28,17 +29,17 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	}
 
 	private handleFileChanges(event: FileChangesEvent): void {
-		const changedKeys: string[] = [];
+		const changedPaths: string[] = [];
 		for (const change of event.changes) {
 			if (change.resource.scheme === this.userDataHome.scheme) {
-				const key = this.toKey(change.resource);
-				if (key) {
-					changedKeys.push(key);
+				const path = this.toPath(change.resource);
+				if (path) {
+					changedPaths.push(path);
 				}
 			}
 		}
-		if (changedKeys.length) {
-			this._onDidChangeFile.fire(changedKeys);
+		if (changedPaths.length) {
+			this._onDidChangeFile.fire(changedPaths);
 		}
 	}
 
@@ -62,18 +63,20 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 
 	async listFiles(path: string): Promise<string[]> {
 		const result = await this.fileService.resolve(this.toResource(path));
-		return result.children ? result.children.map(c => this.toKey(c.resource)!) : [];
+		return result.children ? result.children.map(c => this.toPath(c.resource)!) : [];
 	}
 
 	deleteFile(path: string): Promise<void> {
 		return this.fileService.del(this.toResource(path));
 	}
 
-	private toResource(key: string): URI {
-		return resources.joinPath(this.userDataHome, ...key.split('/'));
+	private toResource(path: string): URI {
+		return resources.joinPath(this.userDataHome, path);
 	}
 
-	private toKey(resource: URI): string | undefined {
-		return resources.relativePath(this.userDataHome, resource);
+	private toPath(resource: URI): string | undefined {
+		const resourcePath = resource.toString();
+		const userDataHomePath = this.userDataHome.toString();
+		return startsWith(resourcePath, userDataHomePath) ? resourcePath.substr(userDataHomePath.length + 1) : undefined;
 	}
 }
