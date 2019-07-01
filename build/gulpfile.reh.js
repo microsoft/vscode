@@ -103,25 +103,6 @@ const entryPoints = [
 	}
 ];
 
-// VSCode Web Support (behind a build flag)
-if (process.env['VSCODE_WEB_BUILD']) {
-	vscodeResources.push(
-		'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
-		'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-		'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
-		'out-build/vs/code/browser/workbench/**',
-		'out-build/vs/**/markdown.css'
-	);
-
-	const buildfile = require('../src/buildfile');
-
-	entryPoints.push(
-		buildfile.workbenchWeb,
-		buildfile.keyboardMaps,
-		buildfile.base
-	);
-}
-
 const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 	task.parallel(
 		util.rimraf('out-vscode-reh'),
@@ -146,6 +127,51 @@ const minifyVSCodeREHTask = task.define('minify-vscode-reh', task.series(
 		optimizeVSCodeREHTask
 	),
 	common.minifyTask('out-vscode-reh', baseUrl)
+));
+
+// Web server
+
+const webResources = [
+	...vscodeResources,
+	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
+	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
+	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
+	'out-build/vs/code/browser/workbench/**',
+	'out-build/vs/**/markdown.css'
+];
+
+const buildfile = require('../src/buildfile');
+
+const webEntryPoints = [
+	...entryPoints,
+	buildfile.workbenchWeb,
+	buildfile.keyboardMaps,
+	buildfile.base
+];
+
+const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
+	task.parallel(
+		util.rimraf('out-vscode-web'),
+		compileBuildTask
+	),
+	common.optimizeTask({
+		src: 'out-build',
+		entryPoints: _.flatten(webEntryPoints),
+		otherSources: [],
+		resources: webResources,
+		loaderConfig: common.loaderConfig(nodeModules),
+		header: BUNDLED_FILE_HEADER,
+		out: 'out-vscode-web',
+		bundleInfo: undefined
+	})
+));
+
+const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
+	task.parallel(
+		util.rimraf('out-vscode-web-min'),
+		optimizeVSCodeWebTask
+	),
+	common.minifyTask('out-vscode-web', baseUrl)
 ));
 
 function getNodeVersion() {
@@ -246,7 +272,7 @@ function nodejs(platform, arch) {
 	);
 }
 
-function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
+function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
 	return () => {
@@ -274,7 +300,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 		};
 		const localWorkspaceExtensions = glob.sync('extensions/*/package.json')
 			.filter((extensionPath) => {
-				if (process.env['VSCODE_WEB_BUILD']) {
+				if (type === 'web') {
 					return true; // web: ship all extensions for now
 				}
 
@@ -419,43 +445,45 @@ const BUILD_TARGETS = [
 ];
 
 BUILD_TARGETS.forEach(buildTarget => {
-	const dashed = (str) => (str ? `-${str}` : ``);
-	const platform = buildTarget.platform;
-	const arch = buildTarget.arch;
-	const pkgTarget = buildTarget.pkgTarget;
+	['reh', 'web'].forEach(type => {
+		const dashed = (str) => (str ? `-${str}` : ``);
+		const platform = buildTarget.platform;
+		const arch = buildTarget.arch;
+		const pkgTarget = buildTarget.pkgTarget;
 
-	const copyPkgConfigTask = task.define(`copy-pkg-config${dashed(platform)}${dashed(arch)}`, task.series(
-		util.rimraf('out-vscode-reh-pkg'),
-		copyConfigTask(`vscode-reh${dashed(platform)}${dashed(arch)}`)
-	));
-
-	const copyPkgNativeTask = task.define(`copy-pkg-native${dashed(platform)}${dashed(arch)}`, task.series(
-		util.rimraf(path.join(BUILD_ROOT, `vscode-reh${dashed(platform)}${dashed(arch)}-pkg`)),
-		copyNativeTask(`vscode-reh${dashed(platform)}${dashed(arch)}-pkg`)
-	));
-
-	['', 'min'].forEach(minified => {
-		const sourceFolderName = `out-vscode-reh${dashed(minified)}`;
-		const destinationFolderName = `vscode-reh${dashed(platform)}${dashed(arch)}${dashed(process.env['VSCODE_WEB_BUILD'] ? 'web' : '')}`;
-
-		const vscodeREHTask = task.define(`vscode-reh${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			task.parallel(
-				minified ? minifyVSCodeREHTask : optimizeVSCodeREHTask,
-				util.rimraf(path.join(BUILD_ROOT, destinationFolderName))
-			),
-			packageTask(platform, arch, sourceFolderName, destinationFolderName)
+		const copyPkgConfigTask = task.define(`copy-pkg-config${dashed(platform)}${dashed(arch)}`, task.series(
+			util.rimraf(`out-vscode-${type}-pkg`),
+			copyConfigTask(`vscode-${type}${dashed(platform)}${dashed(arch)}`)
 		));
-		gulp.task(vscodeREHTask);
 
-		const vscodeREHPkgTask = task.define(`vscode-reh${dashed(platform)}${dashed(arch)}${dashed(minified)}-pkg`, task.series(
-			task.parallel(
-				vscodeREHTask,
-				copyPkgConfigTask,
-				copyPkgNativeTask
-			),
-			packagePkgTask(platform, arch, pkgTarget)
+		const copyPkgNativeTask = task.define(`copy-pkg-native${dashed(platform)}${dashed(arch)}`, task.series(
+			util.rimraf(path.join(BUILD_ROOT, `vscode-${type}${dashed(platform)}${dashed(arch)}-pkg`)),
+			copyNativeTask(`vscode-${type}${dashed(platform)}${dashed(arch)}-pkg`)
 		));
-		gulp.task(vscodeREHPkgTask);
+
+		['', 'min'].forEach(minified => {
+			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
+			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
+
+			const vscodeServerTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				task.parallel(
+					minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
+					util.rimraf(path.join(BUILD_ROOT, destinationFolderName))
+				),
+				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
+			));
+			gulp.task(vscodeServerTask);
+
+			const vscodeREHPkgTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-pkg`, task.series(
+				task.parallel(
+					vscodeServerTask,
+					copyPkgConfigTask,
+					copyPkgNativeTask
+				),
+				packagePkgTask(platform, arch, pkgTarget)
+			));
+			gulp.task(vscodeREHPkgTask);
+		});
 	});
 });
 

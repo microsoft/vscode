@@ -30,7 +30,7 @@ node build/azure-pipelines/common/publish.js \
 	../vscode-server-darwin.zip
 
 # package Remote Extension Host (Web)
-pushd .. && mv vscode-reh-darwin-web vscode-server-darwin-web && zip -Xry vscode-server-darwin-web.zip vscode-server-darwin-web && popd
+pushd .. && mv vscode-web-darwin vscode-server-darwin-web && zip -Xry vscode-server-darwin-web.zip vscode-server-darwin-web && popd
 
 # publish Remote Extension Host (Web)
 node build/azure-pipelines/common/publish.js \
