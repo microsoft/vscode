@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import * as dom from 'vs/base/browser/dom';
@@ -13,11 +13,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/product';
 
@@ -68,15 +67,7 @@ export class FeedbackDropdown extends Dropdown {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IProductService productService: IProductService
 	) {
-		super(container, {
-			contextViewProvider: options.contextViewProvider,
-			labelRenderer: (container: HTMLElement): IDisposable => {
-				const label = new OcticonLabel(container);
-				label.text = '$(smiley)';
-
-				return Disposable.None;
-			}
-		});
+		super(container, options);
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
@@ -287,9 +278,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 
-		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
+		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
+				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : null;
 				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
 			}
 			if (this.feedbackDescriptionInput) {

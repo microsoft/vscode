@@ -274,7 +274,7 @@ function runTests(opts) {
 ipcRenderer.on('run', (e, opts) => {
 	initLoader(opts);
 	runTests(opts).catch(err => {
-		if (!(typeof err !== 'string')) {
+		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
 

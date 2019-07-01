@@ -348,7 +348,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
-	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
+	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], metadata: ISerializedSignatureHelpProviderMetadata): void;
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -592,8 +592,6 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
-	$unregisterResourceLabelFormatter(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 
 	$stat(uri: UriComponents): Promise<files.IStat>;
@@ -604,6 +602,11 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.FileDeleteOptions): Promise<void>;
+}
+
+export interface MainThreadLabelServiceShape extends IDisposable {
+	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void;
+	$unregisterResourceLabelFormatter(handle: number): void;
 }
 
 export interface MainThreadSearchShape extends IDisposable {
@@ -830,6 +833,10 @@ export interface ExtHostFileSystemShape {
 	$close(handle: number, fd: number): Promise<void>;
 	$read(handle: number, fd: number, pos: number, length: number): Promise<VSBuffer>;
 	$write(handle: number, fd: number, pos: number, data: VSBuffer): Promise<number>;
+}
+
+export interface ExtHostLabelServiceShape {
+	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable;
 }
 
 export interface ExtHostSearchShape {
@@ -1331,6 +1338,7 @@ export const MainContext = {
 	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
+	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService')
 };
 
 export const ExtHostContext = {
@@ -1364,4 +1372,5 @@ export const ExtHostContext = {
 	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
+	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService')
 };

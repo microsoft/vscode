@@ -7,6 +7,12 @@ resources:
     image: snapcore/snapcraft:stable
 
 jobs:
+# - job: Linux
+#   pool:
+#     vmImage: 'Ubuntu-16.04'
+#   steps:
+#   - template: compile.yml
+
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
   timeoutInMinutes: 120

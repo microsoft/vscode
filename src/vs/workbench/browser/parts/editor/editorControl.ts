@@ -11,7 +11,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } fr
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -47,11 +47,11 @@ export class EditorControl extends Disposable {
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILocalProgressService localProgressService: ILocalProgressService
+		@IEditorProgressService editorProgressService: IEditorProgressService
 	) {
 		super();
 
-		this.editorOperation = this._register(new LongRunningOperation(localProgressService));
+		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 	}
 
 	get activeControl(): IVisibleEditor | null {

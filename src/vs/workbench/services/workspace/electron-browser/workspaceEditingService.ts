@@ -134,7 +134,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 					const newWorkspaceIdentifier = await this.workspaceService.getWorkspaceIdentifier(newWorkspacePath);
 
 					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+					this.windowService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
 
 					this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {

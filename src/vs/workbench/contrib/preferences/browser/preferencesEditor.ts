@@ -31,7 +31,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -94,7 +94,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@ILocalProgressService private readonly progressService: ILocalProgressService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
@@ -237,7 +237,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (query) {
 			return Promise.all([
 				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query).then(() => { })),
-				this.remoteSearchThrottle.trigger(() => Promise.resolve(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
+				this.remoteSearchThrottle.trigger(() => Promise.resolve(this.editorProgressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
 			]).then(() => { });
 		} else {
 			// When clearing the input, update immediately to clear it

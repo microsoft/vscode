@@ -18,13 +18,12 @@ import { IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { ScopedProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
+import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -50,7 +49,7 @@ export interface ICompositeTitleLabel {
 interface CompositeItem {
 	composite: Composite;
 	disposable: IDisposable;
-	localProgressService: ILocalProgressService;
+	progress: IProgressIndicator;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -169,17 +168,18 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const localProgressService = this.instantiationService.createInstance(ScopedProgressService, this.progressBar, compositeDescriptor.id, isActive);
-			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([ILocalProgressService, localProgressService]));
-
-			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
-			const disposables = new DisposableStore();
+			const composite = compositeDescriptor.instantiate(this.instantiationService);
+			const disposable = new DisposableStore();
 
 			// Remember as Instantiated
-			this.instantiatedCompositeItems.set(id, { composite, disposable: disposables, localProgressService });
+			this.instantiatedCompositeItems.set(id, {
+				composite,
+				disposable,
+				progress: this._register(this.instantiationService.createInstance(CompositeProgressIndicator, this.progressBar, compositeDescriptor.id, isActive))
+			});
 
 			// Register to title area update events from the composite
-			disposables.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
+			disposable.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
 
 			return composite;
 		}
@@ -451,10 +451,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return contentContainer;
 	}
 
-	getProgressIndicator(id: string): ILocalProgressService | null {
+	getProgressIndicator(id: string): IProgressIndicator | null {
 		const compositeItem = this.instantiatedCompositeItems.get(id);
 
-		return compositeItem ? compositeItem.localProgressService : null;
+		return compositeItem ? compositeItem.progress : null;
 	}
 
 	protected getActions(): ReadonlyArray<IAction> {

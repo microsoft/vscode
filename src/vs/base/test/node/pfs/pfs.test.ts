@@ -386,6 +386,24 @@ suite('PFS', () => {
 		}
 	});
 
+	test('readdirWithFileTypes', async () => {
+		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const newDir = path.join(parentDir, 'pfs', id, 'öäü');
+
+			await pfs.mkdirp(newDir, 493);
+
+			assert.ok(fs.existsSync(newDir));
+
+			const children = await pfs.readdirWithFileTypes(path.join(parentDir, 'pfs', id));
+			assert.equal(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+			assert.equal(children.some(n => n.isDirectory()), true);
+
+			await pfs.rimraf(parentDir);
+		}
+	});
+
 	test('writeFile (string)', async () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');

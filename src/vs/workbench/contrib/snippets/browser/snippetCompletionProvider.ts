@@ -64,6 +64,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	private static readonly _maxPrefix = 10000;
 
+	readonly _debugDisplayName = 'snippetCompletions';
+
 	constructor(
 		@IModeService
 		private readonly _modeService: IModeService,
