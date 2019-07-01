@@ -286,9 +286,9 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 	const configuration = configurationService.getValue<IWindowSettings>('window');
 
 	const isDev = !environment.isBuilt || isExtensionDevelopment;
-	if (isMacintosh && isDev) {
-		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-	}
+	// if (isMacintosh && isDev) {
+	// 	return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+	// }
 
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
