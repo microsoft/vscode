@@ -133,6 +133,8 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 	private readonly _configurationService: ITextResourceConfigurationService;
 	private readonly _modelService: IModelService;
 
+	readonly _debugDisplayName = 'wordbasedCompletions';
+
 	constructor(
 		workerManager: WorkerManager,
 		configurationService: ITextResourceConfigurationService,
