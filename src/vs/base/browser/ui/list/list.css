@@ -186,9 +186,9 @@
 /* Electron */
 
 .monaco-list-type-filter {
-	cursor: -webkit-grab;
+	cursor: grab;
 }
 
 .monaco-list-type-filter.dragging {
-	cursor: -webkit-grabbing;
+	cursor: grabbing;
 }

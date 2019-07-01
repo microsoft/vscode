@@ -916,8 +916,8 @@ class SettingHighlighter extends Disposable {
 		super();
 		this.fixedHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
 		this.volatileHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
-		this.fixedHighlighter.onHighlghtRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
-		this.volatileHighlighter.onHighlghtRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
+		this.fixedHighlighter.onHighlightRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
+		this.volatileHighlighter.onHighlightRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
 	}
 
 	highlight(setting: ISetting, fix: boolean = false) {

@@ -6,7 +6,7 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -33,18 +33,10 @@ export interface IWorkbenchConstructionOptions {
 	workspaceUri?: UriComponents;
 
 	/**
-	 * Experimental: The userData namespace is used to handle user specific application
-	 * data like settings, keybindings, UI state and snippets.
+	 * Experimental: The userDataProvider is used to handle user specific application
+	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
-	userDataProvider?: {
-		readonly onDidChangeFile: Event<string[]>;
-
-		readFile(path: string): Promise<Uint8Array>;
-		writeFile(path: string, content: Uint8Array): Promise<void>;
-		deleteFile(path: string): Promise<void>;
-
-		listFiles(path: string): Promise<string[]>;
-	};
+	userDataProvider?: IUserDataProvider;
 }
 
 /**

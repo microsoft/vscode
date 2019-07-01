@@ -1218,6 +1218,14 @@ export class TestWindowService implements IWindowService {
 		});
 	}
 
+	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
+		return Promise.resolve();
+	}
+
+	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
+		return Promise.resolve();
+	}
+
 	focusWindow(): Promise<void> {
 		return Promise.resolve();
 	}

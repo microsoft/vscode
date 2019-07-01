@@ -1115,7 +1115,7 @@ class ShowExtensionEditorFindCommand extends Command {
 }
 const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
-	precondition: ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus')),
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 		weight: KeybindingWeight.EditorContrib

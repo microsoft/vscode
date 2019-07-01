@@ -611,25 +611,25 @@ export class PieceTreeBase {
 		let resultLen = 0;
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
 
-		let startPostion = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
-		if (startPostion === null) {
+		let startPosition = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
+		if (startPosition === null) {
 			return [];
 		}
 		let endPosition = this.nodeAt2(searchRange.endLineNumber, searchRange.endColumn);
 		if (endPosition === null) {
 			return [];
 		}
-		let start = this.positionInBuffer(startPostion.node, startPostion.remainder);
+		let start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		let end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
-		if (startPostion.node === endPosition.node) {
-			this.findMatchesInNode(startPostion.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
+		if (startPosition.node === endPosition.node) {
+			this.findMatchesInNode(startPosition.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
 			return result;
 		}
 
 		let startLineNumber = searchRange.startLineNumber;
 
-		let currentNode = startPostion.node;
+		let currentNode = startPosition.node;
 		while (currentNode !== endPosition.node) {
 			let lineBreakCnt = this.getLineFeedCnt(currentNode.piece.bufferIndex, start, currentNode.piece.end);
 
@@ -663,9 +663,9 @@ export class PieceTreeBase {
 			}
 
 			startLineNumber++;
-			startPostion = this.nodeAt2(startLineNumber, 1);
-			currentNode = startPostion.node;
-			start = this.positionInBuffer(startPostion.node, startPostion.remainder);
+			startPosition = this.nodeAt2(startLineNumber, 1);
+			currentNode = startPosition.node;
+			start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		}
 
 		if (startLineNumber === searchRange.endLineNumber) {

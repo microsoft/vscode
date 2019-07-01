@@ -135,8 +135,16 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Security related measures (https://electronjs.org/docs/tutorial/security)
-		// DO NOT CHANGE without consulting the documentation
-		app.on('web-contents-created', (event: Electron.Event, contents) => {
+		//
+		// !!! DO NOT CHANGE without consulting the documentation !!!
+		//
+		app.on('remote-require', event => event.preventDefault());
+		app.on('remote-get-global', event => event.preventDefault());
+		app.on('remote-get-builtin', event => event.preventDefault());
+		app.on('remote-get-current-window', event => event.preventDefault());
+		app.on('remote-get-current-web-contents', event => event.preventDefault());
+		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Ben TODO@Matt revisit this need for <webview>
+		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string): boolean => {

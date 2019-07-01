@@ -242,6 +242,8 @@ export interface IWindowService {
 	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;

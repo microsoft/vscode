@@ -250,27 +250,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.doUpdateContent();
 	}
 
-	selectAll(): void {
-		throw new Error('Method not implemented.');
-	}
-	copy(): void {
-		throw new Error('Method not implemented.');
-	}
-	paste(): void {
-		throw new Error('Method not implemented.');
-	}
-	cut(): void {
-		throw new Error('Method not implemented.');
-	}
-	undo(): void {
-		throw new Error('Method not implemented.');
-	}
-	redo(): void {
-		throw new Error('Method not implemented.');
-	}
 	showFind(): void {
 		throw new Error('Method not implemented.');
 	}
+
 	hideFind(): void {
 		throw new Error('Method not implemented.');
 	}

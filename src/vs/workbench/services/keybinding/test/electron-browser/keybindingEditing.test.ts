@@ -21,7 +21,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -45,12 +45,26 @@ import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { URI } from 'vs/base/common/uri';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import { dirname } from 'vs/base/common/resources';
 
 interface Modifiers {
 	metaKey?: boolean;
 	ctrlKey?: boolean;
 	altKey?: boolean;
 	shiftKey?: boolean;
+}
+
+class SettingsTestEnvironmentService extends WorkbenchEnvironmentService {
+	constructor(args: ParsedArgs, _execPath: string, private _appSettingsHome: URI) {
+		super(<IWindowConfiguration>args, _execPath);
+	}
+
+	get appSettingsHome(): URI { return this._appSettingsHome; }
 }
 
 suite('KeybindingsEditing', () => {
@@ -66,7 +80,8 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
-			instantiationService.stub(IEnvironmentService, <IEnvironmentService>{ keybindingsResource: URI.file(keybindingsFile), settingsResource: URI.file(path.join(testDir, 'settings.json')) });
+			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, URI.file(testDir));
+			instantiationService.stub(IEnvironmentService, environmentService);
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
@@ -84,6 +99,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+			fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.keybindingsResource), new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
@@ -139,16 +155,6 @@ suite('KeybindingsEditing', () => {
 
 	test('edit a default keybinding to an empty file', () => {
 		fs.writeFileSync(keybindingsFile, '');
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
-			.then(() => assert.deepEqual(getUserKeybindings(), expected));
-	});
-
-	test('edit a default keybinding to a non existing keybindings file', () => {
-		keybindingsFile = path.join(testDir, 'nonExistingFile.json');
-		instantiationService.get(IEnvironmentService).keybindingsResource = URI.file(keybindingsFile);
-		testObject = instantiationService.createInstance(KeybindingsEditingService);
-
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
 		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));

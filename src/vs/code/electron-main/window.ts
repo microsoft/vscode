@@ -688,7 +688,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			const bounds = this.getBounds();
+			let bounds: Electron.Rectangle;
+			if (mode === WindowMode.Normal) {
+				bounds = this.getBounds();
+			} else {
+				bounds = this._win.getNormalBounds(); // make sure to persist the normal bounds when maximized to be able to restore them
+			}
 
 			state.x = bounds.x;
 			state.y = bounds.y;
@@ -731,7 +736,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Single Monitor: be strict about x/y positioning
 		if (displays.length === 1) {
 			const displayWorkingArea = this.getWorkingArea(displays[0]);
-			if (state.mode !== WindowMode.Maximized && displayWorkingArea) {
+			if (displayWorkingArea) {
 				if (state.x < displayWorkingArea.x) {
 					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the left
 				}
@@ -755,10 +760,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (state.height > displayWorkingArea.height) {
 					state.height = displayWorkingArea.height; // prevent window from exceeding display bounds height
 				}
-			}
-
-			if (state.mode === WindowMode.Maximized) {
-				return defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 			}
 
 			return state;
@@ -788,14 +789,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
 			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
 		) {
-			if (state.mode === WindowMode.Maximized) {
-				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
-				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
-				defaults.y = state.y;
-
-				return defaults;
-			}
-
 			return state;
 		}
 
@@ -869,7 +862,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private useNativeFullScreen(): boolean {
-		return true;
+		return true; // TODO@ben enable simple fullscreen again (https://github.com/microsoft/vscode/issues/75054)
 		// const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		// if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
 		// 	return true; // default

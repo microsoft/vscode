@@ -78,7 +78,7 @@
 	background-image: url('images/close-dark.svg');
 }
 
-monaco-workbench .simple-find-part .button.disabled {
+.monaco-workbench .simple-find-part .button.disabled {
 	opacity: 0.3;
 	cursor: default;
 }
