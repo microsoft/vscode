@@ -6,7 +6,7 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
-import { IUserDataProvider } from './services/userData/common/userData';
+import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
 export interface IWorkbenchConstructionOptions {
 
