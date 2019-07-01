@@ -53,13 +53,11 @@ function getNodeVersion() {
 const nodeVersion = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
-	const target = arch ? `${platform}-${arch}` : platform;
+	if (platform === 'darwin') {
+		arch = 'x64';
+	}
 
-	gulp.task(task.define(`node-${target}`, () => {
-		if (platform === 'darwin') {
-			arch = 'x64';
-		}
-
+	gulp.task(task.define(`node-${platform}-${arch}`, () => {
 		const nodePath = path.join('.build', 'node', `v${nodeVersion}`, `${platform}-${arch}`);
 
 		if (!fs.existsSync(nodePath)) {
