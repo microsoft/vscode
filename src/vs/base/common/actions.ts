@@ -12,6 +12,16 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
+export type WBActionExecutedClassification = {
+	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+export type WBActionExecutedEvent = {
+	id: string;
+	from: string;
+};
+
 export interface IAction extends IDisposable {
 	id: string;
 	label: string;
