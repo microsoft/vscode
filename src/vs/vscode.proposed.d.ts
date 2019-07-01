@@ -1292,6 +1292,11 @@ declare module 'vscode' {
 		// This is called fire when window.onDidChangeTerminalDimensions fires as CustomExecution need
 		// access to the "maximum" dimensions and don't want access to Terminal
 		onDidChangeDimensions?(dimensions: TerminalDimensions): void;
+
+		/**
+		 * F
+		 */
+		onDidShutdownTerminal(): void;
 	}
 
 	//#endregion

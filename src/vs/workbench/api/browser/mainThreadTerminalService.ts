@@ -46,6 +46,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._toDispose.push(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
+		this._toDispose.push(_terminalService.onInstanceRequestVirtualProcess(proxy => this._onTerminalRequestVirtualProcess(proxy)));
 		this._toDispose.push(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 		this._toDispose.push(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
@@ -77,6 +78,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean, hideFromUser?: boolean, isVirtualProcess?: boolean): Promise<{ id: number, name: string }> {
+		console.log('$createTerminal', arguments);
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -86,7 +88,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			ignoreConfigurationCwd: true,
 			env,
 			strictEnv,
-			hideFromUser
+			hideFromUser,
+			isVirtualProcess
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		return Promise.resolve({
@@ -254,6 +257,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		request.proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(request.proxy.terminalId));
 		request.proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(request.proxy.terminalId));
 		request.proxy.onRequestLatency(() => this._onRequestLatency(request.proxy.terminalId));
+	}
+
+	private _onTerminalRequestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
+		console.log('_onTerminalRequestVirtualProcess', proxy);
+		this._terminalProcesses[proxy.terminalId] = proxy;
+		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
+		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
+		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
+		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));
+		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.terminalId));
+		proxy.onRequestLatency(() => this._onRequestLatency(proxy.terminalId));
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {

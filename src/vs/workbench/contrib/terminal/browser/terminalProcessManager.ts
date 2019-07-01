@@ -104,8 +104,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		isScreenReaderModeEnabled: boolean
 	): Promise<void> {
 		if (shellLaunchConfig.isVirtualProcess) {
-			// TODO: Hook up proxy
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
+			console.log('set terminal process ext host proxy', this._process);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {

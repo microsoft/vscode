@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -116,17 +116,20 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		env?: { [key: string]: string | null },
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
-		hideFromUser?: boolean,
-		isVirtualProcess?: boolean
+		hideFromUser?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser, isVirtualProcess).then(terminal => {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});
 	}
 
-	public createVirtualProcess(): void {
-		this.create(undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+	public createVirtualProcess(): Promise<void> {
+		// TODO: Change $createTerminal to accept an object
+		return this._proxy.$createTerminal(this._name, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true).then(terminal => {
+			this._name = terminal.name;
+			this._runQueuedRequests(terminal.id);
+		});
 	}
 
 	public get name(): string {
@@ -280,7 +283,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal | undefined;
 	private _terminals: ExtHostTerminal[] = [];
-	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
+	private _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
@@ -318,11 +321,24 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		if ((<any>options).isVirtualProcess) {
-			terminal.createVirtualProcess();
-		} else {
-			terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
-		}
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
+		this._terminals.push(terminal);
+		return terminal;
+	}
+
+	public createVirtualProcessTerminal(options: vscode.TerminalVirtualProcessOptions): vscode.Terminal {
+		const terminal = new ExtHostTerminal(this._proxy, options.name);
+		terminal.createVirtualProcess().then(() => {
+			const id = terminal._id;
+			console.log('virtual process id: ' + terminal._id);
+			// TODO: The ID is ready now
+			const p = new ExtHostVirtualProcess(options.virtualProcess);
+			p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
+			p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+			p.onProcessData(data => this._proxy.$sendProcessData(id, data));
+			p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
+			this._terminalProcesses[terminal._id] = p;
+		});
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -607,9 +623,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
-		// Remove listeners
-		this._terminalProcesses[id].dispose();
-
 		// Remove process reference
 		delete this._terminalProcesses[id];
 
@@ -689,4 +702,60 @@ class ApiRequest {
 	public run(proxy: MainThreadTerminalServiceShape, id: number) {
 		this._callback.apply(proxy, [id].concat(this._args));
 	}
+}
+
+class ExtHostVirtualProcess implements ITerminalChildProcess {
+	private readonly _onProcessData = new Emitter<string>();
+	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessExit = new Emitter<number>();
+	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
+	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessTitleChanged = new Emitter<string>();
+	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+
+	constructor(
+		private readonly _virtualProcess: vscode.TerminalVirtualProcess
+	) {
+		// TODO: Events need to be buffered until the terminal id is set
+		this._virtualProcess.write(e => this._onProcessData.fire(e));
+		if (this._virtualProcess.exit) {
+			this._virtualProcess.exit(e => this._onProcessExit.fire(e));
+		}
+		if (this._virtualProcess.overrideDimensions) {
+			// TODO: Implement this
+		}
+	}
+
+	shutdown(): void {
+		if (this._virtualProcess.onDidShutdownTerminal) {
+			this._virtualProcess.onDidShutdownTerminal();
+		}
+	}
+
+	input(data: string): void {
+		if (this._virtualProcess.onDidAcceptInput) {
+			this._virtualProcess.onDidAcceptInput(data);
+		}
+	}
+
+	resize(cols: number, rows: number): void {
+		if (this._virtualProcess.onDidChangeDimensions) {
+			this._virtualProcess.onDidChangeDimensions({ columns: cols, rows });
+		}
+	}
+
+	// TODO: Are these returns correct?
+	getInitialCwd(): Promise<string> {
+		return Promise.resolve('');
+	}
+
+	getCwd(): Promise<string> {
+		return Promise.resolve('');
+	}
+
+	getLatency(): Promise<number> {
+		return Promise.resolve(0);
+	}
+
 }
