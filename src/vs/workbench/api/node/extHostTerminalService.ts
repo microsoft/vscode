@@ -328,17 +328,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createVirtualProcessTerminal(options: vscode.TerminalVirtualProcessOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.createVirtualProcess().then(() => {
-			const id = terminal._id;
-			console.log('virtual process id: ' + terminal._id);
-			// TODO: The ID is ready now
-			const p = new ExtHostVirtualProcess(options.virtualProcess);
-			p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
-			p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-			p.onProcessData(data => this._proxy.$sendProcessData(id, data));
-			p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
-			this._terminalProcesses[terminal._id] = p;
-		});
+		const p = new ExtHostVirtualProcess(options.virtualProcess);
+		terminal.createVirtualProcess().then(() => this._setupExtHostProcessListeners(terminal._id, p));
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -571,7 +562,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// TODO: Support conpty on remote, it doesn't seem to work for some reason?
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
-		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService);
+		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
+	}
+
+	private _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
 		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		p.onProcessData(data => this._proxy.$sendProcessData(id, data));

@@ -262,7 +262,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _onTerminalRequestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
 		console.log('_onTerminalRequestVirtualProcess', proxy);
 		this._terminalProcesses[proxy.terminalId] = proxy;
-		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
+		proxy.onInput(data => {
+			console.log('_onTerminalRequestVirtualProcess onInput', data);
+			this._proxy.$acceptProcessInput(proxy.terminalId, data);
+		});
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
 		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));

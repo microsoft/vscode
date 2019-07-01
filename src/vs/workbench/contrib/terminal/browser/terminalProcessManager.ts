@@ -29,6 +29,11 @@ const LAUNCHING_DURATION = 500;
  */
 const LATENCY_MEASURING_INTERVAL = 1000;
 
+enum ProcessType {
+	Process,
+	VirtualProcess
+}
+
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
@@ -46,6 +51,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public userHome: string | undefined;
 
 	private _process: ITerminalChildProcess | null = null;
+	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
 	private _latency: number = -1;
 	private _latencyRequest: Promise<number>;
@@ -104,6 +110,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		isScreenReaderModeEnabled: boolean
 	): Promise<void> {
 		if (shellLaunchConfig.isVirtualProcess) {
+			this._processType = ProcessType.VirtualProcess;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 			console.log('set terminal process ext host proxy', this._process);
 		} else {
@@ -210,7 +217,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public write(data: string): void {
-		if (this.shellProcessId) {
+		if (this.shellProcessId || this._processType === ProcessType.VirtualProcess) {
 			if (this._process) {
 				// Send data if the pty is ready
 				this._process.input(data);

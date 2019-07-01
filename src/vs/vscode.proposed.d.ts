@@ -1294,9 +1294,9 @@ declare module 'vscode' {
 		onDidChangeDimensions?(dimensions: TerminalDimensions): void;
 
 		/**
-		 * F
+		 * This is called when the user closes the terminal.
 		 */
-		onDidShutdownTerminal(): void;
+		onDidShutdownTerminal?(): void;
 	}
 
 	//#endregion
