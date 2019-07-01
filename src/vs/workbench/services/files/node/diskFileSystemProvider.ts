@@ -23,14 +23,14 @@ import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/file
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as NodeJSWatcherService } from 'vs/workbench/services/files/node/watcher/nodejs/watcherService';
 
-export interface WatcherOptions {
+export interface IWatcherOptions {
 	pollingInterval?: number;
 	usePolling: boolean;
 }
 
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
-	constructor(private logService: ILogService, private watcherOptions?: WatcherOptions) {
+	constructor(private logService: ILogService, private watcherOptions?: IWatcherOptions) {
 		super();
 	}
 
@@ -414,7 +414,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						onChange: (changes: IDiskFileChange[]) => void,
 						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean,
-						watcherOptions?: WatcherOptions
+						watcherOptions?: IWatcherOptions
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
 				let watcherOptions = undefined;
