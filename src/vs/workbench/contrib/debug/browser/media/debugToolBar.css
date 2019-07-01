@@ -20,7 +20,7 @@
 }
 
 .monaco-workbench .debug-toolbar .drag-area {
-	cursor: -webkit-grab;
+	cursor: grab;
 	height: 32px;
 	width: 16px;
 	background: url('drag.svg') center center no-repeat;
@@ -28,7 +28,7 @@
 }
 
 .monaco-workbench .debug-toolbar .drag-area.dragged {
-	cursor: -webkit-grabbing;
+	cursor: grabbing;
 }
 
 .monaco-workbench  .debug-toolbar .monaco-action-bar .action-item > .action-label {
