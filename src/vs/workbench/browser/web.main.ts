@@ -36,7 +36,7 @@ import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UserDataFileSystemProvider } from 'vs/workbench//services/userData/common/userDataFileSystemProvider';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
 import { joinPath, dirname } from 'vs/base/common/resources';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';

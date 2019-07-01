@@ -7,7 +7,7 @@ import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/plat
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -160,7 +160,6 @@ export class ResourcesDropHandler {
 	constructor(
 		private options: IResourcesDropHandlerOptions,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -190,7 +189,7 @@ export class ResourcesDropHandler {
 		// Add external ones to recently open list unless dropped resource is a workspace
 		const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
 		if (recents.length) {
-			this.windowsService.addRecentlyOpened(recents);
+			this.windowService.addRecentlyOpened(recents);
 		}
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({

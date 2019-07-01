@@ -127,7 +127,10 @@ suite('ConfigurationEditingService', () => {
 
 	teardown(() => {
 		clearServices();
-		return clearWorkspace();
+		if (workspaceDir) {
+			return rimraf(workspaceDir, RimRafMode.MOVE);
+		}
+		return undefined;
 	});
 
 	function clearServices(): void {
@@ -138,16 +141,6 @@ suite('ConfigurationEditingService', () => {
 			}
 			instantiationService = null!;
 		}
-	}
-
-	function clearWorkspace(): Promise<void> {
-		return new Promise<void>((c, e) => {
-			if (parentDir) {
-				rimraf(parentDir, RimRafMode.MOVE).then(c, c);
-			} else {
-				c(undefined);
-			}
-		}).then(() => parentDir = null!);
 	}
 
 	test('errors cases - invalid key', () => {

@@ -6,7 +6,7 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
-import { IUserDataProvider } from './services/userData/common/userData';
+import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -32,6 +32,10 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	workspaceUri?: UriComponents;
 
+	/**
+	 * Experimental: The userDataProvider is used to handle user specific application
+	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
+	 */
 	userDataProvider?: IUserDataProvider;
 }
 
