@@ -22,6 +22,7 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDeb
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -329,7 +330,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public createVirtualProcessTerminal(options: vscode.TerminalVirtualProcessOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
 		const p = new ExtHostVirtualProcess(options.virtualProcess);
-		terminal.createVirtualProcess().then(() => this._setupExtHostProcessListeners(terminal._id, p));
+		terminal.createVirtualProcess().then(() => {
+			this._setupExtHostProcessListeners(terminal._id, p);
+			// TODO: Why isn't 1 being send from extension?
+			p.startSendingEvents();
+		});
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -699,6 +704,9 @@ class ApiRequest {
 }
 
 class ExtHostVirtualProcess implements ITerminalChildProcess {
+	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }>)[] = [];
+	private _queueDisposables: IDisposable[] | undefined;
+
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = new Emitter<number>();
@@ -711,13 +719,13 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 	constructor(
 		private readonly _virtualProcess: vscode.TerminalVirtualProcess
 	) {
-		// TODO: Events need to be buffered until the terminal id is set
-		this._virtualProcess.write(e => this._onProcessData.fire(e));
+		this._queueDisposables = [];
+		this._queueDisposables.push(this._virtualProcess.write(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
 		if (this._virtualProcess.exit) {
-			this._virtualProcess.exit(e => this._onProcessExit.fire(e));
+			this._queueDisposables.push(this._virtualProcess.exit(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: e })));
 		}
+		// TODO: Handle overrideDimensions, use an optional event on the interface?
 		if (this._virtualProcess.overrideDimensions) {
-			// TODO: Implement this
 		}
 	}
 
@@ -752,4 +760,26 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		return Promise.resolve(0);
 	}
 
+	startSendingEvents(): void {
+		// Flush all buffered events
+		this._queuedEvents.forEach(e => {
+			e.emitter.fire(<any>e.data);
+		});
+		this._queuedEvents = [];
+		this._queueDisposables = undefined;
+
+		// Attach the real listeners
+		this._virtualProcess.write(e => this._onProcessData.fire(e));
+		if (this._virtualProcess.exit) {
+			this._virtualProcess.exit(e => this._onProcessExit.fire(e));
+		}
+		if (this._virtualProcess.overrideDimensions) {
+			// TODO: Implement this
+		}
+	}
+}
+
+interface IQueuedEvent<T> {
+	emitter: Emitter<T>;
+	data: T;
 }
