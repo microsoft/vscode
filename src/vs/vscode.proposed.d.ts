@@ -1256,6 +1256,46 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal virtual process
+
+	// export function createTerminal(options: TerminalOptions | TerminalVirtualProcessOptions): Terminal;
+
+	export interface TerminalVirtualProcessOptions {
+		// For a name property for TerminalVirtualProcessOptions.
+		// Note that this is mandatory here as there's no process/shell to grab the title from
+		name: string;
+
+		virtualProcess: TerminalVirtualProcess;
+
+		// Allows Windows or non-Windows local link handler to be used based on Live Share host OS
+		// os?: OperatingSystem;
+
+		// Allows ~ to be resolved in Live Share
+		// userHome?: string;
+	}
+
+	interface TerminalVirtualProcess {
+		// The ext should fire this when they want to write to the terminal
+		write: Event<string>;
+
+		// Lets the extension override the dimensions of the terminal
+		overrideDimensions?: Event<TerminalDimensions>;
+
+		// Lets the extension exit the process with an exit code, this was not in the TerminalRenderer
+		// API but it makes sense to include this as it's the main thing missing for a virtual process
+		// to truly act like a process
+		exit?: Event<number>;
+
+		// This will be called when the user types
+		onDidAcceptInput?(text: string): void;
+
+		// This is called fire when window.onDidChangeTerminalDimensions fires as CustomExecution need
+		// access to the "maximum" dimensions and don't want access to Terminal
+		onDidChangeDimensions?(dimensions: TerminalDimensions): void;
+	}
+
+	//#endregion
+
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {

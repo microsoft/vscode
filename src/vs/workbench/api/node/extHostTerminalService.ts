@@ -116,12 +116,17 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		env?: { [key: string]: string | null },
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
-		hideFromUser?: boolean
+		hideFromUser?: boolean,
+		isVirtualProcess?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser).then(terminal => {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser, isVirtualProcess).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});
+	}
+
+	public createVirtualProcess(): void {
+		this.create(undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
 	}
 
 	public get name(): string {
@@ -313,7 +318,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
+		if ((<any>options).isVirtualProcess) {
+			terminal.createVirtualProcess();
+		} else {
+			terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
+		}
 		this._terminals.push(terminal);
 		return terminal;
 	}

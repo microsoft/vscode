@@ -103,32 +103,37 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<void> {
-		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
-		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
+		if (shellLaunchConfig.isVirtualProcess) {
+			// TODO: Hook up proxy
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
-			this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
-		}
-		const hasRemoteAuthority = !!this.remoteAuthority;
-		let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
-
-		this.userHome = this._environmentService.userHome;
-		this.os = platform.OS;
-		if (launchRemotely) {
-			if (hasRemoteAuthority) {
-				this._remoteAgentService.getEnvironment().then(env => {
-					if (!env) {
-						return;
-					}
-					this.userHome = env.userHome.path;
-					this.os = env.os;
-				});
+			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
+			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
+				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
+			} else {
+				this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
 			}
+			const hasRemoteAuthority = !!this.remoteAuthority;
+			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
-		} else {
-			this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+			this.userHome = this._environmentService.userHome;
+			this.os = platform.OS;
+			if (launchRemotely) {
+				if (hasRemoteAuthority) {
+					this._remoteAgentService.getEnvironment().then(env => {
+						if (!env) {
+							return;
+						}
+						this.userHome = env.userHome.path;
+						this.os = env.os;
+					});
+				}
+
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+			} else {
+				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+			}
 		}
 		this.processState = ProcessState.LAUNCHING;
 
