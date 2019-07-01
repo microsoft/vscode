@@ -234,7 +234,7 @@ export function rimraf(dir: string): (cb: any) => void {
 			return cb(err);
 		});
 	};
-	retry.taskName = `clean-${path.basename(dir)}`;
+	retry.taskName = `clean-${path.basename(dir).toLowerCase()}`;
 	return retry;
 }
 
