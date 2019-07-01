@@ -79,6 +79,14 @@ export class WebResources {
 
 	private async _rewriteUrls(textContent: string): Promise<string> {
 
+		return textContent.replace(/url\(('|")?(vscode-remote:\/\/(.*?))\1\)/ig, function (_m, quote, url) {
+			return `url("http://localhost:9888/out/vs/workbench/contrib/resources/browser/foo?${encodeURIComponent(url)}")`;
+			// return `url(${quote}${location.href}out/vs/workbench/contrib/resources/browser/?${encodeURIComponent(url)}${quote})`;
+		});
+	}
+
+	private async _rewriteUrls2(textContent: string): Promise<string> {
+
 		const positions: number[] = [];
 		const promises: Promise<any>[] = [];
 
