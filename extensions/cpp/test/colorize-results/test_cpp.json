@@ -309,7 +309,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.qualified_type.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp comma.cpp punctuation.separator.delimiter.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp comma.cpp punctuation.separator.delimiter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.qualified_type.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": "x",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp variable.parameter.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp comma.cpp punctuation.separator.delimiter.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp comma.cpp punctuation.separator.delimiter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -760,7 +760,7 @@
 	},
 	{
 		"c": "y",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp variable.parameter.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1278,6 +1278,127 @@
 	{
 		"c": ")",
 		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.end.bracket.round.function.member.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Task",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "ANY_OUTPUT_TYPE",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp storage.type.user-defined.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp comma.cpp punctuation.separator.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "ANY_INPUT_TYPE",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.template.call.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "links_to",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

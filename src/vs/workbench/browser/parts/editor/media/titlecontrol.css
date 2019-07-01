@@ -51,7 +51,7 @@
 
 /* Drag Cursor */
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
-	cursor: -webkit-grab;
+	cursor: grab;
 }
 
 /* Actions */

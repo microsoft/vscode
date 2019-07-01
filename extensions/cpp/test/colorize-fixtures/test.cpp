@@ -18,5 +18,6 @@ int main () {
   Rectangle rect;
   rect.set_values (3,4);
   cout << "area: " << rect.area();
+  Task<ANY_OUTPUT_TYPE, ANY_INPUT_TYPE>::links_to;
   return 0;
 }

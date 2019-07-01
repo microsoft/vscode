@@ -1,0 +1,78 @@
+steps:
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- script: |
+    set -e
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(devops-pat)
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
+
+- script: |
+    set -e
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
+
+# - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+#   inputs:
+#     keyfile: '**/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+#     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+#     vstsFeed: '$(ArtifactFeed)'
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- script: 'yarn --frozen-lockfile'
+  displayName: Install Dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+# - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+#   inputs:
+#     keyfile: '**/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+#     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+#     vstsFeed: '$(ArtifactFeed)'
+#   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- script: 'yarn gulp mixin'
+  displayName: Mix in quality
+
+- script: 'yarn gulp hygiene'
+  displayName: Run hygiene checks
+
+- script: 'yarn monaco-compile-check'
+  displayName: Run Monaco compilation checks
+
+- script: |
+    set -e
+    cd $BUILD_STAGINGDIRECTORY
+    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
+    cd vscode-telemetry-extractor
+    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
+    npm i
+    npm run setup-extension-repos
+    node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
+    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
+    mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
+    mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
+    mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+  displayName: Extract Telemetry
+
+- script: 'VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" ./build/azure-pipelines/linux/build.sh'
+  displayName: Build

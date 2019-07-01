@@ -26,9 +26,9 @@ import { hash } from 'vs/base/common/hash';
 
 export class RemoteUserConfiguration extends Disposable {
 
-	private readonly _cachedConfiguration: CachedUserConfiguration;
+	private readonly _cachedConfiguration: CachedRemoteUserConfiguration;
 	private readonly _configurationFileService: ConfigurationFileService;
-	private _userConfiguration: UserConfiguration | CachedUserConfiguration;
+	private _userConfiguration: UserConfiguration | CachedRemoteUserConfiguration;
 	private _userConfigurationInitializationPromise: Promise<ConfigurationModel> | null = null;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
@@ -42,7 +42,7 @@ export class RemoteUserConfiguration extends Disposable {
 	) {
 		super();
 		this._configurationFileService = configurationFileService;
-		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, configurationCache);
+		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
 				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._configurationFileService));
@@ -190,7 +190,7 @@ export class UserConfiguration extends Disposable {
 	}
 }
 
-class CachedUserConfiguration extends Disposable {
+class CachedRemoteUserConfiguration extends Disposable {
 
 	private readonly _onDidChange: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChange: Event<ConfigurationModel> = this._onDidChange.event;

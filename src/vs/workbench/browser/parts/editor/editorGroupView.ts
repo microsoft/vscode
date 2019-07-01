@@ -212,9 +212,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.updateStyles();
 	}
 
-	private handleGroupContextKeys(contextKeyServcie: IContextKeyService): void {
-		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
-		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyServcie);
+	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
+		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyService);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyService);
 
 		let activeEditorListener = new MutableDisposable();
 
