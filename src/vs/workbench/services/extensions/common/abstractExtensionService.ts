@@ -373,8 +373,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				};
 			}
 		}
-
+		perf.mark(`willHandleExtensionPoint/${extensionPoint.name}`);
 		extensionPoint.acceptUsers(users);
+		perf.mark(`didHandleExtensionPoint/${extensionPoint.name}`);
 	}
 
 	private _showMessageToUser(severity: Severity, msg: string): void {

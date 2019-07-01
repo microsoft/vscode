@@ -36,7 +36,13 @@ import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/work
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
+	/** Old test runner API, as exported from `vscode/lib/testrunner` */
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
+}
+
+interface INewTestRunner {
+	/** New test runner API, as explained in the extension test doc */
+	run(): Promise<void>;
 }
 
 export interface IHostUtils {
@@ -153,7 +159,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
 			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
-			if (this._initData.remoteAuthority) {
+			if (this._initData.remote.isRemote) {
 				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(
 					this._extHostContext.getProxy(MainContext.MainThreadWindow),
 					this._extHostContext.getProxy(MainContext.MainThreadTelemetry),
@@ -340,7 +346,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<IExtensionContext> {
+	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
 		const globalState = new ExtensionMemento(extensionDescription.identifier.value, true, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
@@ -361,7 +367,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
-				executionContext: this._initData.remoteAuthority ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local
+				executionContext: this._initData.remote.isRemote ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local,
 			});
 		});
 	}
@@ -525,7 +531,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner | undefined;
+		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
 			testRunner = <any>require.__$__nodeRequire(extensionTestsPath);
@@ -533,10 +539,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			requireError = error;
 		}
 
-		// Execute the runner if it follows our spec
+		// Execute the runner if it follows the old `run` spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(extensionTestsPath, (error, failures) => {
+				const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -545,7 +551,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 					// after tests have run, we shutdown the host
 					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
-				});
+				};
+
+				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
+
+				// Using the new API `run(): Promise<void>`
+				if (runResult && runResult.then) {
+					runResult
+						.then(() => {
+							c();
+							this._gracefulExit(0);
+						})
+						.catch((err: Error) => {
+							e(err.toString());
+							this._gracefulExit(1);
+						});
+				}
 			});
 		}
 
@@ -562,7 +583,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// messages to the main process, we delay the exit() by some time
 		setTimeout(() => {
 			// If extension tests are running, give the exit code to the renderer
-			if (this._initData.remoteAuthority && !!this._initData.environment.extensionTestsLocationURI) {
+			if (this._initData.remote.isRemote && !!this._initData.environment.extensionTestsLocationURI) {
 				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
 				return;
 			}

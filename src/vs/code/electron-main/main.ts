@@ -33,15 +33,14 @@ import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -147,7 +146,6 @@ class CodeMain {
 		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 		services.set(IStateService, new SyncDescriptor(StateService));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
 
@@ -263,7 +261,7 @@ class CodeMain {
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
 			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
-			if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
+			if (!environmentService.wait && !environmentService.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
 						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
@@ -278,22 +276,18 @@ class CodeMain {
 			// Process Info
 			if (environmentService.args.status) {
 				return instantiationService.invokeFunction(async accessor => {
-					const diagnostics = await accessor.get(IDiagnosticsService).getDiagnostics(launchClient);
+					// Create a diagnostic service connected to the existing shared process
+					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
+					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
+					const diagnosticsService = new DiagnosticsService(diagnosticsChannel);
+					const mainProcessInfo = await launchClient.getMainProcessInfo();
+					const remoteDiagnostics = await launchClient.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
+					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
 					console.log(diagnostics);
 
 					throw new ExpectedError();
 				});
 			}
-
-			// Log uploader
-			if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-				return instantiationService.invokeFunction(async accessor => {
-					await uploadLogs(launchClient, accessor.get(IRequestService), environmentService);
-
-					throw new ExpectedError();
-				});
-			}
-
 
 			// Windows: allow to set foreground
 			if (platform.isWindows) {
@@ -318,13 +312,6 @@ class CodeMain {
 		// Print --status usage info
 		if (environmentService.args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
-
-			throw new ExpectedError('Terminating...');
-		}
-
-		// Log uploader usage info
-		if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-			logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
 
 			throw new ExpectedError('Terminating...');
 		}

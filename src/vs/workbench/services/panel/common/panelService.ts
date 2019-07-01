@@ -8,7 +8,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
 
@@ -53,7 +53,7 @@ export interface IPanelService {
 	/**
 	 * Returns the progress indicator for the panel bar.
 	 */
-	getProgressIndicator(id: string): ILocalProgressService | null;
+	getProgressIndicator(id: string): IProgressIndicator | null;
 
 	/**
 	 * Show an activity in a panel.

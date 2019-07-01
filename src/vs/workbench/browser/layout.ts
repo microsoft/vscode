@@ -9,7 +9,7 @@ import { EventType, addDisposableListener, addClass, removeClass, isAncestor, ge
 import { onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh, isWeb, isNative } from 'vs/base/common/platform';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -45,8 +45,6 @@ enum Settings {
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 
-	// TODO @misolori remove before shipping stable
-	ICON_EXPLORATION_ENABLED = 'workbench.iconExploration.enabled'
 }
 
 enum Storage {
@@ -160,12 +158,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
 			transitionDisposeables: new DisposableStore()
-		},
-
-		// TODO @misolori remove before shipping stable
-		iconExploration: {
-			enabled: false
 		}
+
 	};
 
 	constructor(
@@ -229,7 +223,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 	}
@@ -298,11 +292,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Menubar visibility
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
-
-		// TODO @misolori remove before shipping stable
-		// Icon exploration on setting change
-		const newIconExplorationEnabled = this.configurationService.getValue<boolean>(Settings.ICON_EXPLORATION_ENABLED);
-		this.setIconExploration(newIconExplorationEnabled);
 
 	}
 
@@ -417,10 +406,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 
-		// TODO @misolori remove before shipping stable
-		// Icon exploration
-		this.state.iconExploration.enabled = this.configurationService.getValue<boolean>(Settings.ICON_EXPLORATION_ENABLED);
-		this.setIconExploration(this.state.iconExploration.enabled);
 	}
 
 	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
@@ -535,7 +520,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return false;
 				} else if (!this.state.fullscreen) {
 					return true;
-				} else if (isMacintosh) {
+				} else if (isMacintosh && isNative) {
 					return false;
 				} else if (this.state.menuBar.visibility === 'visible') {
 					return true;
@@ -687,19 +672,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.workbenchGrid.layout();
 			}
 		}
-	}
-
-	// TODO @misolori remove before shipping stable
-	private setIconExploration(enabled: boolean): void {
-		this.state.iconExploration.enabled = enabled;
-
-		// Update DOM
-		if (enabled) {
-			document.body.dataset.exploration = 'icon-exploration';
-		} else {
-			document.body.dataset.exploration = '';
-		}
-
 	}
 
 	protected createWorkbenchLayout(instantiationService: IInstantiationService): void {

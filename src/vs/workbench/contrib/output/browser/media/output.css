@@ -4,37 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .output-action.clear-output {
-	background: url('clear_output.svg') center center no-repeat;
+	background: url('clear-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .output-action.clear-output,
+.vs-dark .monaco-workbench .output-action.clear-output {
+	background: url('clear-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .output-action.clear-output {
-	background: url('clear_output_inverse.svg') center center no-repeat;
+	background: url('clear-hc.svg') center center no-repeat;
 }
 
 .monaco-workbench .output-action.output-scroll-lock {
-	background: url('output_lock.svg') center center no-repeat;
+	background: url('locked-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .output-action.output-scroll-lock,
+.vs-dark .monaco-workbench .output-action.output-scroll-lock {
+	background: url('locked-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .output-action.output-scroll-lock {
-	background: url('output_lock_inverse.svg') center center no-repeat;
+	background: url('locked-hc.svg') center center no-repeat;
 }
 
 .monaco-workbench .output-action.output-scroll-unlock {
-	background: url('output_unlock.svg') center center no-repeat;
+	background: url('unlocked-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .output-action.output-scroll-unlock,
+.vs-dark .monaco-workbench .output-action.output-scroll-unlock {
+	background: url('unlocked-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .output-action.output-scroll-unlock {
-	background: url('output_unlock_inverse.svg') center center no-repeat;
+	background: url('unlocked-hc.svg') center center no-repeat;
 }
 
 .monaco-workbench .output-action.open-log-file {
-	background: url('open_log_file.svg') center center no-repeat;
+	background: url('open-file-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .output-action.open-log-file,
+.vs-dark .monaco-workbench .output-action.open-log-file {
+	background: url('open-file-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .output-action.open-log-file {
-	background: url('open_log_file_inverse.svg') center center no-repeat;
+	background: url('open-file-hc.svg') center center no-repeat;
 }

@@ -392,6 +392,18 @@ export class WebviewElement extends Disposable implements Webview {
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
+				case 'synthetic-mouse-event':
+					{
+						const rawEvent = event.args[0];
+						const bounds = this._webview.getBoundingClientRect();
+						window.dispatchEvent(new MouseEvent(rawEvent.type, {
+							...rawEvent,
+							clientX: rawEvent.clientX + bounds.left,
+							clientY: rawEvent.clientY + bounds.top,
+						}));
+						return;
+					}
+
 				case 'did-set-content':
 					this._webview.style.flex = '';
 					this._webview.style.width = '100%';

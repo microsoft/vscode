@@ -52,7 +52,7 @@ export class FileService extends Disposable implements IFileService {
 		const providerDisposables = new DisposableStore();
 		providerDisposables.add(provider.onDidChangeFile(changes => this._onFileChanges.fire(new FileChangesEvent(changes))));
 		if (typeof provider.onDidErrorOccur === 'function') {
-			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(error)));
+			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
 		}
 
 		return toDisposable(() => {

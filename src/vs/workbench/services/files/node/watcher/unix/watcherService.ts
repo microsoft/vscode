@@ -8,7 +8,7 @@ import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 import { WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IWatcherRequest, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher extends Disposable {
@@ -22,7 +22,8 @@ export class FileWatcher extends Disposable {
 		private folders: IWatcherRequest[],
 		private onFileChanges: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
+		private verboseLogging: boolean,
+		private watcherOptions: IWatcherOptions = {}
 	) {
 		super();
 
@@ -66,8 +67,7 @@ export class FileWatcher extends Disposable {
 
 		this.service.setVerboseLogging(this.verboseLogging);
 
-		const options = {};
-		this._register(this.service.watch(options)(e => !this.isDisposed && this.onFileChanges(e)));
+		this._register(this.service.watch(this.watcherOptions)(e => !this.isDisposed && this.onFileChanges(e)));
 
 		this._register(this.service.onLogMessage(m => this.onLogMessage(m)));
 

@@ -139,6 +139,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
+	get keyboardLayoutResource(): URI { return resources.joinPath(this.appSettingsHome, 'keyboardLayout.json'); }
+
+	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
@@ -291,7 +294,7 @@ export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParam
 	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
 }
 
-export function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
 	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
 	const brk = port ? Boolean(!!debugBrkArg) : false;

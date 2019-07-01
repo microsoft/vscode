@@ -916,7 +916,9 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
-				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				if (stat.resource.toString() !== targetResource.toString()) {
+					textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				}
 			}
 			explorerService.setEditable(stat, null);
 		}
@@ -995,7 +997,7 @@ CommandsRegistry.registerCommand({
 	handler: downloadFileHandler
 });
 
-export const pasteFileHandler = (accessor: ServicesAccessor) => {
+export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1010,13 +1012,14 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 		const element = explorerContext.stat || explorerService.roots[0];
 
 		// Check if target is ancestor of pasted folder
-		Promise.all(toPaste.map(fileToPaste => {
+		const stats = await Promise.all(toPaste.map(async fileToPaste => {
 
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste, !isLinux /* ignorecase */)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
 
-			return fileService.resolve(fileToPaste).then(fileToPasteStat => {
+			try {
+				const fileToPasteStat = await fileService.resolve(fileToPaste);
 
 				// Find target
 				let target: ExplorerItem;
@@ -1029,18 +1032,29 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 				// Move/Copy File
-				return pasteShouldMove ? textFileService.move(fileToPaste, targetFile) : fileService.copy(fileToPaste, targetFile);
-			}, error => {
+				if (pasteShouldMove) {
+					return await textFileService.move(fileToPaste, targetFile);
+				} else {
+					return await fileService.copy(fileToPaste, targetFile);
+				}
+			} catch (e) {
 				onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
-			});
-		})).then((stat) => {
-			if (pasteShouldMove) {
-				// Cut is done. Make sure to clear cut state.
-				explorerService.setToCopy([], false);
+				return undefined;
 			}
-			if (stat.length === 1 && !stat[0].isDirectory) {
-				editorService.openEditor({ resource: stat[0].resource, options: { pinned: true, preserveFocus: true } }).then(undefined, onUnexpectedError);
+		}));
+
+		if (pasteShouldMove) {
+			// Cut is done. Make sure to clear cut state.
+			explorerService.setToCopy([], false);
+		}
+		if (stats.length === 1) {
+			const stat = stats[0];
+			if (stat) {
+				if (!stat.isDirectory) {
+					await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+				}
+				await explorerService.select(stat.resource);
 			}
-		});
+		}
 	}
 };

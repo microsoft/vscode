@@ -187,7 +187,7 @@ export class ProcessRunnerDetector {
 				} else if ('grunt' === detectSpecific) {
 					detectorPromise = this.tryDetectGrunt(this._workspaceRoot, list);
 				} else {
-					throw new Error('Unkown detector type');
+					throw new Error('Unknown detector type');
 				}
 				return detectorPromise.then((value) => {
 					if (value) {

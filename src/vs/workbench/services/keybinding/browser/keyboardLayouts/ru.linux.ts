@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ model: 'pc104', layout: 'ru', variant: ',', options: '', rules: 'base' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { model: 'pc104', layout: 'ru', variant: ',', options: '', rules: 'base' },
+	secondaryLayouts: [],
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['ф', 'Ф', 'ф', 'Ф', 0],
@@ -183,5 +184,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 		MailForward: [],
 		MailSend: []
 	}
-
-));
+});

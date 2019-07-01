@@ -282,7 +282,8 @@ export class BreadcrumbsControl {
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {
-			return this._widget.setSelection(event.item);
+			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+			this._widget.setSelection(event.item);
 		}
 	}
 
@@ -610,6 +611,42 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusNextWithPicker',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.RightArrow,
+	},
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusNext();
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusPreviousWithPicker',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.LeftArrow,
+	},
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (!widget) {
+			return;
+		}
+		widget.focusPrev();
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectFocused',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Enter,
@@ -668,7 +705,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const editors = accessor.get(IEditorService);
 		const lists = accessor.get(IListService);
-		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus() : undefined;
+		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus()[0] : undefined;
 		if (element instanceof OutlineElement) {
 			const outlineElement = OutlineModel.get(element);
 			if (!outlineElement) {

@@ -14,12 +14,13 @@ import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-m
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { BrowserWindow, ipcMain, Event as IpcEvent } from 'electron';
+import { URI } from 'vs/base/common/uri';
+import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -27,20 +28,6 @@ export const ILaunchService = createDecorator<ILaunchService>(ID);
 export interface IStartArguments {
 	args: ParsedArgs;
 	userEnv: IProcessEnvironment;
-}
-
-export interface IWindowInfo {
-	pid: number;
-	title: string;
-	folderURIs: UriComponents[];
-	remoteAuthority?: string;
-}
-
-export interface IMainProcessInfo {
-	mainPID: number;
-	// All arguments after argv[0], the exec path
-	mainArguments: string[];
-	windows: IWindowInfo[];
 }
 
 export interface IRemoteDiagnosticOptions {
@@ -280,7 +267,9 @@ export class LaunchService implements ILaunchService {
 		return Promise.resolve({
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
-			windows
+			windows,
+			screenReader: app.isAccessibilitySupportEnabled(),
+			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}
 

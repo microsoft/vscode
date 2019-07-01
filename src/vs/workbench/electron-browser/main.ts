@@ -47,10 +47,12 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
-import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
+import { dirname } from 'vs/base/common/resources';
 
 class CodeRendererMain extends Disposable {
 
@@ -206,6 +208,9 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
+
 		const payload = await this.resolveWorkspaceInitializationPayload(environmentService);
 
 		const services = await Promise.all([
@@ -306,10 +311,7 @@ class CodeRendererMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const configurationFileService = new ConfigurationFileService();
-		configurationFileService.fileService = fileService;
-
-		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);

@@ -106,6 +106,7 @@ export class Menubar {
 	}
 
 	private addFallbackHandlers(): void {
+
 		// File Menu Items
 		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = () => this.windowsMainService.openNewWindow(OpenContext.MENU);
 		this.fallbackMenuHandlers['workbench.action.newWindow'] = () => this.windowsMainService.openNewWindow(OpenContext.MENU);
@@ -339,7 +340,7 @@ export class Menubar {
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
-		const about = new MenuItem({ label: nls.localize('mAbout', "About {0}", product.nameLong), role: 'about' });
+		const about = this.createMenuItem(nls.localize('mAbout', "About {0}", product.nameLong), 'workbench.action.showAboutDialog');
 		const checkForUpdates = this.getUpdateMenuItems();
 
 		let preferences;
@@ -634,8 +635,8 @@ export class Menubar {
 		};
 
 		if (checked) {
-			options['type'] = 'checkbox';
-			options['checked'] = checked;
+			options.type = 'checkbox';
+			options.checked = checked;
 		}
 
 		let commandId: string | undefined;
@@ -646,13 +647,14 @@ export class Menubar {
 		}
 
 		if (isMacintosh) {
+
 			// Add role for special case menu items
 			if (commandId === 'editor.action.clipboardCutAction') {
-				options['role'] = 'cut';
+				options.role = 'cut';
 			} else if (commandId === 'editor.action.clipboardCopyAction') {
-				options['role'] = 'copy';
+				options.role = 'copy';
 			} else if (commandId === 'editor.action.clipboardPasteAction') {
-				options['role'] = 'paste';
+				options.role = 'paste';
 			}
 
 			// Add context aware click handlers for special case menu items

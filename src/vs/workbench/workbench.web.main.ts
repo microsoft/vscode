@@ -20,6 +20,7 @@ import 'vs/workbench/browser/web.main';
 
 import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/browser/actions/windowActions';
+import 'vs/workbench/browser/actions/developerActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
@@ -115,7 +116,7 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
+import 'vs/workbench/services/keybinding/browser/keymapService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
 import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
@@ -198,6 +199,7 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);

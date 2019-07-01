@@ -35,16 +35,36 @@ steps:
 
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
+  displayName: Prepare tooling
+
+- script: |
+    set -e
     git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
     git fetch distro
     git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
 
-    CHILD_CONCURRENCY=1 yarn
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+  displayName: Install dependencies
+
+- script: |
+    set -e
     yarn gulp mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
     yarn gulp hygiene
     yarn monaco-compile-check
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
     ./build/azure-pipelines/linux/prebuild-arm.sh
-  displayName: Prepare build
+  displayName: Prebuild
 
 - script: |
     set -e

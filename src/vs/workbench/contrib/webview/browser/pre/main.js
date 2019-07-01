@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+
+/**
+ * @typedef {{
+ *   postMessage: (channel: string, data?: any) => void,
+ *   onMessage: (channel: string, handler: any) => void,
+ *   focusIframeOnCreate?: boolean,
+ *   ready?: Promise<void>,
+ *   onIframeLoaded: (iframe: HTMLIFrameElement) => void
+ * }} WebviewHost
+ */
+
 (function () {
 	'use strict';
 
@@ -95,23 +106,52 @@
 	}`;
 
 	/**
-	 * @typedef {{
-	 *   postMessage: (channel: string, data?: any) => void,
-	 *   onMessage: (channel: string, handler: any) => void,
-	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   focusIframeOnCreate?: boolean
-	 * }} HostCommunications
+	 * @param {*} [state]
+	 * @return {string}
 	 */
+	function getVsCodeApiScript(state) {
+		return `
+			const acquireVsCodeApi = (function() {
+				const originalPostMessage = window.parent.postMessage.bind(window.parent);
+				const targetOrigin = '*';
+				let acquired = false;
+
+				let state = ${state ? `JSON.parse(${JSON.stringify(state)})` : undefined};
+
+				return () => {
+					if (acquired) {
+						throw new Error('An instance of the VS Code API has already been acquired');
+					}
+					acquired = true;
+					return Object.freeze({
+						postMessage: function(msg) {
+							return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
+						},
+						setState: function(newState) {
+							state = newState;
+							originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
+							return newState;
+						},
+						getState: function() {
+							return state;
+						}
+					});
+				};
+			})();
+			delete window.parent;
+			delete window.top;
+			delete window.frameElement;
+		`;
+	}
 
 	/**
-	 * @param {HostCommunications} host
+	 * @param {WebviewHost} host
 	 */
 	function createWebviewManager(host) {
 		// state
 		let firstLoad = true;
 		let loadTimeout;
 		let pendingMessages = [];
-		let isInDevelopmentMode = false;
 
 		const initData = {
 			initialScrollProgress: undefined
@@ -119,25 +159,6 @@
 
 		// Service worker for resource loading
 		const FAKE_LOAD = !!navigator.serviceWorker;
-		if (navigator.serviceWorker) {
-			navigator.serviceWorker.register('service-worker.js');
-
-			navigator.serviceWorker.ready.then(registration => {
-				function forwardFromHostToWorker(channel) {
-					host.onMessage(channel, event => {
-						registration.active.postMessage({ channel: channel, data: event.data.args });
-					});
-				}
-				forwardFromHostToWorker('did-load-resource');
-				forwardFromHostToWorker('did-load-localhost');
-			});
-
-			navigator.serviceWorker.addEventListener('message', event => {
-				if (['load-resource', 'load-localhost'].includes(event.data.channel)) {
-					host.postMessage(event.data.channel, event.data);
-				}
-			});
-		}
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -231,10 +252,43 @@
 			});
 		};
 
+		/**
+		 * @return {string}
+		 */
+		function toContentHtml(data) {
+			const options = data.options;
+			const text = data.contents;
+			const newDocument = new DOMParser().parseFromString(text, 'text/html');
+
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.getAttribute('href');
+				}
+			});
+
+			// apply default script
+			if (options.allowScripts) {
+				const defaultScript = newDocument.createElement('script');
+				defaultScript.textContent = getVsCodeApiScript(data.state);
+				newDocument.head.prepend(defaultScript);
+			}
+
+			// apply default styles
+			const defaultStyles = newDocument.createElement('style');
+			defaultStyles.id = '_defaultStyles';
+			defaultStyles.innerHTML = defaultCssRules;
+			newDocument.head.prepend(defaultStyles);
+
+			applyStyles(newDocument, newDocument.body);
+
+			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
+		}
+
 		document.addEventListener('DOMContentLoaded', () => {
 			const idMatch = document.location.search.match(/\bid=([\w-]+)/);
 			const ID = idMatch ? idMatch[1] : undefined;
-
 			if (!document.body) {
 				return;
 			}
@@ -262,68 +316,16 @@
 			});
 
 			// update iframe-contents
-			host.onMessage('content', (_event, data) => {
+			let updateId = 0;
+			host.onMessage('content', async (_event, data) => {
+				const currentUpdateId = ++updateId;
+				await host.ready;
+				if (currentUpdateId !== updateId) {
+					return;
+				}
+
 				const options = data.options;
-
-				const text = data.contents;
-				const newDocument = new DOMParser().parseFromString(text, 'text/html');
-
-				newDocument.querySelectorAll('a').forEach(a => {
-					if (!a.title) {
-						a.title = a.getAttribute('href');
-					}
-				});
-
-				// apply default script
-				if (options.allowScripts) {
-					const defaultScript = newDocument.createElement('script');
-					defaultScript.textContent = `
-					const acquireVsCodeApi = (function() {
-						const originalPostMessage = window.parent.postMessage.bind(window.parent);
-						const targetOrigin = '*';
-						let acquired = false;
-
-						let state = ${data.state ? `JSON.parse(${JSON.stringify(data.state)})` : undefined};
-
-						return () => {
-							if (acquired) {
-								throw new Error('An instance of the VS Code API has already been acquired');
-							}
-							acquired = true;
-							return Object.freeze({
-								postMessage: function(msg) {
-									return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
-								},
-								setState: function(newState) {
-									state = newState;
-									originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
-									return newState;
-								},
-								getState: function() {
-									return state;
-								}
-							});
-						};
-					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
-				`;
-
-					newDocument.head.prepend(defaultScript);
-				}
-
-				// apply default styles
-				const defaultStyles = newDocument.createElement('style');
-				defaultStyles.id = '_defaultStyles';
-				defaultStyles.innerHTML = defaultCssRules;
-				newDocument.head.prepend(defaultStyles);
-
-				applyStyles(newDocument, newDocument.body);
-
-				if (host.injectHtml) {
-					host.injectHtml(newDocument);
-				}
+				const newDocument = toContentHtml(data);
 
 				const frame = getActiveFrame();
 				const wasFirstLoad = firstLoad;
@@ -381,8 +383,7 @@
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
 					if (FAKE_LOAD) {
 						newFrame.contentDocument.open();
-						newFrame.contentDocument.write('<!DOCTYPE html>');
-						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+						newFrame.contentDocument.write(newDocument);
 						newFrame.contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
 					}
@@ -422,6 +423,9 @@
 					}
 				};
 
+				/**
+				 * @param {HTMLIFrameElement} newFrame
+				 */
 				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
@@ -439,32 +443,18 @@
 						}
 					});
 
-					if (!FAKE_LOAD) {
-						newFrame.contentWindow.onbeforeunload = () => {
-							if (isInDevelopmentMode) { // Allow reloads while developing a webview
-								host.postMessage('do-reload');
-								return false;
-							}
-
-							// Block navigation when not in development mode
-							console.log('prevented webview navigation');
-							return false;
-						};
-					}
-
 					// Bubble out link clicks
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+
+					host.onIframeLoaded(newFrame);
 				}
 
 				if (!FAKE_LOAD) {
 					hookupOnLoadHandlers(newFrame);
 				}
 
-				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
-				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
 				if (!FAKE_LOAD) {
-					newFrame.contentDocument.write('<!DOCTYPE html>');
-					newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+					newFrame.contentDocument.write(newDocument);
 					newFrame.contentDocument.close();
 				}
 
@@ -488,9 +478,6 @@
 				initData.initialScrollProgress = progress;
 			});
 
-			host.onMessage('devtools-opened', () => {
-				isInDevelopmentMode = true;
-			});
 
 			trackFocus({
 				onFocus: () => host.postMessage('did-focus'),

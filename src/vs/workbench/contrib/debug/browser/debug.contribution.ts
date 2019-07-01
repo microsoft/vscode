@@ -277,8 +277,8 @@ const registerDebugToolBarItem = (id: string, title: string, icon: string, order
 			id,
 			title,
 			iconLocation: {
-				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}.svg`)),
-				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-inverse.svg`))
+				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-light.svg`)),
+				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-dark.svg`))
 			},
 			precondition
 		}
@@ -539,7 +539,7 @@ if (isMacintosh) {
 			command: {
 				id,
 				title,
-				iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/electron-browser/media/${icon}`)) }
+				iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}`)) }
 			},
 			when,
 			group: '9_debug',

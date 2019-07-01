@@ -190,12 +190,15 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 					globalStorageHome: remoteExtensionHostData.globalStorageHome,
 					userHome: remoteExtensionHostData.userHome,
-					webviewResourceRoot: this._environmentService.webviewResourceRoot,
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 					configuration: workspace.configuration,
 					id: workspace.id,
 					name: this._labelService.getWorkspaceLabel(workspace)
+				},
+				remote: {
+					isRemote: true,
+					authority: this._initDataProvider.remoteAuthority
 				},
 				resolvedExtensions: resolvedExtensions,
 				hostExtensions: hostExtensions,
@@ -204,7 +207,6 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 				logLevel: this._logService.getLevel(),
 				logsLocation: remoteExtensionHostData.extensionHostLogsPath,
 				autoStart: true,
-				remoteAuthority: this._initDataProvider.remoteAuthority,
 			};
 			return r;
 		});

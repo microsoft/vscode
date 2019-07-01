@@ -38,7 +38,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -71,7 +71,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -1218,6 +1218,14 @@ export class TestWindowService implements IWindowService {
 		});
 	}
 
+	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
+		return Promise.resolve();
+	}
+
+	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
+		return Promise.resolve();
+	}
+
 	focusWindow(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1444,6 +1452,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	openNewWindow(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 

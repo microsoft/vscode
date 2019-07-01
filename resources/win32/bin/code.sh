@@ -11,12 +11,12 @@ VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 if grep -qi Microsoft /proc/version; then
 	# in a wsl shell
-	if ! [ -z "$WSL_DISTRO_NAME"]; then
+	if ! [ -z "$WSL_DISTRO_NAME" ]; then
 		# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
 		WSL_BUILD=18362
 	else
 		WSL_BUILD=$(uname -r | sed -E 's/^.+-([0-9]+)-Microsoft/\1/')
-		if ! [ -z "$WSL_BUILD" ]; then
+		if [ -z "$WSL_BUILD" ]; then
 			WSL_BUILD=0
 		fi
 	fi

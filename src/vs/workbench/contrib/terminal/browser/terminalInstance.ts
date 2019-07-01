@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -201,6 +201,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		return this._rows;
 	}
+	public get maxCols(): number { return this._cols; }
+	public get maxRows(): number { return this._rows; }
 	// TODO: Ideally processId would be merged into processReady
 	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
 	// TODO: How does this work with detached processes?
@@ -232,6 +234,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 	private readonly _onDimensionsChanged = new Emitter<void>();
 	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
+	private readonly _onMaximumDimensionsChanged = new Emitter<void>();
+	public get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
 	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
 
@@ -349,12 +353,20 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
 		}
-		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+		const newCols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
 		const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
 		const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
-		this._rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+		const newRows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+
+		if (this._cols !== newCols || this._rows !== newRows) {
+			this._cols = newCols;
+			this._rows = newRows;
+			if (this.shellLaunchConfig.isRendererOnly) {
+				this._onMaximumDimensionsChanged.fire();
+			}
+		}
 
 		return dimension.width;
 	}
@@ -958,7 +970,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
 		}, 0);
 	}
 
@@ -991,7 +1003,9 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create exit code message
 		if (exitCode) {
 			if (exitCode === SHELL_PATH_INVALID_EXIT_CODE) {
-				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path does not exist: {0}', this._shellLaunchConfig.executable);
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path "{0}" does not exist', this._shellLaunchConfig.executable);
+			} else if (exitCode === SHELL_PATH_DIRECTORY_EXIT_CODE) {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPathDirectory', 'The terminal shell path "{0}" is a directory', this._shellLaunchConfig.executable);
 			} else if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 				let args = '';
 				if (typeof this._shellLaunchConfig.args === 'string') {
@@ -1237,7 +1251,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this.disableLayout) {
 			return;
 		}
-
 
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {
