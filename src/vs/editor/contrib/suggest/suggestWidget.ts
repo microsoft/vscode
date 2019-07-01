@@ -38,7 +38,8 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileKind } from 'vs/platform/files/common/files';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -230,6 +231,18 @@ const enum State {
 	Details
 }
 
+
+let _explainMode = false;
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'suggest.toggleExplainMode',
+	handler() {
+		_explainMode = !_explainMode;
+	},
+	when: SuggestContext.Visible,
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+});
+
 class SuggestionDetails {
 
 	private el: HTMLElement;
@@ -250,7 +263,6 @@ class SuggestionDetails {
 		private readonly editor: ICodeEditor,
 		private readonly markdownRenderer: MarkdownRenderer,
 		private readonly triggerKeybindingLabel: string,
-		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this.disposables = [];
 
@@ -293,19 +305,18 @@ class SuggestionDetails {
 		this.renderDisposeable = dispose(this.renderDisposeable);
 
 		let { documentation, detail } = item.completion;
-		const shouldExplain = this._configService.getValue<boolean>('editor.suggest._explain');
 		// --- documentation
 
-		if (shouldExplain) {
+		if (_explainMode) {
 			let md = '';
 			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || item.completion.label}' with '${item.word}'` : ' (no prefix)'}\n`;
 			md += `distance: ${item.distance}, see localityBonus-setting\n`;
 			md += `index: ${item.idx}, ${item.completion.sortText && (`'${item.completion.sortText}' (sortText)`) || 'extension order'}\n`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
-			detail = undefined;
+			detail = `Provider: ${item.provider._debugDisplayName}`;
 		}
 
-		if (!shouldExplain && !canExpandCompletionItem(item)) {
+		if (!_explainMode && !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
 			this.docs.textContent = '';
 			addClass(this.el, 'no-docs');
