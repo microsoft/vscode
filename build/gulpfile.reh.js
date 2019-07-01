@@ -28,7 +28,7 @@ const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
-
+const remote = require('gulp-remote-src');
 const cp = require('child_process');
 
 const REPO_ROOT = path.dirname(__dirname);
@@ -129,6 +129,18 @@ const minifyVSCodeREHTask = task.define('minify-vscode-reh', task.series(
 	common.minifyTask('out-vscode-reh', baseUrl)
 ));
 
+// Targets
+
+const BUILD_TARGETS = [
+	{ platform: 'win32', arch: 'ia32', pkgTarget: 'node8-win-x86' },
+	{ platform: 'win32', arch: 'x64', pkgTarget: 'node8-win-x64' },
+	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },
+	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
+	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
+	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
+];
+
 // Web server
 
 const webResources = [
@@ -180,64 +192,48 @@ function getNodeVersion() {
 	return target;
 }
 
-function ensureDirs(dirPath) {
-	if (!fs.existsSync(dirPath)) {
-		ensureDirs(path.dirname(dirPath));
-		fs.mkdirSync(dirPath);
-	}
+const nodeVersion = getNodeVersion();
+
+BUILD_TARGETS.forEach(({ platform, arch }) => {
+	const target = arch ? `${platform}-${arch}` : platform;
+
+	gulp.task(task.define(`node-${target}`, () => {
+		if (platform === 'darwin') {
+			arch = 'x64';
+		}
+
+		const nodePath = path.join('.build', 'node', `v${nodeVersion}`, `${platform}-${arch}`);
+
+		if (!fs.existsSync(nodePath)) {
+			util.rimraf(nodePath);
+
+			return nodejs(platform, arch)
+				.pipe(vfs.dest(nodePath));
+		}
+
+		return Promise.resolve(null);
+	}));
+});
+
+const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
+
+if (defaultNodeTask) {
+	gulp.task(task.define('node', defaultNodeTask));
 }
 
-/* Downloads the node executable used for the remote server to ./build/node-remote */
-gulp.task(task.define('node-remote', () => {
-	const VERSION = getNodeVersion();
-	const nodePath = path.join('.build', 'node-remote');
-	const nodeVersionPath = path.join(nodePath, 'version');
-	if (!fs.existsSync(nodeVersionPath) || fs.readFileSync(nodeVersionPath).toString() !== VERSION) {
-		ensureDirs(nodePath);
-		util.rimraf(nodePath);
-		fs.writeFileSync(nodeVersionPath, VERSION);
-		return nodejs(process.platform, process.arch).pipe(vfs.dest(nodePath));
-	}
-	return vfs.src(nodePath);
-}));
-
 function nodejs(platform, arch) {
-	const VERSION = getNodeVersion();
-
 	if (arch === 'ia32') {
 		arch = 'x86';
 	}
 
 	if (platform === 'win32') {
-		const downloadPath = `/dist/v${VERSION}/win-${arch}/node.exe`;
-
-		return (
-			util.download({ host: 'nodejs.org', path: downloadPath })
-				.pipe(es.through(function (data) {
-					// base comes in looking like `https:\nodejs.org\dist\v10.2.1\win-x64\node.exe`
-					this.emit('data', new File({
-						path: data.path,
-						base: data.base.replace(/\\node\.exe$/, ''),
-						contents: data.contents,
-						stat: {
-							isFile: true,
-							mode: /* 100755 */ 33261
-						}
-					}));
-				}))
-		);
+		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
+			.pipe(rename('node.exe'));
 	}
 
 	if (arch === 'alpine') {
-		return es.readArray([
-			new File({
-				path: 'node',
-				contents: cp.execSync(`docker run --rm node:${VERSION}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' }),
-				stat: {
-					mode: parseInt('755', 8)
-				}
-			})
-		]);
+		const contents = cp.execSync(`docker run --rm node:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
+		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
 	}
 
 	if (platform === 'darwin') {
@@ -248,28 +244,11 @@ function nodejs(platform, arch) {
 		arch = 'armv7l';
 	}
 
-	const downloadPath = `/dist/v${VERSION}/node-v${VERSION}-${platform}-${arch}.tar.gz`;
-
-	return (
-		util.download({ host: 'nodejs.org', path: downloadPath })
-			.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
-			.pipe(es.through(function (data) {
-				// base comes in looking like `https:/nodejs.org/dist/v8.9.3/node-v8.9.3-darwin-x64.tar.gz`
-				// => we must remove the `.tar.gz`
-				// Also, keep only bin/node
-				if (/\/bin\/node$/.test(data.path)) {
-					this.emit('data', new File({
-						path: data.path.replace(/bin\/node$/, 'node'),
-						base: data.base.replace(/\.tar\.gz$/, ''),
-						contents: data.contents,
-						stat: {
-							isFile: true,
-							mode: /* 100755 */ 33261
-						}
-					}));
-				}
-			}))
-	);
+	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org' })
+		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+		.pipe(filter('**/node'))
+		.pipe(util.setExecutableBit('**'))
+		.pipe(rename('node'));
 }
 
 function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
@@ -433,16 +412,6 @@ function packagePkgTask(platform, arch, pkgTarget) {
 		// 	.then(() => process.chdir(cwd));
 	};
 }
-
-const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32', pkgTarget: 'node8-win-x86' },
-	{ platform: 'win32', arch: 'x64', pkgTarget: 'node8-win-x64' },
-	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },
-	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
-	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
-	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
-	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
-];
 
 BUILD_TARGETS.forEach(buildTarget => {
 	['reh', 'web'].forEach(type => {
