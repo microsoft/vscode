@@ -345,6 +345,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
+		if (browser.isStandalone) {
+			return false;
+		}
+
 		if (browser.isFullscreen() && (<any>navigator).keyboard) {
 			return false;
 		}
@@ -529,6 +533,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey) {
 			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			return false;
+		}
+		if (event.keyCode === KeyCode.Escape) {
+			// https://github.com/microsoft/vscode/issues/74934
 			return false;
 		}
 		// consult the KeyboardMapperFactory to check the given event for

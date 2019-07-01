@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
@@ -119,6 +119,14 @@ export class WindowService extends Disposable implements IWindowService {
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return this.windowsService.getRecentlyOpened(this.windowId);
+	}
+
+	addRecentlyOpened(recents: IRecent[]): Promise<void> {
+		return this.windowsService.addRecentlyOpened(recents);
+	}
+
+	removeFromRecentlyOpened(paths: URI[]): Promise<void> {
+		return this.windowsService.removeFromRecentlyOpened(paths);
 	}
 
 	focusWindow(): Promise<void> {

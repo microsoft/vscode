@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isMacintosh } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -18,7 +16,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
-import { CopyWebviewEditorCommand, CutWebviewEditorCommand, HideWebViewEditorFindCommand, PasteWebviewEditorCommand, RedoWebviewEditorCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetCommand, UndoWebviewEditorCommand } from '../browser/webviewCommands';
+import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewEditorInput } from '../browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
@@ -37,7 +35,7 @@ registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-export function registerWebViewCommands(editorId: string): void {
+function registerWebViewCommands(editorId: string): void {
 	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */);
 
 	const showNextFindWidgetCommand = new ShowWebViewEditorFindWidgetCommand({
@@ -60,66 +58,6 @@ export function registerWebViewCommands(editorId: string): void {
 			weight: KeybindingWeight.EditorContrib
 		}
 	})).register();
-
-	(new SelectAllWebviewEditorCommand({
-		id: SelectAllWebviewEditorCommand.ID,
-		precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-		kbOpts: {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
-
-	// These commands are only needed on MacOS where we have to disable the menu bar commands
-	if (isMacintosh) {
-		(new CopyWebviewEditorCommand({
-			id: CopyWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
-		(new PasteWebviewEditorCommand({
-			id: PasteWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
-
-		(new CutWebviewEditorCommand({
-			id: CutWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
-		(new UndoWebviewEditorCommand({
-			id: UndoWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-
-		(new RedoWebviewEditorCommand({
-			id: RedoWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z },
-				weight: KeybindingWeight.EditorContrib
-			}
-		})).register();
-	}
 }
 
 registerWebViewCommands(WebviewEditor.ID);

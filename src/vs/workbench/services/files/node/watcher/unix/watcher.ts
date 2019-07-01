@@ -12,6 +12,8 @@ export interface IWatcherRequest {
 }
 
 export interface IWatcherOptions {
+	pollingInterval?: number;
+	usePolling?: boolean;
 }
 
 export interface IWatcherService {

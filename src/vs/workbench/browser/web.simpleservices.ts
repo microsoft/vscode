@@ -28,7 +28,7 @@ import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveS
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
@@ -44,7 +44,7 @@ import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common
 import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
@@ -52,6 +52,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 //#region Backup File
 
@@ -401,12 +404,13 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -488,12 +492,13 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		// @ts-ignore
 		return Promise.resolve(undefined);
 	}
 
@@ -746,15 +751,52 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	readonly windowId = 0;
 
+	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
+		this.addWorkspaceToRecentlyOpened();
+		this.restoreFullScreen();
+		this.registerListeners();
+	}
+
+	private addWorkspaceToRecentlyOpened(): void {
+		const workspace = this.workspaceService.getWorkspace();
+		switch (this.workspaceService.getWorkbenchState()) {
+			case WorkbenchState.FOLDER:
+				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri }]);
+				break;
+			case WorkbenchState.WORKSPACE:
+				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
+				break;
+		}
+	}
+
+	private restoreFullScreen(): void {
+		if (document.location.href.indexOf('&fullscreen=true') > 0) {
+			setTimeout(() => this.toggleFullScreen(this.layoutService.getWorkbenchElement()), 0);
+		}
+	}
+
+	private registerListeners(): void {
 		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
 			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
+				browser.setFullscreen(true);
+			} else {
+				browser.setFullscreen(false);
+			}
+		}));
+
+		this._register(addDisposableListener(document, EventType.WK_FULLSCREEN_CHANGE, () => {
+			if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
 				browser.setFullscreen(true);
 			} else {
 				browser.setFullscreen(false);
@@ -787,6 +829,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	reloadWindow(): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
@@ -832,10 +876,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 			try {
 				if (!(<any>document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(true); // we have to set this proactively because Safari doesn't emit fullscreenchange event.
 				} else {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
-					browser.setFullscreen(false);
 				}
 			} catch {
 				console.warn('Enter/Exit Full Screen failed');
@@ -849,11 +891,54 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return Promise.resolve({
-			workspaces: [],
-			files: []
+	async getRecentlyOpened(): Promise<IRecentlyOpened> {
+		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
+		if (recentlyOpenedRaw) {
+			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw));
+		}
+
+		return { workspaces: [], files: [] };
+	}
+
+	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
+		const recentlyOpened = await this.getRecentlyOpened();
+
+		recents.forEach(recent => {
+			if (isRecentFile(recent)) {
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.fileUri]);
+				recentlyOpened.files.unshift(recent);
+			} else if (isRecentFolder(recent)) {
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.folderUri]);
+				recentlyOpened.workspaces.unshift(recent);
+			} else {
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
+				recentlyOpened.workspaces.unshift(recent);
+			}
 		});
+
+		return this.saveRecentlyOpened(recentlyOpened);
+	}
+
+	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
+		const recentlyOpened = await this.getRecentlyOpened();
+
+		this.doRemoveFromRecentlyOpened(recentlyOpened, paths);
+
+		return this.saveRecentlyOpened(recentlyOpened);
+	}
+
+	private doRemoveFromRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
+		recentlyOpened.files = recentlyOpened.files.filter(file => {
+			return !paths.some(path => path.toString() === file.fileUri.toString());
+		});
+
+		recentlyOpened.workspaces = recentlyOpened.workspaces.filter(workspace => {
+			return !paths.some(path => path.toString() === (isRecentFolder(workspace) ? workspace.folderUri.toString() : workspace.workspace.configPath.toString()));
+		});
+	}
+
+	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
+		return this.storageService.store(SimpleWindowService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
 	}
 
 	focusWindow(): Promise<void> {
@@ -877,7 +962,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}&fullscreen=${!!browser.isFullscreen()}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -885,7 +970,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				}
 			}
 			if ('workspaceUri' in uri) {
-				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
+				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}&fullscreen=${!!browser.isFullscreen()}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -1109,7 +1194,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 

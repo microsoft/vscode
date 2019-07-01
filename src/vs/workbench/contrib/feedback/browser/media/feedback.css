@@ -113,17 +113,6 @@
 	background-color: #eaeaea;
 }
 
-/* Statusbar */
-.monaco-workbench .statusbar > .items-container > .statusbar-item > .monaco-dropdown.send-feedback {
-	display: inline-block;
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .statusbar > .items-container > .statusbar-item > .monaco-dropdown.send-feedback span.octicon {
-	text-align: center;
-	font-size: 14px;
-}
-
 /* Theming */
 .vs .monaco-workbench .feedback-form .feedback-alias, .vs .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;

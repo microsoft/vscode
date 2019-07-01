@@ -21,6 +21,7 @@ import 'vs/workbench/electron-browser/main';
 
 import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/browser/actions/windowActions';
+import 'vs/workbench/browser/actions/developerActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
@@ -215,7 +216,7 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // Stats
-import 'vs/workbench/contrib/stats/node/stats.contribution';
+import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';

@@ -282,7 +282,8 @@ export class BreadcrumbsControl {
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {
-			return this._widget.setSelection(event.item);
+			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+			this._widget.setSelection(event.item);
 		}
 	}
 
@@ -628,7 +629,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusPrevious',
+	id: 'breadcrumbs.focusPreviousWithPicker',
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 	mac: {
@@ -704,7 +705,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const editors = accessor.get(IEditorService);
 		const lists = accessor.get(IListService);
-		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus() : undefined;
+		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus()[0] : undefined;
 		if (element instanceof OutlineElement) {
 			const outlineElement = OutlineModel.get(element);
 			if (!outlineElement) {

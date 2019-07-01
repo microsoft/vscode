@@ -6,11 +6,11 @@
 				"git": {
 					"name": "atom/language-java",
 					"repositoryUrl": "https://github.com/atom/language-java",
-					"commitHash": "9fc8f699e55284c0a8ddf03d929504064eb4f757"
+					"commitHash": "759a0ac02dc091018a112b25a5a6d894918a0aa8"
 				}
 			},
 			"license": "MIT",
-			"version": "0.31.2"
+			"version": "0.31.3"
 		}
 	],
 	"version": 1

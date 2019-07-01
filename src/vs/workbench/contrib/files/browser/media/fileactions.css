@@ -3,89 +3,121 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Close all */
 .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("closeall.svg") center center no-repeat;
+	background: url("close-all-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files,
+.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
+	background: url("close-all-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-viewlet .action-close-all-files {
-	background: url("closeall_inverse.svg") center center no-repeat;
+	background: url("close-all-light.svg") center center no-repeat;
 }
 
-.monaco-workbench .explorer-action.new-file {
-	background: url('AddFile.svg') center center no-repeat;
-}
-
+/* Save all */
 .monaco-workbench .explorer-action.save-all {
-	background: url('saveall.svg') center center no-repeat;
+	background: url("save-all-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.save-all,
+.vs-dark .monaco-workbench .explorer-action.save-all {
+	background: url("save-all-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.save-all {
-	background: url('saveall_inverse.svg') center center no-repeat;
+	background: url("save-all-hc.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.new-file,
+/* Add file */
+.monaco-workbench .explorer-action.new-file {
+	background: url("add-file-light.svg") center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .explorer-action.new-file {
+	background: url("add-file-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.new-file {
-	background: url('AddFile_inverse.svg') center center no-repeat;
+	background: url("add-file-hc.svg") center center no-repeat;
 }
 
+/* Add Folder */
 .monaco-workbench .explorer-action.new-folder {
-	background: url('AddFolder.svg') center center no-repeat;
+	background: url("add-folder-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.new-folder,
+.vs-dark .monaco-workbench .explorer-action.new-folder {
+	background: url("add-folder-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.new-folder {
-	background: url('AddFolder_inverse.svg') center center no-repeat;
+	background: url("add-folder-hc.svg") center center no-repeat;
 }
 
+/* Refresh */
 .monaco-workbench .explorer-action.refresh-explorer {
-	background: url('Refresh.svg') center center no-repeat;
+	background: url("refresh-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.refresh-explorer,
+.vs-dark .monaco-workbench .explorer-action.refresh-explorer {
+	background: url("refresh-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.refresh-explorer {
-	background: url('Refresh_inverse.svg') center center no-repeat;
+	background: url("refresh-hc.svg") center center no-repeat;
 }
 
+/* Collapse all */
 .monaco-workbench .explorer-action.collapse-explorer {
-	background: url('CollapseAll.svg') center center no-repeat;
+	background: url("collapse-all-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-action.collapse-explorer,
+.vs-dark .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-dark.svg") center center no-repeat;
+}
+
 .hc-black .monaco-workbench .explorer-action.collapse-explorer {
-	background: url('CollapseAll_inverse.svg') center center no-repeat;
+	background: url("collapse-all-hc.svg") center center no-repeat;
 }
 
+/* Split editor vertical */
 .monaco-workbench .quick-open-sidebyside-vertical {
-	background-image: url('split-editor-vertical.svg');
+	background-image: url("split-editor-vertical-light.svg");
 }
 
-.vs-dark .monaco-workbench .quick-open-sidebyside-vertical,
+.vs-dark .monaco-workbench .quick-open-sidebyside-vertical {
+	background-image: url("split-editor-vertical-dark.svg");
+}
+
 .hc-black .monaco-workbench .quick-open-sidebyside-vertical {
-	background-image: url('split-editor-vertical-inverse.svg');
+	background-image: url("split-editor-vertical-hc.svg");
 }
 
+/* Split editor horizontal */
 .monaco-workbench .quick-open-sidebyside-horizontal {
-	background-image: url('split-editor-horizontal.svg');
+	background-image: url("split-editor-horizontal-light.svg");
 }
 
-.vs-dark .monaco-workbench .quick-open-sidebyside-horizontal,
+.vs-dark .monaco-workbench .quick-open-sidebyside-horizontal {
+	background-image: url("split-editor-horizontal-dark.svg");
+}
+
 .hc-black .monaco-workbench .quick-open-sidebyside-horizontal {
-	background-image: url('split-editor-horizontal-inverse.svg');
+	background-image: url("split-editor-horizontal-hc.svg");
 }
 
 .monaco-workbench .file-editor-action.action-open-preview {
-	background: url('Preview.svg') center center no-repeat;
+	background: url("preview-light.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .file-editor-action.action-open-preview ,
+.vs-dark .monaco-workbench .file-editor-action.action-open-preview,
 .hc-black .monaco-workbench .file-editor-action.action-open-preview {
-	background: url('Preview_inverse.svg') center center no-repeat;
+	background: url("preview-dark.svg") center center no-repeat;
 }
 
 .explorer-viewlet .explorer-open-editors .close-editor-action {
-	background: url("action-close.svg") center center no-repeat;
+	background: url("action-close-light.svg") center center no-repeat;
 }
 
 .explorer-viewlet .explorer-open-editors .focused .monaco-list-row.selected:not(.highlighted) .close-editor-action {

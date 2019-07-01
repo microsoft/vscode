@@ -32,11 +32,17 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
-import { RemoteAuthorityResolverError, ExtensionExecutionContext, ExtensionKind } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
+	/** Old test runner API, as exported from `vscode/lib/testrunner` */
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
+}
+
+interface INewTestRunner {
+	/** New test runner API, as explained in the extension test doc */
+	run(): Promise<void>;
 }
 
 export interface IHostUtils {
@@ -366,7 +372,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
 				executionContext: this._initData.remote.isRemote ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local,
-				extensionKind: this._initData.remote.isRemote ? ExtensionKind.Workspace : ExtensionKind.UI
 			});
 		});
 	}
@@ -530,7 +535,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner | undefined;
+		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
 			testRunner = <any>require.__$__nodeRequire(extensionTestsPath);
@@ -538,10 +543,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			requireError = error;
 		}
 
-		// Execute the runner if it follows our spec
+		// Execute the runner if it follows the old `run` spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(extensionTestsPath, (error, failures) => {
+				const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -550,7 +555,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 					// after tests have run, we shutdown the host
 					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
-				});
+				};
+
+				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
+
+				// Using the new API `run(): Promise<void>`
+				if (runResult && runResult.then) {
+					runResult
+						.then(() => {
+							c();
+							this._gracefulExit(0);
+						})
+						.catch((err: Error) => {
+							e(err.toString());
+							this._gracefulExit(1);
+						});
+				}
 			});
 		}
 

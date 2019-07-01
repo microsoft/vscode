@@ -21,28 +21,28 @@
 }
 
 .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded.svg");
+	background-image: url("tree-expanded-light.svg");
 }
 
 .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
 	display: inline-block;
-	background-image: url("collapsed.svg");
+	background-image: url("tree-collapsed-light.svg");
 }
 
 .vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-dark.svg");
+	background-image: url("tree-expanded-dark.svg");
 }
 
 .vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-dark.svg");
+	background-image: url("tree-collapsed-dark.svg");
 }
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-hc.svg");
+	background-image: url("tree-expanded-hc.svg");
 }
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-hc.svg");
+	background-image: url("tree-collapsed-hc.svg");
 }
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,

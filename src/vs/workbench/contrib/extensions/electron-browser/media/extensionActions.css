@@ -13,12 +13,15 @@
 }
 
 .monaco-action-bar .action-item .action-label.clear-extensions {
-	background: url('clear.svg') center center no-repeat;
+	background: url('clear-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-action-bar .action-item .action-label.clear-extensions,
+.vs-dark .monaco-action-bar .action-item .action-label.clear-extensions {
+	background: url('clear-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-action-bar .action-item .action-label.clear-extensions {
-	background: url('clear-inverse.svg') center center no-repeat;
+	background: url('clear-hc.svg') center center no-repeat;
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
@@ -101,14 +104,17 @@
 	height: 18px;
 	width: 10px;
 	border: none;
-	background: url('manage.svg') center center no-repeat;
+	background: url('configure-light.svg') center center no-repeat;
 	outline-offset: 0px;
 	margin-top: 0.15em
 }
 
-.hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage,
 .vs-dark .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
-	background: url('manage-inverse.svg') center center no-repeat;
+	background: url('configure-dark.svg') center center no-repeat;
+}
+
+.hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
+	background: url('configure-hc.svg') center center no-repeat;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {

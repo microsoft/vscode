@@ -20,13 +20,10 @@ function yarnInstall(location, opts) {
 	const raw = process.env['npm_config_argv'] || '{}';
 	const argv = JSON.parse(raw);
 	const original = argv.original || [];
-	const args = ['install'];
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
 
-	if (original.indexOf('--ignore-optional') > -1) {
-		args.push('--ignore-optional');
-	}
-
-	console.log('Installing dependencies in \'%s\'.', location);
+	console.log(`Installing dependencies in ${location}...`);
+	console.log(`$ yarn ${args.join(' ')}`);
 	const result = cp.spawnSync(yarn, args, opts);
 
 	if (result.error || result.status !== 0) {

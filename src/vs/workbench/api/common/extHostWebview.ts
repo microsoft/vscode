@@ -39,6 +39,10 @@ export class ExtHostWebview implements vscode.Webview {
 		this._onMessageEmitter.dispose();
 	}
 
+	public get resourceRoot(): Promise<string> {
+		return this._proxy.$getResourceRoot(this._handle);
+	}
+
 	public get html(): string {
 		this.assertNotDisposed();
 		return this._html;

@@ -7,6 +7,12 @@ resources:
     image: snapcore/snapcraft:stable
 
 jobs:
+# - job: Linux
+#   pool:
+#     vmImage: 'Ubuntu-16.04'
+#   steps:
+#   - template: compile.yml
+
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
   timeoutInMinutes: 120
@@ -51,7 +57,7 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: LinuxArmhf
-  condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -61,7 +67,7 @@ jobs:
   - template: linux/product-build-linux-arm.yml
 
 - job: LinuxAlpine
-  condition: eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true')
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -79,7 +85,7 @@ jobs:
   - template: darwin/product-build-darwin.yml
 
 - job: Release
-  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-4.0.x'))))
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-6.0.x'))))
   pool:
     vmImage: 'Ubuntu-16.04'
   dependsOn:

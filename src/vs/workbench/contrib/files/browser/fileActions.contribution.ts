@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OpenFileFolderAction, OpenLocalFileFolderAction, OpenFileAction, OpenFolderAction, OpenLocalFileAction, OpenLocalFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, OpenWorkspaceAction, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
 
 // Contribute Global Actions
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
@@ -48,15 +48,47 @@ const fileCategory = nls.localize('file', "File");
 if (isMacintosh) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
 	if (!isWeb) {
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileFolderAction, OpenLocalFileFolderAction.ID, OpenLocalFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local...', fileCategory);
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: OpenLocalFileFolderCommand.ID,
+			weight: KeybindingWeight.WorkbenchContrib,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
+			when: RemoteFileDialogContext,
+			description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
+			handler: OpenLocalFileFolderCommand.handler()
+		});
 	}
 } else {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
 	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
 	if (!isWeb) {
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileAction, OpenLocalFileAction.ID, OpenLocalFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local File...', fileCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFolderAction, OpenLocalFolderAction.ID, OpenLocalFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, RemoteFileDialogContext), 'File: Open Local Folder...', fileCategory);
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: OpenLocalFileCommand.ID,
+			weight: KeybindingWeight.WorkbenchContrib,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
+			when: RemoteFileDialogContext,
+			description: { description: OpenLocalFileCommand.LABEL, args: [] },
+			handler: OpenLocalFileCommand.handler()
+		});
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: OpenLocalFolderCommand.ID,
+			weight: KeybindingWeight.WorkbenchContrib,
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O),
+			when: RemoteFileDialogContext,
+			description: { description: OpenLocalFolderCommand.LABEL, args: [] },
+			handler: OpenLocalFolderCommand.handler()
+		});
 	}
+}
+
+if (!isWeb) {
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SaveLocalFileCommand.ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
+		when: RemoteFileDialogContext,
+		description: { description: SaveLocalFileCommand.LABEL, args: [] },
+		handler: SaveLocalFileCommand.handler()
+	});
 }
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
@@ -182,12 +214,12 @@ function appendEditorTitleContextMenuItem(id: string, title: string, when: Conte
 
 // Editor Title Menu for Conflict Resolution
 appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check.svg`)),
-	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-inverse.svg`))
+	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-light.svg`)),
+	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-dark.svg`))
 }, -10, acceptLocalChangesCommand);
 appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo.svg`)),
-	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-inverse.svg`))
+	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-light.svg`)),
+	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-dark.svg`))
 }, -9, revertLocalChangesCommand);
 
 function appendSaveConflictEditorTitleAction(id: string, title: string, iconLocation: { dark: URI; light?: URI; }, order: number, command: ICommandHandler): void {

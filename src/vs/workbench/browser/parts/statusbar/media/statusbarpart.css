@@ -75,26 +75,23 @@
 	padding-right: 10px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item a {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
 	cursor: pointer;
 	display: inline-block;
 	height: 100%;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-entry > a {
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-entry > a.disabled {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {
+	text-decoration: none;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a.disabled {
 	pointer-events: none;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-entry span.octicon {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.octicon {
 	text-align: center;
 	font-size: 14px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover {
-	text-decoration: none;
 }

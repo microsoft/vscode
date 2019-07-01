@@ -41,30 +41,30 @@
 }
 
 .vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
-	background-image: url('info.svg');
+	background-image: url('info-light.svg');
 }
 
 .vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
-	background-image: url('warning.svg');
+	background-image: url('warning-light.svg');
 }
 
 .vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
-	background-image: url('error.svg');
+	background-image: url('error-light.svg');
 }
 
 .vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
 .hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
-	background-image: url('info-inverse.svg');
+	background-image: url('info-dark.svg');
 }
 
 .vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
 .hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
-	background-image: url('warning-inverse.svg');
+	background-image: url('warning-dark.svg');
 }
 
 .vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
 .hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
-	background-image: url('error-inverse.svg');
+	background-image: url('error-dark.svg');
 }
 
 /** Notification: Message */

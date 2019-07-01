@@ -35,8 +35,11 @@ import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
-import { FileUserDataService } from '../services/userData/common/fileUserDataService';
-import { IUserDataService } from '../services/userData/common/userDataService';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
+import { joinPath, dirname } from 'vs/base/common/resources';
+import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
 class CodeRendererMain extends Disposable {
 
@@ -88,7 +91,8 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
+		const remoteUserDataUri = this.getRemoteUserDataUri();
+		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration, remoteUserDataUri);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -119,14 +123,13 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		// User Data Service
-		const userDataService = this._register(new FileUserDataService(environmentService, fileService));
-		serviceCollection.set(IUserDataService, userDataService);
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), this.getUserDataPovider(fileService, remoteUserDataUri)));
 
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, userDataService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -141,8 +144,8 @@ class CodeRendererMain extends Disposable {
 		return { serviceCollection, logService };
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, userDataService: IUserDataService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, fileService, userDataService, remoteAgentService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -169,6 +172,26 @@ class CodeRendererMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
+	}
+
+	private getUserDataPovider(fileService: IFileService, remoteUserDataUri: URI | null): IUserDataProvider {
+		if (this.configuration.userDataProvider) {
+			return this.configuration.userDataProvider;
+		} else if (this.configuration.remoteAuthority && remoteUserDataUri) {
+			return this._register(new FileUserDataProvider(remoteUserDataUri, fileService));
+		}
+		return this._register(new InMemoryUserDataProvider());
+	}
+
+	private getRemoteUserDataUri(): URI | null {
+		const element = document.getElementById('vscode-remote-user-data-uri');
+		if (element) {
+			const remoteUserDataPath = element.getAttribute('data-settings');
+			if (remoteUserDataPath) {
+				return joinPath(URI.revive(JSON.parse(remoteUserDataPath)), 'User');
+			}
+		}
+		return null;
 	}
 }
 
