@@ -363,7 +363,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource2, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
-		const renderer = this.instantiationService.createInstance(TreeRenderer2, this.id, this.treeMenus, this.treeLabels, actionViewItemProvider, this._onDidExpandItem, this._onDidCollapseItem);
+		const renderer = this.instantiationService.createInstance(TreeRenderer2, this.id, this.treeMenus, this.treeLabels, actionViewItemProvider);
 		DOM.addClass(this.treeContainer, 'file-icon-themable-tree');
 		DOM.addClass(this.treeContainer, 'show-file-icons');
 		this.tree2 = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
@@ -391,6 +391,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree2.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree2.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.tree2.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
+		this._register(this.tree2.onDidChangeCollapseState(e => {
+			const element: ITreeItem = Array.isArray(e.node.element.element) ? e.node.element.element[0] : e.node.element.element;
+			if (e.node.collapsed) {
+				this._onDidCollapseItem.fire(element);
+			} else {
+				this._onDidExpandItem.fire(element);
+			}
+		}));
 		this._register(this.tree2.onDidOpen(e => this.onDidOpen(e)));
 		this.tree2.setInput(this.root).then(() => this.updateContentAreas());
 	}
@@ -702,28 +710,17 @@ class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, Fuzzy
 	static readonly ITEM_HEIGHT = 22;
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 	private _tree: WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
-	private _onDidChangeTwistieState = this._register(new Emitter<ITreeItem>());
-	onDidChangeTwistieState: Event<ITreeItem> = this._onDidChangeTwistieState.event;
 
 	constructor(
 		private treeViewId: string,
 		private menus: TreeMenus,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
-		private _onDidExpandItem: Emitter<ITreeItem>,
-		private _onDidCollapseItem: Emitter<ITreeItem>,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
-		this._register(this.onDidChangeTwistieState(e => {
-			if (e.collapsibleState === TreeItemCollapsibleState.Expanded) {
-				this._onDidExpandItem.fire(e);
-			} else if (e.collapsibleState === TreeItemCollapsibleState.Collapsed) {
-				this._onDidCollapseItem.fire(e);
-			}
-		}));
 	}
 
 	get templateId(): string {
