@@ -672,7 +672,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.qualified_type.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -726,8 +726,19 @@
 		}
 	},
 	{
-		"c": "O ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp",
+		"c": "O",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp entity.name.type.parameter.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -738,7 +749,7 @@
 	},
 	{
 		"c": "obj",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp variable.parameter.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1123,13 +1134,13 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.whitespace.comment.leading.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
@@ -1288,7 +1299,7 @@
 	},
 	{
 		"c": "new",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.wordlike.cpp memory.cpp keyword.operator.new.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.wordlike.cpp keyword.operator.new.cpp",
 		"r": {
 			"dark_plus": "source.cpp keyword.operator.new: #C586C0",
 			"light_plus": "source.cpp keyword.operator.new: #AF00DB",
@@ -1332,13 +1343,13 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.whitespace.comment.leading.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
@@ -1507,19 +1518,8 @@
 		}
 	},
 	{
-		"c": " ",
+		"c": " ...",
 		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "...",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.vararg-ellipses.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1728,13 +1728,13 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.whitespace.comment.leading.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
@@ -1937,13 +1937,13 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.whitespace.comment.leading.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp comment.line.double-slash.cpp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
