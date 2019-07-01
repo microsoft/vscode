@@ -10,7 +10,8 @@
  *   onMessage: (channel: string, handler: any) => void,
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
- *   onIframeLoaded: (iframe: HTMLIFrameElement) => void
+ *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
+ *   fakeLoad: boolean
  * }} WebviewHost
  */
 
@@ -157,13 +158,6 @@
 			initialScrollProgress: undefined
 		};
 
-		// Service worker for resource loading
-		let FAKE_LOAD = false;
-		try {
-			FAKE_LOAD = !!navigator.serviceWorker;
-		} catch (e) {
-			// noop
-		}
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -368,7 +362,7 @@
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
 				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
-				if (FAKE_LOAD) {
+				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
@@ -378,7 +372,7 @@
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
-				if (!FAKE_LOAD) {
+				if (!host.fakeLoad) {
 					// write new content onto iframe
 					newFrame.contentDocument.open();
 				}
@@ -386,7 +380,7 @@
 				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
-					if (FAKE_LOAD) {
+					if (host.fakeLoad) {
 						newFrame.contentDocument.open();
 						newFrame.contentDocument.write(newDocument);
 						newFrame.contentDocument.close();
@@ -451,14 +445,16 @@
 					// Bubble out link clicks
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 
-					host.onIframeLoaded(newFrame);
+					if (host.onIframeLoaded) {
+						host.onIframeLoaded(newFrame);
+					}
 				}
 
-				if (!FAKE_LOAD) {
+				if (!host.fakeLoad) {
 					hookupOnLoadHandlers(newFrame);
 				}
 
-				if (!FAKE_LOAD) {
+				if (!host.fakeLoad) {
 					newFrame.contentDocument.write(newDocument);
 					newFrame.contentDocument.close();
 				}
