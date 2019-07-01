@@ -38,6 +38,17 @@ const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
 const productionDependencies = deps.getProductionDependencies(REMOTE_FOLDER);
 
+// Targets
+
+const BUILD_TARGETS = [
+	{ platform: 'win32', arch: 'ia32', pkgTarget: 'node8-win-x86' },
+	{ platform: 'win32', arch: 'x64', pkgTarget: 'node8-win-x64' },
+	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },
+	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
+	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
+	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
+];
 
 // @ts-ignore
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
@@ -104,10 +115,7 @@ const entryPoints = [
 ];
 
 const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
-	task.parallel(
-		util.rimraf('out-vscode-reh'),
-		compileBuildTask
-	),
+	util.rimraf('out-vscode-reh'),
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: _.flatten(entryPoints),
@@ -122,24 +130,10 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 
 const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 const minifyVSCodeREHTask = task.define('minify-vscode-reh', task.series(
-	task.parallel(
-		util.rimraf('out-vscode-reh-min'),
-		optimizeVSCodeREHTask
-	),
+	optimizeVSCodeREHTask,
+	util.rimraf('out-vscode-reh-min'),
 	common.minifyTask('out-vscode-reh', baseUrl)
 ));
-
-// Targets
-
-const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32', pkgTarget: 'node8-win-x86' },
-	{ platform: 'win32', arch: 'x64', pkgTarget: 'node8-win-x64' },
-	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },
-	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
-	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
-	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
-	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
-];
 
 // Web server
 
@@ -162,10 +156,7 @@ const webEntryPoints = [
 ];
 
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
-	task.parallel(
-		util.rimraf('out-vscode-web'),
-		compileBuildTask
-	),
+	util.rimraf('out-vscode-web'),
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: _.flatten(webEntryPoints),
@@ -179,10 +170,8 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 ));
 
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
-	task.parallel(
-		util.rimraf('out-vscode-web-min'),
-		optimizeVSCodeWebTask
-	),
+	optimizeVSCodeWebTask,
+	util.rimraf('out-vscode-web-min'),
 	common.minifyTask('out-vscode-web', baseUrl)
 ));
 
@@ -437,17 +426,18 @@ BUILD_TARGETS.forEach(buildTarget => {
 			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
-			const vscodeServerCITask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
-				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
-				minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
+			const vscodeServerTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 				gulp.task(`node-${platform}-${arch}`),
+				minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
+				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
 			));
-			gulp.task(vscodeServerCITask);
+			gulp.task(vscodeServerTaskCI);
 
 			const vscodeServerTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				compileBuildTask,
 				compileExtensionsBuildTask,
-				vscodeServerCITask
+				vscodeServerTaskCI
 			));
 			gulp.task(vscodeServerTask);
 
