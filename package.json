@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "832c287d6e6ccfd5e0ef975fd276a8c0ff38054f",
+  "distro": "283437b4d514089d746fb98338d4ec831e588e06",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -17,7 +17,7 @@
     "watch-client": "gulp watch-client --max_old_space_size=4095",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
-    "gulp": "gulp --max_old_space_size=4095",
+    "gulp": "gulp --max_old_space_size=8192",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
