@@ -44,6 +44,8 @@
 		"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6,**/.eslintrc.*,**/.eslintrc,**/.babelrc,**/jsconfig.json}",
 		"dbaeumer.jshint": "{**/*.js,**/*.jsx,**/*.es6,**/.babelrc,**/jsconfig.json,**/.jshintrc,**/.jshintignore}",
 		"ms-vscode.vscode-typescript-tslint-plugin": "{**/*.ts,**/*.tsx,**/tslint.json,**/tsconfig.json}",
+		"bmewburn.vscode-intelephense-client": "{**/*.php,**/php.ini}",
+		"felixfbecker.php-intellisense": "{**/*.php,**/php.ini}",
 		"felixfbecker.php-debug": "{**/*.php,**/php.ini}",
 		"ikappas.phpcs": "{**/*.php,**/php.ini}",
 		"rust-lang.rust": "{**/*.rs,**/*.rslib}",
@@ -72,7 +74,8 @@
 		"ms-azuretools.vscode-azureterraform": "**/*.tf",
 		"mauve.terraform": "**/*.tf",
 		"vsciot-vscode.vscode-arduino": "**/*.ino",
-		"ms-kubernetes-tools.vscode-kubernetes-tools ": "{**/Chart.yaml}"
+		"ms-kubernetes-tools.vscode-kubernetes-tools": "{**/Chart.yaml}",
+		"GoogleCloudTools.cloudcode": "{**/skaffold.yaml}"
 	},
 	"extensionImportantTips": {
 		"ms-vscode.csharp": {
@@ -200,7 +203,8 @@
 			"recommendations": [
 				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
-				"azuredevspaces.azds"
+				"azuredevspaces.azds",
+				"GoogleCloudTools.cloudcode"
 			]
 		},
 		"kubectl": {
@@ -209,7 +213,8 @@
 			"recommendations": [
 				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
-				"azuredevspaces.azds"
+				"azuredevspaces.azds",
+				"GoogleCloudTools.cloudcode"
 			]
 		},
 		"ng": {
@@ -274,7 +279,7 @@
 		},
 		"vi": {
 			"friendlyName": "VIM",
-			"windowsPath": "%ProgramFiles(x86)\\Vim\\vim80\\gvim.exe",
+			"windowsPath": "%ProgramFiles(x86)%\\Vim\\vim80\\gvim.exe",
 			"recommendations": [
 				"vscodevim.vim"
 			]
@@ -311,6 +316,43 @@
 			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge SxS\\Application\\msedge.exe",
 			"recommendations": [
 				"msjsdiag.debugger-for-edge"
+			]
+		},
+		"react-native": {
+			"friendlyName": "React Native",
+			"windowsPath": "%APPDATA%\\npm\\react-native-cli",
+			"recommendations": [
+				"vsmobile.vscode-react-native"
+			]
+		},
+		"cordova": {
+			"friendlyName": "Cordova",
+			"windowsPath": "%APPDATA%\\npm\\cordova",
+			"recommendations": [
+				"vsmobile.cordova-tools"
+			]
+		},
+		"gcloud": {
+			"friendlyName": "Google GCloud CLI",
+			"windowsPath": "%ProgramFiles(x86)%\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd",
+			"recommendations": [
+				"GoogleCloudTools.cloudcode"
+			]
+		},
+		"skaffold": {
+			"friendlyName": "Skaffold Code to Cluster",
+			"recommendations": [
+				"ms-azuretools.vscode-docker",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"GoogleCloudTools.cloudcode"
+			]
+		},
+		"minikube": {
+			"friendlyName": "MiniKube Local Kubernetes Cluster",
+			"recommendations": [
+				"ms-azuretools.vscode-docker",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"GoogleCloudTools.cloudcode"
 			]
 		}
 	},
@@ -697,6 +739,8 @@
 	"extensionAllowedProposedApi": [
 		"ms-vscode.references-view",
 		"ms-vsliveshare.vsliveshare",
+		"ms-vsliveshare.cloudenv",
+		"ms-vsliveshare.cloudenv-explorer",
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
 		"Microsoft.vscode-nmake-tools",
@@ -711,31 +755,21 @@
 		"ms-vscode-remote.remote-wsl",
 		"ms-vscode-remote.remote-wsl-nightly",
 		"ms-vscode-remote.vscode-remote-extensionpack",
-		"ms-vscode-remote.vscode-remote-extensionpack-nightly"
+		"ms-vscode-remote.vscode-remote-extensionpack-nightly",
+		"ms-azuretools.vscode-docker"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
 		"atlassian.atlascode",
 		"CoenraadS.bracket-pair-colorizer",
-		"delphi-keybindings",
-		"dsznajder.es7-react-js-snippets",
-		"Equinusocio.vsc-material-theme",
 		"formulahendry.auto-close-tag",
 		"hiro-sun.vscode-emacs",
-		"johnpapa.Angular2",
-		"laurenttreguier.vscode-simple-icons",
-		"ms-vscode.atom-keybindings",
-		"ms-vscode.notepadplusplus-keybindings",
-		"ms-vscode.sublime-keybindings",
-		"msjsdiag.debugger-for-chrome",
-		"PKief.material-icon-theme",
-		"robertohuertasm.vscode-icons",
-		"Shan.code-settings-sync",
-		"sudox.vscode-jetbrains-keybindings",
+		"hnw.vscode-auto-open-markdown-preview",
+		"monokai.theme-monokai-pro-vscode",
+		"shalldie.background",
 		"techer.open-in-browser",
 		"vincaslt.highlight-matching-tag",
-		"vscodevim.vim",
-		"WakaTime.vscode-wakatime",
-		"wayou.vscode-todo-highlight"
+		"wayou.vscode-todo-highlight",
+		"ms-azuretools.vscode-docker"
 	]
 }
