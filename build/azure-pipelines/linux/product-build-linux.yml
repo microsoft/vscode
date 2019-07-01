@@ -77,8 +77,15 @@ steps:
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    ./build/azure-pipelines/linux/build.sh
+    if [[ "$VSCODE_ARCH" == "ia32" ]]; then
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+        yarn gulp vscode-linux-$VSCODE_ARCH-min
+    else
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+        yarn gulp vscode-linux-$VSCODE_ARCH-min
+        yarn gulp vscode-reh-linux-$VSCODE_ARCH-min
+        yarn gulp vscode-web-linux-$VSCODE_ARCH-min
+    fi
   displayName: Build
 
 - script: |
