@@ -43,7 +43,7 @@ import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRender
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeEvent } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
@@ -377,11 +377,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				multipleSelectionSupport: true,
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (item: ITreeItem) => {
-						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined); // TODO: why don't I get a nice highlight?
+						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
 					}
 				},
 				filter: new Filter(),
-				autoExpandSingleChildren: true
+				autoExpandSingleChildren: true,
+				expandOnlyOnTwistieClick: true
 			}) as WorkbenchAsyncDataTree<ITreeItem | ITreeItem[], ITreeItem, FuzzyScore>;
 		this._register(this.tree2);
 		renderer.tree = this.tree2;
@@ -390,6 +391,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree2.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree2.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.tree2.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
+		this._register(this.tree2.onDidOpen(e => this.onDidOpen(e)));
 		this.tree2.setInput(this.root).then(() => this.updateContentAreas());
 	}
 
@@ -613,6 +615,16 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			}
 		}
 	}
+
+	private onDidOpen(e: ITreeEvent<ITreeItem>) {
+		e.elements.forEach(element => {
+			if (element.command) {
+				this.commandService.executeCommand(element.command.id, ...(element.command.arguments || []));
+			} else {
+				this.tree2.expand(element);
+			}
+		});
+	}
 }
 
 class CustomTreeDelegate implements IListVirtualDelegate<ITreeItem> {
@@ -726,13 +738,17 @@ class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, Fuzzy
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const resourceLabel = this.labels.create(container, { supportHighlights: true, donotSupportOcticons: true });
-		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
+
+		const labelAndActionContainer = document.createElement('div');
+		labelAndActionContainer.setAttribute('class', 'monaco-icon-label custom-view-tree-node-item-resourceLabel');
+		container.appendChild(labelAndActionContainer);
+		const resourceLabel = this.labels.create(labelAndActionContainer, { supportHighlights: true, donotSupportOcticons: true });
+		const nonResourceLabel = new HighlightedLabel(labelAndActionContainer, true);
+		const actionsContainer = DOM.append(labelAndActionContainer, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
 			actionRunner: new MultipleSelectionActionRunner() // In this case, no selection is used since this is an action bar item.
 		});
-		const nonResourceLabel = new HighlightedLabel(container, true);
 
 		return { resourceLabel, nonResourceLabel, icon, actionBar, aligner: new Aligner(container.parentElement!, this._tree, this.themeService), container, elementDisposable: Disposable.None };
 	}
@@ -754,8 +770,10 @@ class TreeRenderer2 extends Disposable implements ITreeRenderer<ITreeItem, Fuzzy
 		if (resource || node.themeIcon) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: createMatches(element.filterData) });
+			templateData.nonResourceLabel.element.remove();
 		} else {
 			templateData.nonResourceLabel.set(label, createMatches(element.filterData), title);
+			templateData.resourceLabel.element.remove();
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? `url('${iconUrl.toString(true)}')` : '';
@@ -854,12 +872,6 @@ class Aligner extends Disposable {
 		return false;
 	}
 }
-
-
-// protected shouldToggleExpansion(element: ITreeItem, event: IMouseEvent, origin: string): boolean {
-// 	return element.command ? this.isClickOnTwistie(event) : super.shouldToggleExpansion(element, event, origin);
-// }
-
 
 class MultipleSelectionActionRunner extends ActionRunner {
 
