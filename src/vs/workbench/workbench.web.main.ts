@@ -28,6 +28,11 @@ import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
 //#endregion
 
+//#region --- Remote Resource loading
+
+import 'vs/workbench/contrib/resources/browser/resourceServiceWorkerClient';
+
+//#endregion
 
 //#region --- API Extension Points
 

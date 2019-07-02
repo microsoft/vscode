@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService } from 'vs/platform/files/common/files';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { getMediaMime } from 'vs/base/common/mime';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class WebResources {
+// todo@joh explore alternative, explicit approach
+class ResourcesMutationObserver {
 
-	private readonly _regexp = /url\(('|")?(vscode-remote:\/\/.*?)\1\)/g;
 	private readonly _urlCache = new Map<string, string>();
-	private readonly _requestCache = new Map<string, Promise<any>>();
 	private readonly _observer: MutationObserver;
 
-	constructor(@IFileService private readonly _fileService: IFileService) {
-		// todo@joh add observer to more than head-element
-		// todo@joh explore alternative approach
+	private readonly _regexp = /url\(('|")?(vscode-remote:\/\/(.*?))\1\)/ig;
+
+	constructor() {
 		this._observer = new MutationObserver(r => this._handleMutation(r));
 		this._observer.observe(document, {
 			subtree: true,
@@ -24,6 +26,12 @@ export class WebResources {
 			attributes: true,
 			attributeFilter: ['style']
 		});
+		this.scan();
+	}
+
+	scan(): void {
+		document.querySelectorAll('style').forEach(value => this._handleStyleNode(value));
+		// todo@joh more!
 	}
 
 	dispose(): void {
@@ -78,39 +86,60 @@ export class WebResources {
 	}
 
 	private async _rewriteUrls(textContent: string): Promise<string> {
-
-		const positions: number[] = [];
-		const promises: Promise<any>[] = [];
-
-		let match: RegExpMatchArray | null = null;
-		while (match = this._regexp.exec(textContent)) {
-
-			const remoteUrl = match[2];
-			positions.push(match.index! + 'url('.length + (typeof match[1] === 'string' ? match[1].length : 0));
-			positions.push(remoteUrl.length);
-
-			if (!this._urlCache.has(remoteUrl)) {
-				let request = this._requestCache.get(remoteUrl);
-				if (!request) {
-					const uri = URI.parse(remoteUrl, true);
-					request = this._fileService.readFile(uri).then(file => {
-						const blobUrl = URL.createObjectURL(new Blob([file.value.buffer], { type: getMediaMime(uri.path) }));
-						this._urlCache.set(remoteUrl, blobUrl);
-					});
-					this._requestCache.set(remoteUrl, request);
-				}
-				promises.push(request);
-			}
-		}
-
-		let content = textContent;
-		await Promise.all(promises);
-		for (let i = positions.length - 1; i >= 0; i -= 2) {
-			const start = positions[i - 1];
-			const len = positions[i];
-			const url = this._urlCache.get(content.substr(start, len));
-			content = content.substring(0, start) + url + content.substring(start + len);
-		}
-		return content;
+		return textContent.replace(this._regexp, function (_m, quote, url) {
+			return `url(${quote}${location.href}vscode-resources/fetch?${encodeURIComponent(url)}${quote})`;
+		});
 	}
 }
+
+class ResourceServiceWorker {
+
+	private readonly _disposables = new DisposableStore();
+
+	constructor(
+		@IFileService private readonly _fileService: IFileService,
+	) {
+		this._initServiceWorker();
+		this._initFetchHandler();
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
+
+	private _initServiceWorker(): void {
+		const url = './resourceServiceWorkerMain.js';
+		navigator.serviceWorker.register(url).then(() => {
+			// console.log('registered');
+			return navigator.serviceWorker.ready;
+		}).then(() => {
+			// console.log('ready');
+			this._disposables.add(new ResourcesMutationObserver());
+		}).catch(err => {
+			console.error(err);
+		});
+	}
+
+	private _initFetchHandler(): void {
+
+		const fetchListener: (this: ServiceWorkerContainer, ev: MessageEvent) => void = event => {
+			const uri = URI.parse(event.data.uri);
+			this._fileService.readFile(uri).then(file => {
+				// todo@joh typings
+				(<any>event.source).postMessage({
+					token: event.data.token,
+					data: file.value.buffer.buffer
+				}, [file.value.buffer.buffer]);
+			});
+		};
+		navigator.serviceWorker.addEventListener('message', fetchListener);
+		this._disposables.add(toDisposable(() => navigator.serviceWorker.removeEventListener('message', fetchListener)));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	ResourceServiceWorker,
+	LifecyclePhase.Starting
+);
+
+
