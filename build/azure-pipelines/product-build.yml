@@ -14,7 +14,7 @@ jobs:
 #   - template: compile.yml
 
 - job: Windows
-  condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
@@ -24,7 +24,7 @@ jobs:
   - template: win32/product-build-win32.yml
 
 - job: Windows32
-  condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
@@ -34,7 +34,7 @@ jobs:
   - template: win32/product-build-win32.yml
 
 - job: Linux
-  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -45,7 +45,7 @@ jobs:
   - template: linux/product-build-linux.yml
 
 - job: LinuxSnap
-  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -57,7 +57,7 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: LinuxArmhf
-  condition: and(eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -67,7 +67,7 @@ jobs:
   - template: linux/product-build-linux-arm.yml
 
 - job: LinuxAlpine
-  condition: and(eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -77,7 +77,7 @@ jobs:
   - template: linux/product-build-linux-alpine.yml
 
 - job: macOS
-  condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
