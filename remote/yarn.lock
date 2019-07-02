@@ -954,7 +954,7 @@ nan@2.8.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
   integrity sha1-7XFfP+neArV6XmJS2QqWZ14fCFo=
 
-nan@^2.12.1, nan@^2.13.2, nan@^2.14.0:
+nan@^2.0.0, nan@^2.12.1, nan@^2.13.2, nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -1072,6 +1072,16 @@ npmlog@^4.0.1, npmlog@^4.0.2:
     console-control-strings "~1.1.0"
     gauge "~2.7.3"
     set-blocking "~2.0.0"
+
+nsfw@1.2.5:
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-1.2.5.tgz#febe581af616f7b042f89df133abe62416c4c803"
+  integrity sha512-m3mwZUKXiCR69PDMLfAmKmiNzy0Oe9LhFE0DYZC5cc1htNj5Hyb1sAgglXhuaDkibFy22AVvPC5cCFB3A6mYIw==
+  dependencies:
+    fs-extra "^7.0.0"
+    lodash.isinteger "^4.0.4"
+    lodash.isundefined "^3.0.1"
+    nan "^2.0.0"
 
 number-is-nan@^1.0.0:
   version "1.0.1"
@@ -1647,15 +1657,6 @@ vscode-chokidar@microsoft/chokidar#fsevents_node12_compat:
     upath "^1.1.1"
   optionalDependencies:
     fsevents "^1.2.9"
-
-vscode-nsfw@microsoft/vscode-nsfw#nan_update:
-  version "1.1.2"
-  resolved "https://codeload.github.com/microsoft/vscode-nsfw/tar.gz/ed09b740a48d0722917717ba1a5e2116be76f11d"
-  dependencies:
-    fs-extra "^7.0.0"
-    lodash.isinteger "^4.0.4"
-    lodash.isundefined "^3.0.1"
-    nan "^2.14.0"
 
 vscode-proxy-agent@0.4.0:
   version "0.4.0"
