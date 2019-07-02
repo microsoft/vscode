@@ -5,7 +5,7 @@
 
 import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
@@ -16,7 +16,7 @@ export class NodeCachedDataCleaner {
 		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService
@@ -25,7 +25,7 @@ export class NodeCachedDataCleaner {
 	}
 
 	dispose(): void {
-		this._disposables = dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	private _manageCachedDataSoon(): void {
@@ -76,7 +76,7 @@ export class NodeCachedDataCleaner {
 
 		}, 30 * 1000);
 
-		this._disposables.push(toDisposable(() => {
+		this._disposables.add(toDisposable(() => {
 			if (handle) {
 				clearTimeout(handle);
 				handle = undefined;
