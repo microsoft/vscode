@@ -68,7 +68,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    ecd $env:BUILD_STAGINGDIRECTORY
+    cd $env:BUILD_STAGINGDIRECTORY
     exec { git clone https://github.com/microsoft/vscode-telemetry-extractor.git }
     cd vscode-telemetry-extractor
     exec { git checkout e749ea9c4c5d529a8cae36d14b6b972057a8d850 }
