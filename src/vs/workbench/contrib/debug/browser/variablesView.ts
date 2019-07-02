@@ -24,6 +24,7 @@ import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyn
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -39,7 +40,7 @@ export class VariablesView extends ViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
 	private tree: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
-	private treeContainer: HTMLElement;
+	private savedViewState: IAsyncDataTreeViewState | undefined;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -54,35 +55,36 @@ export class VariablesView extends ViewletPanel {
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
-			if (!this.debugService.getViewModel().focusedStackFrame) {
-				// This is called even when there is no stackFrame (transition from stopped to running)
-				// We don't want to clear/udate the tree just yet. We will be called again when we have an actual
-				// stacktrace available. So, simply hide the tree. Thill help preserve the tree state better and
-				// will even remember state across a restart.
-				this.treeContainer.hidden = true;
-				return;
-			}
-			this.treeContainer.hidden = false;
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+
 			this.needsRefresh = false;
-			this.tree.updateChildren().then(() => {
-				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (stackFrame) {
-					stackFrame.getScopes().then(scopes => {
-						// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-						if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-							this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
-						}
-					});
+			if (stackFrame && this.savedViewState) {
+				this.tree.setInput(this.debugService.getViewModel(), this.savedViewState).then(null, onUnexpectedError);
+				this.savedViewState = undefined;
+			} else {
+				if (!stackFrame && !this.savedViewState) {
+					// We have no stackFrame, save tree state before it is cleared
+					this.savedViewState = this.tree.getViewState();
 				}
-			}, onUnexpectedError);
+				this.tree.updateChildren().then(() => {
+					if (stackFrame) {
+						stackFrame.getScopes().then(scopes => {
+							// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
+							if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
+								this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
+							}
+						});
+					}
+				}, onUnexpectedError);
+			}
 		}, 400);
 	}
 
 	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-variables');
-		this.treeContainer = renderViewTree(container);
+		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
