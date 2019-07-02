@@ -96,9 +96,9 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-$VSCODE_ARCH-min-ci
+      yarn gulp vscode-linux-reh-$VSCODE_ARCH-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-$VSCODE_ARCH-min-ci
+      yarn gulp vscode-linux-web-$VSCODE_ARCH-min-ci
   displayName: Build
 
 - script: |
