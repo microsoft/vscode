@@ -11,10 +11,11 @@ import { KeymapInfo, IKeymapInfo } from '../common/keymapInfo';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(notificationService: INotificationService, commandService: ICommandService) {
-		super(notificationService, commandService);
+	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
+		super(notificationService, storageService, commandService);
 
 		let keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
 		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
@@ -28,8 +29,9 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 suite('keyboard layout loader', () => {
 	let instantiationService: TestInstantiationService = new TestInstantiationService();
 	let notitifcationService = instantiationService.stub(INotificationService, {});
+	let storageService = instantiationService.stub(IStorageService, {});
 	let commandService = instantiationService.stub(ICommandService, {});
-	let instance = new TestKeyboardMapperFactory(notitifcationService, commandService);
+	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
 
 	test.skip('load default US keyboard layout', () => {
 		assert.notEqual(instance.activeKeyboardLayout, null);
