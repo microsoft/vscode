@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/9c4f4b3291538d9f5144f02d3b6af877b84f2cb2",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/19ef66475b6bb21b5ed466cbcf8cef4e1b1fa212",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -57,6 +57,9 @@
 		},
 		"ever_present_context": {
 			"patterns": [
+				{
+					"include": "#single_line_macro"
+				},
 				{
 					"include": "#preprocessor_rule_enabled"
 				},
@@ -11192,6 +11195,58 @@
 		"hacky_fix_for_stray_directive": {
 			"match": "(?<!\\w)#(?:endif|else|elif)(?!\\w)",
 			"name": "keyword.control.directive.$0.cpp"
+		},
+		"single_line_macro": {
+			"match": "^((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))#define.*(?<![\\\\])(?:\\n|$)",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"include": "#meta_preprocessor_macro"
+						},
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#string_context"
+						},
+						{
+							"include": "#number_literal"
+						},
+						{
+							"include": "#operators"
+						},
+						{
+							"include": "#semicolon"
+						}
+					]
+				},
+				"1": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"2": {
+					"name": "comment.block.cpp punctuation.definition.comment.begin.cpp"
+				},
+				"3": {
+					"name": "comment.block.cpp"
+				},
+				"4": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.cpp"
+						}
+					]
+				}
+			}
 		},
 		"assembly": {
 			"name": "meta.asm.cpp",
