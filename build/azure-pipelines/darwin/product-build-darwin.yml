@@ -30,9 +30,9 @@ steps:
 
 - script: |
     set -e
-    git merge master
+    git merge origin/master
   displayName: Merge master
-  
+
 - script: |
     set -e
     git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"

@@ -30,7 +30,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { git merge master }
+    exec { git merge origin/master }
   displayName: Merge master
 
 - powershell: |

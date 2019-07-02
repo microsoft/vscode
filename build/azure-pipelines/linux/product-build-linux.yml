@@ -31,7 +31,7 @@ steps:
 
 - script: |
     set -e
-    git merge master
+    git merge origin/master
   displayName: Merge master
 
 - script: |
