@@ -36,10 +36,12 @@ suite('workspace-namespace', () => {
 	});
 
 	test('rootPath', () => {
-		if (vscode.workspace.rootPath) {
-			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
-		}
+		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
 		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+	});
+
+	test('workspaceFile', () => {
+		assert.ok(!vscode.workspace.workspaceFile);
 	});
 
 	test('workspaceFolders', () => {
@@ -279,6 +281,30 @@ suite('workspace-namespace', () => {
 
 							return deleteFile(file);
 						});
+					});
+				});
+			});
+		});
+	});
+
+	test('events: onDidSaveTextDocument fires even for non dirty file when saved', () => {
+		return createRandomFile().then(file => {
+			let disposables: vscode.Disposable[] = [];
+
+			let onDidSaveTextDocument = false;
+			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
+				onDidSaveTextDocument = true;
+			}));
+
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc).then(() => {
+					return vscode.commands.executeCommand('workbench.action.files.save').then(() => {
+						assert.ok(onDidSaveTextDocument);
+
+						disposeAll(disposables);
+
+						return deleteFile(file);
 					});
 				});
 			});

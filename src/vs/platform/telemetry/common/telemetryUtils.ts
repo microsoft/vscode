@@ -8,11 +8,15 @@ import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
+	}
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 	setEnabled() { }
 	isOptedIn: true;
@@ -175,6 +179,7 @@ const configurationValueWhitelist = [
 	'terminal.integrated.fontFamily',
 	'window.openFilesInNewWindow',
 	'window.restoreWindows',
+	'window.nativeFullScreen',
 	'window.zoomLevel',
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
@@ -190,23 +195,27 @@ const configurationValueWhitelist = [
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
-			/* __GDPR__
-				"updateConfiguration" : {
-					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"configurationKeys": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateConfiguration', {
+			type UpdateConfigClassification = {
+				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			type UpdateConfigEvent = {
+				configurationSource: string;
+				configurationKeys: string[];
+			};
+			telemetryService.publicLog2<UpdateConfigEvent, UpdateConfigClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
-			/* __GDPR__
-				"updateConfigurationValues" : {
-					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"configurationValues": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateConfigurationValues', {
+			type UpdateConfigValClassification = {
+				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationValues: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+			};
+			type UpdateConfigValEvent = {
+				configurationSource: string;
+				configurationValues: { [key: string]: any }[];
+			};
+			telemetryService.publicLog2<UpdateConfigValEvent, UpdateConfigValClassification>('updateConfigurationValues', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
@@ -217,12 +226,13 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
 	return keybindingService.onDidUpdateKeybindings(event => {
 		if (event.source === KeybindingSource.User && event.keybindings) {
-			/* __GDPR__
-				"updateKeybindings" : {
-					"bindings": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateKeybindings', {
+			type UpdateKBClassification = {
+				bindings: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+			};
+			type UpdateKBEvents = {
+				bindings: { key: string, command: string, when: string | undefined, args: boolean | undefined }[];
+			};
+			telemetryService.publicLog2<UpdateKBEvents, UpdateKBClassification>('updateKeybindings', {
 				bindings: event.keybindings.map(binding => ({
 					key: binding.key,
 					command: binding.command,

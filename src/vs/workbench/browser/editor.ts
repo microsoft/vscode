@@ -77,7 +77,7 @@ export class EditorDescriptor implements IEditorDescriptor {
 	}
 
 	describes(obj: unknown): boolean {
-		return obj instanceof BaseEditor && (<BaseEditor>obj).getId() === this.id;
+		return obj instanceof BaseEditor && obj.getId() === this.id;
 	}
 }
 
@@ -108,7 +108,7 @@ class EditorRegistry implements IEditorRegistry {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
 			for (const editor of this.editors) {
-				const inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
+				const inputDescriptors: SyncDescriptor<EditorInput>[] = editor[INPUT_DESCRIPTORS_PROPERTY];
 				for (const inputDescriptor of inputDescriptors) {
 					const inputClass = inputDescriptor.ctor;
 

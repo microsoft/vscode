@@ -161,7 +161,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			});
 			const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-			inputBox.value = options.initialValue;
+			inputBox.value = replaceWhitespace(options.initialValue);
 			inputBox.focus();
 			inputBox.select();
 

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { EnablementState, IExtensionEnablementService, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -70,10 +70,10 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), true);
 		}
 
-		this.disposable = combinedDisposable([
+		this.disposable = combinedDisposable(
 			urlService.registerHandler(this),
 			toDisposable(() => clearInterval(interval))
-		]);
+		);
 	}
 
 	async handleURL(uri: URI, confirmed?: boolean): Promise<boolean> {

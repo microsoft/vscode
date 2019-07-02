@@ -45,13 +45,13 @@ class WindowManager {
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
-		let ctx = document.createElement('canvas').getContext('2d');
+		let ctx: any = document.createElement('canvas').getContext('2d');
 		let dpr = window.devicePixelRatio || 1;
-		let bsr = (<any>ctx).webkitBackingStorePixelRatio ||
-			(<any>ctx).mozBackingStorePixelRatio ||
-			(<any>ctx).msBackingStorePixelRatio ||
-			(<any>ctx).oBackingStorePixelRatio ||
-			(<any>ctx).backingStorePixelRatio || 1;
+		let bsr = ctx.webkitBackingStorePixelRatio ||
+			ctx.mozBackingStorePixelRatio ||
+			ctx.msBackingStorePixelRatio ||
+			ctx.oBackingStorePixelRatio ||
+			ctx.backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
 
@@ -122,6 +122,7 @@ export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
+export const isStandalone = (window.matchMedia('(display-mode: standalone)').matches);
 
 export function hasClipboardSupport() {
 	if (isIE) {

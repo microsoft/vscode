@@ -95,7 +95,7 @@ export function getMappingForIncludedLanguages(): any {
 
 /**
 * Get the corresponding emmet mode for given vscode language mode
-* Eg: jsx for typescriptreact/javascriptreact or pug for jade
+* E.g.: jsx for typescriptreact/javascriptreact or pug for jade
 * If the language is not supported by emmet or has been excluded via `excludeLanguages` setting,
 * then nothing is returned
 *

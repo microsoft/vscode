@@ -6,19 +6,19 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID, IColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { ColorThemeData } from './colorThemeData';
+import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ColorThemeStore } from 'vs/workbench/services/themes/browser/colorThemeStore';
+import { ColorThemeStore } from 'vs/workbench/services/themes/common/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/common/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
@@ -30,6 +30,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 // implementation
 
@@ -43,6 +44,7 @@ const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
 const DEFAULT_ICON_THEME_SETTING_VALUE = 'vs-seti';
+const DEFAULT_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const colorThemeRulesClassName = 'contributedColorTheme';
@@ -60,10 +62,6 @@ function validateThemeId(theme: string): string {
 		case `vs-dark ${oldDefaultThemeExtensionId}-themes-dark_plus-tmTheme`: return `vs-dark ${defaultThemeExtensionId}-themes-dark_plus-json`;
 	}
 	return theme;
-}
-
-export interface IColorCustomizations {
-	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
 }
 
 export class WorkbenchThemeService implements IWorkbenchThemeService {
@@ -193,10 +191,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				if (!theme) {
 					// current theme is no longer available
 					prevFileIconId = this.currentIconTheme.id;
-					this.setFileIconTheme(DEFAULT_ICON_THEME_SETTING_VALUE, 'auto');
+					this.setFileIconTheme(DEFAULT_ICON_THEME_ID, 'auto');
 				} else {
 					// restore color
-					if (this.currentIconTheme.id === DEFAULT_ICON_THEME_SETTING_VALUE && !types.isUndefined(prevFileIconId) && await this.iconThemeStore.findThemeData(prevFileIconId)) {
+					if (this.currentIconTheme.id === DEFAULT_ICON_THEME_ID && !types.isUndefined(prevFileIconId) && await this.iconThemeStore.findThemeData(prevFileIconId)) {
 						this.setFileIconTheme(prevFileIconId, 'auto');
 						prevFileIconId = undefined;
 					}
@@ -272,7 +270,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					if (devThemes.length) {
 						return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 					} else {
-						return this.setFileIconTheme(theme && theme.id || DEFAULT_ICON_THEME_SETTING_VALUE, undefined);
+						return this.setFileIconTheme(theme ? theme.id : DEFAULT_ICON_THEME_ID, undefined);
 					}
 				});
 			}),
@@ -295,7 +293,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 				if (iconThemeSetting !== this.currentIconTheme.settingsId) {
 					this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
-						this.setFileIconTheme(theme && theme.id || DEFAULT_ICON_THEME_SETTING_VALUE, undefined);
+						this.setFileIconTheme(theme ? theme.id : DEFAULT_ICON_THEME_ID, undefined);
 					});
 				}
 			}
@@ -374,18 +372,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private updateDynamicCSSRules(themeData: ITheme) {
-		let cssRules: string[] = [];
-		let hasRule: { [rule: string]: boolean } = {};
-		let ruleCollector = {
+		const cssRules = new Set<string>();
+		const ruleCollector = {
 			addRule: (rule: string) => {
-				if (!hasRule[rule]) {
-					cssRules.push(rule);
-					hasRule[rule] = true;
+				if (!cssRules.has(rule)) {
+					cssRules.add(rule);
 				}
 			}
 		};
 		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
-		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
+		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IColorTheme | null> {
@@ -440,16 +436,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (themeData) {
 			let key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
-				/* __GDPR__
-					"activatePlugin" : {
-						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('activatePlugin', {
+				type ActivatePluginClassification = {
+					id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+					name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+					isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					themeId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+				};
+				type ActivatePluginEvent = {
+					id: string;
+					name: string;
+					isBuiltin: boolean;
+					publisherDisplayName: string;
+					themeId: string;
+				};
+				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activatePlugin', {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
 					isBuiltin: themeData.extensionIsBuiltin,
@@ -482,7 +483,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			if (newIconTheme.isLoaded) {
+			if (newIconTheme.isLoaded && (!newIconTheme.location || !getRemoteAuthority(newIconTheme.location))) {
 				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
 			}
 

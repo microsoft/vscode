@@ -8,8 +8,9 @@ import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
 
-export function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, installSourcePath: string): Promise<{ [name: string]: string | undefined; }> {
+export async function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, installSourcePath: string, product?: string): Promise<{ [name: string]: string | undefined; }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
+
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -26,6 +27,8 @@ export function resolveCommonProperties(commit: string | undefined, version: str
 	result['common.nodePlatform'] = process.platform;
 	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.nodeArch'] = process.arch;
+	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	result['common.product'] = product || 'desktop';
 
 	// dynamic properties which value differs on each call
 	let seq = 0;
@@ -53,13 +56,14 @@ export function resolveCommonProperties(commit: string | undefined, version: str
 		result['common.snap'] = 'true';
 	}
 
-	return readFile(installSourcePath, 'utf8').then(contents => {
+	try {
+		const contents = await readFile(installSourcePath, 'utf8');
 
 		// __GDPR__COMMON__ "common.source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.source'] = contents.slice(0, 30);
+	} catch (error) {
+		// ignore error
+	}
 
-		return result;
-	}, error => {
-		return result;
-	});
+	return result;
 }

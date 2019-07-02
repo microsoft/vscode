@@ -17,7 +17,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -76,7 +76,7 @@ suite('Files - TextFileService i/o', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	let accessor: ServiceAccessor;
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 	let service: ITextFileService;
 	let testDir: string;
 
@@ -88,8 +88,8 @@ suite('Files - TextFileService i/o', () => {
 		const fileService = new FileService(logService);
 
 		const fileProvider = new DiskFileSystemProvider(logService);
-		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
+		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
@@ -108,7 +108,7 @@ suite('Files - TextFileService i/o', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();
 
-		disposables = dispose(disposables);
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});
@@ -570,6 +570,13 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(result.encoding, 'utf16be');
 	});
 
+	test('readStream - autoguessEncoding', async () => {
+		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
+
+		const result = await service.readStream(resource, { autoGuessEncoding: true });
+		assert.equal(result.encoding, 'windows1252');
+	});
+
 	test('readStream - FILE_IS_BINARY', async () => {
 		const resource = URI.file(join(testDir, 'binary.txt'));
 
@@ -584,6 +591,23 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
+		assert.equal(result.name, 'small.txt');
+	});
+
+	test('read - FILE_IS_BINARY', async () => {
+		const resource = URI.file(join(testDir, 'binary.txt'));
+
+		let error: TextFileOperationError | undefined = undefined;
+		try {
+			await service.read(resource, { acceptTextOnly: true });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+
+		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.equal(result.name, 'small.txt');
 	});
 });

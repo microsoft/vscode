@@ -8,10 +8,13 @@ import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 
-const iconPathToClass = {};
+const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
 
-export function getIconClass(iconPath: { dark: URI; light?: URI; }) {
+export function getIconClass(iconPath: { dark: URI; light?: URI; } | undefined): string | undefined {
+	if (!iconPath) {
+		return undefined;
+	}
 	let iconClass: string;
 
 	const key = iconPath.dark.toString();

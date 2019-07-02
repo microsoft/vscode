@@ -1,15 +1,21 @@
 resources:
   containers:
   - container: vscode-x64
-    image: joaomoreno/vscode-linux-build-agent:x64
-  - container: vscode-ia32
-    image: joaomoreno/vscode-linux-build-agent:ia32
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
+    endpoint: VSCodeHub
   - container: snapcraft
-    image: snapcore/snapcraft
+    image: snapcore/snapcraft:stable
 
 jobs:
+# - job: Linux
+#   pool:
+#     vmImage: 'Ubuntu-16.04'
+#   steps:
+#   - template: compile.yml
+
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -19,6 +25,7 @@ jobs:
 
 - job: Windows32
   condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -28,6 +35,7 @@ jobs:
 
 - job: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -38,6 +46,7 @@ jobs:
 
 - job: LinuxSnap
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -47,22 +56,48 @@ jobs:
   steps:
   - template: linux/snap-build-linux.yml
 
-- job: Linux32
-  condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')
+- job: LinuxArmhf
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
-    VSCODE_ARCH: ia32
-  container: vscode-ia32
+    VSCODE_ARCH: armhf
   steps:
-  - template: linux/product-build-linux.yml
+  - template: linux/product-build-linux-arm.yml
+
+- job: LinuxAlpine
+  condition: and(eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: alpine
+  steps:
+  - template: linux/product-build-linux-alpine.yml
 
 - job: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
+  timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
   steps:
   - template: darwin/product-build-darwin.yml
+
+- job: Release
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - LinuxArmhf
+  - LinuxAlpine
+  - macOS
+  steps:
+  - template: release.yml
 
 - job: Mooncake
   pool:
@@ -73,7 +108,15 @@ jobs:
   - Windows32
   - Linux
   - LinuxSnap
-  - Linux32
+  - LinuxArmhf
+  - LinuxAlpine
   - macOS
   steps:
   - template: sync-mooncake.yml
+
+schedules:
+- cron: "0 6 * * Mon-Fri"
+  displayName: Mon-Fri at 6:00
+  branches:
+    include:
+    - master

@@ -9,8 +9,8 @@ import * as nls from 'vscode-nls';
 import API from './api';
 import { TypeScriptServiceConfiguration } from './configuration';
 import { RelativeWorkspacePathResolver } from './relativePathResolver';
-const localize = nls.loadMessageBundle();
 
+const localize = nls.loadMessageBundle();
 
 export class TypeScriptVersion {
 	constructor(
@@ -27,10 +27,10 @@ export class TypeScriptVersion {
 	}
 
 	public get isValid(): boolean {
-		return this.version !== undefined;
+		return this.apiVersion !== undefined;
 	}
 
-	public get version(): API | undefined {
+	public get apiVersion(): API | undefined {
 		const version = this.getTypeScriptVersion(this.tsServerPath);
 		if (version) {
 			return version;
@@ -46,7 +46,7 @@ export class TypeScriptVersion {
 	}
 
 	public get versionString(): string {
-		const version = this.version;
+		const version = this.apiVersion;
 		return version ? version.versionString : localize(
 			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}
@@ -88,7 +88,6 @@ export class TypeScriptVersion {
 }
 
 export class TypeScriptVersionProvider {
-	private readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();
 
 	public constructor(
 		private configuration: TypeScriptServiceConfiguration
@@ -109,7 +108,7 @@ export class TypeScriptVersionProvider {
 				return globals[0];
 			}
 		}
-		return undefined;
+		return this.contributedTsNextVersion;
 	}
 
 	public get localVersion(): TypeScriptVersion | undefined {
@@ -138,20 +137,35 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get bundledVersion(): TypeScriptVersion {
-		try {
-			const { extensionPath } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
-			const typescriptPath = path.join(extensionPath, '../node_modules/typescript/lib');
-			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
-			if (bundledVersion.isValid) {
-				return bundledVersion;
-			}
-		} catch (e) {
-			// noop
+		const version = this.getContributedVersion('vscode.typescript-language-features', ['..', 'node_modules']);
+		if (version) {
+			return version;
 		}
+
 		vscode.window.showErrorMessage(localize(
 			'noBundledServerFound',
 			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
 		throw new Error('Could not find bundled tsserver.js');
+	}
+
+	private get contributedTsNextVersion(): TypeScriptVersion | undefined {
+		return this.getContributedVersion('ms-vscode.vscode-typescript-next', ['node_modules']);
+	}
+
+	private getContributedVersion(extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
+		try {
+			const extension = vscode.extensions.getExtension(extensionId);
+			if (extension) {
+				const typescriptPath = path.join(extension.extensionPath, ...pathToTs, 'typescript', 'lib');
+				const bundledVersion = new TypeScriptVersion(typescriptPath, '');
+				if (bundledVersion.isValid) {
+					return bundledVersion;
+				}
+			}
+		} catch {
+			// noop
+		}
+		return undefined;
 	}
 
 	private get localTsdkVersions(): TypeScriptVersion[] {
@@ -164,7 +178,7 @@ export class TypeScriptVersionProvider {
 			return [new TypeScriptVersion(tsdkPathSetting)];
 		}
 
-		const workspacePath = this.relativePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
+		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
 		if (workspacePath !== undefined) {
 			return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
 		}

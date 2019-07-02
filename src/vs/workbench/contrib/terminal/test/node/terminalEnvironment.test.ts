@@ -11,14 +11,14 @@ import { IStringDictionary } from 'vs/base/common/collections';
 
 suite('Workbench - TerminalEnvironment', () => {
 	test('addTerminalEnvironmentKeys', () => {
-		const env = { FOO: 'bar' };
+		const env: { [key: string]: any } = { FOO: 'bar' };
 		const locale = 'en-au';
 		terminalEnvironment.addTerminalEnvironmentKeys(env, '1.2.3', locale, true);
 		assert.equal(env['TERM_PROGRAM'], 'vscode');
 		assert.equal(env['TERM_PROGRAM_VERSION'], '1.2.3');
 		assert.equal(env['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
-		const env2 = { FOO: 'bar' };
+		const env2: { [key: string]: any } = { FOO: 'bar' };
 		terminalEnvironment.addTerminalEnvironmentKeys(env2, '1.2.3', undefined, true);
 		assert.equal(env2['LANG'], 'en_US.UTF-8', 'LANG is equal to en_US.UTF-8 as fallback.'); // More info on issue #14586
 

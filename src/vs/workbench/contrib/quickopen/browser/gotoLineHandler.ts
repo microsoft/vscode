@@ -139,8 +139,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.runPreview();
 	}
 
-	getInput(): IEditorInput | null {
-		return types.withUndefinedAsNull(this.editorService.activeEditor);
+	getInput(): IEditorInput | undefined {
+		return this.editorService.activeEditor;
 	}
 
 	getOptions(pinned?: boolean): ITextEditorOptions {

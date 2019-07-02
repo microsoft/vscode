@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { createCancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -25,10 +25,11 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
 
 export class DefinitionActionConfig {
 
@@ -57,16 +58,17 @@ export class DefinitionAction extends EditorAction {
 		}
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
-		const progressService = accessor.get(IProgressService);
+		const progressService = accessor.get(IEditorProgressService);
+		const symbolNavService = accessor.get(ISymbolNavigationService);
 
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
 		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		const definitionPromise = this._getTargetLocationForPosition(model, pos, cts.token).then(async references => {
+		const definitionPromise = raceCancellation(this._getTargetLocationForPosition(model, pos, cts.token), cts.token).then(async references => {
 
-			if (cts.token.isCancellationRequested || model.isDisposed() || editor.getModel() !== model) {
+			if (!references || model.isDisposed()) {
 				// new model, no more model
 				return;
 			}
@@ -102,7 +104,7 @@ export class DefinitionAction extends EditorAction {
 
 			} else {
 				// handle multile results
-				return this._onResult(editorService, editor, new ReferencesModel(result));
+				return this._onResult(editorService, symbolNavService, editor, new ReferencesModel(result));
 			}
 
 		}, (err) => {
@@ -130,7 +132,7 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
 	}
 
-	private async _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
+	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
 
 		const msg = model.getAriaMessage();
 		alert(msg);
@@ -150,6 +152,12 @@ export class DefinitionAction extends EditorAction {
 			} else {
 				model.dispose();
 			}
+
+			// keep remaining locations around when using
+			// 'goto'-mode
+			if (gotoLocation.multiple === 'goto') {
+				symbolNavService.put(next);
+			}
 		}
 	}
 
@@ -168,7 +176,6 @@ export class DefinitionAction extends EditorAction {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, editor, sideBySide);

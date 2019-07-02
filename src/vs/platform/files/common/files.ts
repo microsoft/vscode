@@ -208,7 +208,7 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
+	readonly onDidErrorOccur?: Event<string>; // TODO@ben remove once file watchers are solid
 
 	readonly onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
@@ -288,7 +288,12 @@ export function markAsFileSystemProviderError(error: Error, code: FileSystemProv
 	return error;
 }
 
-export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderErrorCode {
+export function toFileSystemProviderErrorCode(error: Error | undefined | null): FileSystemProviderErrorCode {
+
+	// Guard against abuse
+	if (!error) {
+		return FileSystemProviderErrorCode.Unknown;
+	}
 
 	// FileSystemProviderError comes with the code
 	if (error instanceof FileSystemProviderError) {
@@ -512,7 +517,7 @@ interface IBaseStat {
 	resource: URI;
 
 	/**
-	 * The name which is the last segement
+	 * The name which is the last segment
 	 * of the {{path}}.
 	 */
 	name: string;
@@ -526,7 +531,7 @@ interface IBaseStat {
 	size?: number;
 
 	/**
-	 * The last modifictaion date represented
+	 * The last modification date represented
 	 * as millis from unix epoch.
 	 *
 	 * The value may or may not be resolved as
@@ -753,12 +758,17 @@ export enum FileKind {
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
 
-export function etag(mtime: number, size: number): string;
-export function etag(mtime: number | undefined, size: number | undefined): string | undefined;
-export function etag(mtime: number | undefined, size: number | undefined): string | undefined {
-	if (typeof size !== 'number' || typeof mtime !== 'number') {
+/**
+ * A hint to disable etag checking for reading/writing.
+ */
+export const ETAG_DISABLED = '';
+
+export function etag(stat: { mtime: number, size: number }): string;
+export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined;
+export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined {
+	if (typeof stat.size !== 'number' || typeof stat.mtime !== 'number') {
 		return undefined;
 	}
 
-	return mtime.toString(29) + size.toString(31);
+	return stat.mtime.toString(29) + stat.size.toString(31);
 }

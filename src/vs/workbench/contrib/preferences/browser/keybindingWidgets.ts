@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -227,11 +227,16 @@ export class DefineKeybindingWidget extends Widget {
 		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
 		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
 
-		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
+		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
 			if (colors.editorWidgetBackground) {
 				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
 			} else {
 				this._domNode.domNode.style.backgroundColor = null;
+			}
+			if (colors.editorWidgetForeground) {
+				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
+			} else {
+				this._domNode.domNode.style.color = null;
 			}
 
 			if (colors.widgetShadow) {

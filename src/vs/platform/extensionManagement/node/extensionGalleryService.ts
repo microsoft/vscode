@@ -5,7 +5,6 @@
 
 import { tmpdir } from 'os';
 import * as path from 'vs/base/common/path';
-import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -325,8 +324,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	_serviceBrand: any;
 
-	private extensionsGalleryUrl: string;
-	private extensionsControlUrl: string;
+	private extensionsGalleryUrl: string | undefined;
+	private extensionsControlUrl: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 
@@ -595,10 +594,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return Promise.resolve('');
 	}
 
-	loadAllDependencies(extensions: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		return this.getDependenciesRecursively(extensions.map(e => e.id), [], token);
-	}
-
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.ExcludeNonValidated)
@@ -627,59 +622,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-
-	private loadDependencies(extensionNames: string[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		if (!extensionNames || extensionNames.length === 0) {
-			return Promise.resolve([]);
-		}
-
-		let query = new Query()
-			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, extensionNames.length)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
-			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX)
-			.withFilter(FilterType.ExtensionName, ...extensionNames);
-
-		return this.queryGallery(query, token).then(result => {
-			const dependencies: IGalleryExtension[] = [];
-			const ids: string[] = [];
-
-			for (let index = 0; index < result.galleryExtensions.length; index++) {
-				const rawExtension = result.galleryExtensions[index];
-				if (ids.indexOf(rawExtension.extensionId) === -1) {
-					dependencies.push(toExtension(rawExtension, rawExtension.versions[0], index, query, 'dependencies'));
-					ids.push(rawExtension.extensionId);
-				}
-			}
-			return dependencies;
-		});
-	}
-
-	private getDependenciesRecursively(toGet: string[], result: IGalleryExtension[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		if (!toGet || !toGet.length) {
-			return Promise.resolve(result);
-		}
-		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;
-		if (!toGet.length) {
-			return Promise.resolve(result);
-		}
-
-		return this.loadDependencies(toGet, token)
-			.then(loadedDependencies => {
-				const dependenciesSet = new Set<string>();
-				for (const dep of loadedDependencies) {
-					if (dep.properties.dependencies) {
-						dep.properties.dependencies.forEach(d => dependenciesSet.add(d));
-					}
-				}
-				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
-				const dependencies: string[] = [];
-				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
-				return this.getDependenciesRecursively(dependencies, result, token);
-			});
-	}
-
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const baseOptions = { type: 'GET' };
@@ -705,21 +647,26 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					}
 
 					const message = getErrorMessage(err);
-					/* __GDPR__
-						"galleryService:requestError" : {
-							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
-					/* __GDPR__
-						"galleryService:cdnFallback" : {
-							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
+					type GalleryServiceREClassification = {
+						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						cdn: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						message: { classification: 'CallstackOrException', purpose: 'FeatureInsight' };
+					};
+					type GalleryServiceREServiceEvent = {
+						url: string;
+						cdn: boolean;
+						message: string;
+					};
+					this.telemetryService.publicLog2<GalleryServiceREServiceEvent, GalleryServiceREClassification>('galleryService:requestError', { url, cdn: true, message });
+					type GalleryServiceCDNFBClassification = {
+						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					};
+					type GalleryServiceCDNFBEvent = {
+						url: string;
+						message: string;
+					};
+					this.telemetryService.publicLog2<GalleryServiceCDNFBEvent, GalleryServiceCDNFBClassification>('galleryService:cdnFallback', { url, message });
 
 					const fallbackOptions = assign({}, options, { url: fallbackUrl });
 					return this.requestService.request(fallbackOptions, token).then(undefined, err => {
@@ -728,14 +675,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						}
 
 						const message = getErrorMessage(err);
-						/* __GDPR__
-							"galleryService:requestError" : {
-								"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
+						this.telemetryService.publicLog2<GalleryServiceREServiceEvent, GalleryServiceREClassification>('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
 						return Promise.reject(err);
 					});
 				});
@@ -796,15 +736,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				version.properties.push({ key: PropertyType.Engine, value: engine });
 				return version;
 			});
-	}
-
-	private static hasExtensionByName(extensions: IGalleryExtension[], name: string): boolean {
-		for (const extension of extensions) {
-			if (`${extension.publisher}.${extension.name}` === name) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {

@@ -50,7 +50,7 @@ const taskIdentifier: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task indentifier.')
+			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task identifier.')
 		}
 	}
 };
@@ -77,6 +77,17 @@ const dependsOn: IJSONSchema = {
 	]
 };
 
+const dependsOrder: IJSONSchema = {
+	type: 'string',
+	enum: ['parallel', 'sequence'],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.dependsOrder.parallel', 'Run all dependsOn tasks in parallel.'),
+		nls.localize('JsonSchema.tasks.dependsOrder.sequence', 'Run all dependsOn tasks in sequence.'),
+	],
+	default: 'parallel',
+	description: nls.localize('JsonSchema.tasks.dependsOrder', 'Determines the order of the dependsOn tasks for this task. Note that this property is not recursive.')
+};
+
 const presentation: IJSONSchema = {
 	type: 'object',
 	default: {
@@ -100,16 +111,16 @@ const presentation: IJSONSchema = {
 			default: false,
 			description: nls.localize('JsonSchema.tasks.presentation.focus', 'Controls whether the panel takes focus. Default is false. If set to true the panel is revealed as well.')
 		},
-		revealProblem: {
+		revealProblems: {
 			type: 'string',
 			enum: ['always', 'onProblem', 'never'],
 			enumDescriptions: [
-				nls.localize('JsonSchema.tasks.presentation.revealProblem.always', 'Always reveals the problems panel when this task is executed.'),
-				nls.localize('JsonSchema.tasks.presentation.revealProblem.onProblem', 'Only reveals the problems panel if a problem is found.'),
-				nls.localize('JsonSchema.tasks.presentation.revealProblem.never', 'Never reveals the problems panel when this task is executed.'),
+				nls.localize('JsonSchema.tasks.presentation.revealProblems.always', 'Always reveals the problems panel when this task is executed.'),
+				nls.localize('JsonSchema.tasks.presentation.revealProblems.onProblem', 'Only reveals the problems panel if a problem is found.'),
+				nls.localize('JsonSchema.tasks.presentation.revealProblems.never', 'Never reveals the problems panel when this task is executed.'),
 			],
 			default: 'never',
-			description: nls.localize('JsonSchema.tasks.presentation.revealProblem', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"never\".')
+			description: nls.localize('JsonSchema.tasks.presentation.revealProblems', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"never\".')
 		},
 		reveal: {
 			type: 'string',
@@ -120,7 +131,7 @@ const presentation: IJSONSchema = {
 				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
 			],
 			default: 'always',
-			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. May be overridden by option \"revealProblem\". Default is \"always\".')
+			description: nls.localize('JsonSchema.tasks.presentation.reveal', 'Controls whether the terminal running the task is revealed or not. May be overridden by option \"revealProblems\". Default is \"always\".')
 		},
 		panel: {
 			type: 'string',
@@ -353,6 +364,7 @@ let taskConfiguration: IJSONSchema = {
 		},
 		runOptions: Objects.deepClone(runOptions),
 		dependsOn: Objects.deepClone(dependsOn),
+		dependsOrder: Objects.deepClone(dependsOrder)
 	}
 };
 
@@ -405,6 +417,7 @@ taskDescriptionProperties.command = Objects.deepClone(command);
 taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
+taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);
@@ -422,7 +435,7 @@ taskDescription.default = {
 	problemMatcher: []
 };
 definitions.showOutputType.deprecationMessage = nls.localize(
-	'JsonSchema.tasks.showOputput.deprecated',
+	'JsonSchema.tasks.showOutput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
 );
 taskDescriptionProperties.echoCommand.deprecationMessage = nls.localize(

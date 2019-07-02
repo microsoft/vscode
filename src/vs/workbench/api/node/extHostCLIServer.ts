@@ -81,7 +81,7 @@ export class CLIServer {
 					break;
 				default:
 					res.writeHead(404);
-					res.write(`Unkown message type: ${data.type}`, err => {
+					res.write(`Unknown message type: ${data.type}`, err => {
 						if (err) {
 							console.error(err);
 						}

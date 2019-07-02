@@ -3,20 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { startsWith } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 export interface INotificationsModel {
 
+	//
+	// Notifications as Toasts/Center
+	//
+
 	readonly notifications: INotificationViewItem[];
+
 	readonly onDidNotificationChange: Event<INotificationChangeEvent>;
 
-	notify(notification: INotification): INotificationHandle;
+	addNotification(notification: INotification): INotificationHandle;
+
+	//
+	// Notifications as Status
+	//
+
+	readonly statusMessage: IStatusMessageViewItem | undefined;
+
+	readonly onDidStatusMessageChange: Event<IStatusMessageChangeEvent>;
+
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
 }
 
 export const enum NotificationChangeType {
@@ -41,6 +58,29 @@ export interface INotificationChangeEvent {
 	 * The kind of notification change.
 	 */
 	kind: NotificationChangeType;
+}
+
+export const enum StatusMessageChangeType {
+	ADD,
+	REMOVE
+}
+
+export interface IStatusMessageViewItem {
+	message: string;
+	options?: IStatusMessageOptions;
+}
+
+export interface IStatusMessageChangeEvent {
+
+	/**
+	 * The status message item this change is about.
+	 */
+	item: IStatusMessageViewItem;
+
+	/**
+	 * The kind of status message change.
+	 */
+	kind: StatusMessageChangeType;
 }
 
 export class NotificationHandle implements INotificationHandle {
@@ -88,13 +128,16 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent> = this._register(new Emitter<INotificationChangeEvent>());
 	get onDidNotificationChange(): Event<INotificationChangeEvent> { return this._onDidNotificationChange.event; }
 
+	private readonly _onDidStatusMessageChange: Emitter<IStatusMessageChangeEvent> = this._register(new Emitter<IStatusMessageChangeEvent>());
+	get onDidStatusMessageChange(): Event<IStatusMessageChangeEvent> { return this._onDidStatusMessageChange.event; }
+
 	private readonly _notifications: INotificationViewItem[] = [];
+	get notifications(): INotificationViewItem[] { return this._notifications; }
 
-	get notifications(): INotificationViewItem[] {
-		return this._notifications;
-	}
+	private _statusMessage: IStatusMessageViewItem | undefined;
+	get statusMessage(): IStatusMessageViewItem | undefined { return this._statusMessage; }
 
-	notify(notification: INotification): INotificationHandle {
+	addNotification(notification: INotification): INotificationHandle {
 		const item = this.createViewItem(notification);
 		if (!item) {
 			return NotificationsModel.NO_OP_NOTIFICATION; // return early if this is a no-op
@@ -171,6 +214,26 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		});
 
 		return item;
+	}
+
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+		const item = StatusMessageViewItem.create(message, options);
+		if (!item) {
+			return Disposable.None;
+		}
+
+		// Remember as current status message and fire events
+		this._statusMessage = item;
+		this._onDidStatusMessageChange.fire({ kind: StatusMessageChangeType.ADD, item });
+
+		return toDisposable(() => {
+
+			// Only reset status message if the item is still the one we had remembered
+			if (this._statusMessage === item) {
+				this._statusMessage = undefined;
+				this._onDidStatusMessageChange.fire({ kind: StatusMessageChangeType.REMOVE, item });
+			}
+		});
 	}
 }
 
@@ -306,8 +369,9 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 }
 
 export interface IMessageLink {
-	name: string;
 	href: string;
+	name: string;
+	title: string;
 	offset: number;
 	length: number;
 }
@@ -325,7 +389,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 	// Example link: "Some message with [link text](http://link.href)."
 	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
-	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)\)/gi;
+	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
 
 	private _expanded: boolean;
 
@@ -392,8 +456,17 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		// Parse Links
 		const links: IMessageLink[] = [];
-		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, offset: number) => {
-			links.push({ name, href, offset, length: matchString.length });
+		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, title: string, offset: number) => {
+			let massagedTitle: string;
+			if (title && title.length > 0) {
+				massagedTitle = title;
+			} else if (startsWith(href, 'command:')) {
+				massagedTitle = localize('executeCommand', "Click to execute command '{0}'", href.substr('command:'.length));
+			} else {
+				massagedTitle = href;
+			}
+
+			links.push({ name, href, title: massagedTitle, offset, length: matchString.length });
 
 			return matchString;
 		});
@@ -608,5 +681,27 @@ export class ChoiceAction extends Action {
 		super.dispose();
 
 		this._onDidRun.dispose();
+	}
+}
+
+class StatusMessageViewItem {
+
+	static create(notification: NotificationMessage, options?: IStatusMessageOptions): IStatusMessageViewItem | null {
+		if (!notification || isPromiseCanceledError(notification)) {
+			return null; // we need a message to show
+		}
+
+		let message: string | undefined;
+		if (notification instanceof Error) {
+			message = toErrorMessage(notification, false);
+		} else if (typeof notification === 'string') {
+			message = notification;
+		}
+
+		if (!message) {
+			return null; // we need a message to show
+		}
+
+		return { message, options };
 	}
 }

@@ -9,7 +9,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -20,12 +20,12 @@ import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverServ
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
+export class UntitledEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private cachedModel: UntitledEditorModel;
-	private modelResolve?: Promise<UntitledEditorModel & IResolvedTextEditorModel>;
+	private cachedModel: UntitledEditorModel | null;
+	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -36,7 +36,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	constructor(
 		private readonly resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private readonly modeId: string,
+		private preferredMode: string,
 		private readonly initialValue: string,
 		private preferredEncoding: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -56,14 +56,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	getResource(): URI {
 		return this.resource;
-	}
-
-	getModeId(): string | null {
-		if (this.cachedModel) {
-			return this.cachedModel.getModeId();
-		}
-
-		return this.modeId;
 	}
 
 	getName(): string {
@@ -168,9 +160,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
 			if (this.cachedModel) {
-				const modeId = this.cachedModel.getModeId();
-				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					return suggestFilename(modeId, this.getName());
+				const mode = this.cachedModel.getMode();
+				if (mode !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
+					return suggestFilename(mode, this.getName());
 				}
 			}
 		}
@@ -194,6 +186,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
+	setMode(mode: string): void {
+		this.preferredMode = mode;
+
+		if (this.cachedModel) {
+			this.cachedModel.setMode(mode);
+		}
+	}
+
+	getMode(): string | undefined {
+		if (this.cachedModel) {
+			return this.cachedModel.getMode();
+		}
+
+		return this.preferredMode;
+	}
+
 	resolve(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Join a model resolve if we have had one before
@@ -209,7 +217,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	private createModel(): UntitledEditorModel {
-		const model = this._register(this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
+		const model = this._register(this.instantiationService.createInstance(UntitledEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
 		// re-emit some events from the model
 		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
@@ -224,18 +232,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			return true;
 		}
 
+		// Otherwise compare by properties
 		if (otherInput instanceof UntitledEditorInput) {
-			const otherUntitledEditorInput = <UntitledEditorInput>otherInput;
-
-			// Otherwise compare by properties
-			return otherUntitledEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;
 	}
 
 	dispose(): void {
-		this.modelResolve = undefined;
+		this.cachedModel = null;
+		this.modelResolve = null;
 
 		super.dispose();
 	}

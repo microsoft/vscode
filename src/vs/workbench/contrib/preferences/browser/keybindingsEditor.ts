@@ -8,8 +8,8 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
-import { dispose, Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { CheckboxActionItem } from 'vs/base/browser/ui/checkbox/checkbox';
+import { dispose, Disposable, toDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -372,12 +372,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		this.actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
-					return new CheckboxActionItem(null, action);
+					return new CheckboxActionViewItem(null, action);
 				}
 				if (action.id === this.recordKeysAction.id) {
-					return new CheckboxActionItem(null, action);
+					return new CheckboxActionViewItem(null, action);
 				}
 				return undefined;
 			}
@@ -804,7 +804,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		const source = this.instantiationService.createInstance(SourceColumn, parent, this.keybindingsEditor);
 
 		const columns: Column[] = [actions, command, keybinding, when, source];
-		const disposables: IDisposable[] = [...columns];
+		const disposables = combinedDisposable(...columns);
 		const elements = columns.map(({ element }) => element);
 
 		this.keybindingsEditor.layoutColumns(elements);
@@ -814,7 +814,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		return {
 			parent,
 			columns,
-			disposable: toDisposable(() => dispose(disposables))
+			disposable: disposables
 		};
 	}
 

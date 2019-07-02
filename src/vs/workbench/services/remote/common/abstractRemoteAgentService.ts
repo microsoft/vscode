@@ -19,6 +19,7 @@ import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/r
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { Emitter } from 'vs/base/common/event';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -84,7 +85,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		private readonly _commit: string | undefined,
 		private readonly _webSocketFactory: IWebSocketFactory,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		private readonly _signService: ISignService
 	) {
 		super();
 		this.remoteAuthority = remoteAuthority;
@@ -122,7 +124,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 					const { host, port } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
 					return { host, port };
 				}
-			}
+			},
+			signService: this._signService
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));

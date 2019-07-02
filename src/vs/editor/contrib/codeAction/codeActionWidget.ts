@@ -6,7 +6,6 @@
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -14,25 +13,32 @@ import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 
-export class CodeActionContextMenu {
+interface CodeActionWidgetDelegate {
+	onSelectCodeAction: (action: CodeAction) => Promise<any>;
+}
+
+export class CodeActionWidget {
 
 	private _visible: boolean;
-
-	private readonly _onDidExecuteCodeAction = new Emitter<void>();
-	public readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
-		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
+		private readonly _delegate: CodeActionWidgetDelegate
 	) { }
 
-	async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
+	public async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
 		const codeActions = await actionsToShow;
+		if (!codeActions.actions.length) {
+			this._visible = false;
+			return;
+		}
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
+			this._visible = false;
 			return Promise.reject(canceled());
 		}
+
 		this._visible = true;
 		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
 		this._contextMenuService.showContextMenu({
@@ -54,9 +60,7 @@ export class CodeActionContextMenu {
 	private codeActionToAction(action: CodeAction): Action {
 		const id = action.command ? action.command.id : action.title;
 		const title = action.title;
-		return new Action(id, title, undefined, true, () =>
-			this._onApplyCodeAction(action)
-				.finally(() => this._onDidExecuteCodeAction.fire(undefined)));
+		return new Action(id, title, undefined, true, () => this._delegate.onSelectCodeAction(action));
 	}
 
 	get isVisible(): boolean {

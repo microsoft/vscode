@@ -47,7 +47,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// Breadcrumbs
 		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
 		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
-		this.toDispose.push({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
+		this._register({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -145,12 +145,13 @@ export class NoTabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	updateEditorLabel(editor?: IEditorInput): void {
-		if (!editor) {
-			editor = withNullAsUndefined(this.group.activeEditor);
-		}
-		if (editor) {
-			this.ifEditorIsActive(editor, () => this.redraw());
+	updateEditorLabel(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	updateEditorLabels(): void {
+		if (this.group.activeEditor) {
+			this.updateEditorLabel(this.group.activeEditor); // we only have the active one to update
 		}
 	}
 
