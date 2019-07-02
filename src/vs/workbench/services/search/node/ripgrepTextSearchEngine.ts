@@ -121,9 +121,10 @@ export class RipgrepTextSearchEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
-	const firstLine = msg.split('\n')[0].trim();
+	const lines = msg.split('\n');
+	const firstLine = lines[0].trim();
 
-	if (startsWith(firstLine, 'regex parse error')) {
+	if (lines.some(l => startsWith(l, 'regex parse error'))) {
 		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
@@ -427,6 +428,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
 		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
 		args.push('--regexp', fixedRegexpQuery);
+		args.push('--auto-hybrid-regex');
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
