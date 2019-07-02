@@ -11,7 +11,7 @@ import { FileDeleteOptions, FileOverwriteOptions, FileType, IFileChange, IStat, 
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider, IWatcherOptions } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { posix } from 'vs/base/common/path';
@@ -30,7 +30,7 @@ class SessionFileWatcher extends Disposable {
 		this._watcherRequests = new Map();
 
 		const localChangeEmitter = this._register(new Emitter<IFileChange[]>());
-		this._fileWatcher = this._register(new DiskFileSystemProvider(logService));
+		this._fileWatcher = this._register(new DiskFileSystemProvider(logService, this.getWatcherOptions()));
 		this._register(localChangeEmitter.event((events) => {
 			emitter.fire(
 				events.map(e => ({
@@ -42,6 +42,14 @@ class SessionFileWatcher extends Disposable {
 
 		this._register(this._fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
 		this._register(this._fileWatcher.onDidErrorOccur(error => emitter.fire(error)));
+	}
+
+	private getWatcherOptions(): IWatcherOptions | undefined {
+		const pollingInterval = this._environmentService.args['fileWatcherPolling'];
+		if (typeof pollingInterval === 'number' && pollingInterval > 0) {
+			return { usePolling: true, pollingInterval };
+		}
+		return undefined;
 	}
 
 	watch(req: number, _resource: UriComponents, opts: IWatchOptions): IDisposable {
