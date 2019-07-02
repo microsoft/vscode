@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -575,6 +575,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
+		if (p.onProcessOverrideDimensions) {
+			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
+		}
 		this._terminalProcesses[id] = p;
 	}
 
@@ -704,7 +707,7 @@ class ApiRequest {
 }
 
 class ExtHostVirtualProcess implements ITerminalChildProcess {
-	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }>)[] = [];
+	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }> | IQueuedEvent<ITerminalDimensions | undefined>)[] = [];
 	private _queueDisposables: IDisposable[] | undefined;
 
 	private readonly _onProcessData = new Emitter<string>();
@@ -715,6 +718,8 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = new Emitter<string>();
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 
 	constructor(
 		private readonly _virtualProcess: vscode.TerminalVirtualProcess
@@ -726,6 +731,7 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		}
 		// TODO: Handle overrideDimensions, use an optional event on the interface?
 		if (this._virtualProcess.overrideDimensions) {
+			this._queueDisposables.push(this._virtualProcess.overrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
 		}
 	}
 
@@ -762,9 +768,7 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 
 	startSendingEvents(): void {
 		// Flush all buffered events
-		this._queuedEvents.forEach(e => {
-			e.emitter.fire(<any>e.data);
-		});
+		this._queuedEvents.forEach(e => (<any>e.emitter.fire)(e.data));
 		this._queuedEvents = [];
 		this._queueDisposables = undefined;
 
@@ -774,7 +778,7 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 			this._virtualProcess.exit(e => this._onProcessExit.fire(e));
 		}
 		if (this._virtualProcess.overrideDimensions) {
-			// TODO: Implement this
+			this._virtualProcess.overrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
 	}
 }

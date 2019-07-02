@@ -294,6 +294,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		delete this._terminalProcesses[terminalId];
 	}
 
+	public $sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void {
+		this._terminalProcesses[terminalId].then(e => e.emitOverrideDimensions(dimensions));
+	}
+
 	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
 		this._terminalProcesses[terminalId].then(e => e.emitInitialCwd(initialCwd));
 	}

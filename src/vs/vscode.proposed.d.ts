@@ -1281,7 +1281,7 @@ declare module 'vscode' {
 		write: Event<string>;
 
 		// Lets the extension override the dimensions of the terminal
-		overrideDimensions?: Event<TerminalDimensions>;
+		overrideDimensions?: Event<TerminalDimensions | undefined>;
 
 		// Lets the extension exit the process with an exit code, this was not in the TerminalRenderer
 		// API but it makes sense to include this as it's the main thing missing for a virtual process
