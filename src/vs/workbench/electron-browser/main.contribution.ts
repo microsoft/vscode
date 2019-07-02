@@ -531,7 +531,7 @@ import product from 'vs/platform/product/node/product';
 					nls.localize('window.compositionAttribute.none', "No special effect or transparency."),
 					nls.localize('window.compositionAttribute.transparent', "Transparent."),
 					nls.localize('window.compositionAttribute.blur', "Transparent and blurred."),
-					nls.localize('window.compositionAttribute.acrylic', "Transparent, blurred and grain effect. Requires the Windows 10 April 2018 update and can present various graphical glitches when there is not at least one window other than VS Code maximised.")
+					nls.localize('window.compositionAttribute.acrylic', "Transparent, heavily blurred and grainy. Requires the Windows 10 April 2018 update, and has lag issues when dragging the window in the May 2019 update.")
 				],
 				'default': 'none',
 				'scope': ConfigurationScope.APPLICATION,
