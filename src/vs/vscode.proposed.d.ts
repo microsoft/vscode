@@ -1283,14 +1283,6 @@ declare module 'vscode' {
 		 * extension to act as a terminal's backing process.
 		 */
 		virtualProcess: TerminalVirtualProcess;
-
-		// Allows Windows or non-Windows local link handler to be used based on Live Share host OS
-		// os?: OperatingSystem;
-
-		// Allows ~ to be resolved in Live Share
-		// userHome?: string;
-
-		// cwd: string
 	}
 
 	/**

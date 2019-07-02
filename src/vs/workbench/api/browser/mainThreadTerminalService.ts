@@ -79,7 +79,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean, hideFromUser?: boolean, isVirtualProcess?: boolean): Promise<{ id: number, name: string }> {
-		console.log('$createTerminal', arguments);
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -262,14 +261,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalRequestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
-		console.log('_onTerminalRequestVirtualProcess', proxy);
 		this._terminalProcessesReady[proxy.terminalId](proxy);
 		delete this._terminalProcessesReady[proxy.terminalId];
 
-		proxy.onInput(data => {
-			console.log('_onTerminalRequestVirtualProcess onInput', data);
-			this._proxy.$acceptProcessInput(proxy.terminalId, data);
-		});
+		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
 		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));
