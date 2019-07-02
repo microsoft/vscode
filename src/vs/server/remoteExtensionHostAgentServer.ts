@@ -155,6 +155,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath = path.join(APP_ROOT, 'resources', 'server', 'favicon.ico');
 				}
 
+				// Resource Service Worker
+				else if (pathname === '/resourceServiceWorkerMain.js') {
+					// todo@web pretend that the service worker is loaded from /
+					// because fetch-requests work against the initiator, not the request
+					filePath = path.join(APP_ROOT, 'out/vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js');
+				}
+
 				// Anything else
 				else {
 					filePath = path.join(APP_ROOT, path.normalize(pathname!));
