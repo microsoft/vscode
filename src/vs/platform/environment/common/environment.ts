@@ -13,7 +13,6 @@ export interface ParsedArgs {
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
-	telemetry?: boolean;
 	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;

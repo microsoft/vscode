@@ -315,8 +315,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
-
 		const depsSrc = [
 			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
 			// @ts-ignore JSON checking: dependencies is optional
@@ -333,7 +331,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			productJsonStream,
 			license,
 			api,
-			telemetry,
 			sources,
 			deps
 		);
