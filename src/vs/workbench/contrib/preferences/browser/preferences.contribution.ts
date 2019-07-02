@@ -381,8 +381,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: OpenGlobalKeybindingsAction.ID,
 				title: OpenGlobalKeybindingsAction.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
@@ -397,8 +397,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: commandId,
 				title: OpenSettings2Action.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
@@ -438,8 +438,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: commandId,
 					title: OpenSettings2Action.LABEL,
 					iconLocation: {
-						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 					}
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
@@ -466,8 +466,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						id: commandId,
 						title: OpenSettings2Action.LABEL,
 						iconLocation: {
-							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 						}
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
@@ -533,8 +533,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
 		iconLocation: {
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json.svg`)),
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-inverse.svg`))
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-dark.svg`))
 		}
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
@@ -817,8 +817,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
 		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-inverse.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json.svg'))
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-light.svg'))
 		}
 	},
 	group: 'navigation',

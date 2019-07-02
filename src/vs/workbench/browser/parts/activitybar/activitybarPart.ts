@@ -48,13 +48,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	private static readonly ACTION_HEIGHT = 50;
+	private static readonly ACTION_HEIGHT = 48;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 
 	//#region IView
 
-	readonly minimumWidth: number = 50;
-	readonly maximumWidth: number = 50;
+	readonly minimumWidth: number = 48;
+	readonly maximumWidth: number = 48;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 

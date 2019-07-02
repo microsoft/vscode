@@ -144,6 +144,6 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.experimental.useSeparateSyntaxServer', false);
+		return configuration.get<boolean>('typescript.tsserver.useSeparateSyntaxServer', true);
 	}
 }

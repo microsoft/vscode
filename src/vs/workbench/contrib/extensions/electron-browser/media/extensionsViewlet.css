@@ -219,7 +219,6 @@
 .extensions-viewlet > .extensions .extension > .details > .footer > .author {
 	flex: 1;
 	font-size: 90%;
-	padding-right: 6px;
 	opacity: 0.9;
 	font-weight: 600;
 }

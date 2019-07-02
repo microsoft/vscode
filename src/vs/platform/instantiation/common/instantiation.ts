@@ -114,11 +114,11 @@ export interface ServiceIdentifier<T> {
 }
 
 function storeServiceDependency(id: Function, target: Function, index: number, optional: boolean): void {
-	if (target[_util.DI_TARGET] === target) {
-		target[_util.DI_DEPENDENCIES].push({ id, index, optional });
+	if ((target as any)[_util.DI_TARGET] === target) {
+		(target as any)[_util.DI_DEPENDENCIES].push({ id, index, optional });
 	} else {
-		target[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
-		target[_util.DI_TARGET] = target;
+		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
+		(target as any)[_util.DI_TARGET] = target;
 	}
 }
 
