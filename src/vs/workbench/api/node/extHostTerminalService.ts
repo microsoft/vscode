@@ -331,7 +331,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const p = new ExtHostVirtualProcess(options.virtualProcess);
 		terminal.createVirtualProcess().then(() => {
 			this._setupExtHostProcessListeners(terminal._id, p);
-			// TODO: Why isn't 1 being send from extension?
 			p.startSendingEvents();
 		});
 		this._terminals.push(terminal);
@@ -728,7 +727,6 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		if (this._virtualProcess.exit) {
 			this._queueDisposables.push(this._virtualProcess.exit(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: e })));
 		}
-		// TODO: Handle overrideDimensions, use an optional event on the interface?
 		if (this._virtualProcess.overrideDimensions) {
 			this._queueDisposables.push(this._virtualProcess.overrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
 		}
@@ -752,7 +750,6 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		}
 	}
 
-	// TODO: Are these returns correct?
 	getInitialCwd(): Promise<string> {
 		return Promise.resolve('');
 	}
