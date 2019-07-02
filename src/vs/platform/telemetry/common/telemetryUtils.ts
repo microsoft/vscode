@@ -195,27 +195,27 @@ const configurationValueWhitelist = [
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
-			type UpdateConfigClassification = {
+			type UpdateConfigurationClassification = {
 				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 			};
-			type UpdateConfigEvent = {
+			type UpdateConfigurationEvent = {
 				configurationSource: string;
 				configurationKeys: string[];
 			};
-			telemetryService.publicLog2<UpdateConfigEvent, UpdateConfigClassification>('updateConfiguration', {
+			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
-			type UpdateConfigValClassification = {
+			type UpdateConfigurationValuesClassification = {
 				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 				configurationValues: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
 			};
-			type UpdateConfigValEvent = {
+			type UpdateConfigurationValuesEvent = {
 				configurationSource: string;
 				configurationValues: { [key: string]: any }[];
 			};
-			telemetryService.publicLog2<UpdateConfigValEvent, UpdateConfigValClassification>('updateConfigurationValues', {
+			telemetryService.publicLog2<UpdateConfigurationValuesEvent, UpdateConfigurationValuesClassification>('updateConfigurationValues', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
@@ -226,13 +226,13 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
 	return keybindingService.onDidUpdateKeybindings(event => {
 		if (event.source === KeybindingSource.User && event.keybindings) {
-			type UpdateKBClassification = {
+			type UpdateKeybindingsClassification = {
 				bindings: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
 			};
-			type UpdateKBEvents = {
+			type UpdateKeybindingsEvents = {
 				bindings: { key: string, command: string, when: string | undefined, args: boolean | undefined }[];
 			};
-			telemetryService.publicLog2<UpdateKBEvents, UpdateKBClassification>('updateKeybindings', {
+			telemetryService.publicLog2<UpdateKeybindingsEvents, UpdateKeybindingsClassification>('updateKeybindings', {
 				bindings: event.keybindings.map(binding => ({
 					key: binding.key,
 					command: binding.command,

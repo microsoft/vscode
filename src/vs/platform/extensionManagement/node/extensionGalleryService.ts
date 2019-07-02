@@ -647,26 +647,26 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					}
 
 					const message = getErrorMessage(err);
-					type GalleryServiceREClassification = {
+					type GalleryServiceRequestErrorClassification = {
 						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 						cdn: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 						message: { classification: 'CallstackOrException', purpose: 'FeatureInsight' };
 					};
-					type GalleryServiceREServiceEvent = {
+					type GalleryServiceRequestErrorServiceEvent = {
 						url: string;
 						cdn: boolean;
 						message: string;
 					};
-					this.telemetryService.publicLog2<GalleryServiceREServiceEvent, GalleryServiceREClassification>('galleryService:requestError', { url, cdn: true, message });
-					type GalleryServiceCDNFBClassification = {
+					this.telemetryService.publicLog2<GalleryServiceRequestErrorServiceEvent, GalleryServiceRequestErrorClassification>('galleryService:requestError', { url, cdn: true, message });
+					type GalleryServiceCDNFallbackClassification = {
 						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 						message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 					};
-					type GalleryServiceCDNFBEvent = {
+					type GalleryServiceCDNFallbackEvent = {
 						url: string;
 						message: string;
 					};
-					this.telemetryService.publicLog2<GalleryServiceCDNFBEvent, GalleryServiceCDNFBClassification>('galleryService:cdnFallback', { url, message });
+					this.telemetryService.publicLog2<GalleryServiceCDNFallbackEvent, GalleryServiceCDNFallbackClassification>('galleryService:cdnFallback', { url, message });
 
 					const fallbackOptions = assign({}, options, { url: fallbackUrl });
 					return this.requestService.request(fallbackOptions, token).then(undefined, err => {
@@ -675,7 +675,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						}
 
 						const message = getErrorMessage(err);
-						this.telemetryService.publicLog2<GalleryServiceREServiceEvent, GalleryServiceREClassification>('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
+						this.telemetryService.publicLog2<GalleryServiceRequestErrorServiceEvent, GalleryServiceRequestErrorClassification>('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
 						return Promise.reject(err);
 					});
 				});
