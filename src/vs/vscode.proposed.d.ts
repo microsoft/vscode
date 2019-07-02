@@ -53,7 +53,7 @@ declare module 'vscode' {
 		 */
 		provideCallHierarchyItem(
 			document: TextDocument,
-			postion: Position,
+			position: Position,
 			token: CancellationToken
 		): ProviderResult<CallHierarchyItem>;
 

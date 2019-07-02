@@ -49,7 +49,7 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action';
 const COMMENT_SCHEME = 'comment';
 
 
@@ -127,7 +127,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadContextValue = contextKeyService.createKey('commentThread', _commentThread.contextValue);
 
 		this._resizeObserver = null;
-		this._isExpanded = _commentThread.collapsibleState ? _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded : undefined;
+		this._isExpanded = _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded;
 		this._globalToDispose = [];
 		this._commentThreadDisposables = [];
 		this._submitActionsDisposables = [];

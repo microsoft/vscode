@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.36.0",
-  "distro": "655dbee333798c5253b03bf8ef1bc8f4fbd3e48b",
+  "version": "1.37.0",
+  "distro": "aeb8d17f84c592c5a508830f47aa1881dd35a156",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,8 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization"
+    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
+    "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -40,13 +41,13 @@
     "native-keymap": "1.2.6",
     "native-watchdog": "1.0.0",
     "node-pty": "0.9.0-beta17",
+    "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "^0.9.0",
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "1.6.5",
-    "vscode-nsfw": "1.1.2",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",

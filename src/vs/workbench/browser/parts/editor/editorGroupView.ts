@@ -20,8 +20,8 @@ import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BAC
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
-import { LocalProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { EditorProgressService } from 'vs/workbench/services/progress/browser/editorProgressService';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -178,7 +178,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
-			[ILocalProgressService, new LocalProgressService(this.progressBar)]
+			[IEditorProgressService, new EditorProgressService(this.progressBar)]
 		));
 
 		// Context keys
@@ -212,9 +212,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.updateStyles();
 	}
 
-	private handleGroupContextKeys(contextKeyServcie: IContextKeyService): void {
-		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
-		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyServcie);
+	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
+		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyService);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyService);
 
 		let activeEditorListener = new MutableDisposable();
 

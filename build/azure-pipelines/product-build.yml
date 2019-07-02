@@ -7,6 +7,12 @@ resources:
     image: snapcore/snapcraft:stable
 
 jobs:
+# - job: Linux
+#   pool:
+#     vmImage: 'Ubuntu-16.04'
+#   steps:
+#   - template: compile.yml
+
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
   timeoutInMinutes: 120
@@ -79,7 +85,7 @@ jobs:
   - template: darwin/product-build-darwin.yml
 
 - job: Release
-  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-4.0.x'))))
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
   pool:
     vmImage: 'Ubuntu-16.04'
   dependsOn:
@@ -107,3 +113,10 @@ jobs:
   - macOS
   steps:
   - template: sync-mooncake.yml
+
+schedules:
+- cron: "0 6 * * Mon-Fri"
+  displayName: Mon-Fri at 6:00
+  branches:
+    include:
+    - master

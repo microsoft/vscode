@@ -14,7 +14,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
-export const KnownSnippetVariableNames = Object.freeze({
+export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
 	'CURRENT_YEAR_SHORT': true,
 	'CURRENT_MONTH': true,

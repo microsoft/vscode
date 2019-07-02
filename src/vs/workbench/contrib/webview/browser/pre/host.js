@@ -36,7 +36,8 @@
 	}();
 
 	const workerReady = new Promise(async (resolveWorkerReady) => {
-		if (!navigator.serviceWorker) {
+		if (!areServiceWorkersEnabled()) {
+			console.log('Service Workers are not enabled. Webviews will not work properly');
 			return resolveWorkerReady();
 		}
 
@@ -81,9 +82,18 @@
 		});
 	});
 
+	function areServiceWorkersEnabled() {
+		try {
+			return !!navigator.serviceWorker;
+		} catch (e) {
+			return false;
+		}
+	}
+
 	window.createWebviewManager({
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
+		fakeLoad: true
 	});
 }());
