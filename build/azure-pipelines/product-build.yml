@@ -116,7 +116,7 @@ jobs:
 
 schedules:
 - cron: "0 6 * * Mon-Fri"
-  displayName: Mon through Fri at 6:00
+  displayName: Mon-Fri at 6:00
   branches:
     include:
     - master
