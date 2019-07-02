@@ -210,11 +210,11 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			});
 		}
 
-		for (const subType of this._decorationsTypes) {
+		this._decorationsTypes.forEach(subType => {
 			if (!newDecorationsTypes[subType]) {
 				this._codeEditorService.removeDecorationType(subType);
 			}
-		}
+		});
 
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, decorations);
 	}
@@ -223,9 +223,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
 
-		for (const subType of this._decorationsTypes) {
+		this._decorationsTypes.forEach(subType => {
 			this._codeEditorService.removeDecorationType(subType);
-		}
+		});
 	}
 
 	getColorData(position: Position): IColorData | null {
