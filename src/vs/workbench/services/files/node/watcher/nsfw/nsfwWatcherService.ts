@@ -8,7 +8,7 @@ import * as extpath from 'vs/base/common/extpath';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
-import * as nsfw from 'vscode-nsfw';
+import * as nsfw from 'nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -118,7 +118,7 @@ export class NsfwWatcherService implements IWatcherService {
 					} else if (this._verboseLogging) {
 						this.log(` >> ignored ${absolutePath}`);
 					}
-					absolutePath = path.join(e.directory, e.newFile || '');
+					absolutePath = path.join(e.newDirectory || e.directory, e.newFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this._verboseLogging) {
