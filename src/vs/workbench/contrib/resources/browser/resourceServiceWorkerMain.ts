@@ -4,41 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 (function () {
-
 	type Handler = {
-		handleFetchEvent(event: Event): void;
+		handleFetchEvent(event: Event): Promise<Response | undefined>;
+		handleMessageEvent(event: MessageEvent): void;
 	};
-	let handler: Handler | undefined;
 
-	self.addEventListener('fetch', event => {
-		console.log('FETCH', event);
-		if (handler) {
-			handler.handleFetchEvent(event);
-		} else {
-			//@ts-ignore
-			event.respondWith(fetch(event.request));
-		}
+	const handlerPromise = new Promise<Handler>((resolve, reject) => {
+		// load loader
+		const baseUrl = './out/';
+		importScripts(baseUrl + 'vs/loader.js');
+		require.config({
+			baseUrl,
+			catchError: true
+		});
+		require(['vs/workbench/contrib/resources/browser/resourceServiceWorker'], resolve, reject);
+	});
+
+	self.addEventListener('message', event => {
+		handlerPromise.then(handler => {
+			handler.handleMessageEvent(event);
+		});
+	});
+
+	self.addEventListener('fetch', (event: any) => {
+		event.respondWith(handlerPromise.then(handler => {
+			return handler.handleFetchEvent(event).then(value => {
+				if (value instanceof Response) {
+					return value;
+				} else {
+					return fetch(event.request);
+				}
+			});
+		}));
 	});
 	self.addEventListener('install', event => {
-
-		let loadPromise = new Promise((resolve, reject) => {
-
-			// load loader
-			const monacoBaseUrl = '../../../../../';
-			importScripts(monacoBaseUrl + 'vs/loader.js');
-			require.config({
-				baseUrl: monacoBaseUrl,
-				catchError: true
-			});
-
-			require(['vs/workbench/contrib/resources/browser/resourceServiceWorker'], module => {
-				handler = module;
-				resolve();
-			}, reject);
-		});
-
 		//@ts-ignore
-		event.waitUntil(Promise.all([loadPromise, self.skipWaiting()]));
+		event.waitUntil(self.skipWaiting());
 	});
 
 	self.addEventListener('activate', event => {
