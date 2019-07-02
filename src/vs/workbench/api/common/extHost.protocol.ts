@@ -425,6 +425,8 @@ export type TransferQuickInput = TransferQuickPick | TransferInputBox;
 
 export interface BaseTransferQuickInput {
 
+	[key: string]: any;
+
 	id: number;
 
 	type?: 'quickPick' | 'inputBox';
