@@ -1258,13 +1258,30 @@ declare module 'vscode' {
 
 	//#region Terminal virtual process
 
-	// export function createTerminal(options: TerminalOptions | TerminalVirtualProcessOptions): Terminal;
+	export namespace window {
+		/**
+		 * Creates a [Terminal](#Terminal) where an extension acts as the process.
+		 *
+		 * @param options A [TerminalVirtualProcessOptions](#TerminalVirtualProcessOptions) object describing the
+		 * characteristics of the new terminal.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(options: TerminalVirtualProcessOptions): Terminal;
+	}
 
+	/**
+	 * Value-object describing what options a virtual process terminal should use.
+	 */
 	export interface TerminalVirtualProcessOptions {
-		// For a name property for TerminalVirtualProcessOptions.
-		// Note that this is mandatory here as there's no process/shell to grab the title from
+		/**
+		 * A human-readable string which will be used to represent the terminal in the UI.
+		 */
 		name: string;
 
+		/**
+		 * An implementation of [TerminalVirtualProcess](#TerminalVirtualProcess) that allows an
+		 * extension to act as a terminal's backing process.
+		 */
 		virtualProcess: TerminalVirtualProcess;
 
 		// Allows Windows or non-Windows local link handler to be used based on Live Share host OS
@@ -1276,27 +1293,89 @@ declare module 'vscode' {
 		// cwd: string
 	}
 
+	/**
+	 * Defines the interface of a terminal virtual process, enabling extensions to act as a process
+	 * in the terminal.
+	 */
 	interface TerminalVirtualProcess {
-		// The ext should fire this when they want to write to the terminal
+		/**
+		 * An event that when fired will write data to the terminal. Unlike
+		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_,
+		 * this will write the text to the terminal itself.
+		 *
+		 * **Example:** Write red text to the terminal
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   write: writeEmitter.event
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
+		 * writeEmitter.fire('\x1b[31mHello world\x1b[0m');
+		 * ```
+		 *
+		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
+		 * ```typescript
+		 * writeEmitter.fire('\x1b[10;20H*');
+		 * ```
+		 */
 		write: Event<string>;
 
-		// Lets the extension override the dimensions of the terminal
+		/**
+		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
+		 * terminal. Note that when set the overridden dimensions will only take effect when they
+		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
+		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions.
+		 *
+		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
+		 * ```typescript
+		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   write: writeEmitter.event,
+		 *   overrideDimensions: dimensionsEmitter.event
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
+		 * dimensionsEmitter.fire({
+		 *   columns: 20,
+		 *   rows: 10
+		 * });
+		 * ```
+		 */
 		overrideDimensions?: Event<TerminalDimensions | undefined>;
 
-		// Lets the extension exit the process with an exit code, this was not in the TerminalRenderer
-		// API but it makes sense to include this as it's the main thing missing for a virtual process
-		// to truly act like a process
+		/**
+		 * An event that when fired will exit the process with an exit code, this will behave the
+		 * same for a virtual process as when a regular process exits with an exit code.
+		 */
 		exit?: Event<number>;
 
-		// This will be called when the user types
+		/**
+		 * Implement to handle keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into theircorresponding
+		 * VT sequence representation.
+		 *
+		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
+		 * CRLF to go to a new line and move the cursor to the start of the line.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   write: writeEmitter.event,
+		 *   onDidAcceptInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data);
+		 * };
+		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
+		 * ```
+		 */
 		onDidAcceptInput?(text: string): void;
 
-		// This is called fire when window.onDidChangeTerminalDimensions fires as CustomExecution need
-		// access to the "maximum" dimensions and don't want access to Terminal
+		/**
+		 * Implement to handle when the number of rows and columns that fit into the terminal panel
+		 * changes, for example when font size changes or when the panel is resized.
+		 *
+		 * @param dimensions The new dimensions.
+		 */
 		onDidChangeDimensions?(dimensions: TerminalDimensions): void;
 
 		/**
-		 * This is called when the user closes the terminal.
+		 * Implement to handle when the terminal shuts down by an act of the user.
 		 */
 		onDidShutdownTerminal?(): void;
 	}
