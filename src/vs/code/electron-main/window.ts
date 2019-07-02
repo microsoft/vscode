@@ -316,7 +316,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
 			this.marketplaceHeadersPromise.then(headers => {
-				const requestHeaders = objects.assign(details.requestHeaders, headers);
+				const requestHeaders = objects.assign(details.requestHeaders, headers) as { [key: string]: string | undefined };
 				if (!this.configurationService.getValue('extensions.disableExperimentalAzureSearch')) {
 					requestHeaders['Cookie'] = `${requestHeaders['Cookie'] ? requestHeaders['Cookie'] + ';' : ''}EnableExternalSearchForVSCode=true`;
 				}
