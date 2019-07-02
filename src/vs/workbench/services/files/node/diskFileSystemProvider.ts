@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mkdir, open, close, read, write, fdatasync } from 'fs';
-import * as os from 'os';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
@@ -24,9 +23,14 @@ import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/file
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as NodeJSWatcherService } from 'vs/workbench/services/files/node/watcher/nodejs/watcherService';
 
+export interface IWatcherOptions {
+	pollingInterval?: number;
+	usePolling: boolean;
+}
+
 export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
 
-	constructor(private logService: ILogService) {
+	constructor(private logService: ILogService, private watcherOptions?: IWatcherOptions) {
 		super();
 	}
 
@@ -410,15 +414,15 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						onChange: (changes: IDiskFileChange[]) => void,
 						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean,
-						watcherOptions?: { [key: string]: boolean | number | string }
+						watcherOptions?: IWatcherOptions
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
 				let watcherOptions = undefined;
 
-				if (this.forcePolling()) {
-					// WSL needs a polling watcher
+				if (this.watcherOptions && this.watcherOptions.usePolling) {
+					// requires a polling watcher
 					watcherImpl = UnixWatcherService;
-					watcherOptions = { usePolling: true };
+					watcherOptions = this.watcherOptions;
 				} else {
 					// Single Folder Watcher
 					if (this.recursiveFoldersToWatch.length === 1) {
@@ -512,12 +516,6 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 
 		return createFileSystemProviderError(error, code);
-	}
-
-
-	forcePolling(): boolean {
-		// wsl1 needs polling
-		return isLinux && /^[\.\-0-9]+-Microsoft/.test(os.release());
 	}
 
 	//#endregion
