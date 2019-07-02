@@ -29,7 +29,6 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
@@ -67,9 +66,6 @@ class CodeRendererMain extends Disposable {
 
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
-
-		// Resource Loading
-		this._register(new WebResources(<IFileService>services.serviceCollection.get(IFileService)));
 
 		// Workbench Lifecycle
 		this._register(this.workbench.onShutdown(() => this.dispose()));
