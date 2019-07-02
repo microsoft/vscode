@@ -215,7 +215,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 	}
 
-	private setWindowsCompositionAttribute(attribute: 'acrylic' | 'blur' | 'transparent' | 'none'): void {
+	private setCompositionAttribute(attribute: 'acrylic' | 'blur' | 'transparent' | 'none'): void {
 		const { ACCENT_STATE, SetWindowCompositionAttribute } = require.__$__nodeRequire('windows-swca');
 		let attribValue = ACCENT_STATE.ACCENT_DISABLED;
 		switch (attribute) {
@@ -244,10 +244,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (windowConfig) {
 			if (isWindows && parseFloat(os.release()) >= 10) {
 				if (windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none' && this.hasHiddenTitleBarStyle()) {
-					this.setWindowsCompositionAttribute(windowConfig.compositionAttribute);
+					this.setCompositionAttribute(windowConfig.compositionAttribute);
 					applied = true;
 				} else {
-					this.setWindowsCompositionAttribute('none');
+					this.setCompositionAttribute('none');
 				}
 			} else if (isMacintosh && parseFloat(os.release()) >= 14) {
 				if (windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
@@ -262,6 +262,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
+		// FIXME: on windows, background is pitchblack at startup until the user changes the composition attribute in settings
 		this._win.setBackgroundColor(applied ? '#00000000' : this.themeMainService.getBackgroundColor());
 	}
 
