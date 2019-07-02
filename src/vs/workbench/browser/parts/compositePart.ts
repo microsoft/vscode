@@ -23,7 +23,8 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IProgressIndicator, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -168,15 +169,16 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const composite = compositeDescriptor.instantiate(this.instantiationService);
+			const compositeProgressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, this.progressBar, compositeDescriptor.id, isActive);
+			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
+			));
+
+			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
 			const disposable = new DisposableStore();
 
 			// Remember as Instantiated
-			this.instantiatedCompositeItems.set(id, {
-				composite,
-				disposable,
-				progress: this._register(this.instantiationService.createInstance(CompositeProgressIndicator, this.progressBar, compositeDescriptor.id, isActive))
-			});
+			this.instantiatedCompositeItems.set(id, { composite, disposable, progress: compositeProgressIndicator });
 
 			// Register to title area update events from the composite
 			disposable.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
