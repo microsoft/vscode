@@ -118,7 +118,7 @@ export class NsfwWatcherService implements IWatcherService {
 					} else if (this._verboseLogging) {
 						this.log(` >> ignored ${absolutePath}`);
 					}
-					absolutePath = path.join(e.directory, e.newFile || '');
+					absolutePath = path.join(e.newDirectory || e.directory, e.newFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this._verboseLogging) {

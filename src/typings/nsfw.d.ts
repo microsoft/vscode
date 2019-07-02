@@ -22,6 +22,7 @@ declare module 'nsfw' {
 		directory: string;
 		file?: string;
 		newFile?: string;
+		newDirectory?: string;
 		oldFile?: string;
 	}
 
