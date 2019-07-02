@@ -340,12 +340,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details, callback) => {
-			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']);
+			const responseHeaders = details.responseHeaders as { [key: string]: string[] };
+
+			const contentType: string[] = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
 			}
 
-			return callback({ cancel: false, responseHeaders: details.responseHeaders });
+			return callback({ cancel: false, responseHeaders });
 		});
 
 		// Remember that we loaded
