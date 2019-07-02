@@ -9,7 +9,7 @@ IF "%1" == "" (
 	set EXT_PATH=%CD:\=/%/extensions
 
 	:: Download nodejs executable for remote
-	yarn node
+	yarn gulp node
 ) else (
 	set AUTHORITY=%1
 	set EXT_PATH=%2
