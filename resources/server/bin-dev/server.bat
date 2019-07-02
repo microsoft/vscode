@@ -15,10 +15,9 @@ call yarn download-builtin-extensions
 :: Download nodejs executable for remote
 call yarn gulp node
 
-echo Using node from .build\node-remote\node
-
 :: Launch Agent
-call .build\node-remote\node.exe out\vs\server\main.js %*
+FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
+call "%NODE%" out\vs\server\main.js %*
 
 popd
 

@@ -16,11 +16,11 @@ function code() {
 	# Load remote node
 	yarn node
 
-	echo 'Using node from ./.build/node-remote/node'
+	$NODE=$(node build/lib/node.js)
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
-	./.build/node-remote/node "$ROOT/out/vs/server/main.js" "$@"
+	$NODE "$ROOT/out/vs/server/main.js" "$@"
 }
 
 code "$@"
