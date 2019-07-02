@@ -1047,12 +1047,12 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			// Cut is done. Make sure to clear cut state.
 			explorerService.setToCopy([], false);
 		}
-		if (stats.length === 1) {
+		if (stats.length >= 1) {
 			const stat = stats[0];
+			if (stat && !stat.isDirectory && stats.length === 1) {
+				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+			}
 			if (stat) {
-				if (!stat.isDirectory) {
-					await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
-				}
 				await explorerService.select(stat.resource);
 			}
 		}
