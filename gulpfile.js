@@ -40,6 +40,4 @@ process.on('unhandledRejection', (reason, p) => {
 // Load all the gulpfiles only if running tasks other than the editor tasks
 const build = path.join(__dirname, 'build');
 require('glob').sync('gulpfile.*.js', { cwd: build })
-	.filter(f => !/gulpfile\.ci\.js/.test(f))
 	.forEach(f => require(`./build/${f}`));
-require('./build/gulpfile.ci.js');
