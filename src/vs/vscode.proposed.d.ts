@@ -1368,7 +1368,9 @@ declare module 'vscode' {
 
 		/**
 		 * Implement to handle when the number of rows and columns that fit into the terminal panel
-		 * changes, for example when font size changes or when the panel is resized.
+		 * changes, for example when font size changes or when the panel is resized. The initial
+		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
+		 * as the size of a terminal isn't know until it shows up in the user interface.
 		 *
 		 * @param dimensions The new dimensions.
 		 */
