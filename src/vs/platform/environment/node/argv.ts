@@ -121,8 +121,8 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 		}
 	}
 	// remote aliases to avoid confusion
-	const parsedArgs = minimist(args, { string, boolean, alias }) as ParsedArgs;
-	for (let o of options) {
+	const parsedArgs = minimist(args, { string, boolean, alias });
+	for (const o of options) {
 		if (o.alias) {
 			delete parsedArgs[o.alias];
 		}
@@ -203,10 +203,10 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		}
 		help.push('');
 	}
-	for (let key in categories) {
+	for (const key in categories) {
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {
-			help.push(categories[key]);
+			help.push(categories[key as keyof HelpCategories]);
 			help.push(...formatOptions(categoryOptions, columns));
 			help.push('');
 		}
