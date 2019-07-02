@@ -36,7 +36,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _colorDatas = new Map<string, IColorData>();
 
 	private _colorDecoratorIds: string[] = [];
-	private readonly _decorationsTypes: { [key: string]: boolean } = {};
+	private readonly _decorationsTypes = new Set<string>();
 
 	private _isEnabled: boolean;
 
@@ -180,7 +180,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 			let key = 'colorBox-' + subKey;
 
-			if (!this._decorationsTypes[key] && !newDecorationsTypes[key]) {
+			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
 				this._codeEditorService.registerDecorationType(key, {
 					before: {
 						contentText: ' ',
@@ -210,7 +210,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			});
 		}
 
-		for (let subType in this._decorationsTypes) {
+		for (const subType of this._decorationsTypes) {
 			if (!newDecorationsTypes[subType]) {
 				this._codeEditorService.removeDecorationType(subType);
 			}
@@ -223,7 +223,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
 		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
 
-		for (let subType in this._decorationsTypes) {
+		for (const subType of this._decorationsTypes) {
 			this._codeEditorService.removeDecorationType(subType);
 		}
 	}
