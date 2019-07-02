@@ -23,7 +23,7 @@ function markTracked<T extends IDisposable>(x: T): void {
 
 	if (x && x !== Disposable.None) {
 		try {
-			x[__is_disposable_tracked__] = true;
+			(x as any)[__is_disposable_tracked__] = true;
 		} catch {
 			// noop
 		}
@@ -37,7 +37,7 @@ function trackDisposable<T extends IDisposable>(x: T): T {
 
 	const stack = new Error().stack!;
 	setTimeout(() => {
-		if (!x[__is_disposable_tracked__]) {
+		if (!(x as any)[__is_disposable_tracked__]) {
 			console.log(stack);
 		}
 	}, 3000);

@@ -54,7 +54,6 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 //#region Backup File
 
@@ -758,13 +757,11 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
 	) {
 		super();
 
 		this.addWorkspaceToRecentlyOpened();
-		this.restoreFullScreen();
 		this.registerListeners();
 	}
 
@@ -777,12 +774,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 			case WorkbenchState.WORKSPACE:
 				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
 				break;
-		}
-	}
-
-	private restoreFullScreen(): void {
-		if (document.location.href.indexOf('&fullscreen=true') > 0) {
-			setTimeout(() => this.toggleFullScreen(this.layoutService.getWorkbenchElement()), 0);
 		}
 	}
 
@@ -962,7 +953,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}&fullscreen=${!!browser.isFullscreen()}`;
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -970,7 +961,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				}
 			}
 			if ('workspaceUri' in uri) {
-				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}&fullscreen=${!!browser.isFullscreen()}`;
+				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {

@@ -456,7 +456,7 @@ export class QuickInputList {
 			what = 'Last';
 		}
 
-		this.list['focus' + what]();
+		(this.list as any)['focus' + what]();
 		this.list.reveal(this.list.getFocus()[0]);
 	}
 

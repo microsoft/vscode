@@ -21,6 +21,7 @@ import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSep
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 
 const telemetryFrom = 'menu';
 
@@ -783,13 +784,7 @@ export class Menubar {
 	}
 
 	private reportMenuActionTelemetry(id: string): void {
-		/* __GDPR__
-			"workbenchActionExecuted" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: telemetryFrom });
+		this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id, from: telemetryFrom });
 	}
 
 	private mnemonicLabel(label: string): string {

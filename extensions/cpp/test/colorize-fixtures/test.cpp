@@ -2,6 +2,8 @@
 #include <iostream>
 using namespace std;
 
+#define EXTERN_C extern "C"
+
 class Rectangle {
     int width, height;
   public:

@@ -17,18 +17,17 @@ import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/them
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private readonly _styleSheet: HTMLStyleElement;
-	private readonly _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
+	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _themeService: IThemeService;
 
 	constructor(@IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
 		super();
 		this._styleSheet = styleSheet;
-		this._decorationOptionProviders = Object.create(null);
 		this._themeService = themeService;
 	}
 
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
-		let provider = this._decorationOptionProviders[key];
+		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const providerArgs: ProviderArguments = {
 				styleSheet: this._styleSheet,
@@ -41,17 +40,17 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 			} else {
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, providerArgs);
 			}
-			this._decorationOptionProviders[key] = provider;
+			this._decorationOptionProviders.set(key, provider);
 		}
 		provider.refCount++;
 	}
 
 	public removeDecorationType(key: string): void {
-		const provider = this._decorationOptionProviders[key];
+		const provider = this._decorationOptionProviders.get(key);
 		if (provider) {
 			provider.refCount--;
 			if (provider.refCount <= 0) {
-				delete this._decorationOptionProviders[key];
+				this._decorationOptionProviders.delete(key);
 				provider.dispose();
 				this.listCodeEditors().forEach((ed) => ed.removeDecorations(key));
 			}
@@ -59,7 +58,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
-		const provider = this._decorationOptionProviders[decorationTypeKey];
+		const provider = this._decorationOptionProviders.get(decorationTypeKey);
 		if (!provider) {
 			throw new Error('Unknown decoration type key: ' + decorationTypeKey);
 		}

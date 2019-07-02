@@ -816,7 +816,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			mimeType: guessMimeTypes(this.resource).join(', '),
 			ext,
 			path: hash(path),
-			reason
+			reason,
+			whitelistedjson: undefined as string | undefined
 		};
 
 		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
