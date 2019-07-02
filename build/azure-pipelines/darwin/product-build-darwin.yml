@@ -30,6 +30,11 @@ steps:
 
 - script: |
     set -e
+    git merge master
+  displayName: Merge master
+  
+- script: |
+    set -e
     git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
     git fetch distro
     git merge $(node -p "require('./package.json').distro")
