@@ -77,8 +77,14 @@ steps:
 
 - script: |
     set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp linux-$VSCODE_ARCH-min
+      yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-$VSCODE_ARCH-min-ci
   displayName: Build
 
 - script: |

@@ -76,8 +76,14 @@ steps:
 
 - script: |
     set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp darwin-min
+      yarn gulp vscode-darwin-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-darwin-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-darwin-ci
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       yarn gulp upload-vscode-sourcemaps
   displayName: Build
