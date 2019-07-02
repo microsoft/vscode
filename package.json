@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "283437b4d514089d746fb98338d4ec831e588e06",
+  "distro": "8ca3202293a9a3370a1faf2702646e1ca3a2fc17",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,8 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization"
+    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
+    "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",

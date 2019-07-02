@@ -85,12 +85,15 @@
 
 /* Actions */
 .debug-action.clear-repl {
-	background: url('clear-repl.svg') center center no-repeat;
+	background: url('clear-light.svg') center center no-repeat;
 }
 
-.vs-dark .debug-action.clear-repl,
+.vs-dark .debug-action.clear-repl {
+	background: url('clear-dark.svg') center center no-repeat;
+}
+
 .hc-black .debug-action.clear-repl {
-	background: url('clear-repl-inverse.svg') center center no-repeat;
+	background: url('clear-hc.svg') center center no-repeat;
 }
 
 /* Output coloring  and styling */

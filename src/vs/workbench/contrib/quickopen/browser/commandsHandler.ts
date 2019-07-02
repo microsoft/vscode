@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import { Language } from 'vs/base/common/platform';
-import { Action } from 'vs/base/common/actions';
+import { Action, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -297,13 +297,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		setTimeout(async () => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
-					/* __GDPR__
-						"workbenchActionExecuted" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
+					this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 
 					const promise = action.run();
 					if (promise) {

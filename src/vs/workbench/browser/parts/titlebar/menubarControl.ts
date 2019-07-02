@@ -59,7 +59,7 @@ export abstract class MenubarControl extends Disposable {
 		[index: string]: IMenu | undefined;
 	};
 
-	protected topLevelTitles = {
+	protected topLevelTitles: { [menu: string]: string } = {
 		'File': nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
 		'Edit': nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit"),
 		'Selection': nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
@@ -407,9 +407,12 @@ export class NativeMenubarControl extends MenubarControl {
 	}
 
 	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
-		const keybindings = {};
+		const keybindings: { [id: string]: IMenubarKeybinding } = {};
 		if (isMacintosh) {
-			keybindings['workbench.action.quit'] = (this.getMenubarKeybinding('workbench.action.quit'));
+			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
+			if (keybinding) {
+				keybindings['workbench.action.quit'] = keybinding;
+			}
 		}
 
 		return keybindings;

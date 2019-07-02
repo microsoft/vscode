@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .activitybar > .content .monaco-action-bar .action-label.extensions {
-	-webkit-mask: url('extensions-dark.svg') no-repeat 50% 50%;
+	-webkit-mask: url('extensions-activity-bar.svg') no-repeat 50% 50%;
 }
 
 .extensions .split-view-view .panel-header .count-badge-wrapper {

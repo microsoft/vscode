@@ -181,7 +181,8 @@ class SvgBlocker extends Disposable {
 		});
 
 		session.onHeadersReceived((details) => {
-			const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
+			const headers: any = details.responseHeaders;
+			const contentType: string[] = headers['content-type'] || headers['Content-Type'];
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				const uri = URI.parse(details.url);
 				if (uri && !this.isAllowedSvg(uri)) {

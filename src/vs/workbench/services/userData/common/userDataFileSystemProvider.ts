@@ -8,8 +8,8 @@ import { FileSystemProviderCapabilities, FileWriteOptions, IStat, FileType, File
 import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { startsWith } from 'vs/base/common/strings';
 
 export class UserDataFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -85,7 +85,9 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	private toPath(resource: URI): string | undefined {
-		return resources.relativePath(this.userDataHome, resource);
+		const resourcePath = resource.toString();
+		const userDataHomePath = this.userDataHome.toString();
+		return startsWith(resourcePath, userDataHomePath) ? resourcePath.substr(userDataHomePath.length + 1) : undefined;
 	}
 }
 
@@ -105,8 +107,8 @@ class UserDataChangesEvent {
 		return this._pathsTree;
 	}
 
-	contains(keyOrSegment: string): boolean {
-		return this.pathsTree.findSubstr(keyOrSegment) !== undefined;
+	contains(pathOrSegment: string): boolean {
+		return this.pathsTree.findSubstr(pathOrSegment) !== undefined;
 	}
 
 }
