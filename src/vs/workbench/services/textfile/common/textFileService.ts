@@ -537,7 +537,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	}
 
 	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.args.extensionTestsPath !== undefined) {
+		if (this.environmentService.isExtensionDevelopment) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
