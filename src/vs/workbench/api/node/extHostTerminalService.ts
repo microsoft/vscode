@@ -119,15 +119,14 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		strictEnv?: boolean,
 		hideFromUser?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser).then(terminal => {
+		this._proxy.$createTerminal({ name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser }).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});
 	}
 
 	public createVirtualProcess(): Promise<void> {
-		// TODO: Change $createTerminal to accept an object
-		return this._proxy.$createTerminal(this._name, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true).then(terminal => {
+		return this._proxy.$createTerminal({ name: this._name, isVirtualProcess: true }).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});

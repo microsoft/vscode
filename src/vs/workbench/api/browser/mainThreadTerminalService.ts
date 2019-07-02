@@ -5,9 +5,9 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -78,18 +78,18 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean, hideFromUser?: boolean, isVirtualProcess?: boolean): Promise<{ id: number, name: string }> {
+	public $createTerminal(launchConfig: TerminalLaunchConfig): Promise<{ id: number, name: string }> {
 		const shellLaunchConfig: IShellLaunchConfig = {
-			name,
-			executable: shellPath,
-			args: shellArgs,
-			cwd: typeof cwd === 'string' ? cwd : URI.revive(cwd),
-			waitOnExit,
+			name: launchConfig.name,
+			executable: launchConfig.shellPath,
+			args: launchConfig.shellArgs,
+			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
+			waitOnExit: launchConfig.waitOnExit,
 			ignoreConfigurationCwd: true,
-			env,
-			strictEnv,
-			hideFromUser,
-			isVirtualProcess
+			env: launchConfig.env,
+			strictEnv: launchConfig.strictEnv,
+			hideFromUser: launchConfig.hideFromUser,
+			isVirtualProcess: launchConfig.isVirtualProcess
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		this._terminalProcesses[terminal.id] = new Promise<ITerminalProcessExtHostProxy>(r => this._terminalProcessesReady[terminal.id] = r);
