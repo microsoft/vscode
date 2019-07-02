@@ -61,21 +61,6 @@ steps:
 
 - script: |
     set -e
-    cd $BUILD_STAGINGDIRECTORY
-    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
-    cd vscode-telemetry-extractor
-    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
-    npm i
-    npm run setup-extension-repos
-    node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
-    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
-    mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
-    mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
-    mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
-  displayName: Extract Telemetry
-
-- script: |
-    set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     ./build/azure-pipelines/darwin/build.sh

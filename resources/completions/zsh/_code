@@ -14,7 +14,6 @@ arguments=(
 	'--user-data-dir[specify the directory that user data is kept in]:directory:_directories'
 	'(- *)'{-v,--version}'[print version]'
 	'(- *)'{-h,--help}'[print usage]'
-	'(- *)'{--telemetry}'[Shows all telemetry events which VS code collects.]'
 	'--extensions-dir[set the root path for extensions]:root path:_directories'
 	'--list-extensions[list the installed extensions]'
 	'--show-versions[show versions of installed extensions, when using --list-extension]'
