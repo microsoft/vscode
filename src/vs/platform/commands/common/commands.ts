@@ -22,9 +22,7 @@ export interface ICommandService {
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 
-export interface ICommandsMap {
-	[id: string]: ICommand;
-}
+export type ICommandsMap = Map<string, ICommand>;
 
 export interface ICommandHandler {
 	(accessor: ServicesAccessor, ...args: any[]): void;
@@ -122,10 +120,13 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	getCommands(): ICommandsMap {
-		const result: ICommandsMap = Object.create(null);
-		this._commands.forEach((value, key) => {
-			result[key] = this.getCommand(key)!;
-		});
+		const result = new Map<string, ICommand>();
+		for (const key of this._commands.keys()) {
+			const command = this.getCommand(key);
+			if (command) {
+				result.set(key, command);
+			}
+		}
 		return result;
 	}
 };
