@@ -113,3 +113,10 @@ jobs:
   - macOS
   steps:
   - template: sync-mooncake.yml
+
+schedules:
+- cron: "0 6 * * Mon-Fri"
+  displayName: Mon through Fri at 6:00
+  branches:
+    include:
+    - master
