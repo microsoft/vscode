@@ -372,18 +372,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private updateDynamicCSSRules(themeData: ITheme) {
-		let cssRules: string[] = [];
-		let hasRule: { [rule: string]: boolean } = {};
-		let ruleCollector = {
+		const cssRules = new Set<string>();
+		const ruleCollector = {
 			addRule: (rule: string) => {
-				if (!hasRule[rule]) {
-					cssRules.push(rule);
-					hasRule[rule] = true;
+				if (!cssRules.has(rule)) {
+					cssRules.add(rule);
 				}
 			}
 		};
 		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
-		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
+		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IColorTheme | null> {
