@@ -103,7 +103,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			this.log(`Start watching: ${basePath}]`);
 		}
 
-		const pollingInterval = this._pollingInterval || 1000;
+		const pollingInterval = this._pollingInterval || 5000;
 		const usePolling = this._usePolling;
 		if (usePolling && this._verboseLogging) {
 			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
