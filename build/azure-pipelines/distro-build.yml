@@ -35,7 +35,7 @@ steps:
     git push distro origin/master:refs/heads/master origin/master:refs/heads/oss/master
 
     # Push every release branch into oss/release
-    git for-each-ref --format="%(refname:short)" refs/remotes/origin/release/* | sed 's/^origin\/\(.*\)$/\0:refs\/heads\/oss\/\1/' | xargs git push
+    git for-each-ref --format="%(refname:short)" refs/remotes/origin/release/* | sed 's/^origin\/\(.*\)$/\0:refs\/heads\/oss\/\1/' | xargs git push distro
 
     git merge $(node -p "require('./package.json').distro")
 
