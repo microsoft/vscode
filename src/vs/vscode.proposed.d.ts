@@ -1342,8 +1342,10 @@ declare module 'vscode' {
 
 		/**
 		 * Implement to handle keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into theircorresponding
-		 * VT sequence representation.
+		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
+		 * corresponding VT sequence representation.
+		 *
+		 * @param data The sent data.
 		 *
 		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
 		 * CRLF to go to a new line and move the cursor to the start of the line.
@@ -1356,7 +1358,7 @@ declare module 'vscode' {
 		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
 		 * ```
 		 */
-		onDidAcceptInput?(text: string): void;
+		onDidAcceptInput?(data: string): void;
 
 		/**
 		 * Implement to handle when the number of rows and columns that fit into the terminal panel
