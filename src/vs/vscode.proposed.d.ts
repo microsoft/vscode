@@ -1272,6 +1272,8 @@ declare module 'vscode' {
 
 		// Allows ~ to be resolved in Live Share
 		// userHome?: string;
+
+		// cwd: string
 	}
 
 	interface TerminalVirtualProcess {

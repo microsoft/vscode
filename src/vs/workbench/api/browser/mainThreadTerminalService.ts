@@ -18,7 +18,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _proxy: ExtHostTerminalServiceShape;
 	private _remoteAuthority: string | null;
 	private _toDispose: IDisposable[] = [];
-	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
+	private _terminalProcesses: { [id: number]: Promise<ITerminalProcessExtHostProxy> } = {};
+	private _terminalProcessesReady: { [id: number]: (proxy: ITerminalProcessExtHostProxy) => void } = {};
 	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
 	private _terminalOnDidAcceptInputListeners: { [id: number]: IDisposable } = {};
 
@@ -92,6 +93,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isVirtualProcess
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
+		this._terminalProcesses[terminal.id] = new Promise<ITerminalProcessExtHostProxy>(r => this._terminalProcessesReady[terminal.id] = r);
 		return Promise.resolve({
 			id: terminal.id,
 			name: terminal.title
@@ -242,7 +244,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			return;
 		}
 
-		this._terminalProcesses[request.proxy.terminalId] = request.proxy;
+		this._terminalProcessesReady[request.proxy.terminalId](request.proxy);
 		const shellLaunchConfigDto: ShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,
 			executable: request.shellLaunchConfig.executable,
@@ -261,7 +263,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalRequestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
 		console.log('_onTerminalRequestVirtualProcess', proxy);
-		this._terminalProcesses[proxy.terminalId] = proxy;
+		this._terminalProcessesReady[proxy.terminalId](proxy);
+		delete this._terminalProcessesReady[proxy.terminalId];
+
 		proxy.onInput(data => {
 			console.log('_onTerminalRequestVirtualProcess onInput', data);
 			this._proxy.$acceptProcessInput(proxy.terminalId, data);
@@ -274,28 +278,28 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
-		this._terminalProcesses[terminalId].emitTitle(title);
+		this._terminalProcesses[terminalId].then(e => e.emitTitle(title));
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
-		this._terminalProcesses[terminalId].emitData(data);
+		this._terminalProcesses[terminalId].then(e => e.emitData(data));
 	}
 
 	public $sendProcessReady(terminalId: number, pid: number, cwd: string): void {
-		this._terminalProcesses[terminalId].emitReady(pid, cwd);
+		this._terminalProcesses[terminalId].then(e => e.emitReady(pid, cwd));
 	}
 
 	public $sendProcessExit(terminalId: number, exitCode: number): void {
-		this._terminalProcesses[terminalId].emitExit(exitCode);
+		this._terminalProcesses[terminalId].then(e => e.emitExit(exitCode));
 		delete this._terminalProcesses[terminalId];
 	}
 
 	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
-		this._terminalProcesses[terminalId].emitInitialCwd(initialCwd);
+		this._terminalProcesses[terminalId].then(e => e.emitInitialCwd(initialCwd));
 	}
 
 	public $sendProcessCwd(terminalId: number, cwd: string): void {
-		this._terminalProcesses[terminalId].emitCwd(cwd);
+		this._terminalProcesses[terminalId].then(e => e.emitCwd(cwd));
 	}
 
 	private async _onRequestLatency(terminalId: number): Promise<void> {
@@ -307,7 +311,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			sw.stop();
 			sum += sw.elapsed();
 		}
-		this._terminalProcesses[terminalId].emitLatency(sum / COUNT);
+		this._terminalProcesses[terminalId].then(e => e.emitLatency(sum / COUNT));
 	}
 
 	private _isPrimaryExtHost(): boolean {
