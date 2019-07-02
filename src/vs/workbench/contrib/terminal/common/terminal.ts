@@ -184,12 +184,13 @@ export interface IShellLaunchConfig {
 	initialText?: string;
 
 	/**
-	 * When true the terminal will be created with no process. This is primarily used to give
-	 * extensions full control over the terminal.
 	 * @deprecated use `isVirtualProcess`
 	 */
 	isRendererOnly?: boolean;
 
+	/**
+	 * When true an extension is acting as the terminal's process.
+	 */
 	isVirtualProcess?: boolean;
 
 	/**
