@@ -111,19 +111,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.registerListeners();
 	}
 
-	private setTransparentInfo(options: Electron.BrowserWindowConstructorOptions): void {
-		options.backgroundColor = '#00000000';
-		//setBackgroundColor(this.stateService, 'transparent');
-	}
-
 	private createBrowserWindow(config: IWindowCreationOptions): void {
 
 		// Load window state
 		const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 		this.windowState = state;
-
-		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
-		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
 		const options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
@@ -133,7 +125,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
-			show: !isFullscreenOrMaximized,
+			show: false,
 			title: product.nameLong,
 			webPreferences: {
 				// By default if Code is in the background, intervals and timeouts get throttled, so we
@@ -144,21 +136,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		};
 
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-
 		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 
 			// Make sure hardware acceleration is actually disabled.
-			options.transparent = windowConfig && windowConfig.transparent && app.getGPUFeatureStatus().gpu_compositing !== 'enabled';
-			if (options.transparent) {
-				this.setTransparentInfo(options);
-			}
+			//options.transparent = windowConfig && windowConfig.transparent && app.getGPUFeatureStatus().gpu_compositing !== 'enabled';
+			//if (options.transparent) {
+			//	options.backgroundColor = '#00000000';
+			//}
 		}
 
 		if (isMacintosh && !this.useNativeFullScreen()) {
 			options.fullscreenable = false; // enables simple fullscreen mode
 		}
+
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
 		if (isMacintosh) {
 			options.acceptFirstMouse = true; // enabled by default
@@ -182,19 +174,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
-		if (isMacintosh && windowConfig && windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
-			this.setTransparentInfo(options);
-			options.vibrancy = windowConfig.vibrancy;
-		}
-
-		const needsWinTransparency =
-			isWindows && windowConfig && windowConfig.compositionAttribute &&
-			windowConfig.compositionAttribute !== 'none' && parseFloat(os.release()) >= 10 &&
-			useCustomTitleStyle;
-		if (needsWinTransparency) {
-			this.setTransparentInfo(options);
-		}
-
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
@@ -203,28 +182,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		if (needsWinTransparency) {
-			const { ACCENT_STATE, SetWindowCompositionAttribute } = require.__$__nodeRequire('windows-swca');
-			let attribValue = ACCENT_STATE.ACCENT_DISABLED;
-			switch (windowConfig.compositionAttribute) {
-				case 'acrylic':
-					// Fluent/acrylic flag was introduced in Windows 10 build 17063 (between FCU and April 2018 update)
-					if (parseInt(os.release().split('.')[2]) >= 17063) {
-						attribValue = ACCENT_STATE.ACCENT_ENABLE_ACRYLICBLURBEHIND;
-					}
-					break;
-
-				case 'blur':
-					attribValue = ACCENT_STATE.ACCENT_ENABLE_BLURBEHIND;
-					break;
-
-				case 'transparent':
-					attribValue = ACCENT_STATE.ACCENT_ENABLE_TRANSPARENTGRADIENT;
-					break;
-			}
-
-			SetWindowCompositionAttribute(this._win.getNativeWindowHandle(), attribValue, 0);
-		}
+		this.applyTransparency(windowConfig);
 
 		// TODO@Ben (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
@@ -244,19 +202,67 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
-		if (isFullscreenOrMaximized) {
+		if (this.windowState.mode === WindowMode.Maximized) {
 			this._win.maximize();
+		} else if (this.windowState.mode === WindowMode.Fullscreen) {
+			this.setFullScreen(true);
+		}
 
-			if (this.windowState.mode === WindowMode.Fullscreen) {
-				this.setFullScreen(true);
-			}
+		// to reduce flicker from the default window size to maximize, we only show after maximize
+		// also prevents temporary background flash when transparency is set.
+		this._win.show();
 
-			if (!this._win.isVisible()) {
-				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
+		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
+	}
+
+	private setWindowsCompositionAttribute(attribute: 'acrylic' | 'blur' | 'transparent' | 'none'): void {
+		const { ACCENT_STATE, SetWindowCompositionAttribute } = require.__$__nodeRequire('windows-swca');
+		let attribValue = ACCENT_STATE.ACCENT_DISABLED;
+		switch (attribute) {
+			case 'acrylic':
+				// Fluent/acrylic flag was introduced in Windows 10 build 17063 (between FCU and April 2018 update)
+				if (parseInt(os.release().split('.')[2]) >= 17063) {
+					attribValue = ACCENT_STATE.ACCENT_ENABLE_ACRYLICBLURBEHIND;
+				}
+				break;
+
+			case 'blur':
+				attribValue = ACCENT_STATE.ACCENT_ENABLE_BLURBEHIND;
+				break;
+
+			case 'transparent':
+				attribValue = ACCENT_STATE.ACCENT_ENABLE_TRANSPARENTGRADIENT;
+				break;
+		}
+
+		SetWindowCompositionAttribute(this._win.getNativeWindowHandle(), attribValue, 0);
+	}
+
+	private applyTransparency(windowConfig: IWindowSettings): void {
+		let applied = false;
+
+		if (windowConfig) {
+			if (isWindows && parseFloat(os.release()) >= 10) {
+				if (windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none' && this.hasHiddenTitleBarStyle()) {
+					this.setWindowsCompositionAttribute(windowConfig.compositionAttribute);
+					applied = true;
+				} else {
+					this.setWindowsCompositionAttribute('none');
+				}
+			} else if (isMacintosh && parseFloat(os.release()) >= 14) {
+				if (windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
+					this._win.setVibrancy(windowConfig.vibrancy);
+					applied = true;
+				} else {
+					// Documentation says to pass null to remove vibrancy but this is not reflected in the typings
+					this._win.setVibrancy(null as any);
+				}
+			} else if (isLinux) {
+				// TODO
 			}
 		}
 
-		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
+		this._win.setBackgroundColor(applied ? '#00000000' : this.themeMainService.getBackgroundColor());
 	}
 
 	hasHiddenTitleBarStyle(): boolean {
@@ -519,6 +525,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.removeAllListeners('swipe');
 			}
 		}
+
+		this.applyTransparency(this.configurationService.getValue<IWindowSettings>('window'));
 	}
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
