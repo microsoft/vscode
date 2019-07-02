@@ -1162,6 +1162,8 @@ declare module 'vscode' {
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
 	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *
+	 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+	 *
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
 	 * const renderer = window.createTerminalRenderer('foo');
@@ -1172,6 +1174,7 @@ declare module 'vscode' {
 	export interface TerminalRenderer {
 		/**
 		 * The name of the terminal, this will appear in the terminal selector.
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		name: string;
 
@@ -1179,6 +1182,8 @@ declare module 'vscode' {
 		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
 		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
 		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 *
 		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
 		 * ```typescript
@@ -1195,17 +1200,24 @@ declare module 'vscode' {
 		 * terminal renderer is created and also until the terminal becomes visible in the UI.
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		readonly terminal: Terminal;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
 		 * text to the underlying _process_, this will write the text to the terminal itself.
+		 *
+		 * @param text The text to write.
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
@@ -1216,8 +1228,6 @@ declare module 'vscode' {
 		 * ```typescript
 		 * terminalRenderer.write('\x1b[10;20H*');
 		 * ```
-		 *
-		 * @param text The text to write.
 		 */
 		write(text: string): void;
 
@@ -1225,6 +1235,8 @@ declare module 'vscode' {
 		 * An event which fires on keystrokes in the terminal or when an extension calls
 		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
 		 * corresponding VT sequence representation.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 *
 		 * **Example:** Simulate interaction with the terminal from an outside extension or a
 		 * workbench command such as `workbench.action.terminal.runSelectedText`
@@ -1241,6 +1253,8 @@ declare module 'vscode' {
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
@@ -1250,6 +1264,7 @@ declare module 'vscode' {
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
