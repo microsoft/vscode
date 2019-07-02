@@ -85,7 +85,7 @@ jobs:
   - template: darwin/product-build-darwin.yml
 
 - job: Release
-  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['Build.Reason'], 'Schedule')), and(eq(variables['VSCODE_QUALITY'], 'exploration'), eq(variables['Build.SourceBranch'], 'refs/heads/electron-6.0.x'))))
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
   pool:
     vmImage: 'Ubuntu-16.04'
   dependsOn:
