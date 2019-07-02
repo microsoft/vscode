@@ -79,6 +79,5 @@
 	"git.ignoreLimitWarning": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
-	},
-	"typescript.experimental.useSeparateSyntaxServer": true
+	}
 }

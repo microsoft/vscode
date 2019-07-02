@@ -494,9 +494,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onUpdateAppIconDragBehavior() {
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting) {
-			this.appIcon.style['-webkit-app-region'] = 'no-drag';
+			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
 		} else {
-			this.appIcon.style['-webkit-app-region'] = 'drag';
+			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
 		}
 	}
 

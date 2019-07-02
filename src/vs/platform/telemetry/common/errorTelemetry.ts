@@ -9,21 +9,16 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-/* __GDPR__FRAGMENT__
-	"ErrorEvent" : {
-		"stack": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" },
-		"message" : { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" },
-		"filename" : { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" },
-		"callstack": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"msg" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"file" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"line": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"column": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"uncaught_error_name": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"uncaught_error_msg": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-		"count": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-	}
- */
+type ErrorEventFragment = {
+	callstack: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	file?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	line?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	column?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	uncaught_error_name?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	uncaught_error_msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	count?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+};
 export interface ErrorEvent {
 	callstack: string;
 	msg?: string;
@@ -124,12 +119,8 @@ export default abstract class BaseErrorTelemetry {
 
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
-			/* __GDPR__
-			"UnhandledError" : {
-					"${include}": [ "${ErrorEvent}" ]
-				}
-			*/
-			this._telemetryService.publicLog('UnhandledError', error, true);
+			type UnhandledErrorClassification = {} & ErrorEventFragment;
+			this._telemetryService.publicLog2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error, true);
 		}
 		this._buffer.length = 0;
 	}

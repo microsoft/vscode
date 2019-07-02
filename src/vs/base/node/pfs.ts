@@ -138,20 +138,6 @@ export async function readdir(path: string): Promise<string[]> {
 	return handleDirectoryChildren(await promisify(fs.readdir)(path));
 }
 
-export async function readdirWithFileTypes(path: string): Promise<fs.Dirent[]> {
-	const children = await promisify(fs.readdir)(path, { withFileTypes: true });
-
-	// Mac: uses NFD unicode form on disk, but we want NFC
-	// See also https://github.com/nodejs/node/issues/2165
-	if (platform.isMacintosh) {
-		for (const child of children) {
-			child.name = normalizeNFC(child.name);
-		}
-	}
-
-	return children;
-}
-
 export function readdirSync(path: string): string[] {
 	return handleDirectoryChildren(fs.readdirSync(path));
 }
@@ -479,12 +465,12 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 }
 
 export async function readDirsInDir(dirPath: string): Promise<string[]> {
-	const children = await readdirWithFileTypes(dirPath);
+	const children = await readdir(dirPath);
 	const directories: string[] = [];
 
 	for (const child of children) {
-		if (child.isDirectory()) {
-			directories.push(child.name);
+		if (await dirExists(join(dirPath, child))) {
+			directories.push(child);
 		}
 	}
 

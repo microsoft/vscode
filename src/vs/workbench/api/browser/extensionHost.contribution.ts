@@ -54,6 +54,7 @@ import './mainThreadWebview';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadTask';
+import './mainThreadLabelService';
 import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {

@@ -426,7 +426,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
-		if (runSource === TaskRunSource.User) {
+		if ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange)) {
 			this.notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
 				[{
 					label: nls.localize('showOutput', "Show output"),
@@ -786,7 +786,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			let identifier: TaskConfig.TaskIdentifier = Objects.assign(Object.create(null), task.defines);
 			delete identifier['_key'];
-			Object.keys(identifier).forEach(key => toCustomize![key] = identifier[key]);
+			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
 			}
@@ -796,9 +796,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (properties) {
 			for (let property of Object.getOwnPropertyNames(properties)) {
-				let value = properties[property];
+				let value = (<any>properties)[property];
 				if (value !== undefined && value !== null) {
-					toCustomize[property] = value;
+					(<any>toCustomize)[property] = value;
 				}
 			}
 		} else {

@@ -481,16 +481,16 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: 'split-editor-horizontal-inverse.svg',
-		iconLight: 'split-editor-horizontal.svg'
+		iconDark: 'split-editor-horizontal-dark.svg',
+		iconLight: 'split-editor-horizontal-light.svg'
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: 'split-editor-vertical-inverse.svg',
-		iconLight: 'split-editor-vertical.svg'
+		iconDark: 'split-editor-vertical-dark.svg',
+		iconLight: 'split-editor-vertical-light.svg'
 	}
 );
 
@@ -498,16 +498,16 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: 'split-editor-vertical-inverse.svg',
-		iconLight: 'split-editor-vertical.svg'
+		iconDark: 'split-editor-vertical-dark.svg',
+		iconLight: 'split-editor-vertical-light.svg'
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: 'split-editor-horizontal-inverse.svg',
-		iconLight: 'split-editor-horizontal.svg'
+		iconDark: 'split-editor-horizontal-dark.svg',
+		iconLight: 'split-editor-horizontal-light.svg'
 	}
 );
 
@@ -516,16 +516,16 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-big-inverse-alt.svg',
-		iconLight: 'close-big-alt.svg'
+		iconDark: 'close-dark.svg',
+		iconLight: 'close-light.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: 'closeall-editors-inverse.svg',
-		iconLight: 'closeall-editors.svg'
+		iconDark: 'close-all-dark.svg',
+		iconLight: 'close-all-light.svg'
 	}
 );
 
@@ -533,16 +533,16 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dirty-inverse-alt.svg',
-		iconLight: 'close-dirty-alt.svg'
+		iconDark: 'close-dark.svg',
+		iconLight: 'close-light.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: 'closeall-editors-inverse.svg',
-		iconLight: 'closeall-editors.svg'
+		iconDark: 'close-all-dark.svg',
+		iconLight: 'close-all-light.svg'
 	}
 );
 
@@ -551,8 +551,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_PREVIOUS_CHANGE,
 		title: nls.localize('navigate.prev.label', "Previous Change"),
-		iconDark: 'previous-diff-inverse.svg',
-		iconLight: 'previous-diff.svg'
+		iconDark: 'previous-diff-dark.svg',
+		iconLight: 'previous-diff-light.svg'
 	},
 	TextCompareEditorActiveContext,
 	10
@@ -563,8 +563,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_NEXT_CHANGE,
 		title: nls.localize('navigate.next.label', "Next Change"),
-		iconDark: 'next-diff-inverse.svg',
-		iconLight: 'next-diff.svg'
+		iconDark: 'next-diff-dark.svg',
+		iconLight: 'next-diff-light.svg'
 	},
 	TextCompareEditorActiveContext,
 	11
@@ -575,8 +575,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
-		iconDark: 'paragraph-inverse.svg',
-		iconLight: 'paragraph.svg'
+		iconDark: 'paragraph-dark.svg',
+		iconLight: 'paragraph-light.svg'
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
 	20
@@ -587,8 +587,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
-		iconDark: 'paragraph-disabled-inverse.svg',
-		iconLight: 'paragraph-disabled.svg'
+		iconDark: 'paragraph-disabled-dark.svg',
+		iconLight: 'paragraph-disabled-light.svg'
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
 	20
