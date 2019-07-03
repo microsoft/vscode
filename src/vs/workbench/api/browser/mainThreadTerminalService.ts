@@ -264,8 +264,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcessesReady[proxy.terminalId](proxy);
 		delete this._terminalProcessesReady[proxy.terminalId];
 
+		// Note that onReisze is not being listened to here as it needs to fire when max dimensions
+		// change, excluding the dimension override
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
-		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
 		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));
 		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.terminalId));

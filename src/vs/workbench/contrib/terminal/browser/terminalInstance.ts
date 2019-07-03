@@ -363,12 +363,15 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._cols !== newCols || this._rows !== newRows) {
 			this._cols = newCols;
 			this._rows = newRows;
-			if (this.shellLaunchConfig.isRendererOnly) {
-				this._onMaximumDimensionsChanged.fire();
-			}
+			this._fireMaximumDimensionsChanged();
 		}
 
 		return dimension.width;
+	}
+
+	@debounce(50)
+	private _fireMaximumDimensionsChanged(): void {
+		this._onMaximumDimensionsChanged.fire();
 	}
 
 	private _getDimension(width: number, height: number): dom.Dimension | null {

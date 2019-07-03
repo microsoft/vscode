@@ -433,13 +433,20 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void {
-		this._getTerminalByIdEventually(id).then(() => {
-			// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
-			const renderer = this._getTerminalRendererById(id);
-			if (renderer) {
-				renderer._setMaximumDimensions(cols, rows);
-			}
-		});
+		if (this._terminalProcesses[id]) {
+			// Virtual processes only - when virtual process resize fires it means that the
+			// terminal's maximum dimensions changed
+			this._terminalProcesses[id].resize(cols, rows);
+		} else {
+			// Terminal renderer
+			this._getTerminalByIdEventually(id).then(() => {
+				// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
+				const renderer = this._getTerminalRendererById(id);
+				if (renderer) {
+					renderer._setMaximumDimensions(cols, rows);
+				}
+			});
+		}
 	}
 
 	public $acceptTerminalRendererInput(id: number, data: string): void {

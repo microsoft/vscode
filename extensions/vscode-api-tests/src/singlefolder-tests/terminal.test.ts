@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, Terminal, TerminalDimensionsChangeEvent } from 'vscode';
+import { window, commands, Terminal, TerminalDimensionsChangeEvent, TerminalVirtualProcess, EventEmitter } from 'vscode';
 import { doesNotThrow, equal, ok } from 'assert';
 
 suite('window namespace tests', () => {
@@ -196,6 +196,67 @@ suite('window namespace tests', () => {
 				equal(t.name, 'bg');
 				ok(window.terminals.indexOf(terminal) !== -1);
 				done();
+			});
+		});
+
+		suite('Virtual process terminals', () => {
+			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					equal(term.name, 'c');
+					reg1.dispose();
+					const reg2 = window.onDidCloseTerminal(() => {
+						reg2.dispose();
+						done();
+					});
+					term.dispose();
+				});
+				const virtualProcess: TerminalVirtualProcess = {
+					write: new EventEmitter<string>().event
+				};
+				window.createTerminal({ name: 'c', virtualProcess });
+			});
+
+			test('should get dimensions event when shown', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					reg1.dispose();
+					equal(terminal, term);
+					term.show();
+				});
+				const virtualProcess: TerminalVirtualProcess = {
+					write: new EventEmitter<string>().event,
+					onDidChangeDimensions: dimensions => {
+						ok(dimensions.columns > 0);
+						ok(dimensions.rows > 0);
+						const reg2 = window.onDidCloseTerminal(() => {
+							reg2.dispose();
+							done();
+						});
+						terminal.dispose();
+					}
+				};
+				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+			});
+
+			test('should fire Terminal.onData on write', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					equal(terminal, term);
+					reg1.dispose();
+					const reg2 = terminal.onDidWriteData(data => {
+						equal(data, 'bar');
+						reg2.dispose();
+						const reg3 = window.onDidCloseTerminal(() => {
+							reg3.dispose();
+							done();
+						});
+						terminal.dispose();
+					});
+					writeEmitter.fire('bar');
+				});
+				const writeEmitter = new EventEmitter<string>();
+				const virtualProcess: TerminalVirtualProcess = {
+					write: writeEmitter.event
+				};
+				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
 		});
 	});
