@@ -215,7 +215,7 @@ suite('window namespace tests', () => {
 					term.dispose();
 				});
 				const virtualProcess: TerminalVirtualProcess = {
-					write: new EventEmitter<string>().event
+					onDidWrite: new EventEmitter<string>().event
 				};
 				window.createTerminal({ name: 'c', virtualProcess });
 			});
@@ -227,8 +227,8 @@ suite('window namespace tests', () => {
 					term.show();
 				});
 				const virtualProcess: TerminalVirtualProcess = {
-					write: new EventEmitter<string>().event,
-					onDidChangeDimensions: dimensions => {
+					onDidWrite: new EventEmitter<string>().event,
+					setDimensions: dimensions => {
 						ok(dimensions.columns > 0);
 						ok(dimensions.rows > 0);
 						const reg2 = window.onDidCloseTerminal(() => {
@@ -258,7 +258,7 @@ suite('window namespace tests', () => {
 				});
 				const writeEmitter = new EventEmitter<string>();
 				const virtualProcess: TerminalVirtualProcess = {
-					write: writeEmitter.event
+					onDidWrite: writeEmitter.event
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
@@ -284,8 +284,8 @@ suite('window namespace tests', () => {
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const virtualProcess: TerminalVirtualProcess = {
-					write: writeEmitter.event,
-					overrideDimensions: overrideDimensionsEmitter.event
+					onDidWrite: writeEmitter.event,
+					onDidOverrideDimensions: overrideDimensionsEmitter.event
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
