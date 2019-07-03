@@ -342,8 +342,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 		if (resource.scheme === Schemas.file) {
 			shell.showItemInFolder(resource.fsPath);
-		} else if (resource.scheme === Schemas.userData) {
-			shell.showItemInFolder(resource.with({ scheme: Schemas.file }).fsPath);
 		}
 	}
 
