@@ -196,15 +196,15 @@ steps:
     .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(esrp-auth-certificate) -AuthCertificateKey $(esrp-auth-certificate-key)
   displayName: Import ESRP Auth Certificate
 
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-    $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-    $env:VSCODE_HOCKEYAPP_TOKEN = "$(vscode-hockeyapp-token)"
-    $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-    .\build\azure-pipelines\win32\publish.ps1
-  displayName: Publish
+# - powershell: |
+#     . build/azure-pipelines/win32/exec.ps1
+#     $ErrorActionPreference = "Stop"
+#     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
+#     $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+#     $env:VSCODE_HOCKEYAPP_TOKEN = "$(vscode-hockeyapp-token)"
+#     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+#     .\build\azure-pipelines\win32\publish.ps1
+#   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'

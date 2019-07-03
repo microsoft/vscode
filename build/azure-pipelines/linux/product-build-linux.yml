@@ -112,14 +112,14 @@ steps:
   displayName: Run unit tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-- script: |
-    set -e
-    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/linux/publish.sh
-  displayName: Publish
+# - script: |
+#     set -e
+#     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+#     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+#     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+#     VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+#     ./build/azure-pipelines/linux/publish.sh
+#   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
