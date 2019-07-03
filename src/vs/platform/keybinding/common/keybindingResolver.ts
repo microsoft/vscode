@@ -334,10 +334,10 @@ export class KeybindingResolver {
 			}
 			unboundCommands.push(id);
 		};
-		for (const id in MenuRegistry.getCommands()) {
+		for (const id of MenuRegistry.getCommands().keys()) {
 			addCommand(id, true);
 		}
-		for (const id in CommandsRegistry.getCommands()) {
+		for (const id of CommandsRegistry.getCommands().keys()) {
 			addCommand(id, false);
 		}
 
