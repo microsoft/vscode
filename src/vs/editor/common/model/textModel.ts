@@ -23,9 +23,9 @@ import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd }
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { ModelLinesTokens, ModelTokensChangedEventBuilder, IModelLinesTokens, safeTokenize } from 'vs/editor/common/model/textModelTokens';
+import { ModelLinesTokens, ModelTokensChangedEventBuilder, IModelLinesTokens } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions } from 'vs/editor/common/modes';
+import { LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
@@ -1342,7 +1342,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
 				try {
-					this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+					this._tokens.store.applyEdits(change.range, eolCount, firstLineLength);
 				} catch (err) {
 					// emergency recovery => reset tokens
 					this._tokens = new ModelLinesTokens(this._languageIdentifier, this._tokens.tokenizationSupport);
@@ -1776,61 +1776,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	//#region Tokenization
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		if (!this._tokens.tokenizationSupport) {
-			// nothing to do
-			return;
-		}
-
 		startLineNumber = Math.max(1, startLineNumber);
 		endLineNumber = Math.min(this.getLineCount(), endLineNumber);
 
-		if (endLineNumber <= this._tokens.invalidLineStartIndex) {
-			// nothing to do
-			return;
-		}
-
-		if (startLineNumber <= this._tokens.invalidLineStartIndex) {
-			// tokenization has reached the viewport start...
-			this.forceTokenization(endLineNumber);
-			return;
-		}
-
-		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
-		let fakeLines: string[] = [];
-		let initialState: IState | null = null;
-		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
-			let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
-
-			if (newNonWhitespaceIndex === 0) {
-				continue;
-			}
-
-			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-				initialState = this._tokens.getState(i - 1);
-				if (initialState) {
-					break;
-				}
-				fakeLines.push(this.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
-			}
-		}
-
-		if (!initialState) {
-			initialState = this._tokens.tokenizationSupport.getInitialState();
-		}
-
-		let state = initialState;
-		for (let i = fakeLines.length - 1; i >= 0; i--) {
-			let r = safeTokenize(this._languageIdentifier, this._tokens.tokenizationSupport, fakeLines[i], state);
-			if (r) {
-				state = r.endState;
-			} else {
-				state = initialState;
-			}
-		}
-
 		const eventBuilder = new ModelTokensChangedEventBuilder();
-		this._tokens.fakeTokenizeLines(this._buffer, eventBuilder, state, startLineNumber, endLineNumber);
+		this._tokens.tokenizeViewport(this._buffer, eventBuilder, startLineNumber, endLineNumber);
 
 		const e = eventBuilder.build();
 		if (e) {
@@ -1896,7 +1846,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this._buffer.getLineContent(lineNumber);
-		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		return this._tokens.store.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

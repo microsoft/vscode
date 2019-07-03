@@ -390,19 +390,15 @@ class TokensStore {
 
 export interface IModelLinesTokens {
 	readonly tokenizationSupport: ITokenizationSupport | null;
+	readonly store: TokensStore;
 	readonly invalidLineStartIndex: number;
-
-	setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void;
-	getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens;
 
 	isCheapToTokenize(lineNumber: number): boolean;
 	hasLinesToTokenize(buffer: ITextBuffer): boolean;
-	getState(lineIndex: number): IState | null;
-	applyEdits(range: Range, eolCount: number, firstLineLength: number): void;
 
 	tokenizeOneInvalidLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder): number;
 	updateTokensUntilLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void;
-	fakeTokenizeLines(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, initialState: IState, startLineNumber: number, endLineNumber: number): void;
+	tokenizeViewport(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void;
 
 	_getAllStates(linesLength: number): (IState | null)[];
 	_getAllInvalid(linesLength: number): number[];
@@ -410,12 +406,16 @@ export interface IModelLinesTokens {
 
 export class ModelLinesTokens implements IModelLinesTokens {
 
-	public readonly languageIdentifier: LanguageIdentifier;
+	private readonly _languageIdentifier: LanguageIdentifier;
 	public readonly tokenizationSupport: ITokenizationSupport | null;
 	public readonly store: TokensStore;
 
+	public get invalidLineStartIndex() {
+		return this.store.invalidLineStartIndex;
+	}
+
 	constructor(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null) {
-		this.languageIdentifier = languageIdentifier;
+		this._languageIdentifier = languageIdentifier;
 		this.tokenizationSupport = tokenizationSupport;
 
 		let initialState: IState | null = null;
@@ -430,14 +430,6 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		this.store = new TokensStore(initialState);
 	}
 
-	public get invalidLineStartIndex() {
-		return this.store.invalidLineStartIndex;
-	}
-
-	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
-		return this.store.getTokens(topLevelLanguageId, lineIndex, lineText);
-	}
-
 	public isCheapToTokenize(lineNumber: number): boolean {
 		const firstInvalidLineNumber = this.store.invalidLineStartIndex + 1;
 		return (firstInvalidLineNumber >= lineNumber);
@@ -446,30 +438,6 @@ export class ModelLinesTokens implements IModelLinesTokens {
 	public hasLinesToTokenize(buffer: ITextBuffer): boolean {
 		return (this.store.invalidLineStartIndex < buffer.getLineCount());
 	}
-
-	public getState(lineIndex: number): IState | null {
-		return this.store.getState(lineIndex);
-	}
-
-	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
-		this.store.setTokens(topLevelLanguageId, lineIndex, lineTextLength, tokens);
-	}
-
-	private _setState(lineIndex: number, state: IState): void {
-		this.store.setState(lineIndex, state);
-	}
-
-	//#region Editing
-
-	public applyEdits(range: Range, eolCount: number, firstLineLength: number): void {
-		this.store.applyEdits(range, eolCount, firstLineLength);
-	}
-
-	private _invalidateLine(lineIndex: number): void {
-		this.store.invalidateLine(lineIndex);
-	}
-
-	//#endregion
 
 	//#region Tokenization
 
@@ -494,16 +462,70 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		// Validate all states up to and including endLineIndex
 		for (let lineIndex = this.store.invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
 			const text = buffer.getLineContent(lineIndex + 1);
-			const lineStartState = this.getState(lineIndex);
+			const lineStartState = this.store.getState(lineIndex);
 
-			const r = safeTokenize(this.languageIdentifier, this.tokenizationSupport, text, lineStartState!);
-			this.store.setGoodTokens(this.languageIdentifier.id, linesLength, lineIndex, text, r);
+			const r = safeTokenize(this._languageIdentifier, this.tokenizationSupport, text, lineStartState!);
+			this.store.setGoodTokens(this._languageIdentifier.id, linesLength, lineIndex, text, r);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
 			lineIndex = this.store.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
 	}
 
-	public fakeTokenizeLines(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, initialState: IState, startLineNumber: number, endLineNumber: number): void {
+	public tokenizeViewport(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void {
+		if (!this.tokenizationSupport) {
+			// nothing to do
+			return;
+		}
+
+		if (endLineNumber <= this.invalidLineStartIndex) {
+			// nothing to do
+			return;
+		}
+
+		if (startLineNumber <= this.invalidLineStartIndex) {
+			// tokenization has reached the viewport start...
+			this.updateTokensUntilLine(buffer, eventBuilder, endLineNumber);
+			return;
+		}
+
+		let nonWhitespaceColumn = buffer.getLineFirstNonWhitespaceColumn(startLineNumber);
+		let fakeLines: string[] = [];
+		let initialState: IState | null = null;
+		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
+			let newNonWhitespaceIndex = buffer.getLineFirstNonWhitespaceColumn(i);
+
+			if (newNonWhitespaceIndex === 0) {
+				continue;
+			}
+
+			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				initialState = this.store.getState(i - 1);
+				if (initialState) {
+					break;
+				}
+				fakeLines.push(buffer.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
+			}
+		}
+
+		if (!initialState) {
+			initialState = this.tokenizationSupport.getInitialState();
+		}
+
+		let state = initialState;
+		for (let i = fakeLines.length - 1; i >= 0; i--) {
+			let r = safeTokenize(this._languageIdentifier, this.tokenizationSupport, fakeLines[i], state);
+			if (r) {
+				state = r.endState;
+			} else {
+				state = initialState;
+			}
+		}
+
+		this._fakeTokenizeLines(buffer, eventBuilder, state, startLineNumber, endLineNumber);
+	}
+
+	private _fakeTokenizeLines(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, initialState: IState, startLineNumber: number, endLineNumber: number): void {
 		if (!this.tokenizationSupport) {
 			return;
 		}
@@ -511,14 +533,14 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		let state = initialState;
 		for (let i = startLineNumber; i <= endLineNumber; i++) {
 			let text = buffer.getLineContent(i);
-			let r = safeTokenize(this.languageIdentifier, this.tokenizationSupport, text, state);
+			let r = safeTokenize(this._languageIdentifier, this.tokenizationSupport, text, state);
 			if (r) {
-				this.setTokens(this.languageIdentifier.id, i - 1, text.length, r.tokens);
+				this.store.setTokens(this._languageIdentifier.id, i - 1, text.length, r.tokens);
 
 				// We cannot trust these states/tokens to be valid!
 				// (see https://github.com/Microsoft/vscode/issues/67607)
-				this._invalidateLine(i - 1);
-				this._setState(i - 1, state);
+				this.store.invalidateLine(i - 1);
+				this.store.setState(i - 1, state);
 				state = r.endState;
 				eventBuilder.registerChangedTokens(i);
 			} else {
@@ -532,7 +554,7 @@ export class ModelLinesTokens implements IModelLinesTokens {
 	_getAllStates(linesLength: number): (IState | null)[] {
 		const r: (IState | null)[] = [];
 		for (let i = 0; i < linesLength; i++) {
-			r[i] = this.getState(i);
+			r[i] = this.store.getState(i);
 		}
 		r[linesLength] = this.store._lastState;
 		return r;
@@ -549,7 +571,7 @@ export class ModelLinesTokens implements IModelLinesTokens {
 	}
 }
 
-export function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, state: IState): TokenizationResult2 {
+function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, state: IState): TokenizationResult2 {
 	let r: TokenizationResult2 | null = null;
 
 	if (tokenizationSupport) {
