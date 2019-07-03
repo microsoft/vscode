@@ -82,12 +82,6 @@ steps:
 
 - script: |
     set -e
-    yarn gulp mixin
-  displayName: Mix in quality
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- script: |
-    set -e
     yarn gulp hygiene
     yarn monaco-compile-check
   displayName: Run hygiene checks
