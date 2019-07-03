@@ -72,8 +72,11 @@ export interface ParsedArgs {
 	'enable-remote-auto-shutdown'?: boolean;
 	'disable-inspect'?: boolean;
 	'force'?: boolean;
-	'js-flags'?: boolean;
 	'gitCredential'?: string;
+	// node flags
+	'js-flags'?: boolean;
+	'disable-gpu'?: boolean;
+	'nolazy'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

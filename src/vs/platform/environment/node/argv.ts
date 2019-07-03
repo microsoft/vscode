@@ -21,7 +21,7 @@ const helpCategories = {
 };
 
 export interface Option {
-	id: string;
+	id: keyof ParsedArgs;
 	type: 'boolean' | 'string';
 	alias?: string;
 	deprecates?: string; // old deprecated id
@@ -29,7 +29,7 @@ export interface Option {
 	description?: string;
 	cat?: keyof typeof helpCategories;
 }
-
+//_urls
 export const options: Option[] = [
 	{ id: 'diff', type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	{ id: 'add', type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
@@ -85,17 +85,16 @@ export const options: Option[] = [
 	{ id: 'skip-add-to-recently-opened', type: 'boolean' },
 	{ id: 'unity-launch', type: 'boolean' },
 	{ id: 'open-url', type: 'boolean' },
-	{ id: 'nolazy', type: 'boolean' },
-	{ id: 'issue', type: 'boolean' },
 	{ id: 'file-write', type: 'boolean' },
 	{ id: 'file-chmod', type: 'boolean' },
 	{ id: 'driver-verbose', type: 'boolean' },
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
-	{ id: 'prof-code-loading', type: 'boolean' },
-	{ id: 'js-flags', type: 'string' },
-	{ id: '_', type: 'string' }
+	{ id: '_', type: 'string' },
+
+	{ id: 'js-flags', type: 'string' }, // chrome js flags
+	{ id: 'nolazy', type: 'boolean' }, // node inspect
 ];
 
 export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
