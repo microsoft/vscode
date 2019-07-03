@@ -301,6 +301,11 @@
 	background-image: url('./close-dark.svg');
 }
 
+.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
+.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
+	background-image: url('./info-dark.svg');
+}
+
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before { background-image: url('Misc_inverse_16x.svg'); }
 

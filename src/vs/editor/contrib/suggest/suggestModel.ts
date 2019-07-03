@@ -293,6 +293,9 @@ export class SuggestModel implements IDisposable {
 			this.cancel();
 
 			this._triggerQuickSuggest.cancelAndSet(() => {
+				if (this._state !== State.Idle) {
+					return;
+				}
 				if (!LineContext.shouldAutoTrigger(this._editor)) {
 					return;
 				}

@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
@@ -268,7 +268,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
 	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -289,7 +289,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 			.forEach(id => this._inputDisposables[id].dispose());
 		this._inputDisposables = Object.create(null);
 
-		this._disposables = dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
