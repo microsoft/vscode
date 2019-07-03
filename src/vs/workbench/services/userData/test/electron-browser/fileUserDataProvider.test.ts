@@ -335,7 +335,7 @@ suite('FileUserDataProvider', () => {
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
 		assert.equal(result.children!.length, 1);
-		assert.equal(result.children![0].name, 'settings.json');
+		assert.equal(result.children![0].resource.toString(), joinPath(userDataResource, 'testContainer/settings.json').toString());
 	});
 
 	test('watch file under container - event is triggerred when file is created', async (done) => {
@@ -515,6 +515,6 @@ suite('FileUserDataProvider', () => {
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
 		assert.equal(result.children!.length, 1);
-		assert.equal(result.children![0].name, 'backup.json');
+		assert.equal(result.children![0].resource.toString(), joinPath(userDataResource, `${BACKUPS}/backup.json`).toString());
 	});
 });

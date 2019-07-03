@@ -55,8 +55,9 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	}
 
 	async listFiles(path: string): Promise<string[]> {
-		const result = await this.fileService.resolve(this.toResource(path));
-		return result.children ? result.children.map(c => this.toPath(c.resource)!) : [];
+		const resource = this.toResource(path);
+		const result = await this.fileService.resolve(resource);
+		return result.children ? result.children.map(c => this.toRelativePath(c.resource, resource)!) : [];
 	}
 
 	deleteFile(path: string): Promise<void> {
@@ -71,14 +72,18 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	}
 
 	private toPath(resource: URI): string | undefined {
-		const resourcePath = resource.toString();
-		const userDataHomePath = this.userDataHome.toString();
-		const backupHomePath = resources.joinPath(resources.dirname(this.userDataHome), BACKUPS).toString();
-		if (startsWith(resourcePath, userDataHomePath)) {
-			return resourcePath.substr(userDataHomePath.length + 1);
+		let result = this.toRelativePath(resource, this.userDataHome);
+		if (result === undefined) {
+			result = this.toRelativePath(resource, resources.joinPath(resources.dirname(this.userDataHome), BACKUPS));
 		}
-		if (startsWith(resourcePath, backupHomePath)) {
-			return resourcePath.substr(backupHomePath.length + 1);
+		return result;
+	}
+
+	private toRelativePath(fromResource: URI, toResource: URI): string | undefined {
+		const fromPath = fromResource.toString();
+		const toPath = toResource.toString();
+		if (startsWith(fromPath, toPath)) {
+			return fromPath.substr(toPath.length + 1);
 		}
 		return undefined;
 	}

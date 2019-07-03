@@ -88,7 +88,7 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 			throw new Error(`Invalid user data container ${resource}`);
 		}
 		const children = await this.userDataProvider.listFiles(path);
-		return children.map(c => [c, FileType.Unknown]);
+		return children.map(c => [c, FileType.File]);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
