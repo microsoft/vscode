@@ -117,34 +117,35 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 	}
 
 	$disposeEditorInset(handle: number): void {
-		const inset = this._insets.get(handle);
-		if (inset) {
-			this._insets.delete(handle);
-			inset.dispose();
-		}
+		const inset = this.getInset(handle);
+		this._insets.delete(handle);
+		inset.dispose();
+
 	}
 
 	$setHtml(handle: number, value: string): void {
-		const inset = this._insets.get(handle);
-		if (inset) {
-			inset.webview.html = value;
-		}
+		const inset = this.getInset(handle);
+		inset.webview.html = value;
+
 	}
 
 	$setOptions(handle: number, options: modes.IWebviewOptions): void {
-		const inset = this._insets.get(handle);
-		if (inset) {
-			inset.webview.options = options;
-		}
+		const inset = this.getInset(handle);
+		inset.webview.options = options;
 	}
 
-	$postMessage(handle: number, value: any): Promise<boolean> {
+	async $postMessage(handle: number, value: any): Promise<boolean> {
+		const inset = this.getInset(handle);
+		inset.webview.sendMessage(value);
+		return true;
+	}
+
+	private getInset(handle: number): EditorWebviewZone {
 		const inset = this._insets.get(handle);
-		if (inset) {
-			inset.webview.sendMessage(value);
-			return Promise.resolve(true);
+		if (!inset) {
+			throw new Error('Unknown inset');
 		}
-		return Promise.resolve(false);
+		return inset;
 	}
 
 	async $getResourceRoot(_handle: number): Promise<string> {
