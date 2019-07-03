@@ -55,7 +55,7 @@ async function assertFileEvents(actuals: IDiskFileChange[], expected: IDiskFileC
 	actuals.length = 0;
 }
 
-suite('Chockidar normalizeRoots', () => {
+suite('Chokidar normalizeRoots', () => {
 	test('should not impacts roots that don\'t overlap', () => {
 		if (platform.isWindows) {
 			assertNormalizedRootPath(['C:\\a'], ['C:\\a']);
@@ -116,9 +116,9 @@ suite('Chockidar normalizeRoots', () => {
 	});
 });
 
-suite.skip('Chockidar watching', () => {
+suite.skip('Chokidar watching', () => {
 	const tmpdir = os.tmpdir();
-	const testDir = path.join(tmpdir, 'chockidartest-' + Date.now());
+	const testDir = path.join(tmpdir, 'chokidartest-' + Date.now());
 	const aFolder = path.join(testDir, 'a');
 	const bFolder = path.join(testDir, 'b');
 	const b2Folder = path.join(bFolder, 'b2');

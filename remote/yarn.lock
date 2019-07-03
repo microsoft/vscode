@@ -301,12 +301,12 @@ eachr@^3.2.0:
     editions "^1.1.1"
     typechecker "^4.3.0"
 
-editions@^1.1.1:
+editions@^1.1.1, editions@^1.3.4:
   version "1.3.4"
   resolved "https://registry.yarnpkg.com/editions/-/editions-1.3.4.tgz#3662cb592347c3168eb8e498a0ff73271d67f50b"
   integrity sha512-gzao+mxnYDzIysXKMQi/+M1mjy/rjestjg6OPoYTtI+3Izp23oiGZitsl9lPDPiTGXbcSIk1iJWhliSaglxnUg==
 
-editions@^2.0.2, editions@^2.1.0, editions@^2.1.2:
+editions@^2.1.0, editions@^2.1.2:
   version "2.1.3"
   resolved "https://registry.yarnpkg.com/editions/-/editions-2.1.3.tgz#727ccf3ec2c7b12dcc652c71000f16c4824d6f7d"
   integrity sha512-xDZyVm0A4nLgMNWVVLJvcwMjI80ShiH/27RyLiCnW1L273TcJIA25C4pwJ33AWV01OX6UriP35Xu+lH4S7HWQw==
@@ -468,7 +468,7 @@ getmac@^1.4.6:
   resolved "https://registry.yarnpkg.com/getmac/-/getmac-1.4.6.tgz#ffe7db07900e222916939d44e4c7274adbecc662"
   integrity sha512-3JPwiIr4P6Sgr6y6SVXX0+l2mrB6pyf4Cdyua7rvEV7SveWQkAp11vrkNym8wvRxzLrBenKRcwe93asdghuwWg==
   dependencies:
-    editions "^2.0.2"
+    editions "^1.3.4"
     extract-opts "^3.2.0"
 
 github-from-package@0.0.0:
@@ -489,7 +489,7 @@ graceful-fs@4.1.11:
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.1.11.tgz#0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658"
   integrity sha1-Dovf5NHduIVNZOBOp8AOKgJuVlg=
 
-graceful-fs@^4.1.11:
+graceful-fs@^4.1.11, graceful-fs@^4.1.6:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.0.tgz#8d8fdc73977cb04104721cb53666c1ca64cd328b"
   integrity sha512-jpSvDPV4Cq/bgtpndIWbI5hmYxhQGHPC4d4cqBPb4DLniCfhJokdXhwhaDuLBGLQdvvRum/UiX6ECVIPvDXqdg==
@@ -551,10 +551,10 @@ https-proxy-agent@2.2.1, https-proxy-agent@^2.2.1:
     agent-base "^4.1.0"
     debug "^3.1.0"
 
-iconv-lite@0.4.23:
-  version "0.4.23"
-  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.4.23.tgz#297871f63be507adcfbfca715d0cd0eed84e9a63"
-  integrity sha512-neyTUVFtahjf0mB3dZT77u+8O0QB89jFdnBkd5P1JgYPbPaia3gXXOVL2fq8VyU2gMMD7SaN7QukTB/pmXYvDA==
+iconv-lite@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.5.0.tgz#59cdde0a2a297cc2aeb0c6445a195ee89f127550"
+  integrity sha512-NnEhI9hIEKHOzJ4f697DMz9IQEXr/MMJ5w64vN2/4Ai+wRnvV7SBrL0KLoRlwaKVghOc7LQ5YkPLuX146b6Ydw==
   dependencies:
     safer-buffer ">= 2.1.2 < 3"
 
@@ -598,6 +598,11 @@ is-binary-path@^1.0.0:
   integrity sha1-dfFmQrSA8YenEcgUFh/TpKdlWJg=
   dependencies:
     binary-extensions "^1.0.0"
+
+is-buffer@^1.1.5:
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/is-buffer/-/is-buffer-1.1.6.tgz#efaa2ea9daa0d7ab2ea13a97b2b8ad51fefbe8be"
+  integrity sha512-NcdALwpXkTm5Zvvbk7owOUSvVvBKDgKP5/ewfXEznmQFfs4ZRmanOeKBTjRVjka3QFoN6XJ+9F3USqfHqTaU5w==
 
 is-buffer@^1.1.5:
   version "1.1.6"
@@ -736,6 +741,30 @@ keytar@4.2.1:
     prebuild-install "^2.4.1"
 
 kind-of@^3.0.2, kind-of@^3.0.3, kind-of@^3.2.0:
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-3.2.2.tgz#31ea21a734bab9bbb0f32466d893aea51e4a3c64"
+  integrity sha1-MeohpzS6ubuw8yRm2JOupR5KPGQ=
+  dependencies:
+    is-buffer "^1.1.5"
+
+kind-of@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-4.0.0.tgz#20813df3d712928b207378691a45066fae72dd57"
+  integrity sha1-IIE989cSkosgc3hpGkUGb65y3Vc=
+  dependencies:
+    is-buffer "^1.1.5"
+
+kind-of@^5.0.0:
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-5.1.0.tgz#729c91e2d857b7a419a1f9aa65685c4c33f5845d"
+  integrity sha512-NGEErnH6F2vUuXDh+OlbcKW7/wOcfdRHaZ7VWtqCztfHri/++YKmP51OdWeGPuqCOba6kk2OTe5d02VmTB80Pw==
+
+kind-of@^6.0.0, kind-of@^6.0.2:
+  version "6.0.2"
+  resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-6.0.2.tgz#01146b36a6218e64e58f3a8d66de5d7fc6f6d051"
+  integrity sha512-s5kLOcnH0XqDO+FvuaLX8DDjZ18CGFk7VygH40QoKPUQhW4e2rvM0rwUq0t8IQDOwYSeLK01U90OjzBTme2QqA==
+
+kind-of@^3.0.3, kind-of@^3.2.0:
   version "3.2.2"
   resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-3.2.2.tgz#31ea21a734bab9bbb0f32466d893aea51e4a3c64"
   integrity sha1-MeohpzS6ubuw8yRm2JOupR5KPGQ=
@@ -1464,10 +1493,10 @@ vscode-proxy-agent@0.4.0:
     https-proxy-agent "2.2.1"
     socks-proxy-agent "4.0.1"
 
-vscode-ripgrep@^1.2.5:
-  version "1.2.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.5.tgz#2093c8f36d52bd2dab9eb45b003dd02533c5499c"
-  integrity sha512-n5XBm9od5hahpljw9T8wbkuMnAY7LlAG1OyEEtcCZEX9aCHFuBKSP0IcvciGRTbtWRovNuT83A2iRjt6PL3bLg==
+vscode-ripgrep@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.3.1.tgz#51fb93debcd0c18a8b90dbc37f84f94333d0c486"
+  integrity sha512-4WLB/n4ZeWNi5AEzPTkfYrqbKtXlv0SlgmxbRVdulwZzGx/lfWeWPu9Shy32orM27IofQAQDuirbRBOYNJVzBA==
 
 vscode-textmate@^4.1.1:
   version "4.1.1"
@@ -1512,20 +1541,20 @@ xtend@^4.0.0:
   resolved "https://registry.yarnpkg.com/xtend/-/xtend-4.0.1.tgz#a5c6d532be656e23db820efb943a1f04998d63af"
   integrity sha1-pcbVMr5lbiPbgg77lDofBJmNY68=
 
-xterm-addon-search@0.1.0-beta6:
-  version "0.1.0-beta6"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.1.0-beta6.tgz#e2a2b441f8f7b0245c63731d0b2af32c7d4e6747"
-  integrity sha512-XKxdfO48HkCJW2m1wXW0PK/BOk00WEaN+W2LgDQqCBwwUjyBzWc9HaV8gzLXhSCDAYesWvtQa3RfqHfSp9qsbQ==
+xterm-addon-search@0.2.0-beta2:
+  version "0.2.0-beta2"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0-beta2.tgz#c3173f0a6f207ee9f1848849174ee5d6b6ce8262"
+  integrity sha512-XEcwi2TeFGk2MuIFjiI/OpVXSNO5dGQBvHH3o+9KzqG3ooVqhhDqzwxs092QGNcNCGh8hGn/PWZiczaBBnKm/g==
 
 xterm-addon-web-links@0.1.0-beta10:
   version "0.1.0-beta10"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta34:
-  version "3.15.0-beta34"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta34.tgz#32ca9523f842cfc213bf64cbb199bb9adaddcd2d"
-  integrity sha512-eqq/K002xVCfYXZggbI7v7dRgRKTvJhVFTHqcs6MdMHuiOYl4lwZFkv4aFf896kkbnKQOZZGGzhnBFfa1w1rTA==
+xterm@3.15.0-beta67:
+  version "3.15.0-beta67"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta67.tgz#71973e174bdc08df620945eecd3f87912f1ac550"
+  integrity sha512-qLfo9GHVlu/IxgDI3vRGObWZM7UL4eLhMfjZhprx2aXNMpzmrOW6l3JDRsCjUWm93EoVavbULtnDhGSiTlKitQ==
 
 yauzl@^2.9.2:
   version "2.10.0"

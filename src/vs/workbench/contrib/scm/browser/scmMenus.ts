@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
@@ -37,6 +37,8 @@ export class SCMMenus implements IDisposable {
 
 	private contextKeyService: IContextKeyService;
 	private titleMenu: IMenu;
+
+	private titleActionDisposable: IDisposable = Disposable.None;
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
 
@@ -76,12 +78,15 @@ export class SCMMenus implements IDisposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		createAndFillInActionBarActions(this.titleMenu, { shouldForwardArgs: true }, { primary, secondary });
+		const disposable = createAndFillInActionBarActions(this.titleMenu, { shouldForwardArgs: true }, { primary, secondary });
 
 		if (equals(primary, this.titleActions, actionEquals) && equals(secondary, this.titleSecondaryActions, actionEquals)) {
+			disposable.dispose();
 			return;
 		}
 
+		this.titleActionDisposable.dispose();
+		this.titleActionDisposable = disposable;
 		this.titleActions = primary;
 		this.titleSecondaryActions = secondary;
 

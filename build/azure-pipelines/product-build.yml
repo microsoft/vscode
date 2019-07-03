@@ -7,7 +7,7 @@ resources:
     image: snapcore/snapcraft:stable
 
 jobs:
-# - job: Linux
+# - job: Compile
 #   pool:
 #     vmImage: 'Ubuntu-16.04'
 #   steps:

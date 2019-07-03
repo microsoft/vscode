@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -108,26 +108,32 @@ class StatusBarActionViewItem extends ActionViewItem {
 }
 
 function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+	let cachedDisposable: IDisposable = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 
 	const updateActions = () => {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const result = { primary, secondary };
 
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, g => /^inline/.test(g));
 
 		if (equals(cachedPrimary, primary, (a, b) => a.id === b.id)) {
+			disposable.dispose();
 			return;
 		}
 
+		cachedDisposable = disposable;
 		cachedPrimary = primary;
+
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
 	};
 
 	updateActions();
-	return menu.onDidChange(updateActions);
+
+	return combinedDisposable(menu.onDidChange(updateActions), toDisposable(() => {
+		cachedDisposable.dispose();
+	}));
 }
 
 interface RepositoryTemplateData {
@@ -299,7 +305,7 @@ export class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
@@ -313,6 +319,8 @@ export class MainPanel extends ViewletPanel {
 			getActions: () => secondary,
 			getActionsContext: () => repository.provider
 		});
+
+		disposable.dispose();
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {

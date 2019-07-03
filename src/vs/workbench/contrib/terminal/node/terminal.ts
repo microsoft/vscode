@@ -108,7 +108,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 		useWSLexe = true;
 	}
 
-	const expectedLocations = {
+	const expectedLocations: { [key: string]: string[] } = {
 		'Command Prompt': [`${system32Path}\\cmd.exe`],
 		PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
 		'PowerShell Core': [await getShellPathFromRegistry('pwsh')],

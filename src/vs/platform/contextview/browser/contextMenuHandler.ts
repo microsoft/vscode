@@ -5,8 +5,8 @@
 
 import 'vs/css!./contextMenuHandler';
 
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ActionRunner, IRunEvent, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -132,7 +132,7 @@ export class ContextMenuHandler {
 
 	private onActionRun(e: IRunEvent): void {
 		if (this.telemetryService) {
-			this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 		}
 
 		this.contextViewService.hideContextView(false);
