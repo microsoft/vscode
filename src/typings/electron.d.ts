@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.0-beta.12
+// Type definitions for Electron 6.0.0-beta.9
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -4086,26 +4086,6 @@ declare namespace Electron {
 		once(event: 'unlock-screen', listener: Function): this;
 		addListener(event: 'unlock-screen', listener: Function): this;
 		removeListener(event: 'unlock-screen', listener: Function): this;
-		/**
-		 * Calculate the system idle state. idleThreshold is the amount of time (in
-		 * seconds) before considered idle.  locked is available on supported systems only.
-		 */
-		getSystemIdleState(idleThreshold: number): ('active' | 'idle' | 'locked' | 'unknown');
-		/**
-		 * Calculate system idle time in seconds.
-		 */
-		getSystemIdleTime(): number;
-		/**
-		 * Calculate the system idle state. idleThreshold is the amount of time (in
-		 * seconds) before considered idle. callback will be called synchronously on some
-		 * systems and with an idleState argument that describes the system's state. locked
-		 * is available on supported systems only.
-		 */
-		querySystemIdleState(idleThreshold: number, callback: (idleState: 'active' | 'idle' | 'locked' | 'unknown') => void): void;
-		/**
-		 * Calculate system idle time in seconds.
-		 */
-		querySystemIdleTime(callback: (idleTime: number) => void): void;
 	}
 
 	interface PowerSaveBlocker extends EventEmitter {
