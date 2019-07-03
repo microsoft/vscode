@@ -1,5 +1,5 @@
 steps:
-- script: |
+- powershell: |
     mkdir .build -ea 0
     "$env:BUILD_SOURCEVERSION`n" | Out-File -NoNewLine .build\commit
   displayName: Prepare cache flag
