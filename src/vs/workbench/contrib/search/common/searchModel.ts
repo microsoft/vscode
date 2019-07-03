@@ -1118,7 +1118,7 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 	const previewLines = rawMatch.preview.text.split('\n');
 	if (Array.isArray(rawMatch.ranges)) {
 		return rawMatch.ranges.map((r, i) => {
-			const previewRange: ISearchRange = rawMatch.preview.matches[i];
+			const previewRange: ISearchRange = (<ISearchRange[]>rawMatch.preview.matches)[i];
 			return new Match(fileMatch, previewLines, previewRange, r);
 		});
 	} else {
