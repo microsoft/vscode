@@ -60,9 +60,6 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     exec { yarn postinstall }
-    exec { pushd build ; yarn postinstall ; popd }
-    exec { pushd extensions ; yarn postinstall ; popd }
-    exec { pushd test\smoke ; yarn postinstall ; popd }
   displayName: Run postinstall scripts
   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
