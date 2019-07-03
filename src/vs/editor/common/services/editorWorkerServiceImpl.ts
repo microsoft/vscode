@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IntervalTimer } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
@@ -226,7 +226,7 @@ class EditorModelManager extends Disposable {
 
 	private readonly _proxy: EditorSimpleWorkerImpl;
 	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable[]; } = Object.create(null);
+	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
 	constructor(proxy: EditorSimpleWorkerImpl, modelService: IModelService, keepIdleModels: boolean) {
@@ -297,14 +297,14 @@ class EditorModelManager extends Disposable {
 			versionId: model.getVersionId()
 		});
 
-		let toDispose: IDisposable[] = [];
-		toDispose.push(model.onDidChangeContent((e) => {
+		const toDispose = new DisposableStore();
+		toDispose.add(model.onDidChangeContent((e) => {
 			this._proxy.acceptModelChanged(modelUrl.toString(), e);
 		}));
-		toDispose.push(model.onWillDispose(() => {
+		toDispose.add(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);
 		}));
-		toDispose.push(toDisposable(() => {
+		toDispose.add(toDisposable(() => {
 			this._proxy.acceptRemovedModel(modelUrl);
 		}));
 
