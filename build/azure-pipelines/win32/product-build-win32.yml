@@ -58,6 +58,7 @@ steps:
     keyfile: '.build/arch, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
