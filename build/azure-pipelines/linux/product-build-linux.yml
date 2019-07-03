@@ -41,10 +41,24 @@ steps:
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
 
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '**/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+    yarn --frozen-lockfile
   displayName: Install dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '**/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - script: |
     set -e
@@ -82,17 +96,14 @@ steps:
 
 - script: |
     set -e
-    if [[ "$VSCODE_ARCH" == "ia32" ]]; then
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-linux-$VSCODE_ARCH-min
-    else
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-linux-$VSCODE_ARCH-min
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-linux-$VSCODE_ARCH-min
-    fi
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-linux-$VSCODE_ARCH-min-ci
   displayName: Build
 
 - script: |

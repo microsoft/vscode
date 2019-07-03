@@ -5,7 +5,7 @@
 
 import 'vs/css!./contextMenuHandler';
 
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionRunner, IRunEvent, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -67,7 +67,7 @@ export class ContextMenuHandler {
 					this.block = container.appendChild($('.context-view-block'));
 				}
 
-				const menuDisposables: IDisposable[] = [];
+				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
@@ -79,7 +79,7 @@ export class ContextMenuHandler {
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
 				});
 
-				menuDisposables.push(attachMenuStyler(menu, this.themeService));
+				menuDisposables.add(attachMenuStyler(menu, this.themeService));
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
@@ -104,7 +104,7 @@ export class ContextMenuHandler {
 					this.contextViewService.hideContextView(true);
 				}, null, menuDisposables);
 
-				return combinedDisposable(...menuDisposables, menu);
+				return combinedDisposable(menuDisposables, menu);
 			},
 
 			focus: () => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -22,6 +22,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
+	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 
 	private readonly _onInput = this._register(new Emitter<string>());
 	public readonly onInput: Event<string> = this._onInput.event;
@@ -51,14 +53,21 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
-		remoteAgentService.getEnvironment().then(env => {
-			if (!env) {
-				throw new Error('Could not fetch environment');
+
+		// Request a process if needed, if this is a virtual process this step can be skipped as
+		// there is no real "process" and we know it's ready on the ext host already.
+		if (shellLaunchConfig.isVirtualProcess) {
+			this._terminalService.requestVirtualProcess(this);
+		} else {
+			remoteAgentService.getEnvironment().then(env => {
+				if (!env) {
+					throw new Error('Could not fetch environment');
+				}
+				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
+			});
+			if (!hasReceivedResponse) {
+				setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
 			}
-			this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
-		});
-		if (!hasReceivedResponse) {
-			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
 		}
 	}
 
@@ -78,6 +87,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public emitExit(exitCode: number): void {
 		this._onProcessExit.fire(exitCode);
 		this.dispose();
+	}
+
+	public emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void {
+		this._onProcessOverrideDimensions.fire(dimensions);
 	}
 
 	public emitInitialCwd(initialCwd: string): void {

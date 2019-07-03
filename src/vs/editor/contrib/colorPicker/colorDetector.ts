@@ -78,7 +78,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		// handle deprecated settings. [languageId].colorDecorators.enable
 		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
 		if (deprecatedConfig) {
-			const colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
+			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
 			}

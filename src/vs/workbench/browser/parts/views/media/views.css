@@ -152,6 +152,7 @@
 .customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
 	width: 16px;
 	height: 100%;
+	background-size: 16px;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }

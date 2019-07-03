@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -173,10 +173,10 @@ export class MainThreadTextEditor {
 	private readonly _id: string;
 	private _model: ITextModel;
 	private readonly _modelService: IModelService;
-	private _modelListeners: IDisposable[];
+	private readonly _modelListeners = new DisposableStore();
 	private _codeEditor: ICodeEditor | null;
 	private readonly _focusTracker: IFocusTracker;
-	private _codeEditorListeners: IDisposable[];
+	private readonly _codeEditorListeners = new DisposableStore();
 
 	private _properties: MainThreadTextEditorProperties;
 	private readonly _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
@@ -193,12 +193,10 @@ export class MainThreadTextEditor {
 		this._codeEditor = null;
 		this._focusTracker = focusTracker;
 		this._modelService = modelService;
-		this._codeEditorListeners = [];
 
 		this._onPropertiesChanged = new Emitter<IEditorPropertiesChangeData>();
 
-		this._modelListeners = [];
-		this._modelListeners.push(this._model.onDidChangeOptions((e) => {
+		this._modelListeners.add(this._model.onDidChangeOptions((e) => {
 			this._updatePropertiesNow(null);
 		}));
 
@@ -208,9 +206,9 @@ export class MainThreadTextEditor {
 
 	public dispose(): void {
 		this._model = null!;
-		this._modelListeners = dispose(this._modelListeners);
+		this._modelListeners.dispose();
 		this._codeEditor = null;
-		this._codeEditorListeners = dispose(this._codeEditorListeners);
+		this._codeEditorListeners.dispose();
 	}
 
 	private _updatePropertiesNow(selectionChangeSource: string | null): void {
@@ -249,36 +247,36 @@ export class MainThreadTextEditor {
 			// Nothing to do...
 			return;
 		}
-		this._codeEditorListeners = dispose(this._codeEditorListeners);
+		this._codeEditorListeners.clear();
 
 		this._codeEditor = codeEditor;
 		if (this._codeEditor) {
 
 			// Catch early the case that this code editor gets a different model set and disassociate from this model
-			this._codeEditorListeners.push(this._codeEditor.onDidChangeModel(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidChangeModel(() => {
 				this.setCodeEditor(null);
 			}));
 
-			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditorWidget(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidFocusEditorWidget(() => {
 				this._focusTracker.onGainedFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditorWidget(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidBlurEditorWidget(() => {
 				this._focusTracker.onLostFocus();
 			}));
 
-			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection((e) => {
+			this._codeEditorListeners.add(this._codeEditor.onDidChangeCursorSelection((e) => {
 				// selection
 				this._updatePropertiesNow(e.source);
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidChangeConfiguration(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidChangeConfiguration(() => {
 				// options
 				this._updatePropertiesNow(null);
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidLayoutChange(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidLayoutChange(() => {
 				// visibleRanges
 				this._updatePropertiesNow(null);
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidScrollChange(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidScrollChange(() => {
 				// visibleRanges
 				this._updatePropertiesNow(null);
 			}));

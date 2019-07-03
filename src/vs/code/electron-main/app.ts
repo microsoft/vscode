@@ -138,12 +138,34 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		app.on('remote-require', event => event.preventDefault());
-		app.on('remote-get-global', event => event.preventDefault());
-		app.on('remote-get-builtin', event => event.preventDefault());
-		app.on('remote-get-current-window', event => event.preventDefault());
-		app.on('remote-get-current-web-contents', event => event.preventDefault());
 		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Ben TODO@Matt revisit this need for <webview>
+		app.on('remote-require', (event, sender, module) => {
+			this.logService.trace('App#on(remote-require): prevented');
+
+			event.preventDefault();
+		});
+		app.on('remote-get-global', (event, sender, module) => {
+			this.logService.trace(`App#on(remote-get-global): prevented on ${module}`);
+
+			event.preventDefault();
+		});
+		app.on('remote-get-builtin', (event, sender, module) => {
+			this.logService.trace(`App#on(remote-get-builtin): prevented on ${module}`);
+
+			if (module !== 'clipboard') {
+				event.preventDefault();
+			}
+		});
+		app.on('remote-get-current-window', event => {
+			this.logService.trace(`App#on(remote-get-current-window): prevented`);
+
+			event.preventDefault();
+		});
+		app.on('remote-get-current-web-contents', event => {
+			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+
+			event.preventDefault();
+		});
 		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
