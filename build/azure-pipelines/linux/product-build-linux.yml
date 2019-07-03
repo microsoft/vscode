@@ -131,8 +131,8 @@ steps:
   displayName: 'Component Detection'
   continueOnError: true
 
-- task: PublishPipelineArtifact@0
-  displayName: 'Publish Pipeline Artifact'
-  inputs:
-    artifactName: snap-$(VSCODE_ARCH)
-    targetPath: .build/linux/snap-tarball
+# - task: PublishPipelineArtifact@0
+#   displayName: 'Publish Pipeline Artifact'
+#   inputs:
+#     artifactName: snap-$(VSCODE_ARCH)
+#     targetPath: .build/linux/snap-tarball
