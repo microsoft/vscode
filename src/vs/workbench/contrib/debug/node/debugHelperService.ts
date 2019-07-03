@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalLauncher } from 'vs/workbench/contrib/debug/node/terminalSupport';
-import { ITerminalLauncher, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -18,10 +16,6 @@ export class NodeDebugHelperService implements IDebugHelperService {
 
 	constructor(
 	) {
-	}
-
-	createTerminalLauncher(instantiationService: IInstantiationService): ITerminalLauncher {
-		return instantiationService.createInstance(TerminalLauncher);
 	}
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
