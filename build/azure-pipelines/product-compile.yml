@@ -9,6 +9,7 @@ steps:
     keyfile: '.build/commit'
     targetfolder: '.build, out-build'
     vstsFeed: 'npm-vscode'
+    platformIndependent: true
     alias: 'Compilation'
 
 - task: NodeTool@0
@@ -120,5 +121,6 @@ steps:
     keyfile: '.build/commit'
     targetfolder: '.build, out-build'
     vstsFeed: 'npm-vscode'
+    platformIndependent: true
     alias: 'Compilation'
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
