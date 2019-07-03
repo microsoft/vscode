@@ -15,7 +15,7 @@ if [[ "$1" == "" ]]; then
 	AUTHORITY=vscode-remote://test+test
 	EXT_PATH=$ROOT/extensions
 	# Load remote node
-	./node_modules/.bin/gulp node-remote
+	yarn gulp node
 else
 	AUTHORITY=$1
 	EXT_PATH=$2

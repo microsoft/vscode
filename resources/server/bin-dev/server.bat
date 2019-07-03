@@ -10,15 +10,14 @@ set NODE_ENV=development
 set VSCODE_DEV=1
 
 :: Sync built-in extensions
-call node build\lib\builtInExtensions.js
+call yarn download-builtin-extensions
 
 :: Download nodejs executable for remote
-call node .\node_modules\gulp\bin\gulp.js node-remote
-
-echo Using node from .build\node-remote\node
+call yarn gulp node
 
 :: Launch Agent
-call .build\node-remote\node.exe out\vs\server\main.js %*
+FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
+call "%NODE%" out\vs\server\main.js %*
 
 popd
 

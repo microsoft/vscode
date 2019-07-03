@@ -23,17 +23,20 @@ const buffer = require('gulp-buffer');
 const json = require("gulp-json-editor");
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
-const root = path.resolve(path.join(__dirname, '..', '..'));
-function fromLocal(extensionPath, sourceMappingURLBase) {
+const util = require('./util');
+const root = path.dirname(path.dirname(__dirname));
+const commit = util.getVersion(root);
+const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+function fromLocal(extensionPath) {
     const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
     if (fs.existsSync(webpackFilename)) {
-        return fromLocalWebpack(extensionPath, sourceMappingURLBase);
+        return fromLocalWebpack(extensionPath);
     }
     else {
         return fromLocalNormal(extensionPath);
     }
 }
-function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
+function fromLocalWebpack(extensionPath) {
     const result = es.through();
     const packagedDependencies = [];
     const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
@@ -104,17 +107,15 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
                 // source map handling:
                 // * rewrite sourceMappingURL
                 // * save to disk so that upload-task picks this up
-                if (sourceMappingURLBase) {
-                    const contents = data.contents.toString('utf8');
-                    data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                        return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
-                    }), 'utf8');
-                    if (/\.js\.map$/.test(data.path)) {
-                        if (!fs.existsSync(path.dirname(data.path))) {
-                            fs.mkdirSync(path.dirname(data.path));
-                        }
-                        fs.writeFileSync(data.path, data.contents);
+                const contents = data.contents.toString('utf8');
+                data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+                    return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+                }), 'utf8');
+                if (/\.js\.map$/.test(data.path)) {
+                    if (!fs.existsSync(path.dirname(data.path))) {
+                        fs.mkdirSync(path.dirname(data.path));
                     }
+                    fs.writeFileSync(data.path, data.contents);
                 }
                 this.emit('data', data);
             }));
@@ -207,8 +208,7 @@ function sequence(streamProviders) {
     pop();
     return result;
 }
-function packageExtensionsStream(optsIn) {
-    const opts = optsIn || {};
+function packageExtensionsStream() {
     const localExtensionDescriptions = glob.sync('extensions/*/package.json')
         .map(manifestPath => {
         const extensionPath = path.dirname(path.join(root, manifestPath));
@@ -216,15 +216,13 @@ function packageExtensionsStream(optsIn) {
         return { name: extensionName, path: extensionPath };
     })
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
-        .filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name));
     const localExtensions = () => sequence([...localExtensionDescriptions.map(extension => () => {
-            return fromLocal(extension.path, opts.sourceMappingURLBase)
+            return fromLocal(extension.path)
                 .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
         })]);
     const localExtensionDependencies = () => gulp.src('extensions/node_modules/**', { base: '.' });
     const marketplaceExtensions = () => es.merge(...builtInExtensions
-        .filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
         .map(extension => {
         return fromMarketplace(extension.name, extension.version, extension.metadata)
             .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
