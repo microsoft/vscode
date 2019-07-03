@@ -27,23 +27,30 @@
 	});
 
 	self.addEventListener('fetch', (event: any) => {
-		event.respondWith(handlerPromise.then(handler => {
-			return handler.handleFetchEvent(event).then(value => {
-				if (value instanceof Response) {
-					return value;
-				} else {
-					return fetch(event.request);
-				}
-			});
+		event.respondWith(handlerPromise.then(async handler => {
+			// try handler
+			const value = await handler.handleFetchEvent(event);
+			if (value instanceof Response) {
+				return value;
+			}
+			// try the network (prefetch or fetch)
+			const res = await event.preloadResponse;
+			if (res) {
+				return res;
+			} else {
+				return fetch(event.request);
+			}
 		}));
 	});
-	self.addEventListener('install', event => {
-		//@ts-ignore
-		event.waitUntil(self.skipWaiting());
+	self.addEventListener('install', (event: any) => {
+		event.waitUntil((self as any).skipWaiting());
 	});
 
-	self.addEventListener('activate', event => {
-		//@ts-ignore
-		event.waitUntil(self.clients.claim()); // Become available to all pages
+	self.addEventListener('activate', (event: any) => {
+
+		event.waitUntil((async () => {
+			await (self as any).registration.navigationPreload.enable(); // Enable navigation preloads!
+			await (self as any).clients.claim(); // Become available to all pages
+		})());
 	});
 })();
