@@ -31,44 +31,44 @@ const enum Constants {
 }
 
 class ModelLineTokens {
-	_state: IState | null;
-	_lineTokens: ArrayBuffer | null;
-	_valid: boolean;
+	public state: IState | null;
+	public lineTokens: ArrayBuffer | null;
+	public valid: boolean;
 
 	constructor(state: IState | null) {
-		this._state = state;
-		this._lineTokens = null;
-		this._valid = false;
+		this.state = state;
+		this.lineTokens = null;
+		this.valid = false;
 	}
 
 	public deleteBeginning(toChIndex: number): void {
-		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS) {
+		if (this.lineTokens === null || this.lineTokens === EMPTY_LINE_TOKENS) {
 			return;
 		}
 		this.delete(0, toChIndex);
 	}
 
 	public deleteEnding(fromChIndex: number): void {
-		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS) {
+		if (this.lineTokens === null || this.lineTokens === EMPTY_LINE_TOKENS) {
 			return;
 		}
 
-		const tokens = new Uint32Array(this._lineTokens);
+		const tokens = new Uint32Array(this.lineTokens);
 		const lineTextLength = tokens[tokens.length - 2];
 		this.delete(fromChIndex, lineTextLength);
 	}
 
 	public delete(fromChIndex: number, toChIndex: number): void {
-		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
+		if (this.lineTokens === null || this.lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
 			return;
 		}
 
-		const tokens = new Uint32Array(this._lineTokens);
+		const tokens = new Uint32Array(this.lineTokens);
 		const tokensCount = (tokens.length >>> 1);
 
 		// special case: deleting everything
 		if (fromChIndex === 0 && tokens[tokens.length - 2] === toChIndex) {
-			this._lineTokens = EMPTY_LINE_TOKENS;
+			this.lineTokens = EMPTY_LINE_TOKENS;
 			return;
 		}
 
@@ -113,26 +113,26 @@ class ModelLineTokens {
 
 		let tmp = new Uint32Array(dest);
 		tmp.set(tokens.subarray(0, dest), 0);
-		this._lineTokens = tmp.buffer;
+		this.lineTokens = tmp.buffer;
 	}
 
 	public append(_otherTokens: ArrayBuffer | null): void {
 		if (_otherTokens === EMPTY_LINE_TOKENS) {
 			return;
 		}
-		if (this._lineTokens === EMPTY_LINE_TOKENS) {
-			this._lineTokens = _otherTokens;
+		if (this.lineTokens === EMPTY_LINE_TOKENS) {
+			this.lineTokens = _otherTokens;
 			return;
 		}
-		if (this._lineTokens === null) {
+		if (this.lineTokens === null) {
 			return;
 		}
 		if (_otherTokens === null) {
 			// cannot determine combined line length...
-			this._lineTokens = null;
+			this.lineTokens = null;
 			return;
 		}
-		const myTokens = new Uint32Array(this._lineTokens);
+		const myTokens = new Uint32Array(this.lineTokens);
 		const otherTokens = new Uint32Array(_otherTokens);
 		const otherTokensCount = (otherTokens.length >>> 1);
 
@@ -144,16 +144,16 @@ class ModelLineTokens {
 			result[dest++] = otherTokens[(i << 1)] + delta;
 			result[dest++] = otherTokens[(i << 1) + 1];
 		}
-		this._lineTokens = result.buffer;
+		this.lineTokens = result.buffer;
 	}
 
 	public insert(chIndex: number, textLength: number): void {
-		if (!this._lineTokens) {
+		if (!this.lineTokens) {
 			// nothing to do
 			return;
 		}
 
-		const tokens = new Uint32Array(this._lineTokens);
+		const tokens = new Uint32Array(this.lineTokens);
 		const tokensCount = (tokens.length >>> 1);
 
 		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
@@ -211,7 +211,7 @@ export class TokensStore implements ITokensStore {
 	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
 		let rawLineTokens: ArrayBuffer | null = null;
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			rawLineTokens = this._tokens[lineIndex]._lineTokens;
+			rawLineTokens = this._tokens[lineIndex].lineTokens;
 		}
 
 		if (rawLineTokens !== null && rawLineTokens !== EMPTY_LINE_TOKENS) {
@@ -234,20 +234,20 @@ export class TokensStore implements ITokensStore {
 
 	private _setIsValid(lineIndex: number, valid: boolean): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			this._tokens[lineIndex]._valid = valid;
+			this._tokens[lineIndex].valid = valid;
 		}
 	}
 
 	private _isValid(lineIndex: number): boolean {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			return this._tokens[lineIndex]._valid;
+			return this._tokens[lineIndex].valid;
 		}
 		return false;
 	}
 
 	public getState(lineIndex: number): IState | null {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			return this._tokens[lineIndex]._state;
+			return this._tokens[lineIndex].state;
 		}
 		return null;
 	}
@@ -268,7 +268,7 @@ export class TokensStore implements ITokensStore {
 			}
 
 			if (!hasDifferentLanguageId) {
-				target._lineTokens = EMPTY_LINE_TOKENS;
+				target.lineTokens = EMPTY_LINE_TOKENS;
 				return;
 			}
 		}
@@ -281,7 +281,7 @@ export class TokensStore implements ITokensStore {
 
 		LineTokens.convertToEndOffset(tokens, lineTextLength);
 
-		target._lineTokens = tokens.buffer;
+		target.lineTokens = tokens.buffer;
 	}
 
 	public setGoodTokens(topLevelLanguageId: LanguageId, linesLength: number, lineIndex: number, text: string, r: TokenizationResult2): void {
@@ -322,7 +322,7 @@ export class TokensStore implements ITokensStore {
 
 	public setState(lineIndex: number, state: IState): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			this._tokens[lineIndex]._state = state;
+			this._tokens[lineIndex].state = state;
 		} else {
 			const tmp = new ModelLineTokens(state);
 			this._tokens[lineIndex] = tmp;
@@ -374,7 +374,7 @@ export class TokensStore implements ITokensStore {
 		if (lastLineIndex < this._tokens.length) {
 			const lastLine = this._tokens[lastLineIndex];
 			lastLine.deleteBeginning(range.endColumn - 1);
-			lastLineTokens = lastLine._lineTokens;
+			lastLineTokens = lastLine.lineTokens;
 		}
 
 		// Take remaining text on last line and append it to remaining text on first line
