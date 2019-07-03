@@ -20,27 +20,34 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-browser/diskFileSystemProvider';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
+import { BACKUPS } from 'vs/platform/environment/common/environment';
 
-suite('UserDataFileSystemProvider', () => {
+suite('FileUserDataProvider', () => {
 
 	let testObject: IFileService;
+	let rootPath: string;
 	let userDataPath: string;
+	let backupsPath: string;
 	let userDataResource: URI;
 	const userDataContainersRegistry = Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers);
 
-	setup(() => {
+	setup(async () => {
 		const logService = new NullLogService();
 		testObject = new FileService(logService);
 		testObject.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
-		userDataPath = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
+		rootPath = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
+		userDataPath = path.join(rootPath, 'user');
+		backupsPath = path.join(rootPath, BACKUPS);
+		await Promise.all([pfs.mkdirp(userDataPath), pfs.mkdirp(backupsPath)]);
 		userDataResource = URI.from({ scheme: Schemas.userData, path: '/user' });
 		testObject.registerProvider(Schemas.userData, new UserDataFileSystemProvider(userDataResource, new FileUserDataProvider(URI.file(userDataPath), testObject)));
 		userDataContainersRegistry.registerContainer('testContainer');
-		return pfs.mkdirp(userDataPath);
+		userDataContainersRegistry.registerContainer('testContainer/subContainer');
+		userDataContainersRegistry.registerContainer(BACKUPS);
 	});
 
 	teardown(() => {
-		return pfs.rimraf(userDataPath, pfs.RimRafMode.MOVE);
+		return pfs.rimraf(rootPath, pfs.RimRafMode.MOVE);
 	});
 
 	test('exists return false when file does not exist', async () => {
@@ -163,6 +170,13 @@ suite('UserDataFileSystemProvider', () => {
 		assert.equal(false, result);
 	});
 
+	test('resolve file', async () => {
+		await pfs.writeFile(path.join(userDataPath, 'settings.json'), '');
+		const result = await testObject.resolve(joinPath(userDataResource, 'settings.json'));
+		assert.ok(!result.isDirectory);
+		assert.ok(result.children === undefined);
+	});
+
 	test('exists return true for container', async () => {
 		const exists = await testObject.exists(joinPath(userDataResource, 'testContainer'));
 		assert.equal(exists, true);
@@ -185,6 +199,13 @@ suite('UserDataFileSystemProvider', () => {
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
 		const actual = await testObject.readFile(joinPath(userDataResource, 'testContainer/settings.json'));
+		assert.equal(actual.value, '{}');
+	});
+
+	test('read file under sub container', async () => {
+		await pfs.mkdirp(path.join(userDataPath, 'testContainer', 'subContainer'));
+		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'subContainer', 'settings.json'), '{}');
+		const actual = await testObject.readFile(joinPath(userDataResource, 'testContainer/subContainer/settings.json'));
 		assert.equal(actual.value, '{}');
 	});
 
@@ -236,6 +257,12 @@ suite('UserDataFileSystemProvider', () => {
 		assert.equal(actual.toString(), '{a:1}');
 	});
 
+	test('write file under sub container', async () => {
+		await testObject.writeFile(joinPath(userDataResource, 'testContainer/subContainer/settings.json'), VSBuffer.fromString('{}'));
+		const actual = await pfs.readFile(path.join(userDataPath, 'testContainer', 'subContainer', 'settings.json'));
+		assert.equal(actual, '{}');
+	});
+
 	test('delete file throws error for container that does not exist', async () => {
 		try {
 			await testObject.del(joinPath(userDataResource, 'testContainer'));
@@ -272,6 +299,16 @@ suite('UserDataFileSystemProvider', () => {
 		await testObject.del(joinPath(userDataResource, 'testContainer/settings.json'));
 		const exists = await pfs.exists(path.join(userDataPath, 'testContainer', 'settings.json'));
 		assert.equal(exists, false);
+	});
+
+	test('resolve container', async () => {
+		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
+		pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
+		const result = await testObject.resolve(joinPath(userDataResource, 'testContainer'));
+		assert.ok(result.isDirectory);
+		assert.ok(result.children !== undefined);
+		assert.equal(result.children!.length, 1);
+		assert.equal(result.children![0].name, 'settings.json');
 	});
 
 	test('watch file under container - event is triggerred when file is created', async (done) => {
@@ -404,5 +441,33 @@ suite('UserDataFileSystemProvider', () => {
 			}
 		});
 		await pfs.unlink(path.join(userDataPath, 'testContainer', 'settings.json'));
+	});
+
+	test('read backup file', async () => {
+		await pfs.writeFile(path.join(backupsPath, 'backup.json'), '{}');
+		const result = await testObject.readFile(joinPath(userDataResource, `${BACKUPS}/backup.json`));
+		assert.equal(result.value, '{}');
+	});
+
+	test('create backup file', async () => {
+		await testObject.createFile(joinPath(userDataResource, `${BACKUPS}/backup.json`), VSBuffer.fromString('{}'));
+		const result = await pfs.readFile(path.join(backupsPath, 'backup.json'));
+		assert.equal(result, '{}');
+	});
+
+	test('write backup file', async () => {
+		await pfs.writeFile(path.join(backupsPath, 'backup.json'), '{}');
+		await testObject.writeFile(joinPath(userDataResource, `${BACKUPS}/backup.json`), VSBuffer.fromString('{a:1}'));
+		const result = await pfs.readFile(path.join(backupsPath, 'backup.json'));
+		assert.equal(result, '{a:1}');
+	});
+
+	test('resolve backups container', async () => {
+		pfs.writeFile(path.join(backupsPath, 'backup.json'), '{}');
+		const result = await testObject.resolve(joinPath(userDataResource, BACKUPS));
+		assert.ok(result.isDirectory);
+		assert.ok(result.children !== undefined);
+		assert.equal(result.children!.length, 1);
+		assert.equal(result.children![0].name, 'backup.json');
 	});
 });

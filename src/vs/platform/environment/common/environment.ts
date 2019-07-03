@@ -84,6 +84,8 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
 
+export const BACKUPS = 'Backups';
+
 export interface IEnvironmentService {
 	_serviceBrand: any;
 

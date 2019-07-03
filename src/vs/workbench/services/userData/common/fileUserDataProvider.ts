@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { startsWith } from 'vs/base/common/strings';
+import { BACKUPS } from 'vs/platform/environment/common/environment';
 
 export class FileUserDataProvider extends Disposable implements IUserDataProvider {
 
@@ -63,12 +64,22 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	}
 
 	private toResource(path: string): URI {
+		if (path === BACKUPS || startsWith(path, `${BACKUPS}/`)) {
+			return resources.joinPath(resources.dirname(this.userDataHome), path);
+		}
 		return resources.joinPath(this.userDataHome, path);
 	}
 
 	private toPath(resource: URI): string | undefined {
 		const resourcePath = resource.toString();
 		const userDataHomePath = this.userDataHome.toString();
-		return startsWith(resourcePath, userDataHomePath) ? resourcePath.substr(userDataHomePath.length + 1) : undefined;
+		const backupHomePath = resources.joinPath(resources.dirname(this.userDataHome), BACKUPS).toString();
+		if (startsWith(resourcePath, userDataHomePath)) {
+			return resourcePath.substr(userDataHomePath.length + 1);
+		}
+		if (startsWith(resourcePath, backupHomePath)) {
+			return resourcePath.substr(backupHomePath.length + 1);
+		}
+		return undefined;
 	}
 }
