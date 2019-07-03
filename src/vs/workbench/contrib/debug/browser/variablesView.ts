@@ -62,7 +62,7 @@ export class VariablesView extends ViewletPanel {
 				this.tree.setInput(this.debugService.getViewModel(), this.savedViewState).then(null, onUnexpectedError);
 				this.savedViewState = undefined;
 			} else {
-				if (!stackFrame && !this.savedViewState) {
+				if (!stackFrame) {
 					// We have no stackFrame, save tree state before it is cleared
 					this.savedViewState = this.tree.getViewState();
 				}
