@@ -169,17 +169,30 @@ class ModelLineTokens {
 	}
 }
 
-export class TokensStore {
+export interface ITokensStore {
+	_invalidLineStartIndex: number;
+	readonly invalidLineStartIndex: number;
+
+	getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens;
+	invalidateLine(lineIndex: number): void;
+	isInvalid(lineIndex: number): boolean;
+	getState(lineIndex: number): IState | null;
+	setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void;
+	setGoodTokens(topLevelLanguageId: LanguageId, linesLength: number, lineIndex: number, text: string, r: TokenizationResult2): void;
+	setState(lineIndex: number, state: IState): void;
+	applyEdits(range: Range, eolCount: number, firstLineLength: number): void;
+
+	_getAllStates(linesLength: number): (IState | null)[];
+	_getAllInvalid(linesLength: number): number[];
+}
+
+export class TokensStore implements ITokensStore {
 	private _tokens: ModelLineTokens[];
 	_invalidLineStartIndex: number;
-	_lastState: IState | null;
+	private _lastState: IState | null;
 
 	constructor(initialState: IState | null) {
 		this._reset(initialState);
-	}
-
-	public reset(): void {
-		this._reset(this.getState(0));
 	}
 
 	private _reset(initialState: IState | null): void {
@@ -320,17 +333,21 @@ export class TokensStore {
 	//#region Editing
 
 	public applyEdits(range: Range, eolCount: number, firstLineLength: number): void {
+		try {
+			const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
+			const insertingLinesCnt = eolCount;
+			const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
-		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
-		const insertingLinesCnt = eolCount;
-		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+			for (let j = editingLinesCnt; j >= 0; j--) {
+				this.invalidateLine(range.startLineNumber + j - 1);
+			}
 
-		for (let j = editingLinesCnt; j >= 0; j--) {
-			this.invalidateLine(range.startLineNumber + j - 1);
+			this._acceptDeleteRange(range);
+			this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+		} catch (err) {
+			// emergency recovery => reset tokens
+			this._reset(this.getState(0));
 		}
-
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
 	}
 
 	private _acceptDeleteRange(range: Range): void {
@@ -422,12 +439,12 @@ export class TokensStore {
 export interface IModelLinesTokens {
 	readonly tokenizationSupport: ITokenizationSupport | null;
 
-	isCheapToTokenize(store: TokensStore, buffer: ITextBuffer, lineNumber: number): boolean;
-	hasLinesToTokenize(store: TokensStore, buffer: ITextBuffer): boolean;
+	isCheapToTokenize(store: ITokensStore, buffer: ITextBuffer, lineNumber: number): boolean;
+	hasLinesToTokenize(store: ITokensStore, buffer: ITextBuffer): boolean;
 
-	tokenizeOneInvalidLine(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder): number;
-	updateTokensUntilLine(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void;
-	tokenizeViewport(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void;
+	tokenizeOneInvalidLine(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder): number;
+	updateTokensUntilLine(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void;
+	tokenizeViewport(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void;
 }
 
 export class ModelLinesTokens implements IModelLinesTokens {
@@ -440,7 +457,7 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		this.tokenizationSupport = tokenizationSupport;
 	}
 
-	public isCheapToTokenize(store: TokensStore, buffer: ITextBuffer, lineNumber: number): boolean {
+	public isCheapToTokenize(store: ITokensStore, buffer: ITextBuffer, lineNumber: number): boolean {
 		const firstInvalidLineNumber = store.invalidLineStartIndex + 1;
 		if (lineNumber > firstInvalidLineNumber) {
 			return false;
@@ -457,13 +474,13 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		return false;
 	}
 
-	public hasLinesToTokenize(store: TokensStore, buffer: ITextBuffer): boolean {
+	public hasLinesToTokenize(store: ITokensStore, buffer: ITextBuffer): boolean {
 		return (store.invalidLineStartIndex < buffer.getLineCount());
 	}
 
 	//#region Tokenization
 
-	public tokenizeOneInvalidLine(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder): number {
+	public tokenizeOneInvalidLine(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder): number {
 		if (!this.hasLinesToTokenize(store, buffer)) {
 			return buffer.getLineCount() + 1;
 		}
@@ -472,7 +489,7 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		return lineNumber;
 	}
 
-	public updateTokensUntilLine(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
+	public updateTokensUntilLine(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
 		if (!this.tokenizationSupport) {
 			store._invalidLineStartIndex = buffer.getLineCount();
 			return;
@@ -493,7 +510,7 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		}
 	}
 
-	public tokenizeViewport(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void {
+	public tokenizeViewport(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void {
 		if (!this.tokenizationSupport) {
 			// nothing to do
 			return;
@@ -547,7 +564,7 @@ export class ModelLinesTokens implements IModelLinesTokens {
 		this._fakeTokenizeLines(store, buffer, eventBuilder, state, startLineNumber, endLineNumber);
 	}
 
-	private _fakeTokenizeLines(store: TokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, initialState: IState, startLineNumber: number, endLineNumber: number): void {
+	private _fakeTokenizeLines(store: ITokensStore, buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, initialState: IState, startLineNumber: number, endLineNumber: number): void {
 		if (!this.tokenizationSupport) {
 			return;
 		}

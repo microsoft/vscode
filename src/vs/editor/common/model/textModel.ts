@@ -23,7 +23,7 @@ import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd }
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { ModelLinesTokens, ModelTokensChangedEventBuilder, IModelLinesTokens, TokensStore } from 'vs/editor/common/model/textModelTokens';
+import { ModelLinesTokens, ModelTokensChangedEventBuilder, IModelLinesTokens, TokensStore, ITokensStore } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions, IState } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -286,7 +286,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _languageRegistryListener: IDisposable;
 	private _revalidateTokensTimeout: any;
 	private _tokenization: IModelLinesTokens;
-	/*private*/_tokens: TokensStore;
+	/*private*/_tokens: ITokensStore;
 	//#endregion
 
 	constructor(source: string | model.ITextBufferFactory, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier | null, associatedResource: URI | null = null) {
@@ -1350,12 +1350,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
-				try {
-					this._tokens.applyEdits(change.range, eolCount, firstLineLength);
-				} catch (err) {
-					// emergency recovery => reset tokens
-					this._tokens.reset();
-				}
+				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
