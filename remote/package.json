@@ -17,7 +17,7 @@
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "^0.9.0",
-    "vscode-chokidar": "1.6.5",
+    "vscode-chokidar": "2.1.7",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.3.1",
     "vscode-textmate": "^4.1.1",

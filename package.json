@@ -47,7 +47,7 @@
     "spdlog": "^0.9.0",
     "sudo-prompt": "9.0.0",
     "v8-inspect-profiler": "^0.0.20",
-    "vscode-chokidar": "1.6.5",
+    "vscode-chokidar": "2.1.7",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.3.1",
     "vscode-sqlite3": "4.0.7",
