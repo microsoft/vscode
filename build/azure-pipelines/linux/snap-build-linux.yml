@@ -50,6 +50,6 @@ steps:
     (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --output "$SNAP_PATH")
 
     # Publish snap package
-    # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-    # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    # node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "linux-snap-$ARCH" package "$SNAP_FILENAME" "$VERSION" true "$SNAP_PATH"
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "linux-snap-$ARCH" package "$SNAP_FILENAME" "$VERSION" true "$SNAP_PATH"

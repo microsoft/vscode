@@ -44,17 +44,17 @@ jobs:
   steps:
   - template: linux/product-build-linux.yml
 
-# - job: LinuxSnap
-#   condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-#   timeoutInMinutes: 120
-#   pool:
-#     vmImage: 'Ubuntu-16.04'
-#   variables:
-#     VSCODE_ARCH: x64
-#   container: snapcraft
-#   dependsOn: Linux
-#   steps:
-#   - template: linux/snap-build-linux.yml
+- job: LinuxSnap
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  container: snapcraft
+  dependsOn: Linux
+  steps:
+  - template: linux/snap-build-linux.yml
 
 - job: LinuxArmhf
   condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
@@ -92,7 +92,7 @@ jobs:
   - Windows
   - Windows32
   - Linux
-  # - LinuxSnap
+  - LinuxSnap
   - LinuxArmhf
   - LinuxAlpine
   - macOS
@@ -107,7 +107,7 @@ jobs:
   - Windows
   - Windows32
   - Linux
-  # - LinuxSnap
+  - LinuxSnap
   - LinuxArmhf
   - LinuxAlpine
   - macOS
