@@ -33,12 +33,12 @@ const enum Constants {
 class ModelLineTokens {
 	_state: IState | null;
 	_lineTokens: ArrayBuffer | null;
-	_invalid: boolean;
+	_valid: boolean;
 
 	constructor(state: IState | null) {
 		this._state = state;
 		this._lineTokens = null;
-		this._invalid = true;
+		this._valid = false;
 	}
 
 	public deleteBeginning(toChIndex: number): void {
@@ -175,7 +175,6 @@ export interface ITokensStore {
 
 	getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens;
 	invalidateLine(lineIndex: number): void;
-	isInvalid(lineIndex: number): boolean;
 	getState(lineIndex: number): IState | null;
 	setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void;
 	setGoodTokens(topLevelLanguageId: LanguageId, linesLength: number, lineIndex: number, text: string, r: TokenizationResult2): void;
@@ -226,24 +225,24 @@ export class TokensStore implements ITokensStore {
 	}
 
 	public invalidateLine(lineIndex: number): void {
-		this._setIsInvalid(lineIndex, true);
+		this._setIsValid(lineIndex, false);
 		if (lineIndex < this._invalidLineStartIndex) {
-			this._setIsInvalid(this._invalidLineStartIndex, true);
+			this._setIsValid(this._invalidLineStartIndex, false);
 			this._invalidLineStartIndex = lineIndex;
 		}
 	}
 
-	private _setIsInvalid(lineIndex: number, invalid: boolean): void {
+	private _setIsValid(lineIndex: number, valid: boolean): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			this._tokens[lineIndex]._invalid = invalid;
+			this._tokens[lineIndex]._valid = valid;
 		}
 	}
 
-	public isInvalid(lineIndex: number): boolean {
+	private _isValid(lineIndex: number): boolean {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			return this._tokens[lineIndex]._invalid;
+			return this._tokens[lineIndex]._valid;
 		}
-		return true;
+		return false;
 	}
 
 	public getState(lineIndex: number): IState | null {
@@ -288,7 +287,7 @@ export class TokensStore implements ITokensStore {
 	public setGoodTokens(topLevelLanguageId: LanguageId, linesLength: number, lineIndex: number, text: string, r: TokenizationResult2): void {
 		const endStateIndex = lineIndex + 1;
 		this.setTokens(topLevelLanguageId, lineIndex, text.length, r.tokens);
-		this._setIsInvalid(lineIndex, false);
+		this._setIsValid(lineIndex, true);
 
 		if (endStateIndex < linesLength) {
 			const previousEndState = this.getState(endStateIndex);
@@ -296,7 +295,7 @@ export class TokensStore implements ITokensStore {
 				// The end state of this line remains the same
 				let nextInvalidLineIndex = lineIndex + 1;
 				while (nextInvalidLineIndex < linesLength) {
-					if (this.isInvalid(nextInvalidLineIndex)) {
+					if (!this._isValid(nextInvalidLineIndex)) {
 						break;
 					}
 					if (nextInvalidLineIndex + 1 < linesLength) {
@@ -428,7 +427,7 @@ export class TokensStore implements ITokensStore {
 	_getAllInvalid(linesLength: number): number[] {
 		const r: number[] = [];
 		for (let i = 0; i < linesLength; i++) {
-			if (this.isInvalid(i)) {
+			if (!this._isValid(i)) {
 				r.push(i);
 			}
 		}
