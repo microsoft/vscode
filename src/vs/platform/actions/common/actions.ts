@@ -157,7 +157,9 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	getCommands(): ICommandsMap {
-		return new Map<string, ICommandAction>(this._commands.entries());
+		const map = new Map<string, ICommandAction>();
+		this._commands.forEach((value, key) => map.set(key, value));
+		return map;
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
@@ -202,11 +204,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 				set.add(alt.id);
 			}
 		}
-		for (const [id, command] of this._commands) {
+		this._commands.forEach((command, id) => {
 			if (!set.has(id)) {
 				result.push({ command });
 			}
-		}
+		});
 	}
 };
 

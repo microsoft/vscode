@@ -8,6 +8,7 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { keys } from 'vs/base/common/map';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -334,10 +335,10 @@ export class KeybindingResolver {
 			}
 			unboundCommands.push(id);
 		};
-		for (const id of MenuRegistry.getCommands().keys()) {
+		for (const id of keys(MenuRegistry.getCommands())) {
 			addCommand(id, true);
 		}
-		for (const id of CommandsRegistry.getCommands().keys()) {
+		for (const id of keys(CommandsRegistry.getCommands())) {
 			addCommand(id, false);
 		}
 
