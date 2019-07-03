@@ -110,7 +110,7 @@ class ResourceServiceWorker {
 	private _initServiceWorker(): void {
 		const url = require.toUrl('./resourceServiceWorkerMain.js');
 		navigator.serviceWorker.register(url, { scope: '/' }).then(reg => {
-			console.log('registered', reg);
+			// console.log('registered', reg);
 			return navigator.serviceWorker.ready;
 		}).then(() => {
 			// console.log('ready');
