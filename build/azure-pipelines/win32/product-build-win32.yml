@@ -12,6 +12,12 @@ steps:
     platformIndependent: true
     alias: 'Compilation'
 
+- powershell: |
+    $ErrorActionPreference = "Stop"
+    exit 1
+  displayName: Check RestoreCache
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
 - task: NodeTool@0
   inputs:
     versionSpec: "10.15.1"
