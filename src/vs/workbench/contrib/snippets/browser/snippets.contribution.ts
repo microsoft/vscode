@@ -10,8 +10,11 @@ import * as nls from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { LanguageId } from 'vs/editor/common/modes';
 import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
+
+Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers).registerContainer('snippets');
 
 export interface ISnippetsService {
 

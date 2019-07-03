@@ -81,8 +81,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					[{
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
-							const file = joinPath(this.environmentService.appSettingsHome, 'locale.json');
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
+							const localeResource = joinPath(this.environmentService.userRoamingDataHome, 'locale.json');
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(localeResource, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
 					}, {

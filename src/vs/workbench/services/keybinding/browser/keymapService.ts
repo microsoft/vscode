@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
@@ -17,9 +17,8 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { dirname, isEqual } from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -429,12 +428,10 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 }
 
 class UserKeyboardLayout extends Disposable {
+
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
-
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
 
 	private _keyboardLayout: KeymapInfo | null;
 	get keyboardLayout(): KeymapInfo | null { return this._keyboardLayout; }
@@ -447,22 +444,17 @@ class UserKeyboardLayout extends Disposable {
 
 		this._keyboardLayout = null;
 
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
 
-		this._register(toDisposable(() => {
-			this.stopWatchingResource();
-			this.stopWatchingDirectory();
-		}));
+		this._register(this.fileService.watch(this.keyboardLayoutResource));
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
-		const exists = await this.fileService.exists(this.keyboardLayoutResource);
-		this.onResourceExists(exists);
 		await this.reload();
 	}
 
@@ -481,57 +473,6 @@ class UserKeyboardLayout extends Disposable {
 		return existing ? !objects.equals(existing, this._keyboardLayout) : true;
 	}
 
-	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.keyboardLayoutResource);
-	}
-
-	private watchDirectory(): void {
-		const directory = dirname(this.keyboardLayoutResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
-	}
-
-	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
-	}
-
-	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
-	}
-
-	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
-		const events = event.changes;
-
-		let affectedByChanges = false;
-
-		// Find changes that affect the resource
-		for (const event of events) {
-			affectedByChanges = isEqual(this.keyboardLayoutResource, event.resource);
-			if (affectedByChanges) {
-				if (event.type === FileChangeType.ADDED) {
-					this.onResourceExists(true);
-				} else if (event.type === FileChangeType.DELETED) {
-					this.onResourceExists(false);
-				}
-				break;
-			}
-		}
-
-		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
-		}
-	}
-
-	private onResourceExists(exists: boolean): void {
-		if (exists) {
-			this.stopWatchingDirectory();
-			this.watchResource();
-		} else {
-			this.stopWatchingResource();
-			this.watchDirectory();
-		}
-	}
 }
 
 class BrowserKeymapService extends Disposable implements IKeymapService {
