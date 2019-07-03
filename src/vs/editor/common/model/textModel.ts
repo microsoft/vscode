@@ -1784,12 +1784,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 		startLineNumber = Math.max(1, startLineNumber);
 		endLineNumber = Math.min(this.getLineCount(), endLineNumber);
 
-		if (endLineNumber <= this._tokens.inValidLineStartIndex) {
+		if (endLineNumber <= this._tokens.invalidLineStartIndex) {
 			// nothing to do
 			return;
 		}
 
-		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+		if (startLineNumber <= this._tokens.invalidLineStartIndex) {
 			// tokenization has reached the viewport start...
 			this.forceTokenization(endLineNumber);
 			return;
@@ -1838,7 +1838,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				// We cannot trust these states/tokens to be valid!
 				// (see https://github.com/Microsoft/vscode/issues/67607)
-				this._tokens._setIsInvalid(i - 1, true);
+				this._tokens._invalidateLine(i - 1);
 				this._tokens._setState(i - 1, state);
 				state = r.endState.clone();
 				eventBuilder.registerChangedTokens(i);
@@ -1884,7 +1884,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return false;
 		}
 
-		if (lineNumber < this._tokens.inValidLineStartIndex + 1) {
+		if (lineNumber < this._tokens.invalidLineStartIndex + 1) {
 			return true;
 		}
 

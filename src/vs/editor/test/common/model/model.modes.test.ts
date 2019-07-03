@@ -198,7 +198,7 @@ suite('Editor Model - Model Modes 2', () => {
 		for (i = 0; i < len; i++) {
 			stateEqual(model._tokens._getState(i)!, states[i]);
 		}
-		stateEqual((<any>model)._tokens._lastState, states[len]);
+		stateEqual(model._tokens.store._lastState!, states[len]);
 	}
 
 	let thisModel: TextModel;

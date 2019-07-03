@@ -165,37 +165,22 @@ class ModelLineTokens {
 	}
 }
 
-export class ModelLinesTokens {
-
-	public readonly languageIdentifier: LanguageIdentifier;
-	public readonly tokenizationSupport: ITokenizationSupport | null;
+class TokensStore {
 	private _tokens: ModelLineTokens[];
-	private _invalidLineStartIndex: number;
-	private _lastState: IState | null;
+	_invalidLineStartIndex: number;
+	_lastState: IState | null;
 
-	constructor(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null) {
-		this.languageIdentifier = languageIdentifier;
-		this.tokenizationSupport = tokenizationSupport;
+	constructor(initialState: IState | null) {
 		this._tokens = [];
-		if (this.tokenizationSupport) {
-			let initialState: IState | null = null;
-			try {
-				initialState = this.tokenizationSupport.getInitialState();
-			} catch (e) {
-				onUnexpectedError(e);
-				this.tokenizationSupport = null;
-			}
-
-			if (initialState) {
-				this._tokens[0] = new ModelLineTokens(initialState);
-			}
-		}
-
 		this._invalidLineStartIndex = 0;
 		this._lastState = null;
+
+		if (initialState) {
+			this._tokens[0] = new ModelLineTokens(initialState);
+		}
 	}
 
-	public get inValidLineStartIndex() {
+	public get invalidLineStartIndex() {
 		return this._invalidLineStartIndex;
 	}
 
@@ -215,15 +200,6 @@ export class ModelLinesTokens {
 		return new LineTokens(lineTokens, lineText);
 	}
 
-	public isCheapToTokenize(lineNumber: number): boolean {
-		const firstInvalidLineNumber = this._invalidLineStartIndex + 1;
-		return (firstInvalidLineNumber >= lineNumber);
-	}
-
-	public hasLinesToTokenize(buffer: ITextBuffer): boolean {
-		return (this._invalidLineStartIndex < buffer.getLineCount());
-	}
-
 	public invalidateLine(lineIndex: number): void {
 		this._setIsInvalid(lineIndex, true);
 		if (lineIndex < this._invalidLineStartIndex) {
@@ -232,27 +208,27 @@ export class ModelLinesTokens {
 		}
 	}
 
-	_setIsInvalid(lineIndex: number, invalid: boolean): void {
+	private _setIsInvalid(lineIndex: number, invalid: boolean): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._invalid = invalid;
 		}
 	}
 
-	_isInvalid(lineIndex: number): boolean {
+	public isInvalid(lineIndex: number): boolean {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			return this._tokens[lineIndex]._invalid;
 		}
 		return true;
 	}
 
-	_getState(lineIndex: number): IState | null {
+	public getState(lineIndex: number): IState | null {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			return this._tokens[lineIndex]._state;
 		}
 		return null;
 	}
 
-	_setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
+	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
 		let target: ModelLineTokens;
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			target = this._tokens[lineIndex];
@@ -284,7 +260,43 @@ export class ModelLinesTokens {
 		target._lineTokens = tokens.buffer;
 	}
 
-	_setState(lineIndex: number, state: IState): void {
+	public setGoodTokens(topLevelLanguageId: LanguageId, linesLength: number, lineIndex: number, text: string, r: TokenizationResult2): void {
+		const endStateIndex = lineIndex + 1;
+		this.setTokens(topLevelLanguageId, lineIndex, text.length, r.tokens);
+		this._setIsInvalid(lineIndex, false);
+
+		if (endStateIndex < linesLength) {
+			const previousEndState = this.getState(endStateIndex);
+			if (previousEndState !== null && r.endState.equals(previousEndState)) {
+				// The end state of this line remains the same
+				let nextInvalidLineIndex = lineIndex + 1;
+				while (nextInvalidLineIndex < linesLength) {
+					if (this.isInvalid(nextInvalidLineIndex)) {
+						break;
+					}
+					if (nextInvalidLineIndex + 1 < linesLength) {
+						if (this.getState(nextInvalidLineIndex + 1) === null) {
+							break;
+						}
+					} else {
+						if (this._lastState === null) {
+							break;
+						}
+					}
+					nextInvalidLineIndex++;
+				}
+				this._invalidLineStartIndex = nextInvalidLineIndex;
+			} else {
+				this._invalidLineStartIndex = lineIndex + 1;
+				this.setState(endStateIndex, r.endState);
+			}
+		} else {
+			this._lastState = r.endState;
+			this._invalidLineStartIndex = linesLength;
+		}
+	}
+
+	public setState(lineIndex: number, state: IState): void {
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._state = state;
 		} else {
@@ -374,6 +386,74 @@ export class ModelLinesTokens {
 	}
 
 	//#endregion
+}
+
+export class ModelLinesTokens {
+
+	public readonly languageIdentifier: LanguageIdentifier;
+	public readonly tokenizationSupport: ITokenizationSupport | null;
+	public readonly store: TokensStore;
+
+	constructor(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null) {
+		this.languageIdentifier = languageIdentifier;
+		this.tokenizationSupport = tokenizationSupport;
+
+		let initialState: IState | null = null;
+		if (this.tokenizationSupport) {
+			try {
+				initialState = this.tokenizationSupport.getInitialState();
+			} catch (e) {
+				onUnexpectedError(e);
+				this.tokenizationSupport = null;
+			}
+		}
+		this.store = new TokensStore(initialState);
+	}
+
+	public get invalidLineStartIndex() {
+		return this.store.invalidLineStartIndex;
+	}
+
+	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
+		return this.store.getTokens(topLevelLanguageId, lineIndex, lineText);
+	}
+
+	public isCheapToTokenize(lineNumber: number): boolean {
+		const firstInvalidLineNumber = this.store.invalidLineStartIndex + 1;
+		return (firstInvalidLineNumber >= lineNumber);
+	}
+
+	public hasLinesToTokenize(buffer: ITextBuffer): boolean {
+		return (this.store.invalidLineStartIndex < buffer.getLineCount());
+	}
+
+	_isInvalid(lineIndex: number): boolean {
+		return this.store.isInvalid(lineIndex);
+	}
+
+	_getState(lineIndex: number): IState | null {
+		return this.store.getState(lineIndex);
+	}
+
+	_setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
+		this.store.setTokens(topLevelLanguageId, lineIndex, lineTextLength, tokens);
+	}
+
+	_setState(lineIndex: number, state: IState): void {
+		this.store.setState(lineIndex, state);
+	}
+
+	//#region Editing
+
+	public applyEdits(range: Range, eolCount: number, firstLineLength: number): void {
+		this.store.applyEdits(range, eolCount, firstLineLength);
+	}
+
+	_invalidateLine(lineIndex: number): void {
+		this.store.invalidateLine(lineIndex);
+	}
+
+	//#endregion
 
 	//#region Tokenization
 
@@ -381,7 +461,7 @@ export class ModelLinesTokens {
 		if (!this.hasLinesToTokenize(buffer)) {
 			return buffer.getLineCount() + 1;
 		}
-		const lineNumber = this._invalidLineStartIndex + 1;
+		const lineNumber = this.store.invalidLineStartIndex + 1;
 		this._updateTokensUntilLine(buffer, eventBuilder, lineNumber);
 		return lineNumber;
 	}
@@ -405,7 +485,7 @@ export class ModelLinesTokens {
 
 	public _updateTokensUntilLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
 		if (!this.tokenizationSupport) {
-			this._invalidLineStartIndex = buffer.getLineCount();
+			this.store._invalidLineStartIndex = buffer.getLineCount();
 			return;
 		}
 
@@ -413,8 +493,7 @@ export class ModelLinesTokens {
 		const endLineIndex = lineNumber - 1;
 
 		// Validate all states up to and including endLineIndex
-		for (let lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
-			const endStateIndex = lineIndex + 1;
+		for (let lineIndex = this.store.invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
 			const text = buffer.getLineContent(lineIndex + 1);
 			const lineStartState = this._getState(lineIndex);
 
@@ -431,40 +510,10 @@ export class ModelLinesTokens {
 			if (!r) {
 				r = nullTokenize2(this.languageIdentifier.id, text, lineStartState, 0);
 			}
-			this._setTokens(this.languageIdentifier.id, lineIndex, text.length, r.tokens);
+			this.store.setGoodTokens(this.languageIdentifier.id, linesLength, lineIndex, text, r);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
-			this._setIsInvalid(lineIndex, false);
-
-			if (endStateIndex < linesLength) {
-				const previousEndState = this._getState(endStateIndex);
-				if (previousEndState !== null && r.endState.equals(previousEndState)) {
-					// The end state of this line remains the same
-					let nextInvalidLineIndex = lineIndex + 1;
-					while (nextInvalidLineIndex < linesLength) {
-						if (this._isInvalid(nextInvalidLineIndex)) {
-							break;
-						}
-						if (nextInvalidLineIndex + 1 < linesLength) {
-							if (this._getState(nextInvalidLineIndex + 1) === null) {
-								break;
-							}
-						} else {
-							if (this._lastState === null) {
-								break;
-							}
-						}
-						nextInvalidLineIndex++;
-					}
-					this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, nextInvalidLineIndex);
-					lineIndex = nextInvalidLineIndex - 1; // -1 because the outer loop increments it
-				} else {
-					this._setState(endStateIndex, r.endState);
-				}
-			} else {
-				this._lastState = r.endState;
-			}
+			lineIndex = this.store.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
-		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 	}
 
 	// #endregion
