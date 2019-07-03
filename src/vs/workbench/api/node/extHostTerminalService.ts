@@ -746,8 +746,8 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 	}
 
 	input(data: string): void {
-		if (this._virtualProcess.acceptInput) {
-			this._virtualProcess.acceptInput(data);
+		if (this._virtualProcess.input) {
+			this._virtualProcess.input(data);
 		}
 	}
 
