@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, Terminal, TerminalDimensionsChangeEvent, TerminalVirtualProcess, EventEmitter } from 'vscode';
+import { window, commands, Terminal, TerminalDimensionsChangeEvent, TerminalVirtualProcess, EventEmitter, TerminalDimensions } from 'vscode';
 import { doesNotThrow, equal, ok } from 'assert';
 
 suite('window namespace tests', () => {
@@ -259,6 +259,33 @@ suite('window namespace tests', () => {
 				const writeEmitter = new EventEmitter<string>();
 				const virtualProcess: TerminalVirtualProcess = {
 					write: writeEmitter.event
+				};
+				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+			});
+
+			test('should respect dimension overrides', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					equal(terminal, term);
+					reg1.dispose();
+					term.show();
+					const reg2 = window.onDidChangeTerminalDimensions(e => {
+						equal(e.dimensions.columns, 10);
+						equal(e.dimensions.rows, 5);
+						equal(e.terminal, terminal)
+						reg2.dispose();
+						const reg3 = window.onDidCloseTerminal(() => {
+							reg3.dispose();
+							done();
+						});
+						terminal.dispose();
+					});
+					overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
+				});
+				const writeEmitter = new EventEmitter<string>();
+				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
+				const virtualProcess: TerminalVirtualProcess = {
+					write: writeEmitter.event,
+					overrideDimensions: overrideDimensionsEmitter.event
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
