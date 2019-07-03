@@ -730,30 +730,30 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		private readonly _virtualProcess: vscode.TerminalVirtualProcess
 	) {
 		this._queueDisposables = [];
-		this._queueDisposables.push(this._virtualProcess.write(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
-		if (this._virtualProcess.exit) {
-			this._queueDisposables.push(this._virtualProcess.exit(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: e })));
+		this._queueDisposables.push(this._virtualProcess.onDidWrite(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
+		if (this._virtualProcess.onDidExit) {
+			this._queueDisposables.push(this._virtualProcess.onDidExit(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: e })));
 		}
-		if (this._virtualProcess.overrideDimensions) {
-			this._queueDisposables.push(this._virtualProcess.overrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
+		if (this._virtualProcess.onDidOverrideDimensions) {
+			this._queueDisposables.push(this._virtualProcess.onDidOverrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
 		}
 	}
 
 	shutdown(): void {
-		if (this._virtualProcess.onDidShutdownTerminal) {
-			this._virtualProcess.onDidShutdownTerminal();
+		if (this._virtualProcess.shutdown) {
+			this._virtualProcess.shutdown();
 		}
 	}
 
 	input(data: string): void {
-		if (this._virtualProcess.onDidAcceptInput) {
-			this._virtualProcess.onDidAcceptInput(data);
+		if (this._virtualProcess.acceptInput) {
+			this._virtualProcess.acceptInput(data);
 		}
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._virtualProcess.onDidChangeDimensions) {
-			this._virtualProcess.onDidChangeDimensions({ columns: cols, rows });
+		if (this._virtualProcess.setDimensions) {
+			this._virtualProcess.setDimensions({ columns: cols, rows });
 		}
 	}
 
@@ -776,12 +776,12 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		this._queueDisposables = undefined;
 
 		// Attach the real listeners
-		this._virtualProcess.write(e => this._onProcessData.fire(e));
-		if (this._virtualProcess.exit) {
-			this._virtualProcess.exit(e => this._onProcessExit.fire(e));
+		this._virtualProcess.onDidWrite(e => this._onProcessData.fire(e));
+		if (this._virtualProcess.onDidExit) {
+			this._virtualProcess.onDidExit(e => this._onProcessExit.fire(e));
 		}
-		if (this._virtualProcess.overrideDimensions) {
-			this._virtualProcess.overrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
+		if (this._virtualProcess.onDidOverrideDimensions) {
+			this._virtualProcess.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
 	}
 }
