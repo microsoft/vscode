@@ -58,6 +58,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	if (setLocaleVariables) {
 		env['LANG'] = _getLangEnvVariable(locale);
 	}
+	env['COLORTERM'] = 'truecolor';
 }
 
 function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
