@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { FileSystemProviderCapabilities, FileWriteOptions, IStat, FileType, FileDeleteOptions, IWatchOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileChange, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { IUserDataProvider, IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
+import { FileSystemProviderCapabilities, FileWriteOptions, IStat, FileType, FileDeleteOptions, IWatchOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileChange, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IUserDataProvider, IUserDataContainerRegistry, Extensions, FileChangeEvent } from 'vs/workbench/services/userData/common/userData';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { joinPath, isEqual } from 'vs/base/common/resources';
 
 export class UserDataFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -22,12 +22,22 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
 
-
 	constructor(
 		private readonly userDataHome: URI,
 		private readonly userDataProvider: IUserDataProvider
 	) {
 		super();
+		this._register(this.userDataProvider.onDidChangeFile(changes => this.onDidChangeUserData(changes)));
+	}
+
+	private onDidChangeUserData(changes: FileChangeEvent[]): void {
+		for (const { path, type } of changes) {
+			if (type === FileChangeType.DELETED) {
+				this.versions.delete(path);
+			} else {
+				this.versions.set(path, this.getOrSetVersion(path) + 1);
+			}
+		}
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -35,10 +45,19 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 		if (!path) {
 			throw new Error(`Invalid user data resource ${resource}`);
 		}
-		return this.userDataProvider.onDidChangeFile(e => {
-			if (new UserDataChangesEvent(e).contains(path)) {
-				this.versions.set(path, this.getOrSetVersion(path) + 1);
-				this._onDidChangeFile.fire(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]).changes);
+		return this.userDataProvider.onDidChangeFile(changes => {
+			const fileChanges: IFileChange[] = [];
+			for (const { path, type } of changes) {
+				const changedResource = this.toResource(path);
+				if (isEqual(changedResource, resource) || this.toRelativePath(changedResource, resource)) {
+					fileChanges.push({
+						resource: changedResource,
+						type
+					});
+				}
+			}
+			if (fileChanges.length) {
+				this._onDidChangeFile.fire(new FileChangesEvent(fileChanges).changes);
 			}
 		});
 	}
@@ -127,31 +146,17 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 		return Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers).isContainer(path);
 	}
 
+	private toResource(path: string): URI {
+		return joinPath(this.userDataHome, path);
+	}
+
 	private toPath(resource: URI): string | undefined {
-		const resourcePath = resource.toString();
-		const userDataHomePath = this.userDataHome.toString();
-		return startsWith(resourcePath, userDataHomePath) ? resourcePath.substr(userDataHomePath.length + 1) : undefined;
-	}
-}
-
-class UserDataChangesEvent {
-
-	private _pathsTree: TernarySearchTree<string> | undefined = undefined;
-
-	constructor(readonly paths: string[]) { }
-
-	private get pathsTree(): TernarySearchTree<string> {
-		if (!this._pathsTree) {
-			this._pathsTree = TernarySearchTree.forPaths<string>();
-			for (const path of this.paths) {
-				this._pathsTree.set(path, path);
-			}
-		}
-		return this._pathsTree;
+		return this.toRelativePath(resource, this.userDataHome);
 	}
 
-	contains(pathOrSegment: string): boolean {
-		return this.pathsTree.findSubstr(pathOrSegment) !== undefined;
+	private toRelativePath(fromResource: URI, toResource: URI): string | undefined {
+		const fromPath = fromResource.toString();
+		const toPath = toResource.toString();
+		return startsWith(fromPath, toPath) ? fromPath.substr(toPath.length + 1) : undefined;
 	}
-
 }

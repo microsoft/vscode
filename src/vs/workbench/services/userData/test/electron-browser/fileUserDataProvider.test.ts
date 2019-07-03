@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
@@ -22,7 +22,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isLinux } from 'vs/base/common/platform';
 
 suite('FileUserDataProvider', () => {
 
@@ -100,94 +99,6 @@ suite('FileUserDataProvider', () => {
 		await testObject.writeFile(joinPath(userDataResource, 'settings.json'), VSBuffer.fromString('{a:1}'));
 		const result = await pfs.readFile(path.join(userDataPath, 'settings.json'));
 		assert.equal(result, '{a:1}');
-	});
-
-	test('watch file - event is triggerred when file is created', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'settings.json');
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
-	});
-
-	test('watch file - event is triggerred when file is created externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'settings.json');
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await pfs.writeFile(path.join(userDataPath, 'settings.json'), '{}');
-	});
-
-	test('watch file - event is triggerred when file is updated', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
-	});
-
-	test('watch file - event is triggerred when file is update externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await pfs.writeFile(path.join(userDataPath, 'settings.json'), '{a:1}');
-	});
-
-	test('watch file - event is triggerred when file is deleted', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await testObject.del(resource);
-	});
-
-	test('watch file - event is triggerred when file is deleted externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await pfs.unlink(path.join(userDataPath, 'settings.json'));
 	});
 
 	test('delete file', async () => {
@@ -338,158 +249,6 @@ suite('FileUserDataProvider', () => {
 		assert.equal(result.children![0].resource.toString(), joinPath(userDataResource, 'testContainer/settings.json').toString());
 	});
 
-	test('watch file under container - event is triggerred when file is created', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await testObject.writeFile(joinPath(userDataResource, 'testContainer/settings.json'), VSBuffer.fromString('{a:1}'));
-	});
-
-	test('watch file under container - event is triggerred when file is created externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
-		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
-	});
-
-	test('watch file under container - event is triggerred when file is updated', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
-		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
-	});
-
-	test('watch file under container - event is triggerred when file is updated externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
-		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{a:1}');
-	});
-
-	test('watch file under container - event is triggerred when file is deleted', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await testObject.del(resource);
-	});
-
-	test('watch file under container - event is triggerred when file is deleted externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(resource));
-		testObject.onFileChanges(e => {
-			if (e.contains(resource)) {
-				done();
-			}
-		});
-		await pfs.unlink(path.join(userDataPath, 'testContainer', 'settings.json'));
-	});
-
-	test('watch container - event is triggerred when file under container is created', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const container = joinPath(userDataResource, 'testContainer');
-		disposables.add(testObject.watch(container));
-		testObject.onFileChanges(e => {
-			if (e.contains(container)) {
-				done();
-			}
-		});
-		await testObject.writeFile(joinPath(userDataResource, 'testContainer/settings.json'), VSBuffer.fromString('{a:1}'));
-	});
-
-	test('watch container - event is triggerred when file under container is created externally', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
-		const container = joinPath(userDataResource, 'testContainer');
-		disposables.add(testObject.watch(container));
-		testObject.onFileChanges(e => {
-			if (e.contains(container)) {
-				done();
-			}
-		});
-		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
-	});
-
-	test('watch container - event is triggerred when file under container is deleted', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const container = joinPath(userDataResource, 'testContainer');
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(container));
-		testObject.onFileChanges(e => {
-			if (e.contains(container)) {
-				done();
-			}
-		});
-		await testObject.del(resource);
-	});
-
-	test('watch container - event is triggerred when file under container is deleted externally ', async (done) => {
-		if (!isLinux) {
-			return done(); // watch tests are flaky on other platforms
-		}
-		const container = joinPath(userDataResource, 'testContainer');
-		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		disposables.add(testObject.watch(container));
-		testObject.onFileChanges(e => {
-			if (e.contains(container)) {
-				done();
-			}
-		});
-		await pfs.unlink(path.join(userDataPath, 'testContainer', 'settings.json'));
-	});
-
 	test('read backup file', async () => {
 		await pfs.writeFile(path.join(backupsPath, 'backup.json'), '{}');
 		const result = await testObject.readFile(joinPath(userDataResource, `${BACKUPS}/backup.json`));
@@ -518,3 +277,269 @@ suite('FileUserDataProvider', () => {
 		assert.equal(result.children![0].resource.toString(), joinPath(userDataResource, `${BACKUPS}/backup.json`).toString());
 	});
 });
+
+// Watch tests are flaky
+if (false) {
+
+	suite('FileUserDataProvider - Watching', () => {
+
+		let testObject: IFileService;
+		let rootPath: string;
+		let userDataPath: string;
+		let backupsPath: string;
+		let userDataResource: URI;
+		const userDataContainersRegistry = Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers);
+		const disposables = new DisposableStore();
+
+		setup(async () => {
+			const logService = new NullLogService();
+			testObject = new FileService(logService);
+			disposables.add(testObject);
+
+			const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+			disposables.add(diskFileSystemProvider);
+			disposables.add(testObject.registerProvider(Schemas.file, diskFileSystemProvider));
+
+			rootPath = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
+			userDataPath = path.join(rootPath, 'user');
+			backupsPath = path.join(rootPath, BACKUPS);
+			userDataResource = URI.from({ scheme: Schemas.userData, path: '/user' });
+			await Promise.all([pfs.mkdirp(userDataPath), pfs.mkdirp(backupsPath)]);
+
+			const fileUserDataProvider = new FileUserDataProvider(URI.file(userDataPath), testObject);
+			disposables.add(fileUserDataProvider);
+			const userDataFileSystemProvider = new UserDataFileSystemProvider(userDataResource, fileUserDataProvider);
+			disposables.add(userDataFileSystemProvider);
+			disposables.add(testObject.registerProvider(Schemas.userData, userDataFileSystemProvider));
+
+			userDataContainersRegistry.registerContainer('testContainer');
+			userDataContainersRegistry.registerContainer('testContainer/subContainer');
+			userDataContainersRegistry.registerContainer(BACKUPS);
+		});
+
+		teardown(async () => {
+			disposables.clear();
+			await pfs.rimraf(rootPath, pfs.RimRafMode.MOVE);
+		});
+
+		test('watch file - event is triggerred when file is created', async (done) => {
+			const resource = joinPath(userDataResource, 'settings.json');
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					done();
+				}
+			});
+			await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
+		});
+
+		test('watch file - event is triggerred when file is created externally', async (done) => {
+			const resource = joinPath(userDataResource, 'settings.json');
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					done();
+				}
+			});
+			await pfs.writeFile(path.join(userDataPath, 'settings.json'), '{}');
+		});
+
+		test('watch file - event is triggerred when file is updated', async (done) => {
+			const resource = joinPath(userDataResource, 'settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.UPDATED)) {
+					done();
+				}
+			});
+			await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
+		});
+
+		test('watch file - event is triggerred when file is update externally', async (done) => {
+			const resource = joinPath(userDataResource, 'settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.UPDATED)) {
+					done();
+				}
+			});
+			await pfs.writeFile(path.join(userDataPath, 'settings.json'), '{a:1}');
+		});
+
+		test('watch file - event is triggerred when file is deleted', async (done) => {
+			const resource = joinPath(userDataResource, 'settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.DELETED)) {
+					done();
+				}
+			});
+			await testObject.del(resource);
+		});
+
+		test('watch file - event is triggerred when file is deleted externally', async (done) => {
+			const resource = joinPath(userDataResource, 'settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.DELETED)) {
+					done();
+				}
+			});
+			await pfs.unlink(path.join(userDataPath, 'settings.json'));
+		});
+
+		test('watch file under container - event is triggerred when file is created', async (done) => {
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					done();
+				}
+			});
+			await testObject.writeFile(joinPath(userDataResource, 'testContainer/settings.json'), VSBuffer.fromString('{a:1}'));
+		});
+
+		test('watch file under container - event is triggerred when file is created externally', async (done) => {
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					done();
+				}
+			});
+			await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
+			await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
+		});
+
+		test('watch file under container - event is triggerred when file is updated', async (done) => {
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
+			await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.UPDATED)) {
+					done();
+				}
+			});
+			await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
+		});
+
+		test('watch file under container - event is triggerred when file is updated externally', async (done) => {
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
+			await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.UPDATED)) {
+					done();
+				}
+			});
+			await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{a:1}');
+		});
+
+		test('watch file under container - event is triggerred when file is deleted', async (done) => {
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.DELETED)) {
+					done();
+				}
+			});
+			await testObject.del(resource);
+		});
+
+		test('watch file under container - event is triggerred when file is deleted externally', async (done) => {
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(resource));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.DELETED)) {
+					done();
+				}
+			});
+			await pfs.unlink(path.join(userDataPath, 'testContainer', 'settings.json'));
+		});
+
+		test('watch container - event is triggerred when file under container is created', async (done) => {
+			const container = joinPath(userDataResource, 'testContainer');
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			disposables.add(testObject.watch(container));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					done();
+				}
+			});
+			await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
+		});
+
+		test('watch container - event is triggerred when file under container is created externally', async (done) => {
+			await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
+			const container = joinPath(userDataResource, 'testContainer');
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			disposables.add(testObject.watch(container));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.ADDED)) {
+					done();
+				}
+			});
+			await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
+		});
+
+		test('watch container - event is triggerred when file under container is updated', async (done) => {
+			const container = joinPath(userDataResource, 'testContainer');
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(container));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.UPDATED)) {
+					done();
+				}
+			});
+			await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
+		});
+
+		test('watch container - event is triggerred when file under container is updated externally ', async (done) => {
+			const container = joinPath(userDataResource, 'testContainer');
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(container));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.UPDATED)) {
+					done();
+				}
+			});
+			await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{a:1}');
+		});
+
+		test('watch container - event is triggerred when file under container is deleted', async (done) => {
+			const container = joinPath(userDataResource, 'testContainer');
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(container));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.DELETED)) {
+					done();
+				}
+			});
+			await testObject.del(resource);
+		});
+
+		test('watch container - event is triggerred when file under container is deleted externally ', async (done) => {
+			const container = joinPath(userDataResource, 'testContainer');
+			const resource = joinPath(userDataResource, 'testContainer/settings.json');
+			await testObject.writeFile(resource, VSBuffer.fromString('{}'));
+			disposables.add(testObject.watch(container));
+			testObject.onFileChanges(e => {
+				if (e.contains(resource, FileChangeType.DELETED)) {
+					done();
+				}
+			});
+			await pfs.unlink(path.join(userDataPath, 'testContainer', 'settings.json'));
+		});
+	});
+}

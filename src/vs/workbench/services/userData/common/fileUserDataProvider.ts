@@ -5,18 +5,19 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
-import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IUserDataProvider, FileChangeEvent, IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { startsWith } from 'vs/base/common/strings';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class FileUserDataProvider extends Disposable implements IUserDataProvider {
 
-	private _onDidChangeFile: Emitter<string[]> = this._register(new Emitter<string[]>());
-	readonly onDidChangeFile: Event<string[]> = this._onDidChangeFile.event;
+	private _onDidChangeFile: Emitter<FileChangeEvent[]> = this._register(new Emitter<FileChangeEvent[]>());
+	readonly onDidChangeFile: Event<FileChangeEvent[]> = this._onDidChangeFile.event;
 
 	constructor(
 		private readonly userDataHome: URI,
@@ -25,22 +26,45 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 		super();
 		// Assumption: This path always exists
 		this._register(this.fileService.watch(this.userDataHome));
-
 		this._register(this.fileService.onFileChanges(e => this.handleFileChanges(e)));
+
+		const userDataContainersRegistry = Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers);
+		userDataContainersRegistry.containers.forEach(c => this.watchContainer(c));
+		this._register(userDataContainersRegistry.onDidRegisterContainer(c => this.watchContainer(c)));
 	}
 
 	private handleFileChanges(event: FileChangesEvent): void {
-		const changedPaths: string[] = [];
+		const changedPaths: FileChangeEvent[] = [];
+		const userDataContainersRegistry = Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers);
 		for (const change of event.changes) {
 			if (change.resource.scheme === this.userDataHome.scheme) {
 				const path = this.toPath(change.resource);
 				if (path) {
-					changedPaths.push(path);
+					changedPaths.push({
+						path,
+						type: change.type
+					});
+					if (userDataContainersRegistry.isContainer(path)) {
+						if (change.type === FileChangeType.ADDED) {
+							this.watchContainer(path);
+						}
+					}
 				}
 			}
 		}
 		if (changedPaths.length) {
 			this._onDidChangeFile.fire(changedPaths);
+		}
+	}
+
+	private async watchContainer(container: string): Promise<void> {
+		if (this.isBackUpsPath(container)) {
+			return;
+		}
+		const resource = this.toResource(container);
+		const exists = await this.fileService.exists(resource);
+		if (exists) {
+			this._register(this.fileService.watch(resource));
 		}
 	}
 
@@ -56,8 +80,12 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 
 	async listFiles(path: string): Promise<string[]> {
 		const resource = this.toResource(path);
-		const result = await this.fileService.resolve(resource);
-		return result.children ? result.children.map(c => this.toRelativePath(c.resource, resource)!) : [];
+		try {
+			const result = await this.fileService.resolve(resource);
+			return result.children ? result.children.map(c => this.toRelativePath(c.resource, resource)!) : [];
+		} catch (error) {
+		}
+		return [];
 	}
 
 	deleteFile(path: string): Promise<void> {
@@ -65,10 +93,14 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	}
 
 	private toResource(path: string): URI {
-		if (path === BACKUPS || startsWith(path, `${BACKUPS}/`)) {
+		if (this.isBackUpsPath(path)) {
 			return resources.joinPath(resources.dirname(this.userDataHome), path);
 		}
 		return resources.joinPath(this.userDataHome, path);
+	}
+
+	private isBackUpsPath(path: string): boolean {
+		return path === BACKUPS || startsWith(path, `${BACKUPS}/`);
 	}
 
 	private toPath(resource: URI): string | undefined {
@@ -82,9 +114,6 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	private toRelativePath(fromResource: URI, toResource: URI): string | undefined {
 		const fromPath = fromResource.toString();
 		const toPath = toResource.toString();
-		if (startsWith(fromPath, toPath)) {
-			return fromPath.substr(toPath.length + 1);
-		}
-		return undefined;
+		return startsWith(fromPath, toPath) ? fromPath.substr(toPath.length + 1) : undefined;
 	}
 }
