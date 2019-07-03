@@ -14,11 +14,11 @@ import { writeFileSync } from 'vs/base/node/pfs';
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
  */
 
-class HelpCategories {
-	o = localize('optionsUpperCase', "Options");
-	e = localize('extensionsManagement', "Extensions Management");
-	t = localize('troubleshooting', "Troubleshooting");
-}
+const helpCategories = {
+	o: localize('optionsUpperCase', "Options"),
+	e: localize('extensionsManagement', "Extensions Management"),
+	t: localize('troubleshooting', "Troubleshooting")
+};
 
 export interface Option {
 	id: string;
@@ -27,7 +27,7 @@ export interface Option {
 	deprecates?: string; // old deprecated id
 	args?: string | string[];
 	description?: string;
-	cat?: keyof HelpCategories;
+	cat?: keyof typeof helpCategories;
 }
 
 export const options: Option[] = [
@@ -94,6 +94,7 @@ export const options: Option[] = [
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
 	{ id: 'prof-code-loading', type: 'boolean' },
+	{ id: 'js-flags', type: 'string' },
 	{ id: '_', type: 'string' }
 ];
 
@@ -189,8 +190,6 @@ function wrapText(text: string, columns: number): string[] {
 export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true, isPipeSupported = true): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 
-	let categories = new HelpCategories();
-
 	let help = [`${productName} ${version}`];
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
@@ -203,10 +202,12 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		}
 		help.push('');
 	}
-	for (const key in categories) {
+	for (let helpCategoryKey in helpCategories) {
+		const key = <keyof typeof helpCategories>helpCategoryKey;
+
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {
-			help.push(categories[key as keyof HelpCategories]);
+			help.push(helpCategories[key]);
 			help.push(...formatOptions(categoryOptions, columns));
 			help.push('');
 		}

@@ -47,7 +47,7 @@ export class FoldingModel {
 		if (!regions.length) {
 			return;
 		}
-		let processed = {};
+		let processed: { [key: string]: boolean | undefined } = {};
 		this._decorationProvider.changeDecorations(accessor => {
 			for (let region of regions) {
 				let index = region.regionIndex;

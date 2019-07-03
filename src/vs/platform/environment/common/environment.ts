@@ -71,6 +71,9 @@ export interface ParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'enable-remote-auto-shutdown'?: boolean;
 	'disable-inspect'?: boolean;
+	'force'?: boolean;
+	'js-flags'?: boolean;
+	'gitCredential'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
