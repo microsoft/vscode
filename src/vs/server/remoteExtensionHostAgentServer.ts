@@ -155,13 +155,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath = path.join(APP_ROOT, 'resources', 'server', 'favicon.ico');
 				}
 
-				// Resource Service Worker
-				else if (pathname === '/resourceServiceWorkerMain.js') {
-					// todo@web pretend that the service worker is loaded from /
-					// because fetch-requests work against the initiator, not the request
-					filePath = path.join(APP_ROOT, 'out/vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js');
-				}
-
 				// Anything else
 				else {
 					filePath = path.join(APP_ROOT, path.normalize(pathname!));
@@ -176,8 +169,18 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath += '/index.html';
 				}
 
+				const headers: Record<string, string> = {
+					'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain'
+				};
+
+				// Allow all service worker requests to control the "max" scope
+				// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
+				if (req.headers['service-worker']) {
+					headers['Service-Worker-Allowed'] = '/';
+				}
+
+				res.writeHead(200, headers);
 				const data = await util.promisify(fs.readFile)(filePath);
-				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 				return res.end(data);
 			} catch (error) {
 				this._logService.error(error);
