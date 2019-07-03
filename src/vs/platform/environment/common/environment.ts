@@ -101,6 +101,9 @@ export interface IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
+
+	// user roaming data
+	userRoamingDataHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;

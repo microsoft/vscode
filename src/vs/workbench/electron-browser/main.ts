@@ -52,7 +52,6 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
-import { dirname } from 'vs/base/common/resources';
 
 class CodeRendererMain extends Disposable {
 
@@ -209,7 +208,7 @@ class CodeRendererMain extends Disposable {
 		}
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
+		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
 
 		const payload = await this.resolveWorkspaceInitializationPayload(environmentService);
 

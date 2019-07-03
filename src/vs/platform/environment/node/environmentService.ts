@@ -115,7 +115,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
-	get settingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+
+	@memoize
+	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
 	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
@@ -136,10 +139,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
 
 	@memoize
-	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
+	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
-	get keyboardLayoutResource(): URI { return resources.joinPath(this.appSettingsHome, 'keyboardLayout.json'); }
+	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }

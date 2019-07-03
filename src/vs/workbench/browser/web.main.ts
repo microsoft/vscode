@@ -37,7 +37,7 @@ import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
@@ -91,8 +91,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const remoteUserDataUri = this.getRemoteUserDataUri();
-		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration, remoteUserDataUri);
+		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -124,7 +123,7 @@ class CodeRendererMain extends Disposable {
 		}
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), this.getUserDataPovider(fileService, remoteUserDataUri)));
+		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, this.getUserDataPovider(fileService)));
 
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
@@ -174,12 +173,18 @@ class CodeRendererMain extends Disposable {
 		return { id: 'empty-window' };
 	}
 
-	private getUserDataPovider(fileService: IFileService, remoteUserDataUri: URI | null): IUserDataProvider {
+	private getUserDataPovider(fileService: IFileService): IUserDataProvider {
 		if (this.configuration.userDataProvider) {
 			return this.configuration.userDataProvider;
-		} else if (this.configuration.remoteAuthority && remoteUserDataUri) {
-			return this._register(new FileUserDataProvider(remoteUserDataUri, fileService));
 		}
+
+		if (this.configuration.remoteAuthority) {
+			const remoteUserDataUri = this.getRemoteUserDataUri();
+			if (remoteUserDataUri) {
+				return this._register(new FileUserDataProvider(remoteUserDataUri, fileService));
+			}
+		}
+
 		return this._register(new InMemoryUserDataProvider());
 	}
 
