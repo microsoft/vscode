@@ -3493,7 +3493,7 @@ fs.realpath@^1.0.0:
   resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
   integrity sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
 
-fsevents@^1.2.7, fsevents@^1.2.9:
+fsevents@^1.2.7:
   version "1.2.9"
   resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-1.2.9.tgz#3f5ed66583ccd6f400b5a00db6f7e861363e388f"
   integrity sha512-oeyj2H3EjjonWcFjD5NvZNE9Rqe4UW+nQBU2HNeKw0koVLEFIhtyETyAakeAM3de7Z/SW5kcA+fZUait9EApnw==
@@ -6765,6 +6765,11 @@ performance-now@^2.1.0:
   resolved "https://registry.yarnpkg.com/performance-now/-/performance-now-2.1.0.tgz#6309f4e0e5fa913ec1c69307ae364b4b377c9e7b"
   integrity sha1-Ywn04OX6kT7BxpMHrjZLSzd8nns=
 
+picomatch@^2.0.4:
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.0.7.tgz#514169d8c7cd0bdbeecc8a2609e34a7163de69f6"
+  integrity sha512-oLHIdio3tZ0qH76NybpeneBhYVj0QFTfXEFTc/B3zKQspYfYYkWYgFsmzo+4kvId/bQRcNkVeguI3y+CD22BtA==
+
 pify@^2.0.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/pify/-/pify-2.3.0.tgz#ed141a6ac043a849ea588498e7dca8b15330e90c"
@@ -9512,11 +9517,17 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-chokidar@microsoft/chokidar#fsevents_node12_compat:
-  version "1.6.5"
-  resolved "https://codeload.github.com/microsoft/chokidar/tar.gz/d88d19c543e786f1156009e55a7367ae4ae53a3d"
+vscode-anymatch@microsoft/anymatch#b447e2626d238f8ca22e807c9b7bb204ab93da5e:
+  version "3.0.3"
+  resolved "https://codeload.github.com/microsoft/anymatch/tar.gz/b447e2626d238f8ca22e807c9b7bb204ab93da5e"
   dependencies:
-    anymatch "^2.0.0"
+    normalize-path "^3.0.0"
+    picomatch "^2.0.4"
+
+vscode-chokidar@microsoft/chokidar#42800a1d731853bd2cb3140e42a11d2f0ac5f436:
+  version "1.6.5"
+  resolved "https://codeload.github.com/microsoft/chokidar/tar.gz/42800a1d731853bd2cb3140e42a11d2f0ac5f436"
+  dependencies:
     async-each "^1.0.1"
     braces "^2.3.2"
     glob-parent "^3.1.0"
@@ -9527,13 +9538,20 @@ vscode-chokidar@microsoft/chokidar#fsevents_node12_compat:
     path-is-absolute "^1.0.0"
     readdirp "^2.2.1"
     upath "^1.1.1"
+    vscode-anymatch microsoft/anymatch#b447e2626d238f8ca22e807c9b7bb204ab93da5e
   optionalDependencies:
-    fsevents "^1.2.9"
+    vscode-fsevents microsoft/fsevents#c754dc5e48570f9c297a9de29f36a695b5aad47f
 
 vscode-debugprotocol@1.35.0:
   version "1.35.0"
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.35.0.tgz#565140cd42945e30c6c85cafb38c631457d4a46c"
   integrity sha512-+OMm11R1bGYbpIJ5eQIkwoDGFF4GvBz3Ztl6/VM+/RNNb2Gjk2c0Ku+oMmfhlTmTlPCpgHBsH4JqVCbUYhu5bA==
+
+vscode-fsevents@microsoft/fsevents#c754dc5e48570f9c297a9de29f36a695b5aad47f:
+  version "1.2.10"
+  resolved "https://codeload.github.com/microsoft/fsevents/tar.gz/c754dc5e48570f9c297a9de29f36a695b5aad47f"
+  dependencies:
+    nan "^2.14.0"
 
 vscode-nls-dev@3.2.5:
   version "3.2.5"
