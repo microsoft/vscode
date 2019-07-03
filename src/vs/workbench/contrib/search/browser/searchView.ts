@@ -320,14 +320,6 @@ export class SearchView extends ViewletPanel {
 		if (this.viewModel) {
 			this.viewModel.searchResult.toggleHighlights(visible);
 		}
-
-		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.activeEditor) {
-			const focus = this.tree.getFocus();
-			if (focus) {
-				this.onFocus(focus, true);
-			}
-		}
 	}
 
 	get searchAndReplaceWidget(): SearchWidget {
@@ -1548,12 +1540,7 @@ export class SearchView extends ViewletPanel {
 		this.currentSelectedFileMatch = undefined;
 	}
 
-	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		if (!(lineMatch instanceof Match)) {
-			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
-			return Promise.resolve(true);
-		}
-
+	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
