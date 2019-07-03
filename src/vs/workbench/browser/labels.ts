@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toResource, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput, SideBySideEditor, Verbosity } from 'vs/workbench/common/editor';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,6 +35,7 @@ export interface IResourceLabelProps {
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
 	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
+	descriptionVerbosity?: Verbosity;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -316,6 +317,9 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyFormattersChange(): void {
+		if (this.label && this.label.resource) {
+			this.setFile(this.label.resource, this.options);
+		}
 		this.render(false);
 	}
 
@@ -362,7 +366,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
 			name: withNullAsUndefined(editor.getName()),
-			description: withNullAsUndefined(editor.getDescription())
+			description: withNullAsUndefined(editor.getDescription(options ? options.descriptionVerbosity : undefined))
 		}, options);
 	}
 
