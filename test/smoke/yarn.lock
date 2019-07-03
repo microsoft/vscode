@@ -676,7 +676,7 @@ electron-download@^4.1.0:
     semver "^5.4.1"
     sumchecker "^2.0.2"
 
-electron@6.0.0-beta.12:
+electron@6.0.0-beta.11:
   version "6.0.0-beta.11"
   resolved "https://registry.yarnpkg.com/electron/-/electron-6.0.0-beta.11.tgz#aa4821ed685aca0545be61bc46eacab191ac6887"
   integrity sha512-B6zh9c5pJ0BKKNkOEbF6vKXnBCWgtvY8LaUYDNeR9ttnPP0CCm0oovIoqP9/nN5gL8rlCoCgKWsjmiHu0jg7mA==
