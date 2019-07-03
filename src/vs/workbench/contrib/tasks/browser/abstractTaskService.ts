@@ -1239,12 +1239,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 										try {
 											const resolvedTask = await provider.resolveTask(configuringTask);
 											if (resolvedTask) {
-												result.add(key, resolvedTask);
+												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
 												return;
 											}
-										}
-										catch (error) {
-											// Ignore?
+										} catch (error) {
+											// Ignore errors. The task could not be provided by any of the providers.
 										}
 									}
 								}

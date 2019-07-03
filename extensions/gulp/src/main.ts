@@ -67,6 +67,24 @@ function showError() {
 		});
 }
 
+async function findGulpCommand(rootPath: string): Promise<string> {
+	let gulpCommand: string;
+	let platform = process.platform;
+	if (platform === 'win32' && await exists(path.join(rootPath, 'node_modules', '.bin', 'gulp.cmd'))) {
+		const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
+		if (await exists(globalGulp)) {
+			gulpCommand = '"' + globalGulp + '"';
+		} else {
+			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+		}
+	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath, 'node_modules', '.bin', 'gulp'))) {
+		gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
+	} else {
+		gulpCommand = 'gulp';
+	}
+	return gulpCommand;
+}
+
 interface GulpTaskDefinition extends vscode.TaskDefinition {
 	task: string;
 	file?: string;
@@ -77,7 +95,9 @@ class FolderDetector {
 	private fileWatcher: vscode.FileSystemWatcher | undefined;
 	private promise: Thenable<vscode.Task[]> | undefined;
 
-	constructor(private _workspaceFolder: vscode.WorkspaceFolder) {
+	constructor(
+		private _workspaceFolder: vscode.WorkspaceFolder,
+		private _gulpCommand: Promise<string>) {
 	}
 
 	public get workspaceFolder(): vscode.WorkspaceFolder {
@@ -97,10 +117,28 @@ class FolderDetector {
 	}
 
 	public async getTasks(): Promise<vscode.Task[]> {
-		if (!this.promise) {
-			this.promise = this.computeTasks();
+		if (this.isEnabled()) {
+			if (!this.promise) {
+				this.promise = this.computeTasks();
+			}
+			return this.promise;
+		} else {
+			return [];
 		}
-		return this.promise;
+	}
+
+	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+		const gulpTask = (<any>_task.definition).task;
+		if (gulpTask) {
+			let kind: GulpTaskDefinition = {
+				type: 'gulp',
+				task: gulpTask
+			};
+			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
+			let task = new vscode.Task(kind, this.workspaceFolder, gulpTask, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [gulpTask], options));
+			return task;
+		}
+		return undefined;
 	}
 
 	private async computeTasks(): Promise<vscode.Task[]> {
@@ -117,22 +155,7 @@ class FolderDetector {
 			}
 		}
 
-		let gulpCommand: string;
-		let platform = process.platform;
-		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp.cmd'))) {
-			const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
-			if (await exists(globalGulp)) {
-				gulpCommand = '"' + globalGulp + '"';
-			} else {
-				gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
-			}
-		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp'))) {
-			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
-		} else {
-			gulpCommand = 'gulp';
-		}
-
-		let commandLine = `${gulpCommand} --tasks-simple --no-color`;
+		let commandLine = `${await this._gulpCommand} --tasks-simple --no-color`;
 		try {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
@@ -151,7 +174,7 @@ class FolderDetector {
 						task: line
 					};
 					let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-					let task = new vscode.Task(kind, this.workspaceFolder, line, 'gulp', new vscode.ShellExecution(gulpCommand, [line], options));
+					let task = new vscode.Task(kind, this.workspaceFolder, line, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [line], options));
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();
 					if (isBuildTask(lowerCaseLine)) {
@@ -218,9 +241,9 @@ class TaskDetector {
 			}
 		}
 		for (let add of added) {
-			let detector = new FolderDetector(add);
+			let detector = new FolderDetector(add, findGulpCommand(add.uri.fsPath));
+			this.detectors.set(add.uri.toString(), detector);
 			if (detector.isEnabled()) {
-				this.detectors.set(add.uri.toString(), detector);
 				detector.start();
 			}
 		}
@@ -229,18 +252,16 @@ class TaskDetector {
 
 	private updateConfiguration(): void {
 		for (let detector of this.detectors.values()) {
-			if (!detector.isEnabled()) {
-				detector.dispose();
-				this.detectors.delete(detector.workspaceFolder.uri.toString());
-			}
+			detector.dispose();
+			this.detectors.delete(detector.workspaceFolder.uri.toString());
 		}
 		let folders = vscode.workspace.workspaceFolders;
 		if (folders) {
 			for (let folder of folders) {
 				if (!this.detectors.has(folder.uri.toString())) {
-					let detector = new FolderDetector(folder);
+					let detector = new FolderDetector(folder, findGulpCommand(folder.uri.fsPath));
+					this.detectors.set(folder.uri.toString(), detector);
 					if (detector.isEnabled()) {
-						this.detectors.set(folder.uri.toString(), detector);
 						detector.start();
 					}
 				}
@@ -251,12 +272,13 @@ class TaskDetector {
 
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
+			const thisCapture = this;
 			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
-				provideTasks: () => {
-					return this.getTasks();
+				provideTasks(): Promise<vscode.Task[]> {
+					return thisCapture.getTasks();
 				},
-				resolveTask(_task: vscode.Task): vscode.Task | undefined {
-					return undefined;
+				resolveTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+					return thisCapture.getTask(_task);
 				}
 			});
 		}
@@ -289,6 +311,25 @@ class TaskDetector {
 				}
 				return result;
 			});
+		}
+	}
+
+	public async getTask(task: vscode.Task): Promise<vscode.Task | undefined> {
+		if (this.detectors.size === 0) {
+			return undefined;
+		} else if (this.detectors.size === 1) {
+			return this.detectors.values().next().value.getTask(task);
+		} else {
+			if ((task.scope === vscode.TaskScope.Workspace) || (task.scope === vscode.TaskScope.Global)) {
+				// Not supported, we don't have enough info to create the task.
+				return undefined;
+			} else if (task.scope) {
+				const detector = this.detectors.get(task.scope.uri.toString());
+				if (detector) {
+					return detector.getTask(task);
+				}
+			}
+			return undefined;
 		}
 	}
 }

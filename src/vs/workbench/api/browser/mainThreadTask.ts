@@ -464,8 +464,8 @@ export class MainThreadTask implements MainThreadTaskShape {
 			resolveTask: (task: ConfiguringTask) => {
 				const dto = TaskDTO.from(task);
 
-				// Only named tasks can be resolved. (That should be the case, right?)
-				if (dto && dto.name) {
+				if (dto) {
+					dto.name = ((dto.name === undefined) ? '' : dto.name); // Using an empty name causes the name to default to the one given by the provider.
 					return Promise.resolve(this._proxy.$resolveTask(handle, dto)).then(resolvedTask => {
 						if (resolvedTask) {
 							return TaskDTO.to(resolvedTask, this._workspaceContextServer, true);
