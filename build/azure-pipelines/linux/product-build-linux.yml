@@ -83,8 +83,7 @@ steps:
     set -e
     node build/azure-pipelines/common/installDistroDependencies.js
     node build/azure-pipelines/common/installDistroDependencies.js remote
-    node build/lib/builtInExtensions.js
-  displayName: Install distro dependencies and extensions
+  displayName: Install distro dependencies
 
 - script: |
     set -e
