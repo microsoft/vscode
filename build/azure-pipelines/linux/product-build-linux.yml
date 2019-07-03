@@ -12,123 +12,117 @@ steps:
     platformIndependent: true
     alias: 'Compilation'
 
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - script: |
     set -e
-    ls -la .build
-    ls -la out-build
-  displayName: Check cache
+    export npm_config_arch="$(VSCODE_ARCH)"
 
-# - task: NodeTool@0
-#   inputs:
-#     versionSpec: "10.15.1"
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(devops-pat)
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
 
-# - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-#   inputs:
-#     versionSpec: "1.10.1"
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
 
-# - task: AzureKeyVault@1
-#   displayName: 'Azure Key Vault: Get Secrets'
-#   inputs:
-#     azureSubscription: 'vscode-builds-subscription'
-#     KeyVaultName: vscode
+- script: |
+    set -e
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
 
-# - script: |
-#     set -e
-#     export npm_config_arch="$(VSCODE_ARCH)"
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
 
-#     cat << EOF > ~/.netrc
-#     machine monacotools.visualstudio.com
-#     password $(devops-pat)
-#     machine github.com
-#     login vscode
-#     password $(github-distro-mixin-password)
-#     EOF
+- script: |
+    set -e
+    yarn --frozen-lockfile
+  displayName: Install dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
-#     git config user.email "vscode@microsoft.com"
-#     git config user.name "VSCode"
-#   displayName: Prepare tooling
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
-# - script: |
-#     set -e
-#     git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
-#     git fetch distro
-#     git merge $(node -p "require('./package.json').distro")
-#   displayName: Merge distro
+- script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
-# - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-#   inputs:
-#     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
-#     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-#     vstsFeed: 'npm-vscode'
+- script: |
+    set -e
+    yarn gulp mixin
+  displayName: Mix in quality
 
-# - script: |
-#     set -e
-#     yarn --frozen-lockfile
-#   displayName: Install dependencies
-#   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- script: |
+    set -e
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
+    node build/lib/builtInExtensions.js
+  displayName: Install distro dependencies and extensions
 
-# - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
-#   inputs:
-#     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
-#     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-#     vstsFeed: 'npm-vscode'
-#   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-linux-$VSCODE_ARCH-min-ci
+  displayName: Build
 
-# - script: |
-#     set -e
-#     yarn postinstall
-#   displayName: Run postinstall scripts
-#   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+- script: |
+    set -e
+    yarn gulp "electron-$(VSCODE_ARCH)"
 
-# - script: |
-#     set -e
-#     yarn gulp mixin
-#   displayName: Mix in quality
+    # xvfb seems to be crashing often, let's make sure it's always up
+    service xvfb start
 
-# - script: |
-#     set -e
-#     node build/azure-pipelines/common/installDistroDependencies.js
-#     node build/azure-pipelines/common/installDistroDependencies.js remote
-#     node build/lib/builtInExtensions.js
-#   displayName: Install distro dependencies and extensions
+    DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
+    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+  displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-# - script: |
-#     set -e
-#     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-#       yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
-#     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-#       yarn gulp vscode-reh-linux-$VSCODE_ARCH-min-ci
-#     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-#       yarn gulp vscode-web-linux-$VSCODE_ARCH-min-ci
-#   displayName: Build
+- script: |
+    set -e
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+    ./build/azure-pipelines/linux/publish.sh
+  displayName: Publish
 
-# - script: |
-#     set -e
-#     yarn gulp "electron-$(VSCODE_ARCH)"
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: snap-$(VSCODE_ARCH)
+    targetPath: .build/linux/snap-tarball
 
-#     # xvfb seems to be crashing often, let's make sure it's always up
-#     service xvfb start
-
-#     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
-#     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-#   displayName: Run unit tests
-#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-# - script: |
-#     set -e
-#     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-#     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-#     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-#     VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-#     ./build/azure-pipelines/linux/publish.sh
-#   displayName: Publish
-
-# - task: PublishPipelineArtifact@0
-#   displayName: 'Publish Pipeline Artifact'
-#   inputs:
-#     artifactName: snap-$(VSCODE_ARCH)
-#     targetPath: .build/linux/snap-tarball
-
-# - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-#   displayName: 'Component Detection'
-#   continueOnError: true
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true
