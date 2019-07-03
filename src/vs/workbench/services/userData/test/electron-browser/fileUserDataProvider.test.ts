@@ -21,6 +21,7 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-bro
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('FileUserDataProvider', () => {
 
@@ -30,24 +31,37 @@ suite('FileUserDataProvider', () => {
 	let backupsPath: string;
 	let userDataResource: URI;
 	const userDataContainersRegistry = Registry.as<IUserDataContainerRegistry>(Extensions.UserDataContainers);
+	const disposables = new DisposableStore();
 
 	setup(async () => {
 		const logService = new NullLogService();
 		testObject = new FileService(logService);
-		testObject.registerProvider(Schemas.file, new DiskFileSystemProvider(logService));
+		disposables.add(testObject);
+
+		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		disposables.add(diskFileSystemProvider);
+		disposables.add(testObject.registerProvider(Schemas.file, diskFileSystemProvider));
+
 		rootPath = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
 		userDataPath = path.join(rootPath, 'user');
 		backupsPath = path.join(rootPath, BACKUPS);
-		await Promise.all([pfs.mkdirp(userDataPath), pfs.mkdirp(backupsPath)]);
 		userDataResource = URI.from({ scheme: Schemas.userData, path: '/user' });
-		testObject.registerProvider(Schemas.userData, new UserDataFileSystemProvider(userDataResource, new FileUserDataProvider(URI.file(userDataPath), testObject)));
+		await Promise.all([pfs.mkdirp(userDataPath), pfs.mkdirp(backupsPath)]);
+
+		const fileUserDataProvider = new FileUserDataProvider(URI.file(userDataPath), testObject);
+		disposables.add(fileUserDataProvider);
+		const userDataFileSystemProvider = new UserDataFileSystemProvider(userDataResource, fileUserDataProvider);
+		disposables.add(userDataFileSystemProvider);
+		disposables.add(testObject.registerProvider(Schemas.userData, userDataFileSystemProvider));
+
 		userDataContainersRegistry.registerContainer('testContainer');
 		userDataContainersRegistry.registerContainer('testContainer/subContainer');
 		userDataContainersRegistry.registerContainer(BACKUPS);
 	});
 
-	teardown(() => {
-		return pfs.rimraf(rootPath, pfs.RimRafMode.MOVE);
+	teardown(async () => {
+		disposables.clear();
+		await pfs.rimraf(rootPath, pfs.RimRafMode.MOVE);
 	});
 
 	test('exists return false when file does not exist', async () => {
@@ -89,10 +103,9 @@ suite('FileUserDataProvider', () => {
 
 	test('watch file - event is triggerred when file is created', async (done) => {
 		const resource = joinPath(userDataResource, 'settings.json');
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -101,10 +114,9 @@ suite('FileUserDataProvider', () => {
 
 	test('watch file - event is triggerred when file is created externally', async (done) => {
 		const resource = joinPath(userDataResource, 'settings.json');
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -114,10 +126,9 @@ suite('FileUserDataProvider', () => {
 	test('watch file - event is triggerred when file is updated', async (done) => {
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -127,10 +138,9 @@ suite('FileUserDataProvider', () => {
 	test('watch file - event is triggerred when file is update externally', async (done) => {
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -140,10 +150,9 @@ suite('FileUserDataProvider', () => {
 	test('watch file - event is triggerred when file is deleted', async (done) => {
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -153,10 +162,9 @@ suite('FileUserDataProvider', () => {
 	test('watch file - event is triggerred when file is deleted externally', async (done) => {
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -313,10 +321,9 @@ suite('FileUserDataProvider', () => {
 
 	test('watch file under container - event is triggerred when file is created', async (done) => {
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -325,10 +332,9 @@ suite('FileUserDataProvider', () => {
 
 	test('watch file under container - event is triggerred when file is created externally', async (done) => {
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -340,10 +346,9 @@ suite('FileUserDataProvider', () => {
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -354,10 +359,9 @@ suite('FileUserDataProvider', () => {
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -367,10 +371,9 @@ suite('FileUserDataProvider', () => {
 	test('watch file under container - event is triggerred when file is deleted', async (done) => {
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -380,10 +383,9 @@ suite('FileUserDataProvider', () => {
 	test('watch file under container - event is triggerred when file is deleted externally', async (done) => {
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(resource);
+		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
 			if (e.contains(resource)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -392,10 +394,9 @@ suite('FileUserDataProvider', () => {
 
 	test('watch container - event is triggerred when file under container is created', async (done) => {
 		const container = joinPath(userDataResource, 'testContainer');
-		const disposable = testObject.watch(container);
+		disposables.add(testObject.watch(container));
 		testObject.onFileChanges(e => {
 			if (e.contains(container)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -405,10 +406,9 @@ suite('FileUserDataProvider', () => {
 	test('watch container - event is triggerred when file under container is created externally', async (done) => {
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		const container = joinPath(userDataResource, 'testContainer');
-		const disposable = testObject.watch(container);
+		disposables.add(testObject.watch(container));
 		testObject.onFileChanges(e => {
 			if (e.contains(container)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -419,10 +419,9 @@ suite('FileUserDataProvider', () => {
 		const container = joinPath(userDataResource, 'testContainer');
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(container);
+		disposables.add(testObject.watch(container));
 		testObject.onFileChanges(e => {
 			if (e.contains(container)) {
-				disposable.dispose();
 				done();
 			}
 		});
@@ -433,10 +432,9 @@ suite('FileUserDataProvider', () => {
 		const container = joinPath(userDataResource, 'testContainer');
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		const disposable = testObject.watch(container);
+		disposables.add(testObject.watch(container));
 		testObject.onFileChanges(e => {
 			if (e.contains(container)) {
-				disposable.dispose();
 				done();
 			}
 		});

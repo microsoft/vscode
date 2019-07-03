@@ -24,7 +24,7 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 	) {
 		super();
 		// Assumption: This path always exists
-		this.fileService.watch(this.userDataHome);
+		this._register(this.fileService.watch(this.userDataHome));
 
 		this._register(this.fileService.onFileChanges(e => this.handleFileChanges(e)));
 	}
