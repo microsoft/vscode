@@ -16,7 +16,7 @@ function code() {
 	# Load remote node
 	yarn gulp node
 
-	$NODE=$(node build/lib/node.js)
+	NODE=$(node build/lib/node.js)
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
