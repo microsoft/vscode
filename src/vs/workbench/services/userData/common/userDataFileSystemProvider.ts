@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { startsWith } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { joinPath, isEqual } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 
 export class UserDataFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -31,12 +31,20 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	private onDidChangeUserData(changes: FileChangeEvent[]): void {
+		const fileChanges: IFileChange[] = [];
 		for (const { path, type } of changes) {
 			if (type === FileChangeType.DELETED) {
 				this.versions.delete(path);
 			} else {
 				this.versions.set(path, this.getOrSetVersion(path) + 1);
 			}
+			fileChanges.push({
+				resource: this.toResource(path),
+				type
+			});
+		}
+		if (fileChanges.length) {
+			this._onDidChangeFile.fire(new FileChangesEvent(fileChanges).changes);
 		}
 	}
 
@@ -45,21 +53,7 @@ export class UserDataFileSystemProvider extends Disposable implements IFileSyste
 		if (!path) {
 			throw new Error(`Invalid user data resource ${resource}`);
 		}
-		return this.userDataProvider.onDidChangeFile(changes => {
-			const fileChanges: IFileChange[] = [];
-			for (const { path, type } of changes) {
-				const changedResource = this.toResource(path);
-				if (isEqual(changedResource, resource) || this.toRelativePath(changedResource, resource)) {
-					fileChanges.push({
-						resource: changedResource,
-						type
-					});
-				}
-			}
-			if (fileChanges.length) {
-				this._onDidChangeFile.fire(new FileChangesEvent(fileChanges).changes);
-			}
-		});
+		return Disposable.None;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
