@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement } from 'sqlite3';
+import { Database, Statement } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer, timeout } from 'vs/base/common/async';
@@ -607,7 +607,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
-			import('sqlite3').then(sqlite3 => {
+			import('vscode-sqlite3').then(sqlite3 => {
 				const connection: IDatabaseConnection = {
 					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 						if (error) {

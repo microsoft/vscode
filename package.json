@@ -45,12 +45,12 @@
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "^0.9.0",
-    "sqlite3": "^4.0.8",
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "microsoft/chokidar#fsevents_node12_compat",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
+    "vscode-sqlite3": "microsoft/vscode-node-sqlite3#vscode_sqlite3_latest",
     "vscode-textmate": "^4.1.1",
     "xterm": "3.15.0-beta50",
     "xterm-addon-search": "0.1.0-beta6",
@@ -155,14 +155,5 @@
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"
-  },
-  "//": [
-    "There are no prebuilt binaries available for the v8 7.6 ABI",
-    "node-pre-gyp will fallback to source build but that will fail for",
-    "modules using older version of nan, this resolves nan to the",
-    "version we require for building with v8 7.6."
-  ],
-  "resolutions": {
-    "nan": "2.14.0"
   }
 }
