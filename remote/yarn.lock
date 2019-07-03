@@ -1420,16 +1420,18 @@ util-deprecate@~1.0.1:
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"
   integrity sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
 
-vscode-anymatch@microsoft/anymatch#b447e2626d238f8ca22e807c9b7bb204ab93da5e:
+vscode-anymatch@3.0.3:
   version "3.0.3"
-  resolved "https://codeload.github.com/microsoft/anymatch/tar.gz/b447e2626d238f8ca22e807c9b7bb204ab93da5e"
+  resolved "https://registry.yarnpkg.com/vscode-anymatch/-/vscode-anymatch-3.0.3.tgz#5a79101e6df7e659a1f070367bc42f190eb4ae76"
+  integrity sha512-qQgfbzJJ5nNShh4jjC3BBekY4d8emcxHFgnqcXwsB/PUKvJPCg7AZYXM7hqS7EDnKrX9tsIFwFMihZ7yut92Qg==
   dependencies:
     normalize-path "^3.0.0"
     picomatch "^2.0.4"
 
-vscode-chokidar@microsoft/chokidar#42800a1d731853bd2cb3140e42a11d2f0ac5f436:
-  version "1.6.5"
-  resolved "https://codeload.github.com/microsoft/chokidar/tar.gz/42800a1d731853bd2cb3140e42a11d2f0ac5f436"
+vscode-chokidar@2.1.7:
+  version "2.1.7"
+  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-2.1.7.tgz#c5b31eb87402f4779bb4170915245bdcb6f7854b"
+  integrity sha512-uSNEQetPjAlgIAHmcF9E6M+KCw0f842rsEnJ64aamUAV6TO7gkXNCvLSzb4MuLsPU7ZQyCa++DrLQFjvciK5dg==
   dependencies:
     async-each "^1.0.1"
     braces "^2.3.2"
@@ -1441,13 +1443,14 @@ vscode-chokidar@microsoft/chokidar#42800a1d731853bd2cb3140e42a11d2f0ac5f436:
     path-is-absolute "^1.0.0"
     readdirp "^2.2.1"
     upath "^1.1.1"
-    vscode-anymatch microsoft/anymatch#b447e2626d238f8ca22e807c9b7bb204ab93da5e
+    vscode-anymatch "3.0.3"
   optionalDependencies:
-    vscode-fsevents microsoft/fsevents#c754dc5e48570f9c297a9de29f36a695b5aad47f
+    vscode-fsevents "1.2.12"
 
-vscode-fsevents@microsoft/fsevents#c754dc5e48570f9c297a9de29f36a695b5aad47f:
-  version "1.2.10"
-  resolved "https://codeload.github.com/microsoft/fsevents/tar.gz/c754dc5e48570f9c297a9de29f36a695b5aad47f"
+vscode-fsevents@1.2.12:
+  version "1.2.12"
+  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-1.2.12.tgz#01a71a01f90ee95ca822c34427aba437a17c03a7"
+  integrity sha512-bH/jRdDpSesGpqiVLjp6gHLSKUOh7oNvppzZ17JIrdbRYCcDmV7dIWR5gQc27DFy0RD9JDT+t+ixMid94MkM1A==
   dependencies:
     nan "^2.14.0"
 
