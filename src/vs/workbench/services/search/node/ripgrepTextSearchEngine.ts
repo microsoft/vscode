@@ -410,10 +410,10 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
 		args.push('--pcre2');
+	}
 
-		if (query.isRegExp) {
-			pattern = unicodeEscapesToPCRE2(pattern);
-		}
+	if (query.isRegExp) {
+		pattern = unicodeEscapesToPCRE2(pattern);
 	}
 
 	// Allow $ to match /r/n
