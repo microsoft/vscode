@@ -68,6 +68,8 @@ steps:
 
 - script: |
     set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build
     ./build/azure-pipelines/linux/build-alpine.sh
   displayName: Build
 
