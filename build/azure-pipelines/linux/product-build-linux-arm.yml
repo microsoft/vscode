@@ -64,6 +64,14 @@ steps:
 
 - script: |
     set -e
+    yarn postinstall
+    (cd build && yarn postinstall)
+    (cd extensions && yarn postinstall)
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
     yarn gulp mixin
   displayName: Mix in quality
 
