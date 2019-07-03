@@ -94,4 +94,19 @@ suite('CancellationToken', function () {
 		source.cancel();
 		assert.equal(count, 0);
 	});
+
+	test('parent cancels child', function () {
+
+		let parent = new CancellationTokenSource();
+		let child = new CancellationTokenSource(parent.token);
+
+		let count = 0;
+		child.token.onCancellationRequested(() => count += 1);
+
+		parent.cancel();
+
+		assert.equal(count, 1);
+		assert.equal(child.token.isCancellationRequested, true);
+		assert.equal(parent.token.isCancellationRequested, true);
+	});
 });

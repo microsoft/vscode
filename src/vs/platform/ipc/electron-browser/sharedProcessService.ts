@@ -33,7 +33,7 @@ export class SharedProcessService implements ISharedProcessService {
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		this.withSharedProcessConnection = windowsService.whenSharedProcessReady()
-			.then(() => connect(environmentService.sharedIPCHandle, `window:${windowService.getCurrentWindowId()}`));
+			.then(() => connect(environmentService.sharedIPCHandle, `window:${windowService.windowId}`));
 	}
 
 	getChannel(channelName: string): IChannel {

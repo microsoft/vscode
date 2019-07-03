@@ -87,6 +87,17 @@ export const enum TerminateResponseCode {
 	ProcessNotFound = 3,
 }
 
+export interface ProcessItem {
+	name: string;
+	cmd: string;
+	pid: number;
+	ppid: number;
+	load: number;
+	mem: number;
+
+	children?: ProcessItem[];
+}
+
 /**
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */

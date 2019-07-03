@@ -26,18 +26,19 @@
 .extension-ratings.small > .star {
 	width: 10px;
 	height: 10px;
+	background-image: url('star-small.svg');
 }
 
 .extension-ratings > .full {
-	background-image: url('FullStarLight.svg');
+	background-image: url('star-full.svg');
 }
 
 .extension-ratings > .half {
-	background-image: url('HalfStarLight.svg');
+	background-image: url('star-half.svg');
 }
 
 .extension-ratings > .empty {
-	background-image: url('EmptyStar.svg');
+	background-image: url('star-empty.svg');
 }
 
 .extension-ratings > .count {
@@ -46,12 +47,4 @@
 
 .extension-ratings.small > .count {
 	margin-left: 2px;
-}
-
-.extension-remote-badge {
-	width: 22px;
-	height: 22px;
-	line-height: 22px;
-	border-radius: 20px;
-	text-align: center;
 }

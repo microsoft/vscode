@@ -121,7 +121,7 @@ suite('BackupMainService', () => {
 	setup(() => {
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.del(backupHome, os.tmpdir()).then(() => {
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE).then(() => {
 			return pfs.mkdirp(backupHome);
 		}).then(() => {
 			configService = new TestConfigurationService();
@@ -132,7 +132,7 @@ suite('BackupMainService', () => {
 	});
 
 	teardown(() => {
-		return pfs.del(backupHome, os.tmpdir());
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {

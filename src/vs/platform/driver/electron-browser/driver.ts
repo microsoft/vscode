@@ -10,7 +10,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProces
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { Terminal } from 'vscode-xterm';
+import { Terminal } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { coalesce } from 'vs/base/common/arrays';
 
@@ -186,8 +186,8 @@ class WindowDriver implements IWindowDriver {
 
 		const lines: string[] = [];
 
-		for (let i = 0; i < xterm._core.buffer.lines.length; i++) {
-			lines.push(xterm._core.buffer.translateBufferLineToString(i, true));
+		for (let i = 0; i < xterm.buffer.length; i++) {
+			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
 		}
 
 		return lines;
@@ -226,12 +226,12 @@ export async function registerWindowDriver(accessor: ServicesAccessor): Promise<
 	const windowDriverRegistryChannel = mainProcessService.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowService.getCurrentWindowId());
+	await windowDriverRegistry.registerWindowDriver(windowService.windowId);
 	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	// if (options.verbose) {
 	// 	windowDriver.openDevTools();
 	// }
 
-	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.getCurrentWindowId()));
+	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.windowId));
 }

@@ -19,7 +19,7 @@ export class LinkDetector {
 		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number, matched by (:(\d+))
 		// group 4: column number, matched by ((?::(\d+))?)
-		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
+		// e.g.: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
 		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g
 	];
 
@@ -138,7 +138,7 @@ export class LinkDetector {
 
 	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number = 0): void {
 		const selection = window.getSelection();
-		if (selection.type === 'Range') {
+		if (!selection || selection.type === 'Range') {
 			return; // do not navigate when user is selecting
 		}
 

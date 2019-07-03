@@ -5,12 +5,11 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import * as extfs from 'vs/base/node/extfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { join } from 'vs/base/common/path';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, RimRafMode, rimraf } from 'vs/base/node/pfs';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { isUUID } from 'vs/base/common/uuid';
 
@@ -21,15 +20,15 @@ suite('Extension Gallery Service', () => {
 	setup(done => {
 
 		// Delete any existing backups completely and then re-create it.
-		extfs.del(marketplaceHome, os.tmpdir(), () => {
+		rimraf(marketplaceHome, RimRafMode.MOVE).then(() => {
 			mkdirp(marketplaceHome).then(() => {
 				done();
 			}, error => done(error));
-		});
+		}, error => done(error));
 	});
 
 	teardown(done => {
-		extfs.del(marketplaceHome, os.tmpdir(), done);
+		rimraf(marketplaceHome, RimRafMode.MOVE).then(done, done);
 	});
 
 	test('marketplace machine id', () => {

@@ -13,11 +13,11 @@ import * as cp from 'child_process';
 
 import { assign } from 'vs/base/common/objects';
 import { endsWith } from 'vs/base/common/strings';
-import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
+import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
@@ -287,7 +287,7 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 	};
 	configProvider.onDidChangeConfiguration(e => {
 		certSetting.config = !!configProvider.getConfiguration('http')
-			.get<string>('systemCertificates');
+			.get<boolean>('systemCertificates');
 	});
 
 	return {
@@ -332,9 +332,10 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
+			const optionsPatched = options.agent instanceof ProxyAgent;
 			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || proxySetting.config;
-			const useProxySettings = (config === 'override' || config === 'on' && !options.agent) && !(options.agent instanceof ProxyAgent);
-			const useSystemCertificates = certSetting.config && originals === https && !(options as https.RequestOptions).ca;
+			const useProxySettings = !optionsPatched && (config === 'override' || config === 'on' && !options.agent);
+			const useSystemCertificates = !optionsPatched && certSetting.config && originals === https && !(options as https.RequestOptions).ca;
 
 			if (useProxySettings || useSystemCertificates) {
 				if (url) {
@@ -456,8 +457,8 @@ async function readCaCertificates() {
 	return undefined;
 }
 
-function readWindowsCaCertificates() {
-	const winCA = require.__$__nodeRequire<any>('vscode-windows-ca-certs');
+async function readWindowsCaCertificates() {
+	const winCA = await import('vscode-windows-ca-certs');
 
 	let ders: any[] = [];
 	const store = winCA();
@@ -480,7 +481,14 @@ function readWindowsCaCertificates() {
 }
 
 async function readMacCaCertificates() {
-	const stdout = (await promisify(cp.execFile)('/usr/bin/security', ['find-certificate', '-a', '-p'], { encoding: 'utf8' })).stdout;
+	const stdout = await new Promise<string>((resolve, reject) => {
+		const child = cp.spawn('/usr/bin/security', ['find-certificate', '-a', '-p']);
+		const stdout: string[] = [];
+		child.stdout.setEncoding('utf8');
+		child.stdout.on('data', str => stdout.push(str));
+		child.on('error', reject);
+		child.on('exit', code => code ? reject(code) : resolve(stdout.join('')));
+	});
 	const seen = {};
 	const certs = stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
 		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));

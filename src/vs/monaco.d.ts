@@ -38,6 +38,7 @@ declare namespace monaco {
 	}
 
 	export class CancellationTokenSource {
+		constructor(parent?: CancellationToken);
 		readonly token: CancellationToken;
 		cancel(): void;
 		dispose(): void;
@@ -170,8 +171,11 @@ declare namespace monaco {
 		 * @param skipEncoding Do not encode the result, default is `false`
 		 */
 		toString(skipEncoding?: boolean): string;
-		toJSON(): object;
-		static revive(data: UriComponents | any): Uri;
+		toJSON(): UriComponents;
+		static revive(data: UriComponents | Uri): Uri;
+		static revive(data: UriComponents | Uri | undefined): Uri | undefined;
+		static revive(data: UriComponents | Uri | null): Uri | null;
+		static revive(data: UriComponents | Uri | undefined | null): Uri | undefined | null;
 	}
 
 	export interface UriComponents {
@@ -449,7 +453,7 @@ declare namespace monaco {
 		readonly column: number;
 		constructor(lineNumber: number, column: number);
 		/**
-		 * Create a new postion from this position.
+		 * Create a new position from this position.
 		 *
 		 * @param newLineNumber new line number
 		 * @param newColumn new column
@@ -1176,23 +1180,43 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Options for rendering a model decoration in the overview ruler.
+	 * Position in the minimap to render the decoration.
 	 */
-	export interface IModelDecorationOverviewRulerOptions {
+	export enum MinimapPosition {
+		Inline = 1
+	}
+
+	export interface IDecorationOptions {
 		/**
-		 * CSS color to render in the overview ruler.
+		 * CSS color to render.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
 		color: string | ThemeColor | undefined;
 		/**
-		 * CSS color to render in the overview ruler.
+		 * CSS color to render.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
 		darkColor?: string | ThemeColor;
+	}
+
+	/**
+	 * Options for rendering a model decoration in the overview ruler.
+	 */
+	export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 		/**
 		 * The position in the overview ruler.
 		 */
 		position: OverviewRulerLane;
+	}
+
+	/**
+	 * Options for rendering a model decoration in the overview ruler.
+	 */
+	export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+		/**
+		 * The position in the overview ruler.
+		 */
+		position: MinimapPosition;
 	}
 
 	/**
@@ -1229,6 +1253,10 @@ declare namespace monaco.editor {
 		 * If set, render this decoration in the overview ruler.
 		 */
 		overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+		/**
+		 * If set, render this decoration in the minimap.
+		 */
+		minimap?: IModelDecorationMinimapOptions | null;
 		/**
 		 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 		 */
@@ -2565,7 +2593,7 @@ declare namespace monaco.editor {
 		/**
 		 * Control how goto-command work when having multiple results.
 		 */
-		many?: 'peek' | 'revealAndPeek' | 'reveal';
+		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 	}
 
 	/**
@@ -2608,7 +2636,7 @@ declare namespace monaco.editor {
 		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 		/**
 		 * Render last line number when the file ends with a newline.
-		 * Defaults to true on Windows/Mac and to false on Linux.
+		 * Defaults to true.
 		*/
 		renderFinalNewline?: boolean;
 		/**
@@ -3208,7 +3236,7 @@ declare namespace monaco.editor {
 	}
 
 	export interface InternalGoToLocationOptions {
-		readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+		readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
 	}
 
 	export interface InternalSuggestOptions {
@@ -4267,7 +4295,7 @@ declare namespace monaco.languages {
 		 *  - f = foreground ColorId (9 bits)
 		 *  - b = background ColorId (9 bits)
 		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
-		 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+		 * e.g. colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
 		 * id = 1 is for the default foreground color, id = 2 for the default background.
 		 */
 		tokens: Uint32Array;
@@ -4429,7 +4457,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): (Command | CodeAction)[] | Promise<(Command | CodeAction)[]>;
+		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeActionList | Promise<CodeActionList>;
 	}
 
 	/**
@@ -4890,6 +4918,10 @@ declare namespace monaco.languages {
 		isPreferred?: boolean;
 	}
 
+	export interface CodeActionList extends IDisposable {
+		readonly actions: ReadonlyArray<CodeAction>;
+	}
+
 	/**
 	 * Represents a parameter of a callable-signature. A parameter can
 	 * have a label and a doc-comment.
@@ -4949,6 +4981,10 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
+	export interface SignatureHelpResult extends IDisposable {
+		value: SignatureHelp;
+	}
+
 	export enum SignatureHelpTriggerKind {
 		Invoke = 1,
 		TriggerCharacter = 2,
@@ -4972,7 +5008,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
 	}
 
 	/**
@@ -5250,13 +5286,19 @@ declare namespace monaco.languages {
 	export interface ILink {
 		range: IRange;
 		url?: Uri | string;
+		tooltip?: string;
+	}
+
+	export interface ILinksList {
+		links: ILink[];
+		dispose?(): void;
 	}
 
 	/**
 	 * A provider of links.
 	 */
 	export interface LinkProvider {
-		provideLinks(model: editor.ITextModel, token: CancellationToken): ProviderResult<ILink[]>;
+		provideLinks(model: editor.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
 	}
 
@@ -5333,7 +5375,6 @@ declare namespace monaco.languages {
 	}
 
 	export interface SelectionRange {
-		kind: string;
 		range: IRange;
 	}
 
@@ -5440,16 +5481,21 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
-	export interface ICodeLensSymbol {
+	export interface CodeLens {
 		range: IRange;
 		id?: string;
 		command?: Command;
 	}
 
+	export interface CodeLensList {
+		lenses: CodeLens[];
+		dispose(): void;
+	}
+
 	export interface CodeLensProvider {
 		onDidChange?: IEvent<this>;
-		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<ICodeLensSymbol[]>;
-		resolveCodeLens?(model: editor.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
+		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
+		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
 	export interface ILanguageExtensionPoint {

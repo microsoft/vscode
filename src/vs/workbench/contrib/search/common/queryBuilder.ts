@@ -230,7 +230,7 @@ export class QueryBuilder {
 	parseSearchPaths(pattern: string): ISearchPathsInfo {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
-			return path.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
+			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
 		const segments = splitGlobPattern(pattern)
@@ -274,7 +274,7 @@ export class QueryBuilder {
 	 * Split search paths (./ or ../ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !searchPaths || !searchPaths.length) {
+		if (!searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
 		}
@@ -288,7 +288,7 @@ export class QueryBuilder {
 					globPortion = normalizeGlobPattern(globPortion);
 				}
 
-				// One pathPortion to multiple expanded search paths (eg duplicate matching workspace folders)
+				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
 				const oneExpanded = this.expandOneSearchPath(pathPortion);
 
 				// Expanded search paths to multiple resolved patterns (with ** and without)
@@ -339,7 +339,7 @@ export class QueryBuilder {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 
 			searchPath = normalizeSlashes(searchPath);
-			if (strings.startsWith(searchPath, '../')) {
+			if (strings.startsWith(searchPath, '../') || searchPath === '..') {
 				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
 				return [{
 					searchPath: workspaceUri.with({ path: resolvedPath })

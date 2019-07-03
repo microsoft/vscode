@@ -7,8 +7,8 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -98,7 +98,11 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return []; // we could not resolve any children because of an error
 		});
 
-		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
+		this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: this.layoutService.isRestored() ? 800 : 1200 // less ugly initial startup
+		}, _progress => promise);
+
 		return promise;
 	}
 }
@@ -214,23 +218,29 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+
+		let isFinishableDisposeEvent = false;
+		setTimeout(() => {
+			// Check if disposed
+			if (!inputBox.inputElement) {
+				return;
+			}
+			inputBox.focus();
+			inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+			isFinishableDisposeEvent = true;
+		}, 0);
 
 		const done = once(async (success: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
-			container.removeChild(label.element);
-			editableData.onFinish(value, success);
+			label.element.remove();
+			// Timeout: once done rendering only then re-render #70902
+			setTimeout(() => editableData.onFinish(value, success), 0);
 		});
 
-		let ignoreDisposeAndBlur = true;
-		setTimeout(() => ignoreDisposeAndBlur = false, 100);
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			if (!ignoreDisposeAndBlur) {
-				done(inputBox.isInputValid());
-			}
+			done(inputBox.isInputValid());
 		});
 
 		const toDispose = [
@@ -250,9 +260,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		];
 
 		return toDisposable(() => {
-			if (!ignoreDisposeAndBlur) {
-				blurDisposable.dispose();
-				done(inputBox.isInputValid());
+			if (isFinishableDisposeEvent) {
+				done(false);
+			}
+			else {
+				dispose(toDispose);
+				label.element.remove();
 			}
 		});
 	}
@@ -308,7 +321,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) } as CachedParsedExpression);
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
 		});
 
 		return needsRefresh;
@@ -324,8 +337,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
-			// review (isidor): is path.normalize necessary? path.relative already returns an os path
+		if (cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
 			return false; // hidden through pattern
 		}
 
@@ -333,7 +345,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	public dispose(): void {
-		this.workspaceFolderChangeListener = dispose(this.workspaceFolderChangeListener);
+		dispose(this.workspaceFolderChangeListener);
 	}
 }
 
@@ -484,7 +496,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 
 			if (!target) {
-				// Droping onto the empty area. Do not accept if items dragged are already
+				// Dropping onto the empty area. Do not accept if items dragged are already
 				// children of the root unless we are copying the file
 				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
 					return false;
@@ -593,61 +605,64 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			this.handleExternalDrop(data, target, originalEvent);
+			this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data, target, originalEvent);
+			this.handleExplorerDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 	}
 
 
-	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
-
 		// Check for dropped external files to be folders
-		return this.fileService.resolveFiles(droppedResources).then(result => {
+		const result = await this.fileService.resolveAll(droppedResources);
 
-			// Pass focus to window
-			this.windowService.focusWindow();
+		// Pass focus to window
+		this.windowService.focusWindow();
 
-			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
-			if (folders.length > 0) {
+		// Handle folders by adding to workspace if we are in workspace context
+		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
+		if (folders.length > 0) {
 
-				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmedPromise = this.dialogService.confirm({
-						message: folders.length > 1 ? localize('dropFolders', "Do you want to add the folders to the workspace?") : localize('dropFolder', "Do you want to add the folder to the workspace?"),
-						type: 'question',
-						primaryButton: folders.length > 1 ? localize('addFolders', "&&Add Folders") : localize('addFolder', "&&Add Folder")
-					});
-				}
-
-				return confirmedPromise.then(res => {
-					if (res.confirmed) {
-						return this.workspaceEditingService.addFolders(folders);
-					}
-
-					return undefined;
-				});
+			const buttons = [
+				folders.length > 1 ? localize('copyFolders', "&&Copy Folders") : localize('copyFolder', "&&Copy Folder"),
+				localize('cancel', "Cancel")
+			];
+			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
+			let message = folders.length > 1 ? localize('copyfolders', "Are you sure to want to copy folders?") : localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
+			if (folders.some(f => workspaceFolderSchemas.indexOf(f.uri.scheme) >= 0)) {
+				// We only allow to add a folder to the workspace if there is already a workspace folder with that scheme
+				buttons.unshift(folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"));
+				message = folders.length > 1 ? localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?")
+					: localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
 			}
 
-			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof ExplorerItem) {
+			const choice = await this.dialogService.show(Severity.Info, message, buttons);
+			if (choice === buttons.length - 3) {
+				return this.workspaceEditingService.addFolders(folders);
+			}
+			if (choice === buttons.length - 2) {
 				return this.addResources(target, droppedResources.map(res => res.resource));
 			}
 
 			return undefined;
-		});
+		}
+
+		// Handle dropped files (only support FileStat as target)
+		else if (target instanceof ExplorerItem) {
+			return this.addResources(target, droppedResources.map(res => res.resource));
+		}
+
+		return undefined;
 	}
 
 	private addResources(target: ExplorerItem, resources: URI[]): Promise<any> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
-			return this.fileService.resolveFile(target.resource).then(targetStat => {
+			return this.fileService.resolve(target.resource).then(targetStat => {
 
 				// Check for name collisions
 				const targetNames = new Set<string>();
@@ -693,10 +708,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 							return revertPromise.then(() => {
 								const copyTarget = joinPath(target.resource, basename(sourceFile));
-								return this.fileService.copyFile(sourceFile, copyTarget, true).then(stat => {
+								return this.fileService.copy(sourceFile, copyTarget, true).then(stat => {
 
 									// if we only add one file, just open it directly
-									if (resources.length === 1) {
+									if (resources.length === 1 && !stat.isDirectory) {
 										this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 									}
 								});
@@ -734,7 +749,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				primaryButton: localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 		} else {
-			confirmPromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
+			confirmPromise = Promise.resolve({ confirmed: true });
 		}
 
 		return confirmPromise.then(res => {
@@ -781,7 +796,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				rootsToMove.push(data);
 			}
 		}
-		if (!targetIndex) {
+		if (targetIndex === undefined) {
 			targetIndex = workspaceCreationData.length;
 		}
 
@@ -793,7 +808,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 
-			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
+			return this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}
@@ -804,6 +819,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Otherwise move
 		const targetResource = joinPath(target.resource, source.name);
+		if (source.isReadonly) {
+			// Do not allow moving readonly items
+			return Promise.resolve();
+		}
 
 		return this.textFileService.move(source.resource, targetResource).then(undefined, error => {
 

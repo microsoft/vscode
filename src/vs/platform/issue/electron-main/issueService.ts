@@ -9,12 +9,13 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
-import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
+import { PerformanceInfo, IDiagnosticsService, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { listProcesses } from 'vs/base/node/ps';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -38,10 +39,60 @@ export class IssueService implements IIssueService {
 	}
 
 	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
-			this.getSystemInformation().then(msg => {
-				event.sender.send('vscode:issueSystemInfoResponse', msg);
-			});
+		ipcMain.on('vscode:issueSystemInfoRequest', async (event: Event) => {
+			Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
+				.then(result => {
+					const [info, remoteData] = result;
+					this.diagnosticsService.getSystemInfo(info, remoteData).then(msg => {
+						event.sender.send('vscode:issueSystemInfoResponse', msg);
+					});
+				});
+		});
+
+		ipcMain.on('vscode:listProcesses', async (event: Event) => {
+			const processes = [];
+
+			try {
+				const mainPid = await this.launchService.getMainProcessId();
+				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
+				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
+					.forEach(data => {
+						if (isRemoteDiagnosticError(data)) {
+							processes.push({
+								name: data.hostName,
+								rootProcess: data
+							});
+						} else {
+							if (data.processes) {
+								processes.push({
+									name: data.hostName,
+									rootProcess: data.processes
+								});
+							}
+						}
+					});
+			} catch (e) {
+				this.logService.error(`Listing processes failed: ${e}`);
+			}
+
+			event.sender.send('vscode:listProcessesResponse', processes);
+		});
+
+		ipcMain.on('vscode:issueReporterClipboard', (event: Event) => {
+			const messageOptions = {
+				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
+				type: 'warning',
+				buttons: [
+					localize('yes', "Yes"),
+					localize('cancel', "Cancel")
+				]
+			};
+
+			if (this._issueWindow) {
+				dialog.showMessageBox(this._issueWindow, messageOptions, response => {
+					event.sender.send('vscode:issueReporterClipboardResponse', response === 0);
+				});
+			}
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
@@ -214,10 +265,12 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	public getSystemStatus(): Promise<string> {
-		return this.launchService.getMainProcessInfo().then(info => {
-			return this.diagnosticsService.getDiagnostics(info);
-		});
+	public async getSystemStatus(): Promise<string> {
+		return Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
+			.then(result => {
+				const [info, remoteData] = result;
+				return this.diagnosticsService.getDiagnostics(info, remoteData);
+			});
 	}
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
@@ -288,26 +341,20 @@ export class IssueService implements IIssueService {
 		return state;
 	}
 
-	private getSystemInformation(): Promise<SystemInfo> {
-		return new Promise((resolve, reject) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				resolve(this.diagnosticsService.getSystemInfo(info));
-			});
-		});
-	}
-
 	private getPerformanceInfo(): Promise<PerformanceInfo> {
-		return new Promise((resolve, reject) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				this.diagnosticsService.getPerformanceInfo(info)
-					.then(diagnosticInfo => {
-						resolve(diagnosticInfo);
-					})
-					.catch(err => {
-						this.logService.warn('issueService#getPerformanceInfo ', err.message);
-						reject(err);
-					});
-			});
+		return new Promise(async (resolve, reject) => {
+			Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })])
+				.then(result => {
+					const [info, remoteData] = result;
+					this.diagnosticsService.getPerformanceInfo(info, remoteData)
+						.then(diagnosticInfo => {
+							resolve(diagnosticInfo);
+						})
+						.catch(err => {
+							this.logService.warn('issueService#getPerformanceInfo ', err.message);
+							reject(err);
+						});
+				});
 		});
 	}
 

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal } from 'xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -28,6 +28,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
 	public config: ITerminalConfiguration;
+
+	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
+	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
 		private readonly _linuxDistro: LinuxDistro,
@@ -143,14 +146,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xterm) {
-			if (xterm._core.charMeasure && xterm._core.charMeasure.width && xterm._core.charMeasure.height) {
+			if (xterm._core._charSizeService && xterm._core._charSizeService.width && xterm._core._charSizeService.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xterm._core.charMeasure.height,
-					charWidth: xterm._core.charMeasure.width
+					charHeight: xterm._core._charSizeService.height,
+					charWidth: xterm._core._charSizeService.width
 				};
 			}
 		}
@@ -160,6 +163,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._onWorkspacePermissionsChanged.fire(isAllowed);
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
@@ -167,9 +171,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
 	}
 
-	public checkWorkspaceShellPermissions(platformOverride: platform.Platform = platform.platform): boolean {
+	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
 		// Check whether there is a workspace setting
-		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
 		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.env.${platformKey}`);
@@ -225,31 +229,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			);
 		}
 		return !!isWorkspaceShellAllowed;
-	}
-
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
-		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride);
-		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-
-		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
-		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
-
-		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-		// safe to assume that this was used by accident as Sysnative does not
-		// exist and will break the terminal in non-WoW64 environments.
-		if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
-			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
-			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
-				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
-			}
-		}
-
-		// Convert / to \ on Windows for convenience
-		if (platformOverride === platform.Platform.Windows) {
-			shell.executable = shell.executable.replace(/\//g, '\\');
-		}
 	}
 
 	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {

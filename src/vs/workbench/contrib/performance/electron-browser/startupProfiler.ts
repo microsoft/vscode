@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dirname, join, basename } from 'vs/base/common/path';
-import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
+import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -50,7 +50,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
-			.then(() => del(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
+			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
 			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
 					exists(profileFilenamePrefix).then(exists => {
@@ -63,7 +63,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 				};
 				check();
 			}))
-			.then(() => del(profileFilenamePrefix)); // (3) finally delete the file again
+			.then(() => rimraf(profileFilenamePrefix)); // (3) finally delete the file again
 
 		markerFile.then(() => {
 			return readdir(dir).then(files => files.filter(value => value.indexOf(prefix) === 0));

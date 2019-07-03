@@ -7,7 +7,7 @@ import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
 	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest
+	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest, TextDocumentSyncKind
 } from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
@@ -15,7 +15,7 @@ import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
-import uri from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
@@ -38,9 +38,8 @@ process.on('uncaughtException', (e: any) => {
 	console.error(formatError(`Unhandled exception`, e));
 });
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
-const documents: TextDocuments = new TextDocuments();
+// Create a text document manager.
+const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
@@ -85,7 +84,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (!Array.isArray(workspaceFolders)) {
 		workspaceFolders = [];
 		if (params.rootPath) {
-			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+			workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 		}
 	}
 

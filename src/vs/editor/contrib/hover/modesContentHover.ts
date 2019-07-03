@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -40,7 +40,6 @@ import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/co
 import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 const $ = dom.$;
@@ -68,14 +67,13 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private readonly _editor: ICodeEditor;
 	private _result: HoverPart[];
-	private _range: Range | null;
+	private _range?: Range;
 
 	constructor(
 		editor: ICodeEditor,
 		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
-		this._range = null;
 	}
 
 	setRange(range: Range): void {
@@ -183,10 +181,14 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _getLoadingMessage(): HoverPart {
 		return {
-			range: withNullAsUndefined(this._range),
+			range: this._range,
 			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
+}
+
+interface ActionSet extends IDisposable {
+	readonly actions: Action[];
 }
 
 export class ModesContentHoverWidget extends ContentHoverWidget {
@@ -438,7 +440,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, ...markdownDisposeables]);
+					this.renderDisposable = combinedDisposable(colorListener, colorChangeListener, widget, ...markdownDisposeables);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
@@ -528,24 +530,25 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	private renderMarkerStatusbar(markerHover: MarkerHover): HTMLElement {
 		const hoverElement = $('div.hover-row.status-bar');
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
-		disposables.push(this.renderAction(actionsElement, {
+		disposables.add(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
 			commandId: QuickFixAction.Id,
 			run: async (target) => {
 				const codeActionsPromise = this.getCodeActions(markerHover.marker);
-				disposables.push(toDisposable(() => codeActionsPromise.cancel()));
+				disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 				const actions = await codeActionsPromise;
+				disposables.add(actions);
 				const elementPosition = dom.getDomNodePagePosition(target);
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
-					getActions: () => actions
+					getActions: () => actions.actions
 				});
 			}
 		}));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			disposables.push(this.renderAction(actionsElement, {
+			disposables.add(this.renderAction(actionsElement, {
 				label: nls.localize('peek problem', "Peek Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {
@@ -555,24 +558,35 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 		}
-		this.renderDisposable = combinedDisposable(disposables);
+		this.renderDisposable = disposables;
 		return hoverElement;
 	}
 
-	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
+	private getCodeActions(marker: IMarker): CancelablePromise<ActionSet> {
 		return createCancelablePromise(async cancellationToken => {
 			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
 			if (codeActions.actions.length) {
-				return codeActions.actions.map(codeAction => new Action(
-					codeAction.command ? codeAction.command.id : codeAction.title,
-					codeAction.title,
-					undefined,
-					true,
-					() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
+				const actions: Action[] = [];
+				for (const codeAction of codeActions.actions) {
+					actions.push(new Action(
+						codeAction.command ? codeAction.command.id : codeAction.title,
+						codeAction.title,
+						undefined,
+						true,
+						() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
+				}
+				return {
+					actions: actions,
+					dispose: () => codeActions.dispose()
+				};
 			}
-			return [
-				new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
-			];
+
+			return {
+				actions: [
+					new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
+				],
+				dispose() { }
+			};
 		});
 	}
 

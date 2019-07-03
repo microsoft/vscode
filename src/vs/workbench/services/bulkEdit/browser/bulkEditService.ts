@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -231,11 +231,11 @@ export class BulkEdit {
 
 	private _edits: Edit[] = [];
 	private _editor: ICodeEditor | undefined;
-	private _progress?: IProgressRunner;
+	private _progress: IProgress<IProgressStep>;
 
 	constructor(
 		editor: ICodeEditor | undefined,
-		progress: IProgressRunner | undefined,
+		progress: IProgress<IProgressStep> | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
@@ -244,7 +244,7 @@ export class BulkEdit {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
-		this._progress = progress || emptyProgressRunner;
+		this._progress = progress || emptyProgress;
 	}
 
 	add(edits: Edit[] | Edit): void {
@@ -294,10 +294,9 @@ export class BulkEdit {
 
 		// define total work and progress callback
 		// for child operations
-		if (this._progress) {
-			this._progress.total(total);
-		}
-		let progress: IProgress<void> = { report: _ => this._progress && this._progress.worked(1) };
+		this._progress.report({ total });
+
+		let progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
 		// do it.
 		for (const group of groups) {
@@ -318,25 +317,25 @@ export class BulkEdit {
 
 			if (edit.newUri && edit.oldUri) {
 				// rename
-				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.existsFile(edit.newUri)) {
+				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 					continue; // not overwriting, but ignoring, and the target file exists
 				}
 				await this._textFileService.move(edit.oldUri, edit.newUri, options.overwrite);
 
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
-				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
+				if (await this._fileService.exists(edit.oldUri)) {
 					let useTrash = this._configurationService.getValue<boolean>('files.enableTrash');
-					if (useTrash && !(await this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
+					if (useTrash && !(this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
 						useTrash = false; // not supported by provider
 					}
-
 					await this._textFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
+				} else if (!options.ignoreIfNotExists) {
+					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
 				}
-
 			} else if (edit.newUri && !edit.oldUri) {
 				// create file
-				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.existsFile(edit.newUri)) {
+				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 					continue; // not overwriting, but ignoring, and the target file exists
 				}
 				await this._textFileService.create(edit.newUri, undefined, { overwrite: options.overwrite });

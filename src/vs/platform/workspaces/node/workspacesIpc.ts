@@ -27,7 +27,7 @@ export class WorkspacesChannel implements IServerChannel {
 						return {
 							uri: URI.revive(rawFolder.uri), // convert raw URI back to real URI
 							name: rawFolder.name
-						} as IWorkspaceFolderCreationData;
+						};
 					});
 				}
 

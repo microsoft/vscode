@@ -10,6 +10,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import product from 'vs/platform/product/node/product';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class RemoteAgentService extends AbstractRemoteAgentService {
 
@@ -17,11 +18,12 @@ export class RemoteAgentService extends AbstractRemoteAgentService {
 
 	constructor({ remoteAuthority }: IWindowConfiguration,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ISignService signService: ISignService
 	) {
 		super(environmentService);
 		if (remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, product.commit, nodeWebSocketFactory, environmentService, remoteAuthorityResolverService));
+			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, product.commit, nodeWebSocketFactory, environmentService, remoteAuthorityResolverService, signService));
 		}
 	}
 

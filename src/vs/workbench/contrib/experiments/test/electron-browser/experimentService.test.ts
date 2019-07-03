@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExperimentService, ExperimentActionType, ExperimentState, IExperiment } from 'vs/workbench/contrib/experiments/node/experimentService';
+import { ExperimentService, ExperimentActionType, ExperimentState, IExperiment } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
@@ -14,7 +14,7 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

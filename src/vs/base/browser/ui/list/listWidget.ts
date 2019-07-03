@@ -20,7 +20,7 @@ import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent,
 import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaSetProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
@@ -502,7 +502,7 @@ function isMouseRightClick(event: UIEvent): boolean {
 	return event instanceof MouseEvent && event.button === 2;
 }
 
-const DefaultMultipleSelectionContoller = {
+const DefaultMultipleSelectionController = {
 	isSelectionSingleChangeEvent,
 	isSelectionRangeChangeEvent
 };
@@ -529,7 +529,7 @@ export class MouseController<T> implements IDisposable {
 		this.multipleSelectionSupport = !(list.options.multipleSelectionSupport === false);
 
 		if (this.multipleSelectionSupport) {
-			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionContoller;
+			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionController;
 		}
 
 		this.openController = list.options.openController || DefaultOpenController;
@@ -857,6 +857,7 @@ export interface IListStyles {
 	listFilterWidgetOutline?: Color;
 	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
+	treeIndentGuidesStroke?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -867,7 +868,8 @@ const defaultStyles: IListStyles = {
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
-	listDropBackground: Color.fromHex('#383B3D')
+	listDropBackground: Color.fromHex('#383B3D'),
+	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
 };
 
 const DefaultOptions = {
@@ -909,7 +911,7 @@ function getContiguousRangeContaining(range: number[], value: number): number[] 
 
 /**
  * Given two sorted collections of numbers, returns the intersection
- * betweem them (OR).
+ * between them (OR).
  */
 function disjunction(one: number[], other: number[]): number[] {
 	const result: number[] = [];
@@ -979,20 +981,20 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
+	renderElement(element: T, index: number, templateData: any[], height: number | undefined): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++], dynamicHeightProbing);
+			renderer.renderElement(element, index, templateData[i++], height);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], dynamicHeightProbing?: boolean): void {
+	disposeElement(element: T, index: number, templateData: any[], height: number | undefined): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
 			if (renderer.disposeElement) {
-				renderer.disposeElement(element, index, templateData[i], dynamicHeightProbing);
+				renderer.disposeElement(element, index, templateData[i], height);
 			}
 
 			i += 1;
@@ -1112,7 +1114,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+	get domId(): string { return this.view.domId; }
+	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
 	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }

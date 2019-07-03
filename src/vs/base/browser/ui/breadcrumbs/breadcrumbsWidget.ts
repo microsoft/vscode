@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
@@ -126,7 +126,7 @@ export class BreadcrumbsWidget {
 			this._pendingLayout.dispose();
 		}
 		if (dim) {
-			// only meaure
+			// only measure
 			this._pendingLayout = this._updateDimensions(dim);
 		} else {
 			this._pendingLayout = this._updateScrollbar();
@@ -134,14 +134,14 @@ export class BreadcrumbsWidget {
 	}
 
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
-		let disposables: IDisposable[] = [];
-		disposables.push(dom.modify(() => {
+		const disposables = new DisposableStore();
+		disposables.add(dom.modify(() => {
 			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
-			disposables.push(this._updateScrollbar());
+			disposables.add(this._updateScrollbar());
 		}));
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 
 	private _updateScrollbar(): IDisposable {
@@ -274,7 +274,7 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
-	getItems(): ReadonlyArray<BreadcrumbsItem> {
+	getItems(): readonly BreadcrumbsItem[] {
 		return this._items;
 	}
 
@@ -334,7 +334,7 @@ export class BreadcrumbsWidget {
 
 	private _onClick(event: IMouseEvent): void {
 		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
-			let idx = this._nodes.indexOf(el as any);
+			let idx = this._nodes.indexOf(el as HTMLDivElement);
 			if (idx >= 0) {
 				this._focus(idx, event);
 				this._select(idx, event);

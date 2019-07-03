@@ -20,11 +20,12 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 		return Promise.resolve({ authority, host: authority, port: 80 });
 	}
 
+	clearResolvedAuthority(authority: string): void {
+	}
+
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
-		throw new Error(`Not implemented`);
 	}
 
 	setResolvedAuthorityError(authority: string, err: any): void {
-		throw new Error(`Not implemented`);
 	}
 }

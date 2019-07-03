@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -20,12 +20,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -41,6 +41,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IEditorInputLabel {
 	name: string;
@@ -63,7 +64,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabDisposeables: IDisposable[] = [];
 
 	private dimension: Dimension;
-	private layoutScheduled?: IDisposable;
+	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean;
 
 	constructor(
@@ -83,8 +84,9 @@ export class TabsTitleControl extends TitleControl {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService, labelService);
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -105,7 +107,7 @@ export class TabsTitleControl extends TitleControl {
 		this.registerTabsContainerListeners();
 
 		// Tabs Scrollbar
-		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
+		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
 		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Editor Toolbar Container
@@ -358,6 +360,12 @@ export class TabsTitleControl extends TitleControl {
 
 	updateEditorLabel(editor: IEditorInput): void {
 
+		// Update all labels to account for changes to tab labels
+		this.updateEditorLabels();
+	}
+
+	updateEditorLabels(): void {
+
 		// A change to a label requires to recompute all labels
 		this.computeTabLabels();
 
@@ -446,13 +454,13 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([eventsDisposable, tabActionBar, tabActionRunner, editorLabel]));
+		this.tabDisposeables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
 
 		return tabContainer;
 	}
 
 	private registerTabListeners(tab: HTMLElement, index: number): IDisposable {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			tab.blur();
@@ -488,16 +496,16 @@ export class TabsTitleControl extends TitleControl {
 		};
 
 		// Open on Click / Touch
-		disposables.push(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
-		disposables.push(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
 
 		// Touch Scroll Support
-		disposables.push(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
+		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
 			this.tabsScrollbar.setScrollPosition({ scrollLeft: this.tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
-		disposables.push(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
 			tab.blur();
@@ -511,7 +519,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu on Shift+F10
-		disposables.push(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				showContextMenu(e);
@@ -519,12 +527,12 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu on touch context menu gesture
-		disposables.push(addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
+		disposables.add(addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
 			showContextMenu(e);
 		}));
 
 		// Keyboard accessibility
-		disposables.push(addDisposableListener(tab, EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
@@ -569,14 +577,14 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Pin on double click
-		disposables.push(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
 			this.group.pinEditor(this.group.getEditor(index) || undefined);
 		}));
 
 		// Context menu
-		disposables.push(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
+		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
 			EventHelper.stop(e, true);
 
 			const input = this.group.getEditor(index);
@@ -586,7 +594,7 @@ export class TabsTitleControl extends TitleControl {
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag support
-		disposables.push(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			const editor = this.group.getEditor(index);
 			if (!editor) {
 				return;
@@ -597,7 +605,7 @@ export class TabsTitleControl extends TitleControl {
 			e.dataTransfer!.effectAllowed = 'copyMove';
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			const resource = toResource(editor, { supportSideBySide: true });
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 			if (resource) {
 				this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
 			}
@@ -608,7 +616,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drop support
-		disposables.push(new DragAndDropObserver(tab, {
+		disposables.add(new DragAndDropObserver(tab, {
 			onDragEnter: e => {
 
 				// Update class to signal drag operation
@@ -661,7 +669,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 
 	private isSupportedDropTransfer(e: DragEvent): boolean {
@@ -702,10 +710,10 @@ export class TabsTitleControl extends TitleControl {
 			element.style.outlineColor = activeContrastBorderColor;
 			element.style.outlineOffset = isTab ? '-5px' : '-3px';
 		} else {
-			element.style.outlineWidth = null;
-			element.style.outlineStyle = null;
-			element.style.outlineColor = activeContrastBorderColor;
-			element.style.outlineOffset = null;
+			element.style.outlineWidth = '';
+			element.style.outlineStyle = '';
+			element.style.outlineColor = activeContrastBorderColor || '';
+			element.style.outlineOffset = '';
 		}
 	}
 
@@ -842,7 +850,7 @@ export class TabsTitleControl extends TitleControl {
 		// Borders / Outline
 		const borderRightColor = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : null;
-		tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
+		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
 		const options = this.accessor.partOptions;
@@ -877,7 +885,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: true }) || undefined }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }) || undefined }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
 	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
@@ -896,7 +904,7 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			addClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'true');
-			tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
+			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND);
 
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			if (activeTabBorderColorBottom) {
@@ -988,10 +996,10 @@ export class TabsTitleControl extends TitleControl {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
-		if (!this.layoutScheduled) {
-			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
+		if (!this.layoutScheduled.value) {
+			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimension);
-				this.layoutScheduled = undefined;
+				this.layoutScheduled.clear();
 			});
 		}
 	}
@@ -1141,13 +1149,20 @@ export class TabsTitleControl extends TitleControl {
 	dispose(): void {
 		super.dispose();
 
-		dispose(this.layoutScheduled);
-		this.layoutScheduled = undefined;
+		this.tabDisposeables = dispose(this.tabDisposeables);
 	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-
+	// Add border between tabs and breadcrumbs in high contrast mode.
+	if (theme.type === HIGH_CONTRAST) {
+		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
+		collector.addRule(`
+		.monaco-workbench div.tabs-and-actions-container {
+			border-bottom: 1px solid ${borderColor};
+		}
+		`);
+	}
 	// Styling with Outline color (e.g. high contrast theme)
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
@@ -1237,35 +1252,29 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
 		}
 
+		// Adjust gradient for focused and unfocused hover background
+		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${color}, transparent) !important;
+				}
+
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${colorDrag}, transparent) !important;
+				}
+		`;
+
 		// Adjust gradient for (focused) hover background
 		if (tabHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
 			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent) !important;
-				}
-
-
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
-				}
-			`);
+			collector.addRule(makeTabHoverBackgroundRule(adjustedColor, adjustedColorDrag, true));
 		}
 
 		// Adjust gradient for unfocused hover background
 		if (tabUnfocusedHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
 			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent) !important;
-				}
-
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
-				}
-			`);
+			collector.addRule(makeTabHoverBackgroundRule(adjustedColor, adjustedColorDrag));
 		}
 
 		// Adjust gradient for drag and drop background
@@ -1279,20 +1288,31 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 		}
 
-		// Adjust gradient for active tab background
+		// Adjust gradient for active tab background (focused and unfocused editor groups)
+		const makeTabActiveBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
+					background: linear-gradient(to left, ${color}, transparent);
+				}
+
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
+					background: linear-gradient(to left, ${colorDrag}, transparent);
+				}
+		`;
+
+		// Adjust gradient for unfocused active tab background
 		const tabActiveBackground = theme.getColor(TAB_ACTIVE_BACKGROUND);
 		if (tabActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
 			const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(`
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent);
-				}
+			collector.addRule(makeTabActiveBackgroundRule(adjustedColor, adjustedColorDrag, true));
+		}
 
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
-				}
-			`);
+		// Adjust gradient for unfocused active tab background
+		const tabUnfocusedActiveBackground = theme.getColor(TAB_UNFOCUSED_ACTIVE_BACKGROUND);
+		if (tabUnfocusedActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabUnfocusedActiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabUnfocusedActiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabActiveBackgroundRule(adjustedColor, adjustedColorDrag));
 		}
 
 		// Adjust gradient for inactive tab background

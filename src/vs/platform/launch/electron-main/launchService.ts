@@ -8,17 +8,19 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { BrowserWindow } from 'electron';
+import { URI } from 'vs/base/common/uri';
+import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
+import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -28,17 +30,9 @@ export interface IStartArguments {
 	userEnv: IProcessEnvironment;
 }
 
-export interface IWindowInfo {
-	pid: number;
-	title: string;
-	folderURIs: UriComponents[];
-}
-
-export interface IMainProcessInfo {
-	mainPID: number;
-	// All arguments after argv[0], the exec path
-	mainArguments: string[];
-	windows: IWindowInfo[];
+export interface IRemoteDiagnosticOptions {
+	includeProcesses?: boolean;
+	includeWorkspaceMetadata?: boolean;
 }
 
 function parseOpenUrl(args: ParsedArgs): URI[] {
@@ -64,6 +58,7 @@ export interface ILaunchService {
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
 	getLogsPath(): Promise<string>;
+	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
 }
 
 export class LaunchChannel implements IServerChannel {
@@ -88,6 +83,9 @@ export class LaunchChannel implements IServerChannel {
 
 			case 'get-logs-path':
 				return this.service.getLogsPath();
+
+			case 'get-remote-diagnostics':
+				return this.service.getRemoteDiagnostics(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -96,7 +94,7 @@ export class LaunchChannel implements IServerChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILaunchService>;
 
 	constructor(private channel: IChannel) { }
 
@@ -115,11 +113,15 @@ export class LaunchChannelClient implements ILaunchService {
 	getLogsPath(): Promise<string> {
 		return this.channel.call('get-logs-path', null);
 	}
+
+	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<IRemoteDiagnosticInfo[]> {
+		return this.channel.call('get-remote-diagnostics', options);
+	}
 }
 
 export class LaunchService implements ILaunchService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILaunchService>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -265,7 +267,9 @@ export class LaunchService implements ILaunchService {
 		return Promise.resolve({
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
-			windows
+			windows,
+			screenReader: app.isAccessibilitySupportEnabled(),
+			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}
 
@@ -275,7 +279,41 @@ export class LaunchService implements ILaunchService {
 		return Promise.resolve(this.environmentService.logsPath);
 	}
 
-	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
+	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
+		const windows = this.windowsMainService.getWindows();
+		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
+			return new Promise((resolve, reject) => {
+				if (window.remoteAuthority) {
+					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
+					const args: IDiagnosticInfoOptions = {
+						includeProcesses: options.includeProcesses,
+						folders: options.includeWorkspaceMetadata ? this.getFolderURIs(window) : undefined
+					};
+
+					window.sendWhenReady('vscode:getDiagnosticInfo', { replyChannel, args });
+
+					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
+						// No data is returned if getting the connection fails.
+						if (!data) {
+							resolve({ hostName: window.remoteAuthority!, errorMessage: `Unable to resolve connection to '${window.remoteAuthority}'.` });
+						}
+
+						resolve(data);
+					});
+
+					setTimeout(() => {
+						resolve({ hostName: window.remoteAuthority!, errorMessage: `Fetching remote diagnostics for '${window.remoteAuthority}' timed out.` });
+					}, 5000);
+				} else {
+					resolve();
+				}
+			});
+		});
+
+		return Promise.all(promises).then(diagnostics => diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x));
+	}
+
+	private getFolderURIs(window: ICodeWindow): URI[] {
 		const folderURIs: URI[] = [];
 
 		if (window.openedFolderUri) {
@@ -294,14 +332,20 @@ export class LaunchService implements ILaunchService {
 			}
 		}
 
-		return this.browserWindowToInfo(window.win, folderURIs);
+		return folderURIs;
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = []): IWindowInfo {
+	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
+		const folderURIs = this.getFolderURIs(window);
+		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
+	}
+
+	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
 		return {
 			pid: win.webContents.getOSProcessId(),
 			title: win.getTitle(),
-			folderURIs
-		} as IWindowInfo;
+			folderURIs,
+			remoteAuthority
+		};
 	}
 }

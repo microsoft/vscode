@@ -12,25 +12,22 @@ import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isLinux, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
-import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
-import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
+import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -43,11 +40,19 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SignService } from 'vs/platform/sign/node/signService';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
+import { dirname } from 'vs/base/common/resources';
 
 class CodeRendererMain extends Disposable {
 
@@ -81,64 +86,63 @@ class CodeRendererMain extends Disposable {
 
 	private reviveUris() {
 		if (this.configuration.folderUri) {
-			this.configuration.folderUri = uri.revive(this.configuration.folderUri);
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
+
 		if (this.configuration.workspace) {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait && filesToWait.paths;
-		[filesToWaitPaths, this.configuration.filesToOpen, this.configuration.filesToCreate, this.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
-						path.fileUri = uri.revive(path.fileUri);
+						path.fileUri = URI.revive(path.fileUri);
 					}
 				});
 			}
 		});
+
 		if (filesToWait) {
-			filesToWait.waitMarkerFileUri = uri.revive(filesToWait.waitMarkerFileUri);
+			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
 		}
 	}
 
-	open(): Promise<void> {
-		return this.initServices().then(services => {
+	async open(): Promise<void> {
+		const services = await this.initServices();
+		await domContentLoaded();
+		mark('willStartWorkbench');
 
-			return domContentLoaded().then(() => {
-				mark('willStartWorkbench');
+		// Create Workbench
+		this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
-				// Create Workbench
-				this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
 
-				// Layout
-				this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		// Workbench Lifecycle
+		this._register(this.workbench.onShutdown(() => this.dispose()));
+		this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
 
-				// Workbench Lifecycle
-				this._register(this.workbench.onShutdown(() => this.dispose()));
-				this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
+		// Startup
+		const instantiationService = this.workbench.startup();
 
-				// Startup
-				const instantiationService = this.workbench.startup();
+		// Window
+		this._register(instantiationService.createInstance(ElectronWindow));
 
-				// Window
-				this._register(instantiationService.createInstance(ElectronWindow));
+		// Driver
+		if (this.configuration.driver) {
+			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor)));
+		}
 
-				// Driver
-				if (this.configuration.driver) {
-					instantiationService.invokeFunction(accessor => registerWindowDriver(accessor).then(disposable => this._register(disposable)));
-				}
+		// Config Exporter
+		if (this.configuration['export-default-configuration']) {
+			instantiationService.createInstance(DefaultConfigurationExportHelper);
+		}
 
-				// Config Exporter
-				if (this.configuration['export-default-configuration']) {
-					instantiationService.createInstance(DefaultConfigurationExportHelper);
-				}
-
-				// Logging
-				services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
-			});
-		});
+		// Logging
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
 	private onWindowResize(e: Event, retry: boolean): void {
@@ -159,49 +163,58 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
 		const serviceCollection = new ServiceCollection();
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
+		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Main Process
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		// Window
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
-
 		// Environment
-		const environmentService = new EnvironmentService(this.configuration, this.configuration.execPath);
-		serviceCollection.set(IEnvironmentService, environmentService);
+		const environmentService = new WorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
+		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Log
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
-		// Files
-		const fileService = new FileService2(logService);
-		serviceCollection.set(IFileService, fileService);
-
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider());
-
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
-		const remoteAgentService = new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService);
+
+		// Sign
+		const signService = new SignService();
+		serviceCollection.set(ISignService, signService);
+
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		// Files
+		const fileService = this._register(new FileService(logService));
+		serviceCollection.set(IFileService, fileService);
+
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const fileSystemProvider = new RemoteExtensionsFileSystemProvider(channel);
-			fileService.registerProvider('vscode-remote', fileSystemProvider);
-			remoteAgentService.getEnvironment().then(remoteAgentEnvironment => {
-				const isCaseSensitive = !!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux);
-				fileSystemProvider.setCaseSensitive(isCaseSensitive);
-			});
+			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, remoteAgentService, logService).then(service => {
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
+
+		const payload = await this.resolveWorkspaceInitializationPayload(environmentService);
+
+		const services = await Promise.all([
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -219,50 +232,49 @@ class CodeRendererMain extends Disposable {
 
 				return service;
 			})
-		]).then(services => ({ serviceCollection, logService, storageService: services[1] })));
+		]);
+
+		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: EnvironmentService): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(environmentService: IWorkbenchEnvironmentService): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
-			return Promise.resolve(this.configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
+			return this.configuration.workspace;
 		}
 
 		// Single-folder workspace
-		let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload | undefined> = Promise.resolve(undefined);
+		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
 		if (this.configuration.folderUri) {
-			workspaceInitializationPayload = this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
 		}
 
-		return workspaceInitializationPayload.then(payload => {
-
-			// Fallback to empty workspace if we have no payload yet.
-			if (!payload) {
-				let id: string;
-				if (this.configuration.backupPath) {
-					id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
-				} else if (environmentService.isExtensionDevelopment) {
-					id = 'ext-dev'; // extension development window never stores backups and is a singleton
-				} else {
-					return Promise.reject(new Error('Unexpected window configuration without backupPath'));
-				}
-
-				payload = { id } as IEmptyWorkspaceInitializationPayload;
+		// Fallback to empty workspace if we have no payload yet.
+		if (!workspaceInitializationPayload) {
+			let id: string;
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			} else if (environmentService.isExtensionDevelopment) {
+				id = 'ext-dev'; // extension development window never stores backups and is a singleton
+			} else {
+				throw new Error('Unexpected window configuration without backupPath');
 			}
 
-			return payload;
-		});
+			workspaceInitializationPayload = { id };
+		}
+
+		return workspaceInitializationPayload;
 	}
 
-	private resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 
 		// Return early the folder is not local
 		if (folderUri.scheme !== Schemas.file) {
-			return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
+			return { id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri };
 		}
 
-		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
+		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
 			let ctime: number | undefined;
 			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -282,41 +294,55 @@ class CodeRendererMain extends Disposable {
 		}
 
 		// For local: ensure path is absolute and exists
-		const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
-		return stat(sanitizedFolderPath).then(stat => {
-			const sanitizedFolderUri = uri.file(sanitizedFolderPath);
+		try {
+			const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
+			const fileStat = await stat(sanitizedFolderPath);
+
+			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
 			return {
-				id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
+				id: computeLocalDiskFolderId(sanitizedFolderUri, fileStat),
 				folder: sanitizedFolderUri
-			} as ISingleFolderWorkspaceInitializationPayload;
-		}, error => onUnexpectedError(error));
+			};
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+
+		return;
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService(this.configuration, environmentService, remoteAgentService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 
-		return workspaceService.initialize(payload).then(() => workspaceService, error => {
+		try {
+			await workspaceService.initialize(payload);
+
+			return workspaceService;
+		} catch (error) {
 			onUnexpectedError(error);
 			logService.error(error);
 
 			return workspaceService;
-		});
+		}
 	}
 
-	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
 		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
 		const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
-		return storageService.initialize(payload).then(() => storageService, error => {
+		try {
+			await storageService.initialize(payload);
+
+			return storageService;
+		} catch (error) {
 			onUnexpectedError(error);
 			logService.error(error);
 
 			return storageService;
-		});
+		}
 	}
 
-	private createLogService(mainProcessService: IMainProcessService, environmentService: IEnvironmentService): ILogService {
-		const spdlogService = createSpdLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, environmentService.logsPath);
+	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
+		const spdlogService = new SpdLogService(`renderer${this.configuration.windowId}`, environmentService.logsPath, this.configuration.logLevel);
 		const consoleLogService = new ConsoleLogService(this.configuration.logLevel);
 		const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));

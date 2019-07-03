@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
@@ -16,10 +16,7 @@ import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUt
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-
-export interface ISchemeTransformer {
-	transformOutgoing(scheme: string): string;
-}
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class ExtHostSearch implements ExtHostSearchShape {
 
@@ -35,14 +32,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _uriTransformer: IURITransformer | null, private _logService: ILogService, private _pfs = pfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 	}
 
 	private _transformScheme(scheme: string): string {
-		if (this._schemeTransformer) {
-			return this._schemeTransformer.transformOutgoing(scheme);
+		if (this._uriTransformer) {
+			return this._uriTransformer.transformOutgoingScheme(scheme);
 		}
 		return scheme;
 	}
@@ -146,7 +143,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 
 		const query = reviveQuery(rawQuery);
-		const engine = new TextSearchManager(query, provider, this._extfs);
+		const engine = new TextSearchManager(query, provider, this._pfs);
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 }

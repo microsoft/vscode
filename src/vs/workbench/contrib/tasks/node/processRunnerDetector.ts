@@ -187,7 +187,7 @@ export class ProcessRunnerDetector {
 				} else if ('grunt' === detectSpecific) {
 					detectorPromise = this.tryDetectGrunt(this._workspaceRoot, list);
 				} else {
-					throw new Error('Unkown detector type');
+					throw new Error('Unknown detector type');
 				}
 				return detectorPromise.then((value) => {
 					if (value) {
@@ -230,7 +230,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGulp(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult> {
-		return Promise.resolve(this.fileService.resolveFile(workspaceFolder.toResource('gulpfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('gulpfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -240,7 +240,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGrunt(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult> {
-		return Promise.resolve(this.fileService.resolveFile(workspaceFolder.toResource('Gruntfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Gruntfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -255,10 +255,10 @@ export class ProcessRunnerDetector {
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		};
-		return Promise.resolve(this.fileService.resolveFile(workspaceFolder.toResource('Jakefile'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Jakefile'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			return run();
 		}, (err: any) => {
-			return this.fileService.resolveFile(workspaceFolder.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+			return this.fileService.resolve(workspaceFolder.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				return run();
 			}, (err: any) => {
 				return null;

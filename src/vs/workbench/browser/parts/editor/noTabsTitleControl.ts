@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notabstitlecontrol';
-import { toResource, Verbosity, IEditorInput, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { toResource, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
 import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -47,7 +47,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// Breadcrumbs
 		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
 		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
-		this.toDispose.push({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
+		this._register({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -149,6 +149,12 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
+	updateEditorLabels(): void {
+		if (this.group.activeEditor) {
+			this.updateEditorLabel(this.group.activeEditor); // we only have the active one to update
+		}
+	}
+
 	updateEditorDirty(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => {
 			if (editor.isDirty()) {
@@ -237,7 +243,7 @@ export class NoTabsTitleControl extends TitleControl {
 			this.updateEditorDirty(editor);
 
 			// Editor Label
-			const resource = toResource(editor, { supportSideBySide: true });
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 			const name = editor.getName() || '';
 
 			const { labelFormat } = this.accessor.partOptions;

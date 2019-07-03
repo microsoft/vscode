@@ -11,8 +11,8 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
@@ -28,22 +28,22 @@ const defaultOpts = {
 	inputActiveOptionBorder: Color.fromHex('#007ACC')
 };
 
-export class CheckboxActionItem extends BaseActionItem {
+export class CheckboxActionViewItem extends BaseActionViewItem {
 
 	private checkbox: Checkbox;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
 		this.element = container;
 
-		this.disposables = dispose(this.disposables);
+		this.disposables.clear();
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,
 			title: this._action.label
 		});
-		this.disposables.push(this.checkbox);
-		this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this, this.disposables);
+		this.disposables.add(this.checkbox);
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -64,10 +64,9 @@ export class CheckboxActionItem extends BaseActionItem {
 	}
 
 	dipsose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
-
 }
 
 export class Checkbox extends Widget {

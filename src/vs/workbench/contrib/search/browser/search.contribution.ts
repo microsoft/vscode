@@ -42,7 +42,7 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FindInFilesAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
@@ -363,11 +363,11 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
 	const configurationService = accessor.get(IConfigurationService);
-	const resources = resource && getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
 
 	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
 		if (resources && resources.length && searchView) {
-			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
+			return fileService.resolveAll(resources.map(resource => ({ resource }))).then(results => {
 				const folders: URI[] = [];
 
 				results.forEach(result => {
@@ -478,6 +478,14 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	1
 ));
 
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+	SearchPanel,
+	PANEL_ID,
+	nls.localize('name', "Search"),
+	'search',
+	10
+));
+
 class RegisterSearchViewContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -525,7 +533,14 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSearchViewletAction, VIEWLET_ID, OpenSearchViewletAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
-registry.registerWorkbenchAction(new SyncActionDescriptor(FindInFilesAction, Constants.FindInFilesActionId, nls.localize('findInFiles', "Find in Files"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }), 'Find in Files', category);
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.FindInFilesActionId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: null,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+	handler: FindInFilesCommand
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: Constants.FindInFilesActionId, title: { value: nls.localize('findInFiles', "Find in Files"), original: 'Find in Files' }, category } });
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	group: '4_find_global',
 	command: {
@@ -573,7 +588,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseDeepestExpande
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ShowAllSymbolsAction.ID, ShowAllSymbolsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
 
 
 // Register Quick Open Handler

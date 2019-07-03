@@ -7,8 +7,9 @@ import * as minimist from 'minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { join } from 'path';
-import { writeFileSync } from 'fs';
+import { join } from 'vs/base/common/path';
+import { statSync, readFileSync } from 'fs';
+import { writeFileSync, readdirSync } from 'vs/base/node/pfs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -41,20 +42,20 @@ export const options: Option[] = [
 	{ id: 'user-data-dir', type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
 	{ id: 'version', type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
 	{ id: 'help', type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
+	{ id: 'telemetry', type: 'boolean', cat: 'o', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
 	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
 	{ id: 'extensions-dir', type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
-	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
+	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
 	{ id: 'uninstall-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	{ id: 'enable-proposed-api', type: 'string', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
 	{ id: 'verbose', type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
 	{ id: 'log', type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
 	{ id: 'status', type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
-	{ id: 'prof-modules', type: 'boolean', alias: 'p', cat: 't', description: localize('prof-modules', "Capture performance markers while loading JS modules and print them with 'F1 > Developer: Startup Performance") },
 	{ id: 'prof-startup', type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
 	{ id: 'disable-extensions', type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	{ id: 'disable-extension', type: 'string', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
@@ -62,10 +63,10 @@ export const options: Option[] = [
 	{ id: 'inspect-extensions', type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	{ id: 'disable-gpu', type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	{ id: 'upload-logs', type: 'string', cat: 't', description: localize('uploadLogs', "Uploads logs from current session to a secure endpoint.") },
 	{ id: 'max-memory', type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
 
 	{ id: 'remote', type: 'string' },
+	{ id: 'locate-extension', type: 'string' },
 	{ id: 'extensionDevelopmentPath', type: 'string' },
 	{ id: 'extensionTestsPath', type: 'string' },
 	{ id: 'debugId', type: 'string' },
@@ -94,7 +95,7 @@ export const options: Option[] = [
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
 	{ id: 'prof-code-loading', type: 'boolean' },
-	{ id: 'nodeless', type: 'boolean' } // TODO@ben revisit electron5 nodeless support
+	{ id: '_', type: 'string' }
 ];
 
 export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
@@ -186,7 +187,7 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true, isPipeSupported = true): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 
 	let categories = new HelpCategories();
@@ -195,12 +196,14 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
-	if (os.platform() === 'win32') {
-		help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-	} else {
-		help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+	if (isPipeSupported) {
+		if (os.platform() === 'win32') {
+			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
+		} else {
+			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+		}
+		help.push('');
 	}
-	help.push('');
 	for (let key in categories) {
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {
@@ -214,6 +217,41 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
+}
+
+export function buildTelemetryMessage(appRoot: string, extensionsPath: string): string {
+	// Gets all the directories inside the extension directory
+	const dirs = readdirSync(extensionsPath).filter(files => {
+		// This handles case where broken symbolic links can cause statSync to throw and error
+		try {
+			return statSync(join(extensionsPath, files)).isDirectory();
+		} catch {
+			return false;
+		}
+	});
+	const telemetryJsonFolders: string[] = [];
+	dirs.forEach((dir) => {
+		const files = readdirSync(join(extensionsPath, dir)).filter(file => file === 'telemetry.json');
+		// We know it contains a telemetry.json file so we add it to the list of folders which have one
+		if (files.length === 1) {
+			telemetryJsonFolders.push(dir);
+		}
+	});
+	const mergedTelemetry = Object.create(null);
+	// Simple function to merge the telemetry into one json object
+	const mergeTelemetry = (contents: string, dirName: string) => {
+		const telemetryData = JSON.parse(contents);
+		mergedTelemetry[dirName] = telemetryData;
+	};
+	telemetryJsonFolders.forEach((folder) => {
+		const contents = readFileSync(join(extensionsPath, folder, 'telemetry.json')).toString();
+		mergeTelemetry(contents, folder);
+	});
+	let contents = readFileSync(join(appRoot, 'telemetry-core.json')).toString();
+	mergeTelemetry(contents, 'vscode-core');
+	contents = readFileSync(join(appRoot, 'telemetry-extensions.json')).toString();
+	mergeTelemetry(contents, 'vscode-extensions');
+	return JSON.stringify(mergedTelemetry, null, 4);
 }
 
 /**

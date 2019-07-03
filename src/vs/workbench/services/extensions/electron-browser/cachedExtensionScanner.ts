@@ -21,7 +21,8 @@ import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, ILog, IRelaxedExtensionDescription, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
+import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
+import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;
@@ -134,7 +135,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.del(cacheFile);
+			await pfs.rimraf(cacheFile, pfs.RimRafMode.MOVE);
 		} catch (err) {
 			errors.onUnexpectedError(err);
 			console.error(err);
@@ -294,10 +295,19 @@ export class CachedExtensionScanner {
 
 		// Always load developed extensions while extensions development
 		let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
-		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
-			developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
-				new ExtensionScannerInput(version, commit, locale, devMode, originalFSPath(environmentService.extensionDevelopmentLocationURI), false, true, translations), log
-			);
+		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI) {
+			const extDescsP = environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
+				return ExtensionScanner.scanOneOrMultipleExtensions(
+					new ExtensionScannerInput(version, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
+				);
+			});
+			developedExtensions = Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {
+				let extDesc: IExtensionDescription[] = [];
+				for (let eds of extDescArrays) {
+					extDesc = extDesc.concat(eds);
+				}
+				return extDesc;
+			});
 		}
 
 		return Promise.all([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
@@ -376,28 +386,5 @@ class NullLogger implements ILog {
 	public warn(source: string, message: string): void {
 	}
 	public info(source: string, message: string): void {
-	}
-}
-
-export class Logger implements ILog {
-
-	private readonly _messageHandler: (severity: Severity, source: string, message: string) => void;
-
-	constructor(
-		messageHandler: (severity: Severity, source: string, message: string) => void
-	) {
-		this._messageHandler = messageHandler;
-	}
-
-	public error(source: string, message: string): void {
-		this._messageHandler(Severity.Error, source, message);
-	}
-
-	public warn(source: string, message: string): void {
-		this._messageHandler(Severity.Warning, source, message);
-	}
-
-	public info(source: string, message: string): void {
-		this._messageHandler(Severity.Info, source, message);
 	}
 }

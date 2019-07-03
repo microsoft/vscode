@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -323,6 +323,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
 
 	public run(): Promise<any> {
@@ -331,7 +332,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name);
+		const focusedExpression = this.debugService.getViewModel().getSelectedExpression();
+		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
 	}
 }
 
@@ -366,8 +368,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 		super(id, label, '', debugService, keybindingService, 100);
 	}
 
-	public run(sessionName: string): Promise<any> {
-		const session = this.debugService.getModel().getSessions().filter(p => p.getLabel() === sessionName).pop();
+	public run(session: IDebugSession): Promise<any> {
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {

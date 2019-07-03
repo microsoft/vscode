@@ -72,11 +72,12 @@ export interface IStorageService {
 
 	/**
 	 * Store a value under the given key to storage. The value will be converted to a string.
+	 * Storing either undefined or null will remove the entry under the key.
 	 *
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	store(key: string, value: string | boolean | number, scope: StorageScope): void;
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -153,7 +154,7 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 		return parseInt(value, 10);
 	}
 
-	store(key: string, value: string | boolean | number, scope: StorageScope): Promise<void> {
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): Promise<void> {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {

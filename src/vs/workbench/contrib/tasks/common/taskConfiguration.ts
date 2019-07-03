@@ -94,6 +94,12 @@ export interface PresentationOptionsConfig {
 	reveal?: string;
 
 	/**
+	 * Controls whether the problems panel is revealed when running this task or not.
+	 * Defaults to `RevealKind.Never`.
+	 */
+	revealProblems?: string;
+
+	/**
 	 * Controls whether the executed command is printed to the output window or terminal as well.
 	 */
 	echo?: boolean;
@@ -307,6 +313,11 @@ export interface ConfigurationProperties {
 	 * The other tasks the task depend on
 	 */
 	dependsOn?: string | TaskIdentifier | Array<string | TaskIdentifier>;
+
+	/**
+	 * The order the dependsOn tasks should be executed in.
+	 */
+	dependsOrder?: string;
 
 	/**
 	 * Controls the behavior of the used terminal
@@ -536,7 +547,7 @@ interface MetaData<T, U> {
 }
 
 
-function _isEmpty<T>(this: void, value: T, properties: MetaData<T, any>[] | undefined): boolean {
+function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined): boolean {
 	if (value === undefined || value === null || properties === undefined) {
 		return true;
 	}
@@ -553,11 +564,11 @@ function _isEmpty<T>(this: void, value: T, properties: MetaData<T, any>[] | unde
 	return true;
 }
 
-function _assignProperties<T>(this: void, target: T, source: T, properties: MetaData<T, any>[]): T {
-	if (_isEmpty(source, properties)) {
+function _assignProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[]): T | undefined {
+	if (!source || _isEmpty(source, properties)) {
 		return target;
 	}
-	if (_isEmpty(target, properties)) {
+	if (!target || _isEmpty(target, properties)) {
 		return source;
 	}
 	for (let meta of properties) {
@@ -575,11 +586,11 @@ function _assignProperties<T>(this: void, target: T, source: T, properties: Meta
 	return target;
 }
 
-function _fillProperties<T>(this: void, target: T, source: T, properties: MetaData<T, any>[] | undefined): T {
-	if (_isEmpty(source, properties)) {
+function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined): T | undefined {
+	if (!source || _isEmpty(source, properties)) {
 		return target;
 	}
-	if (_isEmpty(target, properties)) {
+	if (!target || _isEmpty(target, properties)) {
 		return source;
 	}
 	for (let meta of properties!) {
@@ -597,11 +608,11 @@ function _fillProperties<T>(this: void, target: T, source: T, properties: MetaDa
 	return target;
 }
 
-function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaData<T, any>[], context: ParseContext): T | undefined {
+function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undefined, properties: MetaData<T, any>[], context: ParseContext): T | undefined {
 	if (target && Object.isFrozen(target)) {
 		return target;
 	}
-	if (target === undefined || target === null) {
+	if (target === undefined || target === null || defaults === undefined || defaults === null) {
 		if (defaults !== undefined && defaults !== null) {
 			return Objects.deepClone(defaults);
 		} else {
@@ -717,7 +728,7 @@ namespace ShellConfiguration {
 		return _assignProperties(target, source, properties);
 	}
 
-	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration {
+	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration | undefined {
 		return _fillProperties(target, source, properties);
 	}
 
@@ -798,7 +809,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptionsConfig;
@@ -807,6 +818,7 @@ namespace CommandConfiguration {
 		export function from(this: void, config: PresentationOptionsShape, context: ParseContext): Tasks.PresentationOptions | undefined {
 			let echo: boolean;
 			let reveal: Tasks.RevealKind;
+			let revealProblems: Tasks.RevealProblemKind;
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
 			let showReuseMessage: boolean;
@@ -829,6 +841,9 @@ namespace CommandConfiguration {
 				if (Types.isString(presentation.reveal)) {
 					reveal = Tasks.RevealKind.fromString(presentation.reveal);
 				}
+				if (Types.isString(presentation.revealProblems)) {
+					revealProblems = Tasks.RevealProblemKind.fromString(presentation.revealProblems);
+				}
 				if (Types.isBoolean(presentation.focus)) {
 					focus = presentation.focus;
 				}
@@ -849,7 +864,7 @@ namespace CommandConfiguration {
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group };
+			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions | undefined): Tasks.PresentationOptions | undefined {
@@ -862,7 +877,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions | undefined {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> | undefined {
@@ -1018,7 +1033,7 @@ namespace CommandConfiguration {
 		return target;
 	}
 
-	export function fillProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
+	export function fillProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration | undefined {
 		return _fillProperties(target, source, properties);
 	}
 
@@ -1071,7 +1086,7 @@ namespace CommandConfiguration {
 			value.args = EMPTY_ARRAY;
 		}
 		if (value.suppressTaskName === undefined) {
-			value.suppressTaskName = false;
+			value.suppressTaskName = (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
 		}
 	}
 
@@ -1206,6 +1221,18 @@ namespace TaskDependency {
 	}
 }
 
+namespace DependsOrder {
+	export function from(order: string | undefined): Tasks.DependsOrder {
+		switch (order) {
+			case Tasks.DependsOrder.sequence:
+				return Tasks.DependsOrder.sequence;
+			case Tasks.DependsOrder.parallel:
+			default:
+				return Tasks.DependsOrder.parallel;
+		}
+	}
+}
+
 namespace ConfigurationProperties {
 
 	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
@@ -1270,6 +1297,7 @@ namespace ConfigurationProperties {
 				result.dependsOn = dependsOnValue ? [dependsOnValue] : undefined;
 			}
 		}
+		result.dependsOrder = DependsOrder.from(external.dependsOrder);
 		if (includeCommandOptions && (external.presentation !== undefined || (external as LegacyCommandProperties).terminal !== undefined)) {
 			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
 		}
@@ -1390,7 +1418,6 @@ namespace ConfiguringTask {
 }
 
 namespace CustomTask {
-
 	export function from(this: void, external: CustomTask, context: ParseContext, index: number): Tasks.CustomTask | undefined {
 		if (!external) {
 			return undefined;
@@ -1712,7 +1739,7 @@ namespace Globals {
 		}
 		CommandConfiguration.fillDefaults(value.command, context);
 		if (value.suppressTaskName === undefined) {
-			value.suppressTaskName = false;
+			value.suppressTaskName = (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
 		}
 		if (value.promptOnClose === undefined) {
 			value.promptOnClose = true;

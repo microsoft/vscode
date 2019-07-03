@@ -7,24 +7,22 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
-import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/contrib/search/browser/search.contribution';
@@ -67,7 +65,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			rpcProtocol = new TestRPCProtocol();
-			instantiationService.stub(IHeapService, NullHeapService);
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
@@ -109,9 +106,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
@@ -119,7 +114,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -801,9 +796,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[][]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.equal(value.length, 1);
-		assert.ok(value[0].length >= 2);
+		assert.ok(value[0].parent);
 	});
 
 });

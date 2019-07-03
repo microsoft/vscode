@@ -45,6 +45,7 @@ export interface IVisibleEditor extends IEditor {
 }
 
 export interface IEditorService {
+
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**

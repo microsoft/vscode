@@ -11,9 +11,9 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { Command, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { Command, CodeLens } from 'vs/editor/common/modes';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { ICodeLensData } from 'vs/editor/contrib/codelens/codelens';
+import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -58,13 +58,14 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private readonly _id: string;
 	private readonly _domNode: HTMLElement;
 	private readonly _editor: editorBrowser.ICodeEditor;
+	private readonly _commands = new Map<string, Command>();
 
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
-	private _commands: { [id: string]: Command } = Object.create(null);
 
 	constructor(
 		editor: editorBrowser.ICodeEditor,
-		symbolRange: Range
+		symbolRange: Range,
+		data: CodeLensItem[]
 	) {
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget._idPool);
 		this._editor = editor;
@@ -74,9 +75,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._domNode = document.createElement('span');
 		this._domNode.innerHTML = '&nbsp;';
 		dom.addClass(this._domNode, 'codelens-decoration');
-		dom.addClass(this._domNode, 'invisible-cl');
 		this.updateHeight();
-		this.updateVisibility();
+		this.withCommands(data.map(data => data.symbol), false);
 	}
 
 	updateHeight(): void {
@@ -88,15 +88,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._domNode.innerHTML = '&nbsp;';
 	}
 
-	updateVisibility(): void {
-		if (this.isVisible()) {
-			dom.removeClass(this._domNode, 'invisible-cl');
-			dom.addClass(this._domNode, 'fadein');
-		}
-	}
+	withCommands(inSymbols: Array<CodeLens | undefined | null>, animate: boolean): void {
+		this._commands.clear();
 
-	withCommands(inSymbols: Array<ICodeLensSymbol | undefined | null>): void {
-		this._commands = Object.create(null);
 		const symbols = coalesce(inSymbols);
 		if (isFalsyOrEmpty(symbols)) {
 			this._domNode.innerHTML = '<span>no commands</span>';
@@ -111,7 +105,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				let part: string;
 				if (command.id) {
 					part = `<a id=${i}>${title}</a>`;
-					this._commands[i] = command;
+					this._commands.set(String(i), command);
 				} else {
 					part = `<span>${title}</span>`;
 				}
@@ -119,13 +113,17 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 			}
 		}
 
+		const wasEmpty = this._domNode.innerHTML === '' || this._domNode.innerHTML === '&nbsp;';
 		this._domNode.innerHTML = html.join('<span>&nbsp;|&nbsp;</span>');
 		this._editor.layoutContentWidget(this);
+		if (wasEmpty && animate) {
+			dom.addClass(this._domNode, 'fadein');
+		}
 	}
 
 	getCommand(link: HTMLLinkElement): Command | undefined {
 		return link.parentElement === this._domNode
-			? this._commands[link.id]
+			? this._commands.get(link.id)
 			: undefined;
 	}
 
@@ -191,17 +189,17 @@ export class CodeLensHelper {
 	}
 }
 
-export class CodeLens {
+export class CodeLensWidget {
 
 	private readonly _editor: editorBrowser.ICodeEditor;
 	private readonly _viewZone: CodeLensViewZone;
 	private readonly _viewZoneId: number;
 	private readonly _contentWidget: CodeLensContentWidget;
 	private _decorationIds: string[];
-	private _data: ICodeLensData[];
+	private _data: CodeLensItem[];
 
 	constructor(
-		data: ICodeLensData[],
+		data: CodeLensItem[],
 		editor: editorBrowser.ICodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
@@ -228,7 +226,7 @@ export class CodeLens {
 		});
 
 		if (range) {
-			this._contentWidget = new CodeLensContentWidget(editor, range);
+			this._contentWidget = new CodeLensContentWidget(editor, range, this._data);
 			this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
 
 			this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
@@ -258,7 +256,7 @@ export class CodeLens {
 		});
 	}
 
-	updateCodeLensSymbols(data: ICodeLensData[], helper: CodeLensHelper): void {
+	updateCodeLensSymbols(data: CodeLensItem[], helper: CodeLensHelper): void {
 		while (this._decorationIds.length) {
 			helper.removeDecoration(this._decorationIds.pop()!);
 		}
@@ -272,8 +270,7 @@ export class CodeLens {
 		});
 	}
 
-	computeIfNecessary(model: ITextModel): ICodeLensData[] | null {
-		this._contentWidget.updateVisibility(); // trigger the fade in
+	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
 		if (!this._contentWidget.isVisible()) {
 			return null;
 		}
@@ -288,8 +285,8 @@ export class CodeLens {
 		return this._data;
 	}
 
-	updateCommands(symbols: Array<ICodeLensSymbol | undefined | null>): void {
-		this._contentWidget.withCommands(symbols);
+	updateCommands(symbols: Array<CodeLens | undefined | null>): void {
+		this._contentWidget.withCommands(symbols, true);
 		for (let i = 0; i < this._data.length; i++) {
 			const resolved = symbols[i];
 			if (resolved) {

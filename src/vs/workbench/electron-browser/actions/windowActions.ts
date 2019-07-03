@@ -3,29 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
-
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isMacintosh } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { webFrame } from 'electron';
 import { FileKind } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import product from 'vs/platform/product/node/product';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRecentFolder, IRecentFile, IRecentWorkspace, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/history/common/history';
-import { splitName } from 'vs/base/common/labels';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -61,20 +54,6 @@ export class NewWindowAction extends Action {
 	}
 }
 
-export class ToggleFullScreenAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleFullScreen';
-	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
-
-	constructor(id: string, label: string, @IWindowService private readonly windowService: IWindowService) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowService.toggleFullScreen();
-	}
-}
-
 export abstract class BaseZoomAction extends Action {
 	private static readonly SETTING_KEY = 'window.zoomLevel';
 
@@ -86,7 +65,7 @@ export abstract class BaseZoomAction extends Action {
 		super(id, label);
 	}
 
-	protected setConfiguredZoomLevel(level: number): void {
+	protected async setConfiguredZoomLevel(level: number): Promise<void> {
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
 		const applyZoom = () => {
@@ -98,7 +77,9 @@ export abstract class BaseZoomAction extends Action {
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level).then(() => applyZoom());
+		await this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+
+		applyZoom();
 	}
 }
 
@@ -162,24 +143,6 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class ReloadWindowAction extends Action {
-
-	static readonly ID = 'workbench.action.reloadWindow';
-	static LABEL = nls.localize('reloadWindow', "Reload Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService private readonly windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<boolean> {
-		return this.windowService.reloadWindow().then(() => true);
-	}
-}
-
 export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
@@ -193,8 +156,10 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
-		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
+	async run(): Promise<boolean> {
+		await this.windowService.reloadWindow({ _: [], 'disable-extensions': true });
+
+		return true;
 	}
 }
 
@@ -221,41 +186,38 @@ export abstract class BaseSwitchWindow extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	run(): Promise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
+	async run(): Promise<void> {
+		const currentWindowId = this.windowService.windowId;
 
-		return this.windowsService.getWindows().then(windows => {
-			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-			const picks = windows.map(win => {
-				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
-				const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
-				return {
-					payload: win.id,
-					label: win.title,
-					iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-					description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
-					buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : undefined
-				} as (IQuickPickItem & { payload: number });
-			});
+		const windows = await this.windowsService.getWindows();
+		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
+		const picks = windows.map(win => {
+			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
+			const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
+			return {
+				payload: win.id,
+				label: win.title,
+				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
+				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
+				buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : undefined
+			};
+		});
+		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
 
-			const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
-
-			return this.quickInputService.pick(picks, {
-				contextKey: 'inWindowsPicker',
-				activeItem: picks[autoFocusIndex],
-				placeHolder,
-				quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
-				onDidTriggerItemButton: context => {
-					this.windowsService.closeWindow(context.item.payload).then(() => {
-						context.removeItem();
-					});
-				}
-			});
-		}).then(pick => {
-			if (pick) {
-				this.windowsService.focusWindow(pick.payload);
+		const pick = await this.quickInputService.pick(picks, {
+			contextKey: 'inWindowsPicker',
+			activeItem: picks[autoFocusIndex],
+			placeHolder,
+			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
+			onDidTriggerItemButton: async context => {
+				await this.windowsService.closeWindow(context.item.payload);
+				context.removeItem();
 			}
 		});
+
+		if (pick) {
+			this.windowsService.focusWindow(pick.payload);
+		}
 	}
 }
 
@@ -305,150 +267,6 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 	}
 }
 
-export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
-
-export abstract class BaseOpenRecentAction extends Action {
-
-	private removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: 'action-remove-from-recently-opened',
-		tooltip: nls.localize('remove', "Remove from Recently Opened")
-	};
-
-	constructor(
-		id: string,
-		label: string,
-		private windowService: IWindowService,
-		private windowsService: IWindowsService,
-		private quickInputService: IQuickInputService,
-		private contextService: IWorkspaceContextService,
-		private labelService: ILabelService,
-		private keybindingService: IKeybindingService,
-		private modelService: IModelService,
-		private modeService: IModeService,
-	) {
-		super(id, label);
-	}
-
-	protected abstract isQuickNavigate(): boolean;
-
-	run(): Promise<void> {
-		return this.windowService.getRecentlyOpened()
-			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
-	}
-
-	private openRecent(recentWorkspaces: Array<IRecentWorkspace | IRecentFolder>, recentFiles: IRecentFile[]): void {
-
-		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
-			let resource: URI | undefined;
-			let fullLabel: string | undefined;
-			let fileKind: FileKind | undefined;
-			if (isRecentFolder(recent)) {
-				resource = recent.folderUri;
-				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
-				fileKind = FileKind.FOLDER;
-			} else if (isRecentWorkspace(recent)) {
-				resource = recent.workspace.configPath;
-				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-				fileKind = FileKind.ROOT_FOLDER;
-			} else {
-				resource = recent.fileUri;
-				fullLabel = recent.label || labelService.getUriLabel(recent.fileUri);
-				fileKind = FileKind.FILE;
-			}
-			const { name, parentPath } = splitName(fullLabel);
-			return {
-				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-				label: name,
-				description: parentPath,
-				buttons,
-				resource,
-				fileKind,
-			};
-		};
-
-		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
-			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
-		};
-
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
-		const filePicks = recentFiles.map(p => toPick(p, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
-
-		// focus second entry if the first recent workspace is the current workspace
-		const firstEntry = recentWorkspaces[0];
-		let autoFocusSecondEntry: boolean = firstEntry && this.contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
-
-		let keyMods: IKeyMods;
-		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
-		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
-		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
-		this.quickInputService.pick(picks, {
-			contextKey: inRecentFilesPickerContextKey,
-			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
-			matchOnDescription: true,
-			onKeyMods: mods => keyMods = mods,
-			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
-			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.resource]).then(() => context.removeItem());
-			}
-		}).then((pick): Promise<void> | void => {
-			if (pick) {
-				return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
-			}
-		});
-	}
-}
-
-export class OpenRecentAction extends BaseOpenRecentAction {
-
-	static readonly ID = 'workbench.action.openRecent';
-	static readonly LABEL = nls.localize('openRecent', "Open Recent...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILabelService labelService: ILabelService
-	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
-	}
-
-	protected isQuickNavigate(): boolean {
-		return false;
-	}
-}
-
-export class QuickOpenRecentAction extends BaseOpenRecentAction {
-
-	static readonly ID = 'workbench.action.quickOpenRecent';
-	static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILabelService labelService: ILabelService
-	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
-	}
-
-	protected isQuickNavigate(): boolean {
-		return true;
-	}
-}
 
 export class ShowAboutDialogAction extends Action {
 

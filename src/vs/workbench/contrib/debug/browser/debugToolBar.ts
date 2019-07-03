@@ -9,12 +9,12 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent } from 'vs/base/common/actions';
+import { IAction, IRunEvent, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
-import { FocusSessionActionItem } from 'vs/workbench/contrib/debug/browser/debugActionItems';
+import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -23,11 +23,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { fillInActionBarActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
@@ -67,7 +67,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextViewService contextViewService: IContextViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -82,17 +81,17 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
 		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
-		this.toDispose.push(this.debugToolBarMenu);
+		this._register(this.debugToolBarMenu);
 
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
-					return new FocusSessionActionItem(action, this.debugService, this.themeService, contextViewService);
+					return this.instantiationService.createInstance(FocusSessionActionViewItem, action);
 				}
 				if (action instanceof MenuItemAction) {
-					return new MenuItemActionItem(action, this.keybindingService, this.notificationService, contextMenuService);
+					return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, contextMenuService);
 				}
 
 				return undefined;
@@ -135,13 +134,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 			// log in telemetry
 			if (this.telemetryService) {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
+				this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
@@ -266,7 +259,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	public static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): IAction[] {
 		const actions: IAction[] = [];
-		fillInActionBarActions(menu, undefined, actions, () => false);
+		createAndFillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {
 			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 		}

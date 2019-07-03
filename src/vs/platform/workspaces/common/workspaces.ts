@@ -10,12 +10,14 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { extname } from 'vs/base/common/path';
-import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath } from 'vs/base/common/resources';
+import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath, extname as resourceExtname } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { toSlashes } from 'vs/base/common/extpath';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -75,6 +77,7 @@ export interface IResolvedWorkspace extends IWorkspaceIdentifier {
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
+	remoteAuthority?: string;
 }
 
 export interface IWorkspaceSavedEvent {
@@ -155,8 +158,10 @@ export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is I
 
 const WORKSPACE_SUFFIX = '.' + WORKSPACE_EXTENSION;
 
-export function hasWorkspaceFileExtension(path: string) {
-	return extname(path) === WORKSPACE_SUFFIX;
+export function hasWorkspaceFileExtension(path: string | URI) {
+	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
+
+	return ext === WORKSPACE_SUFFIX;
 }
 
 const SLASH = '/';
@@ -232,12 +237,15 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit
 	// and only changing the folders portion.
-	let newRawWorkspaceContents = rawWorkspaceContents;
-	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], rewrittenFolders, { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' });
-	edits.forEach(edit => {
-		newRawWorkspaceContents = jsonEdit.applyEdit(rawWorkspaceContents, edit);
-	});
-	return newRawWorkspaceContents;
+	const formattingOptions: FormattingOptions = { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' };
+	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], rewrittenFolders, formattingOptions);
+	let newContent = jsonEdit.applyEdits(rawWorkspaceContents, edits);
+
+	if (storedWorkspace.remoteAuthority === getRemoteAuthority(targetConfigPathURI)) {
+		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
+		newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['remoteAuthority'], formattingOptions));
+	}
+	return newContent;
 }
 
 function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {

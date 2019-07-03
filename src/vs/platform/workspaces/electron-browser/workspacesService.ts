@@ -28,6 +28,6 @@ export class WorkspacesService implements IWorkspacesService {
 	}
 
 	getWorkspaceIdentifier(configPath: URI): Promise<IWorkspaceIdentifier> {
-		return this.channel.call('getWorkspaceIdentifier', configPath);
+		return this.channel.call('getWorkspaceIdentifier', configPath).then(reviveWorkspaceIdentifier);
 	}
 }

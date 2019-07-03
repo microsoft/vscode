@@ -4,24 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IDiskFileChange, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
 
 export interface IWatcherRequest {
-	basePath: string;
-	ignored: string[];
+	path: string;
+	excludes: string[];
 }
 
 export interface IWatcherOptions {
-	verboseLogging: boolean;
-}
-
-export interface IWatchError {
-	message: string;
+	pollingInterval?: number;
+	usePolling?: boolean;
 }
 
 export interface IWatcherService {
-	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError>;
+	watch(options: IWatcherOptions): Event<IDiskFileChange[]>;
 	setRoots(roots: IWatcherRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
+	onLogMessage: Event<ILogMessage>;
 	stop(): Promise<void>;
 }

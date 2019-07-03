@@ -88,10 +88,10 @@ class DropOverlay extends Themable {
 
 		// Overlay contrast border (if any)
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		this.overlay.style.outlineColor = activeContrastBorderColor;
-		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : null;
-		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : null;
-		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : null;
+		this.overlay.style.outlineColor = activeContrastBorderColor || '';
+		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
+		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
+		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 	}
 
 	private registerListeners(): void {
@@ -257,12 +257,16 @@ class DropOverlay extends Themable {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => targetGroup!.focus());
+			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => {
+				if (targetGroup) {
+					targetGroup.focus();
+				}
+			});
 		}
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor && !(draggedEditor.editor as EditorInput).supportsSplitEditor()) {
+		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
 			return false;
 		}
 

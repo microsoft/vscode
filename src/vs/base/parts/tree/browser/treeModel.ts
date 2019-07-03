@@ -159,7 +159,7 @@ export class ItemRegistry {
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
 
-		const disposable = combinedDisposable([
+		const disposable = combinedDisposable(
 			this._onDidRevealItem.add(item.onDidReveal),
 			this._onExpandItem.add(item.onExpand),
 			this._onDidExpandItem.add(item.onDidExpand),
@@ -171,7 +171,7 @@ export class ItemRegistry {
 			this._onRefreshItemChildren.add(item.onRefreshChildren),
 			this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
 			this._onDidDisposeItem.add(item.onDidDispose)
-		]);
+		);
 
 		this.items[item.id] = { item, disposable };
 	}
@@ -555,19 +555,6 @@ export class Item {
 
 	public intersects(other: Item): boolean {
 		return this.isAncestorOf(other) || other.isAncestorOf(this);
-	}
-
-	public getHierarchy(): Item[] {
-		let result: Item[] = [];
-		let node: Item | null = this;
-
-		do {
-			result.push(node);
-			node = node.parent;
-		} while (node);
-
-		result.reverse();
-		return result;
 	}
 
 	private isAncestorOf(startItem: Item): boolean {

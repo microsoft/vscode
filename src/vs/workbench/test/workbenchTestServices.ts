@@ -15,7 +15,7 @@ import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifi
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -25,22 +25,20 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileStreamContent, ITextFileService, IResourceEncoding, IReadTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, MenuBarVisibility, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -48,10 +46,9 @@ import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -67,14 +64,14 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -82,12 +79,17 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
+import { Schemas } from 'vs/base/common/network';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
 }
 
-export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
+export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
 
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
@@ -175,7 +177,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export class TestTextFileService extends TextFileService {
+export class TestTextFileService extends NodeTextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
 	private promptPath: URI;
@@ -191,8 +193,7 @@ export class TestTextFileService extends TextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IWindowService windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
@@ -200,7 +201,8 @@ export class TestTextFileService extends TextFileService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super(
 			contextService,
@@ -211,7 +213,6 @@ export class TestTextFileService extends TextFileService {
 			configurationService,
 			modeService,
 			modelService,
-			windowService,
 			environmentService,
 			notificationService,
 			backupFileService,
@@ -220,7 +221,8 @@ export class TestTextFileService extends TextFileService {
 			contextKeyService,
 			dialogService,
 			fileDialogService,
-			editorService
+			editorService,
+			textResourceConfigurationService
 		);
 	}
 
@@ -236,7 +238,7 @@ export class TestTextFileService extends TextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	public resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
+	public readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -244,15 +246,15 @@ export class TestTextFileService extends TextFileService {
 			return Promise.reject(error);
 		}
 
-		return this.fileService.resolveContent(resource, options).then((content): IRawTextContent => {
+		return this.fileService.readFileStream(resource, options).then(async (content): Promise<ITextFileStreamContent> => {
 			return {
 				resource: content.resource,
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
-				encoding: content.encoding,
-				value: createTextBufferFactory(content.value),
-				size: content.value.length
+				encoding: 'utf8',
+				value: await createTextBufferFactoryFromStream(content.value),
+				size: 10
 			};
 		});
 	}
@@ -309,8 +311,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IThemeService, new TestThemeService());
-	instantiationService.stub(IHashService, new TestHashService());
-	instantiationService.stub(ILogService, new TestLogService());
+	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = new TestEditorService();
@@ -319,19 +320,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IViewletService, new TestViewletService());
 
 	return instantiationService;
-}
-
-export class TestLogService implements ILogService {
-	_serviceBrand: any; onDidChangeLogLevel: Event<LogLevel>;
-	getLevel(): LogLevel { return LogLevel.Info; }
-	setLevel(_level: LogLevel): void { }
-	trace(_message: string, ..._args: any[]): void { }
-	debug(_message: string, ..._args: any[]): void { }
-	info(_message: string, ..._args: any[]): void { }
-	warn(_message: string, ..._args: any[]): void { }
-	error(_message: string | Error, ..._args: any[]): void { }
-	critical(_message: string | Error, ..._args: any[]): void { }
-	dispose(): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -438,6 +426,9 @@ export class TestFileDialogService implements IFileDialogService {
 	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	public pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+		return Promise.resolve(undefined);
+	}
 	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -455,6 +446,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	container: HTMLElement = window.document.body;
 
 	onZenModeChange: Event<boolean> = Event.None;
+	onCenteredLayoutChange: Event<boolean> = Event.None;
+	onFullscreenChange: Event<boolean> = Event.None;
+	onPanelPositionChange: Event<string> = Event.None;
 	onLayout = Event.None;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
@@ -616,6 +610,10 @@ export class TestPanelService implements IPanelService {
 		return null!;
 	}
 
+	public getPanel(id: string): any {
+		return activeViewlet;
+	}
+
 	public getPanels(): any[] {
 		return [];
 	}
@@ -635,6 +633,10 @@ export class TestPanelService implements IPanelService {
 
 	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		throw new Error('Method not implemented.');
+	}
+
+	public getProgressIndicator(id: string) {
+		return null!;
 	}
 
 	public hideActivePanel(): void { }
@@ -661,6 +663,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
+	willRestoreEditors = false;
 
 	dimension = { width: 800, height: 600 };
 
@@ -891,14 +894,14 @@ export class TestFileService implements IFileService {
 
 	public _serviceBrand: any;
 
-	public encoding: IResourceEncodings;
-
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	readonly onWillActivateFileSystemProvider = Event.None;
+	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
+	private lastReadFileUri: URI;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
@@ -911,6 +914,10 @@ export class TestFileService implements IFileService {
 
 	public getContent(): string {
 		return this.content;
+	}
+
+	public getLastReadFileUri(): URI {
+		return this.lastReadFileUri;
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -929,9 +936,9 @@ export class TestFileService implements IFileService {
 		this._onAfterOperation.fire(event);
 	}
 
-	resolveFile(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
-	resolveFile(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	resolveFile(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
 		return Promise.resolve({
 			resource,
 			etag: Date.now().toString(),
@@ -943,18 +950,20 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveFiles(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOption => this.resolveFile(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		return Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
 	}
 
-	existsFile(_resource: URI): Promise<boolean> {
+	exists(_resource: URI): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
-	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {
+	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		this.lastReadFileUri = resource;
+
 		return Promise.resolve({
 			resource: resource,
-			value: this.content,
+			value: VSBuffer.fromString(this.content),
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
@@ -963,7 +972,9 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): Promise<IStreamContent> {
+	readFileStream(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileStreamContent> {
+		this.lastReadFileUri = resource;
+
 		return Promise.resolve({
 			resource: resource,
 			value: {
@@ -974,7 +985,10 @@ export class TestFileService implements IFileService {
 					if (event === 'end') {
 						callback();
 					}
-				}
+				},
+				resume: () => { },
+				pause: () => { },
+				destroy: () => { }
 			},
 			etag: 'index.txt',
 			encoding: 'utf8',
@@ -984,7 +998,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
+	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
 		return timeout(0).then(() => ({
 			resource,
 			etag: 'index.txt',
@@ -996,15 +1010,15 @@ export class TestFileService implements IFileService {
 		}));
 	}
 
-	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return Promise.resolve(null!);
 	}
 
-	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 
@@ -1014,8 +1028,12 @@ export class TestFileService implements IFileService {
 
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
-	registerProvider(_scheme: string, _provider: IFileSystemProvider) {
-		return { dispose() { } };
+	private providers = new Map<string, IFileSystemProvider>();
+
+	registerProvider(scheme: string, provider: IFileSystemProvider) {
+		this.providers.set(scheme, provider);
+
+		return toDisposable(() => this.providers.delete(scheme));
 	}
 
 	activateProvider(_scheme: string): Promise<void> {
@@ -1023,19 +1041,17 @@ export class TestFileService implements IFileService {
 	}
 
 	canHandleResource(resource: URI): boolean {
-		return resource.scheme === 'file';
+		return resource.scheme === 'file' || this.providers.has(resource.scheme);
 	}
 
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): Promise<boolean> { return Promise.resolve(false); }
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean { return false; }
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 		return Promise.resolve();
 	}
 
-	watchFileChanges(_resource: URI): void {
-	}
-
-	unwatchFileChanges(_resource: URI): void {
+	watch(_resource: URI): IDisposable {
+		return Disposable.None;
 	}
 
 	getWriteEncoding(_resource: URI): IResourceEncoding {
@@ -1079,7 +1095,7 @@ export class TestBackupFileService implements IBackupFileService {
 		throw new Error('not implemented');
 	}
 
-	public backupResource(_resource: URI, _content: ITextSnapshot): Promise<void> {
+	public backupResource<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1094,7 +1110,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	public resolveBackupContent(_backup: URI): Promise<ITextBufferFactory> {
+	public resolveBackupContent<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
 		throw new Error('not implemented');
 	}
 
@@ -1141,20 +1157,14 @@ export class TestWindowService implements IWindowService {
 
 	hasFocus = true;
 
+	readonly windowId = 0;
+
 	isFocused(): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
 	isMaximized(): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	getConfiguration(): IWindowConfiguration {
-		return Object.create(null);
-	}
-
-	getCurrentWindowId(): number {
-		return 0;
 	}
 
 	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
@@ -1206,6 +1216,14 @@ export class TestWindowService implements IWindowService {
 			workspaces: [],
 			files: []
 		});
+	}
+
+	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
+		return Promise.resolve();
+	}
+
+	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
+		return Promise.resolve();
 	}
 
 	focusWindow(): Promise<void> {
@@ -1437,6 +1455,10 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		return Promise.resolve();
+	}
+
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		throw new Error('not implemented');
 	}
@@ -1556,14 +1578,6 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 }
 
 
-export class TestHashService implements IHashService {
-	_serviceBrand: any;
-
-	createSHA1(content: string): Thenable<string> {
-		return Promise.resolve(content);
-	}
-}
-
 export class TestSharedProcessService implements ISharedProcessService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -1582,7 +1596,9 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	onDidChangeCapabilities: Event<void> = Event.None;
 	onDidChangeFile: Event<IFileChange[]> = Event.None;
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
+	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
 	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
 	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
 	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }
@@ -1595,4 +1611,33 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	close?(fd: number): Promise<void> { return Promise.resolve(undefined!); }
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
+}
+
+export class RemoteFileSystemProvider implements IFileSystemProvider {
+
+	constructor(private readonly diskFileSystemProvider: IFileSystemProvider, private readonly remoteAuthority: string) { }
+
+	readonly capabilities: FileSystemProviderCapabilities = this.diskFileSystemProvider.capabilities;
+	readonly onDidChangeCapabilities: Event<void> = this.diskFileSystemProvider.onDidChangeCapabilities;
+
+	readonly onDidChangeFile: Event<IFileChange[]> = Event.map(this.diskFileSystemProvider.onDidChangeFile, changes => changes.map(c => { c.resource = c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }); return c; }));
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.diskFileSystemProvider.watch(this.toFileResource(resource), opts); }
+
+	stat(resource: URI): Promise<IStat> { return this.diskFileSystemProvider.stat(this.toFileResource(resource)); }
+	mkdir(resource: URI): Promise<void> { return this.diskFileSystemProvider.mkdir(this.toFileResource(resource)); }
+	readdir(resource: URI): Promise<[string, FileType][]> { return this.diskFileSystemProvider.readdir(this.toFileResource(resource)); }
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.diskFileSystemProvider.delete(this.toFileResource(resource), opts); }
+
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.rename(this.toFileResource(from), this.toFileResource(to), opts); }
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.diskFileSystemProvider.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
+
+	readFile(resource: URI): Promise<Uint8Array> { return this.diskFileSystemProvider.readFile!(this.toFileResource(resource)); }
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.diskFileSystemProvider.writeFile!(this.toFileResource(resource), content, opts); }
+
+	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.diskFileSystemProvider.open!(this.toFileResource(resource), opts); }
+	close(fd: number): Promise<void> { return this.diskFileSystemProvider.close!(fd); }
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.read!(fd, pos, data, offset, length); }
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.write!(fd, pos, data, offset, length); }
+
+	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
 }

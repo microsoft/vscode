@@ -26,23 +26,30 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		}
 
 		return [
-			this.getExendsLink(document, root),
+			this.getExtendsLink(document, root),
 			...this.getFilesLinks(document, root),
 			...this.getReferencesLinks(document, root)
 		].filter(x => !!x) as vscode.DocumentLink[];
 	}
 
-	private getExendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
+	private getExtendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
 		const extendsNode = jsonc.findNodeAtLocation(root, ['extends']);
 		if (!this.isPathValue(extendsNode)) {
 			return undefined;
 		}
 
+		if (extendsNode.value.startsWith('.')) {
+			return new vscode.DocumentLink(
+				this.getRange(document, extendsNode),
+				vscode.Uri.file(join(dirname(document.uri.fsPath), extendsNode.value + (extendsNode.value.endsWith('.json') ? '' : '.json')))
+			);
+		}
+
+		const workspaceFolderPath = vscode.workspace.getWorkspaceFolder(document.uri)!.uri.fsPath;
 		return new vscode.DocumentLink(
 			this.getRange(document, extendsNode),
-			basename(extendsNode.value).match('.json$')
-				? this.getFileTarget(document, extendsNode)
-				: vscode.Uri.file(join(dirname(document.uri.fsPath), extendsNode!.value + '.json')));
+			vscode.Uri.file(join(workspaceFolderPath, 'node_modules', extendsNode.value + (extendsNode.value.endsWith('.json') ? '' : '.json')))
+		);
 	}
 
 	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node) {

@@ -147,15 +147,22 @@
 }
 
 /* Light theme */
-.monaco-workbench .terminal-action.kill { background: url('kill.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.split { background: url('split.svg') center center no-repeat; }
-.monaco-workbench .panel.right .terminal-action.split { background: url('split-horizontal.svg') center center no-repeat; }
-/* Dark theme / HC theme */
-.vs-dark .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-inverse.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-horizontal-inverse.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.kill { background: url('kill-light.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.new { background: url('new-light.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.split { background: url('split-editor-horizontal-light.svg') center center no-repeat; }
+.monaco-workbench .panel.right .terminal-action.split { background: url('split-editor-vertical-light.svg') center center no-repeat; }
+
+/* Dark theme */
+.vs-dark .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-dark.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-dark.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-editor-horizontal-dark.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-editor-vertical-dark.svg') center center no-repeat; }
+
+/* HC theme */
+.hc-black .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-hc.svg') center center no-repeat; }
+.hc-black .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-hc.svg') center center no-repeat; }
+.hc-black .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-editor-horizontal-hc.svg') center center no-repeat; }
+.hc-black .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-editor-vertical-hc.svg') center center no-repeat; }
 
 .vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events),
 .hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
@@ -163,10 +170,13 @@
 }
 
 .monaco-workbench .quick-open-terminal-configure {
-	background-image: url('configure.svg');
+	background-image: url('configure-light.svg');
 }
 
-.vs-dark .monaco-workbench .quick-open-terminal-configure,
+.vs-dark .monaco-workbench .quick-open-terminal-configure {
+	background-image: url('configure-dark.svg');
+}
+
 .hc-black .monaco-workbench .quick-open-terminal-configure {
-	background-image: url('configure-inverse.svg');
+	background-image: url('configure-hc.svg');
 }

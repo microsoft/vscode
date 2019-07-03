@@ -435,18 +435,19 @@ suite('window namespace tests', () => {
 		return unexpected;
 	});
 
-	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
-		const picks = window.showQuickPick([
-			{ label: 'eins' },
-			{ label: 'zwei', picked: true },
-			{ label: 'drei', picked: true }
-		], {
-				canPickMany: true
-			});
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	// 	const picks = window.showQuickPick([
+	// 		{ label: 'eins' },
+	// 		{ label: 'zwei', picked: true },
+	// 		{ label: 'drei', picked: true }
+	// 	], {
+	// 			canPickMany: true
+	// 		});
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	// });
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -517,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -567,7 +569,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	suite('Terminal', () => {
+	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/75689 */ : suite)('Terminal', () => {
 		test('sendText immediately after createTerminal should not throw', () => {
 			const terminal = window.createTerminal();
 			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
@@ -734,6 +736,29 @@ suite('window namespace tests', () => {
 			});
 			const terminal1 = window.createTerminal({ name: 'test' });
 			terminal1.show();
+		});
+
+		test('hideFromUser terminal: onDidWriteData should work', done => {
+			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+			let data = '';
+			terminal.onDidWriteData(e => {
+				data += e;
+				if (data.indexOf('foo') !== -1) {
+					terminal.dispose();
+					done();
+				}
+			});
+			terminal.sendText('foo');
+		});
+
+		test('hideFromUser terminal: should be available to terminals API', done => {
+			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+			window.onDidOpenTerminal(t => {
+				assert.equal(t, terminal);
+				assert.equal(t.name, 'bg');
+				assert.ok(window.terminals.indexOf(terminal) !== -1);
+				done();
+			});
 		});
 	});
 });

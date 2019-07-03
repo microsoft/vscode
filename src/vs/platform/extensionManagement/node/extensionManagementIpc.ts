@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
@@ -78,7 +78,9 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	_serviceBrand: any;
 
-	constructor(private channel: IChannel) { }
+	constructor(
+		private readonly channel: IChannel,
+	) { }
 
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
 	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return Event.map(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: i.local ? transformIncomingExtension(i.local, null) : i.local })); }
@@ -86,19 +88,19 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
 	zip(extension: ILocalExtension): Promise<URI> {
-		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(result)));
+		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(<UriComponents>result)));
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
 		return Promise.resolve(this.channel.call('unzip', [zipLocation, type]));
 	}
 
-	install(vsix: URI): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call('install', [vsix]));
+	install(vsix: URI): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix])).then(local => transformIncomingExtension(local, null));
 	}
 
-	installFromGallery(extension: IGalleryExtension): Promise<void> {
-		return Promise.resolve(this.channel.call('installFromGallery', [extension]));
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension])).then(local => transformIncomingExtension(local, null));
 	}
 
 	uninstall(extension: ILocalExtension, force = false): Promise<void> {

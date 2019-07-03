@@ -9,7 +9,7 @@ import { StorageService } from 'vs/platform/storage/node/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { mkdirp, del } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -115,6 +115,6 @@ suite('StorageService', () => {
 		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });

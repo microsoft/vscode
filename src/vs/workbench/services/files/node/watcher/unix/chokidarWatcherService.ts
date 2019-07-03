@@ -12,19 +12,15 @@ import * as glob from 'vs/base/common/glob';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { realcaseSync } from 'vs/base/node/extfs';
-import { isMacintosh } from 'vs/base/common/platform';
-import * as watcherCommon from 'vs/workbench/services/files/node/watcher/common';
-import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { realcaseSync } from 'vs/base/node/extpath';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/workbench/services/files/node/watcher/watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
 	stop(): any;
-}
-
-export interface IChockidarWatcherOptions {
-	pollingInterval?: number;
 }
 
 interface ExtendedWatcherRequest extends IWatcherRequest {
@@ -40,18 +36,22 @@ export class ChokidarWatcherService implements IWatcherService {
 	private _watcherCount: number;
 
 	private _pollingInterval?: number;
+	private _usePolling?: boolean;
 	private _verboseLogging: boolean;
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<watcherCommon.IRawFileChange[] | IWatchError>();
+	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<watcherCommon.IRawFileChange[] | IWatchError> {
-		this._verboseLogging = options.verboseLogging;
+	private _onLogMessage = new Emitter<ILogMessage>();
+	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
+
+	public watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
 		this._pollingInterval = options.pollingInterval;
+		this._usePolling = options.usePolling;
 		this._watchers = Object.create(null);
 		this._watcherCount = 0;
 		return this.onWatchEvent;
@@ -100,10 +100,14 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	private _watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
 		if (this._verboseLogging) {
-			console.log(`Start watching: ${basePath}]`);
+			this.log(`Start watching: ${basePath}]`);
 		}
 
 		const pollingInterval = this._pollingInterval || 1000;
+		const usePolling = this._usePolling;
+		if (usePolling && this._verboseLogging) {
+			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
+		}
 
 		const watcherOpts: chokidar.IOptions = {
 			ignoreInitial: true,
@@ -111,14 +115,24 @@ export class ChokidarWatcherService implements IWatcherService {
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
 			interval: pollingInterval, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
 			binaryInterval: pollingInterval,
+			usePolling: usePolling,
 			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
+		const excludes: string[] = [];
 		// if there's only one request, use the built-in ignore-filterering
 		const isSingleFolder = requests.length === 1;
 		if (isSingleFolder) {
-			watcherOpts.ignored = requests[0].ignored;
+			excludes.push(...requests[0].excludes);
 		}
+
+		if ((isMacintosh || isLinux) && (basePath.length === 0 || basePath === '/')) {
+			excludes.push('/dev/**');
+			if (isLinux) {
+				excludes.push('/proc/**', '/sys/**');
+			}
+		}
+		watcherOpts.ignored = excludes;
 
 		// Chokidar fails when the basePath does not match case-identical to the path on disk
 		// so we have to find the real casing of the path and do some path massaging to fix this
@@ -128,7 +142,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		const realBasePathDiffers = (basePath !== realBasePath);
 
 		if (realBasePathDiffers) {
-			console.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
+			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
@@ -136,10 +150,10 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		// Detect if for some reason the native watcher library fails to load
 		if (isMacintosh && !chokidarWatcher.options.useFsEvents) {
-			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
+			this.warn('Watcher is not using native fsevents library and is falling back to unefficient polling.');
 		}
 
-		let undeliveredFileEvents: watcherCommon.IRawFileChange[] = [];
+		let undeliveredFileEvents: IDiskFileChange[] = [];
 		let fileEventDelayer: ThrottledDelayer<undefined> | null = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
 		const watcher: IWatcher = {
@@ -147,7 +161,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			stop: () => {
 				try {
 					if (this._verboseLogging) {
-						console.log(`Stop watching: ${basePath}]`);
+						this.log(`Stop watching: ${basePath}]`);
 					}
 					if (chokidarWatcher) {
 						chokidarWatcher.close();
@@ -159,7 +173,7 @@ export class ChokidarWatcherService implements IWatcherService {
 						fileEventDelayer = null;
 					}
 				} catch (error) {
-					console.error(error.toString());
+					this.warn('Error while stopping watcher: ' + error.toString());
 				}
 			}
 		};
@@ -209,7 +223,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 			// Logging
 			if (this._verboseLogging) {
-				console.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
+				this.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
 			// Check for spam
@@ -219,7 +233,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				this.spamCheckStartTime = now;
 			} else if (!this.spamWarningLogged && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
 				this.spamWarningLogged = true;
-				console.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
+				this.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
 			}
 
 			// Add to buffer
@@ -232,13 +246,13 @@ export class ChokidarWatcherService implements IWatcherService {
 					undeliveredFileEvents = [];
 
 					// Broadcast to clients normalized
-					const res = watcherCommon.normalize(events);
+					const res = normalizeFileChanges(events);
 					this._onWatchEvent.fire(res);
 
 					// Logging
 					if (this._verboseLogging) {
 						res.forEach(r => {
-							console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
+							this.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 						});
 					}
 
@@ -247,7 +261,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			}
 		});
 
-		chokidarWatcher.on('error', (error: Error) => {
+		chokidarWatcher.on('error', (error: NodeJS.ErrnoException) => {
 			if (error) {
 
 				// Specially handle ENOSPC errors that can happen when
@@ -255,14 +269,14 @@ export class ChokidarWatcherService implements IWatcherService {
 				// we are running into a limit. We only want to warn
 				// once in this case to avoid log spam.
 				// See https://github.com/Microsoft/vscode/issues/7950
-				if ((<any>error).code === 'ENOSPC') {
+				if (error.code === 'ENOSPC') {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;
 						this.stop();
-						this._onWatchEvent.fire({ message: 'Inotify limit reached (ENOSPC)' });
+						this.error('Inotify limit reached (ENOSPC)');
 					}
 				} else {
-					console.error(error.toString());
+					this.warn(error.toString());
 				}
 			}
 		});
@@ -277,23 +291,35 @@ export class ChokidarWatcherService implements IWatcherService {
 		this._watchers = Object.create(null);
 		return Promise.resolve();
 	}
+
+	private log(message: string) {
+		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (chockidar)] ` + message });
+	}
+
+	private warn(message: string) {
+		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (chockidar)] ` + message });
+	}
+
+	private error(message: string) {
+		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (chockidar)] ` + message });
+	}
 }
 
 function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 	for (let request of requests) {
-		if (request.basePath === path) {
+		if (request.path === path) {
 			return false;
 		}
-		if (extpath.isEqualOrParent(path, request.basePath)) {
+		if (extpath.isEqualOrParent(path, request.path)) {
 			if (!request.parsedPattern) {
-				if (request.ignored && request.ignored.length > 0) {
-					let pattern = `{${request.ignored.join(',')}}`;
+				if (request.excludes && request.excludes.length > 0) {
+					let pattern = `{${request.excludes.join(',')}}`;
 					request.parsedPattern = glob.parse(pattern);
 				} else {
 					request.parsedPattern = () => false;
 				}
 			}
-			const relPath = path.substr(request.basePath.length + 1);
+			const relPath = path.substr(request.path.length + 1);
 			if (!request.parsedPattern(relPath)) {
 				return false;
 			}
@@ -307,18 +333,18 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
  * equests with Sub paths are skipped if they have the same ignored set as the parent.
  */
 export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string]: IWatcherRequest[] } {
-	requests = requests.sort((r1, r2) => r1.basePath.localeCompare(r2.basePath));
+	requests = requests.sort((r1, r2) => r1.path.localeCompare(r2.path));
 	let prevRequest: IWatcherRequest | null = null;
 	let result: { [basePath: string]: IWatcherRequest[] } = Object.create(null);
 	for (let request of requests) {
-		let basePath = request.basePath;
-		let ignored = (request.ignored || []).sort();
-		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.basePath))) {
-			if (!isEqualIgnore(ignored, prevRequest.ignored)) {
-				result[prevRequest.basePath].push({ basePath, ignored });
+		let basePath = request.path;
+		let ignored = (request.excludes || []).sort();
+		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.path))) {
+			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
+				result[prevRequest.path].push({ path: basePath, excludes: ignored });
 			}
 		} else {
-			prevRequest = { basePath, ignored };
+			prevRequest = { path: basePath, excludes: ignored };
 			result[basePath] = [prevRequest];
 		}
 	}
@@ -330,7 +356,7 @@ function isEqualRequests(r1: IWatcherRequest[], r2: IWatcherRequest[]) {
 		return false;
 	}
 	for (let k = 0; k < r1.length; k++) {
-		if (r1[k].basePath !== r2[k].basePath || !isEqualIgnore(r1[k].ignored, r2[k].ignored)) {
+		if (r1[k].path !== r2[k].path || !isEqualIgnore(r1[k].excludes, r2[k].excludes)) {
 			return false;
 		}
 	}

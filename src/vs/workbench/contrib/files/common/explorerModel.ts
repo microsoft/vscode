@@ -70,7 +70,7 @@ export class ExplorerModel implements IDisposable {
 	}
 
 	dispose(): void {
-		this._listener = dispose(this._listener);
+		dispose(this._listener);
 	}
 }
 
@@ -243,27 +243,23 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
-		let promise: Promise<any> = Promise.resolve(undefined);
+	async fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
 		if (!this._isDirectoryResolved) {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
 			const resolveMetadata = explorerService.sortOrder === 'modified';
-			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true, resolveMetadata }).then(stat => {
-				const resolved = ExplorerItem.create(stat, this);
-				ExplorerItem.mergeLocalWithDisk(resolved, this);
-				this._isDirectoryResolved = true;
-			});
+			const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+			const resolved = ExplorerItem.create(stat, this);
+			ExplorerItem.mergeLocalWithDisk(resolved, this);
+			this._isDirectoryResolved = true;
 		}
 
-		return promise.then(() => {
-			const items: ExplorerItem[] = [];
-			this.children.forEach(child => {
-				items.push(child);
-			});
-
-			return items;
+		const items: ExplorerItem[] = [];
+		this.children.forEach(child => {
+			items.push(child);
 		});
+
+		return items;
 	}
 
 	/**
@@ -365,5 +361,11 @@ export class ExplorerItem {
 		}
 
 		return null;
+	}
+}
+
+export class NewExplorerItem extends ExplorerItem {
+	constructor(parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), parent, isDirectory);
 	}
 }

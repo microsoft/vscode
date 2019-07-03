@@ -27,7 +27,7 @@ import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MA
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -764,16 +764,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			validation: (value: string): InputBoxMessage | null => {
-				if (value.length === 0) {
-					return null;
-				}
-				if (!this._findInput.getRegex()) {
+				if (value.length === 0 || !this._findInput.getRegex()) {
 					return null;
 				}
 				try {
-					/* tslint:disable:no-unused-expression */
+					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
-					/* tslint:enable:no-unused-expression */
 					return null;
 				} catch (e) {
 					return { content: e.message };
@@ -1195,6 +1191,11 @@ registerThemingParticipant((theme, collector) => {
 	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .find-widget { border: 2px solid ${hcBorder}; }`);
+	}
+
+	const foreground = theme.getColor(editorWidgetForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
 	}
 
 	const error = theme.getColor(errorForeground);

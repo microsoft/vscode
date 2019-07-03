@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { getAllPropertyNames } from 'vs/base/common/types';
 
 const INITIALIZE = '$initialize';
 
-export interface IWorker {
+export interface IWorker extends IDisposable {
 	getId(): number;
 	postMessage(message: string): void;
-	dispose(): void;
 }
 
 export interface IWorkerCallback {

@@ -13,7 +13,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -27,23 +26,43 @@ export enum OverviewRulerLane {
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Position in the minimap to render the decoration.
  */
-export interface IModelDecorationOverviewRulerOptions {
+export enum MinimapPosition {
+	Inline = 1
+}
+
+export interface IDecorationOptions {
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	color: string | ThemeColor | undefined;
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	darkColor?: string | ThemeColor;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 	/**
 	 * The position in the overview ruler.
 	 */
 	position: OverviewRulerLane;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+	/**
+	 * The position in the overview ruler.
+	 */
+	position: MinimapPosition;
 }
 
 /**
@@ -90,6 +109,10 @@ export interface IModelDecorationOptions {
 	 * If set, render this decoration in the overview ruler.
 	 */
 	overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+	/**
+	 * If set, render this decoration in the minimap.
+	 */
+	minimap?: IModelDecorationMinimapOptions | null;
 	/**
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
@@ -458,6 +481,17 @@ export interface IActiveIndentGuideInfo {
 	startLineNumber: number;
 	endLineNumber: number;
 	indent: number;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ *
+ * @internal
+ */
+export interface ITextSnapshot {
+	read(): string | null;
 }
 
 /**

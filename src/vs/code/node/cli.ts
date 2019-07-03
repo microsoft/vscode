@@ -13,11 +13,10 @@ import pkg from 'vs/platform/product/node/package';
 import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { whenDeleted } from 'vs/base/node/pfs';
+import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
 
@@ -25,7 +24,9 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension'];
+		|| !!argv['uninstall-extension']
+		|| !!argv['locate-extension']
+		|| !!argv['telemetry'];
 }
 
 interface IMainCli {
@@ -57,6 +58,7 @@ export async function main(argv: string[]): Promise<any> {
 	else if (shouldSpawnCliProcess(args)) {
 		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
 		await cli.main(args);
+
 		return;
 	}
 
@@ -98,9 +100,9 @@ export async function main(argv: string[]): Promise<any> {
 				// prevent removing alternate data streams
 				// (see https://github.com/Microsoft/vscode/issues/6363)
 				fs.truncateSync(target, 0);
-				writeFileAndFlushSync(target, data, { flag: 'r+' });
+				writeFileSync(target, data, { flag: 'r+' });
 			} else {
-				writeFileAndFlushSync(target, data);
+				writeFileSync(target, data);
 			}
 
 			// Restore previous mode as needed
@@ -124,7 +126,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
 
-		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
+		const verbose = args.verbose || args.status;
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -257,7 +259,7 @@ export async function main(argv: string[]): Promise<any> {
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
-			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
+			writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
 			processCallbacks.push(async _child => {
 
@@ -329,7 +331,7 @@ export async function main(argv: string[]): Promise<any> {
 					await extHost.stop();
 
 					// re-create the marker file to signal that profiling is done
-					fs.writeFileSync(filenamePrefix, '');
+					writeFileSync(filenamePrefix, '');
 
 				} catch (e) {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
@@ -349,9 +351,7 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== 'undefined') {
-			options['stdio'] = ['pipe', 'pipe', 'pipe'];
-		} else if (!verbose) {
+		if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 

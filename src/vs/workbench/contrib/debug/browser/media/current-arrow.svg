@@ -1,1 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.icon-canvas-transparent,.icon-vs-out{fill:#f6f6f6;}.icon-canvas-transparent{opacity:0;}.icon-vs-yellow{fill:#fc0;}</style></defs><title>current-arrow</title><g id="canvas"><path class="icon-canvas-transparent" d="M16,0V16H0V0Z"/></g><g id="outline" style="display: none;"><path class="icon-vs-out" d="M13.829,8,9.454,13H4V3H9.454Z"/></g><g id="iconBg"><path class="icon-vs-yellow" d="M12.5,8,9,12H5V4H9Z"/></g></svg>
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M3 3.25L4.25 2H9.30677L10.2355 2.41331L14.4986 7.14518L14.5 8.81702L10.2368 13.5647L9.30677 13.9796H4.25L3 12.7296V3.25ZM4.25 12.7296V3.25H9.30677L13.5699 7.98187L9.30677 12.7296H4.25Z" fill="#FFCC00"/>
+</svg>

@@ -222,7 +222,7 @@ export interface IGotoLocationOptions {
 	/**
 	 * Control how goto-command work when having multiple results.
 	 */
-	many?: 'peek' | 'revealAndPeek' | 'reveal';
+	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 /**
@@ -270,7 +270,7 @@ export interface IEditorOptions {
 	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
 	 * Render last line number when the file ends with a newline.
-	 * Defaults to true on Windows/Mac and to false on Linux.
+	 * Defaults to true.
 	*/
 	renderFinalNewline?: boolean;
 	/**
@@ -936,7 +936,7 @@ export interface InternalEditorHoverOptions {
 }
 
 export interface InternalGoToLocationOptions {
-	readonly many: 'peek' | 'revealAndPeek' | 'reveal';
+	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 export interface InternalSuggestOptions {
@@ -1401,7 +1401,8 @@ export class InternalEditorOptions {
 				&& a.localityBonus === b.localityBonus
 				&& a.shareSuggestSelections === b.shareSuggestSelections
 				&& a.showIcons === b.showIcons
-				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions;
+				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
+				&& objects.equals(a.filteredTypes, b.filteredTypes);
 		}
 	}
 
@@ -1411,7 +1412,7 @@ export class InternalEditorOptions {
 		} else if (!a || !b) {
 			return false;
 		} else {
-			return a.many === b.many;
+			return a.multiple === b.multiple;
 		}
 	}
 
@@ -1946,15 +1947,15 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 12),
+			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
 			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
 		};
 	}
 
-	private static _santizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
+	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
 		const gotoOpts = opts.gotoLocation || {};
 		return {
-			many: _stringSet<'peek' | 'revealAndPeek' | 'reveal'>(gotoOpts.many, defaults.many, ['peek', 'revealAndPeek', 'reveal'])
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
 		};
 	}
 
@@ -2110,7 +2111,7 @@ export class EditorOptionsValidator {
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
-			gotoLocation: this._santizeGotoLocationOpts(opts, defaults.gotoLocation),
+			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -2635,7 +2636,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
-		renderFinalNewline: (platform.isLinux ? false : true),
+		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
@@ -2719,7 +2720,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			filteredTypes: Object.create(null)
 		},
 		gotoLocation: {
-			many: 'peek'
+			multiple: 'peek'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

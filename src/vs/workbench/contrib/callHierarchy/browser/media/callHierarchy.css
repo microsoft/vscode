@@ -13,9 +13,10 @@
 }
 
 .monaco-workbench .call-hierarchy[data-state="message"] .message {
-	display: inherit;
-	text-align: center;
-	padding-top: 3em;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
 }
 
 .monaco-workbench .action-label.calls-to {

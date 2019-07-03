@@ -51,18 +51,21 @@
 
 /* Drag Cursor */
 .monaco-workbench .part.editor > .content .editor-group-container > .title {
-	cursor: -webkit-grab;
+	cursor: grab;
 }
 
 /* Actions */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
+.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+	background: url('close-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-hc.svg') center center no-repeat;
 }
 
 /* Drag and Drop Feedback */

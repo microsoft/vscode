@@ -617,7 +617,7 @@ suite('KeybindingsEditorModel test', () => {
 				parts.push(aSimpleKeybinding(chordPart));
 			}
 		}
-		let keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : null;
+		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : undefined;
 		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault);
 	}
 

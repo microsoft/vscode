@@ -90,11 +90,11 @@ CommandsRegistry.registerCommand({
 		const terminalService = accessor.get(IExternalTerminalService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
-		return fileService.resolveFiles(resources.map(r => ({ resource: r }))).then(stats => {
+		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(stats => {
 			const directoriesToOpen = distinct(stats.filter(data => data.success).map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath)));
 			return directoriesToOpen.map(dir => {
 				if (configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated') {
-					const instance = integratedTerminalService.createTerminal({ cwd: dir }, true);
+					const instance = integratedTerminalService.createTerminal({ cwd: dir });
 					if (instance && (resources.length === 1 || !resource || dir === resource.fsPath || dir === paths.dirname(resource.fsPath))) {
 						integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);

@@ -20,9 +20,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
+import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
+import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -32,13 +32,13 @@ function renderBody(
 	body: string,
 	css: string
 ): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<base href="https://code.visualstudio.com/raw/">
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 				<style>${css}</style>
 			</head>
@@ -95,7 +95,13 @@ export class ReleaseNotesManager {
 				'releaseNotes',
 				title,
 				{ group: ACTIVE_GROUP, preserveFocus: false },
-				{ tryRestoreScrollPosition: true, enableFindWidget: true },
+				{
+					tryRestoreScrollPosition: true,
+					enableFindWidget: true,
+					localResourceRoots: [
+						URI.parse(require.toUrl('./media'))
+					]
+				},
 				undefined, {
 					onDidClickLink: uri => this.onDidClickLink(uri),
 					onDispose: () => { this._currentReleaseNotes = undefined; }

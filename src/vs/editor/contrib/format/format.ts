@@ -5,10 +5,10 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerLanguageCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -23,8 +23,8 @@ import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -86,30 +86,51 @@ export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel):
 	return result;
 }
 
-export async function formatDocumentRangeWithFirstProvider(
+export const enum FormattingMode {
+	Explicit = 1,
+	Silent = 2
+}
+
+export interface IFormattingEditProviderSelector {
+	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
+}
+
+export abstract class FormattingConflicts {
+
+	private static readonly _selectors = new LinkedList<IFormattingEditProviderSelector>();
+
+	static setFormatterSelector(selector: IFormattingEditProviderSelector): IDisposable {
+		const remove = FormattingConflicts._selectors.unshift(selector);
+		return { dispose: remove };
+	}
+
+	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+		if (formatter.length === 0) {
+			return undefined;
+		}
+		const { value: selector } = FormattingConflicts._selectors.iterator().next();
+		if (selector) {
+			return await selector(formatter, document, mode);
+		}
+		return formatter[0];
+	}
+}
+
+export async function formatDocumentRangeWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	range: Range,
+	mode: FormattingMode,
 	token: CancellationToken
-): Promise<boolean> {
+): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
-	const statusBarService = accessor.get(IStatusbarService);
-	const labelService = accessor.get(ILabelService);
-
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const [best, ...rest] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-	if (!best) {
-		return false;
+	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const selected = await FormattingConflicts.select(provider, model, mode);
+	if (selected) {
+		await instaService.invokeFunction(formatDocumentRangeWithProvider, selected, editorOrModel, range, token);
 	}
-	const ret = await instaService.invokeFunction(formatDocumentRangeWithProvider, best, editorOrModel, range, token);
-	if (rest.length > 0) {
-		statusBarService.setStatusMessage(
-			nls.localize('random.pick', "$(tasklist) Formatted '{0}' with '{1}'", labelService.getUriLabel(model.uri, { relative: true }), best.displayName),
-			5 * 1000
-		);
-	}
-	return ret;
 }
 
 export async function formatDocumentRangeWithProvider(
@@ -122,28 +143,31 @@ export async function formatDocumentRangeWithProvider(
 	const workerService = accessor.get(IEditorWorkerService);
 
 	let model: ITextModel;
-	let validate: () => boolean;
+	let cts: CancellationTokenSource;
 	if (isCodeEditor(editorOrModel)) {
 		model = editorOrModel.getModel();
-		const state = new EditorState(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-		validate = () => state.validate(editorOrModel);
+		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, token);
 	} else {
 		model = editorOrModel;
-		const versionNow = editorOrModel.getVersionId();
-		validate = () => versionNow === editorOrModel.getVersionId();
+		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-		model,
-		range,
-		model.getFormattingOptions(),
-		token
-	);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+			model,
+			range,
+			model.getFormattingOptions(),
+			cts.token
+		);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
 
-	if (!validate()) {
-		return true;
+	} finally {
+		cts.dispose();
 	}
 
 	if (!edits || edits.length === 0) {
@@ -181,61 +205,57 @@ export async function formatDocumentRangeWithProvider(
 	return true;
 }
 
-export async function formatDocumentWithFirstProvider(
+export async function formatDocumentWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
 	token: CancellationToken
-): Promise<boolean> {
+): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
-	const statusBarService = accessor.get(IStatusbarService);
-	const labelService = accessor.get(ILabelService);
-
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const [best, ...rest] = getRealAndSyntheticDocumentFormattersOrdered(model);
-	if (!best) {
-		return false;
+	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
+	const selected = await FormattingConflicts.select(provider, model, mode);
+	if (selected) {
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
 	}
-	const ret = await instaService.invokeFunction(formatDocumentWithProvider, best, editorOrModel, token);
-	if (rest.length > 0) {
-		statusBarService.setStatusMessage(
-			nls.localize('random.pick', "$(tasklist) Formatted '{0}' with '{1}'", labelService.getUriLabel(model.uri, { relative: true }), best.displayName),
-			5 * 1000
-		);
-	}
-	return ret;
 }
 
 export async function formatDocumentWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 
 	let model: ITextModel;
-	let validate: () => boolean;
+	let cts: CancellationTokenSource;
 	if (isCodeEditor(editorOrModel)) {
 		model = editorOrModel.getModel();
-		const state = new EditorState(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-		validate = () => state.validate(editorOrModel);
+		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, token);
 	} else {
 		model = editorOrModel;
-		const versionNow = editorOrModel.getVersionId();
-		validate = () => versionNow === editorOrModel.getVersionId();
+		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	const rawEdits = await provider.provideDocumentFormattingEdits(
-		model,
-		model.getFormattingOptions(),
-		token
-	);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentFormattingEdits(
+			model,
+			model.getFormattingOptions(),
+			cts.token
+		);
 
-	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	if (!validate()) {
-		return true;
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
+
+	} finally {
+		cts.dispose();
 	}
 
 	if (!edits || edits.length === 0) {
@@ -245,10 +265,13 @@ export async function formatDocumentWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, edits);
-		alertFormattingEdits(edits);
-		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+
+		if (mode !== FormattingMode.Silent) {
+			alertFormattingEdits(edits);
+			editorOrModel.pushUndoStop();
+			editorOrModel.focus();
+			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+		}
 
 	} else {
 		// use model to apply edits

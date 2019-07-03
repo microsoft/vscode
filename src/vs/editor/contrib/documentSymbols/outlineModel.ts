@@ -274,9 +274,7 @@ export class OutlineModel extends TreeElement {
 
 	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		const chainedCancellation = new CancellationTokenSource();
-		token.onCancellationRequested(() => chainedCancellation.cancel());
-
+		const cts = new CancellationTokenSource(token);
 		const result = new OutlineModel(textModel);
 		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
 		const promises = provider.map((provider, index) => {
@@ -284,7 +282,7 @@ export class OutlineModel extends TreeElement {
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, chainedCancellation.token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, cts.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
 				}
@@ -304,12 +302,12 @@ export class OutlineModel extends TreeElement {
 		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
 			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
 			if (!equals(newProvider, provider)) {
-				chainedCancellation.cancel();
+				cts.cancel();
 			}
 		});
 
 		return Promise.all(promises).then(() => {
-			if (chainedCancellation.token.isCancellationRequested && !token.isCancellationRequested) {
+			if (cts.token.isCancellationRequested && !token.isCancellationRequested) {
 				return OutlineModel._create(textModel, token);
 			} else {
 				return result._compact();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { RunOnceScheduler, ignoreErrors } from 'vs/base/common/async';
+import { RunOnceScheduler, ignoreErrors, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
@@ -21,13 +21,15 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { Event } from 'vs/base/common/event';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -45,6 +47,7 @@ export class CallStackView extends ViewletPanel {
 	private dataSource: CallStackDataSource;
 	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
+	private parentSessionToExpand = new Set<IDebugSession>();
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -61,7 +64,7 @@ export class CallStackView extends ViewletPanel {
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		this.disposables.push(this.contributedContextMenu);
+		this._register(this.contributedContextMenu);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
@@ -80,7 +83,11 @@ export class CallStackView extends ViewletPanel {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.updateChildren().then(() => this.updateTreeSelection());
+			this.tree.updateChildren().then(() => {
+				this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				this.parentSessionToExpand.clear();
+				this.updateTreeSelection();
+			});
 		}, 50);
 	}
 
@@ -143,8 +150,8 @@ export class CallStackView extends ViewletPanel {
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
-		this.disposables.push(callstackNavigator);
-		this.disposables.push(callstackNavigator.onDidOpenResource(e => {
+		this._register(callstackNavigator);
+		this._register(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}
@@ -183,7 +190,7 @@ export class CallStackView extends ViewletPanel {
 			}
 		}));
 
-		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
+		this._register(this.debugService.getModel().onDidChangeCallStack(() => {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
@@ -193,7 +200,8 @@ export class CallStackView extends ViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		const onCallStackChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
+		this._register(onCallStackChange(() => {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
@@ -204,16 +212,23 @@ export class CallStackView extends ViewletPanel {
 
 			this.updateTreeSelection();
 		}));
-		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule(0);
 		}
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onCallStackChangeScheduler.schedule();
+			}
+		}));
+
+		this._register(this.debugService.onDidNewSession(s => {
+			if (s.parentSession) {
+				// Auto expand sessions that have sub sessions
+				this.parentSessionToExpand.add(s.parentSession);
 			}
 		}));
 	}
@@ -253,11 +268,20 @@ export class CallStackView extends ViewletPanel {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			const expansionsPromise = ignoreErrors(this.tree.expand(thread.session))
-				.then(() => ignoreErrors(this.tree.expand(thread)));
-			if (stackFrame) {
-				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
+			const expandPromises = [() => ignoreErrors(this.tree.expand(thread))];
+			let s: IDebugSession | undefined = thread.session;
+			while (s) {
+				const sessionToExpand = s;
+				expandPromises.push(() => ignoreErrors(this.tree.expand(sessionToExpand)));
+				s = s.parentSession;
 			}
+
+			sequence(expandPromises.reverse()).then(() => {
+				const toReveal = stackFrame || session;
+				if (toReveal) {
+					updateSelectionAndReveal(toReveal);
+				}
+			});
 		}
 	}
 
@@ -273,14 +297,14 @@ export class CallStackView extends ViewletPanel {
 			this.callStackItemType.reset();
 		}
 
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => {
-				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
-				return actions;
-			},
-			getActionsContext: () => element
+			getActions: () => actions,
+			getActionsContext: () => element,
+			onHide: () => dispose(actionsDisposable)
 		});
 	}
 
@@ -574,7 +598,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1) {
+			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
 				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 

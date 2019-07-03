@@ -14,6 +14,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { file } from '../utils/fileSchemes';
 
 const localize = nls.loadMessageBundle();
 
@@ -79,7 +80,10 @@ class ApplyRefactoringCommand implements Command {
 	private async toWorkspaceEdit(body: Proto.RefactorEditInfo) {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		for (const edit of body.edits) {
-			workspaceEdit.createFile(this.client.toResource(edit.fileName), { ignoreIfExists: true });
+			const resource = this.client.toResource(edit.fileName);
+			if (resource.scheme === file) {
+				workspaceEdit.createFile(resource, { ignoreIfExists: true });
+			}
 		}
 		typeConverters.WorkspaceEdit.withFileCodeEdits(workspaceEdit, this.client, body.edits);
 		return workspaceEdit;
@@ -112,8 +116,11 @@ class SelectRefactorCommand implements Command {
 }
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v240;
+
 	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
 	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
+	private static readonly extractTypeKind = vscode.CodeActionKind.RefactorExtract.append('type');
 	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
 
 	constructor(
@@ -215,6 +222,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return TypeScriptRefactorProvider.extractConstantKind;
 		} else if (refactor.name.startsWith('Move')) {
 			return TypeScriptRefactorProvider.moveKind;
+		} else if (refactor.name.includes('Extract to type alias')) {
+			return TypeScriptRefactorProvider.extractTypeKind;
 		}
 		return vscode.CodeActionKind.Refactor;
 	}
@@ -224,6 +233,9 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	): boolean {
 		if (action.name.startsWith('constant_')) {
 			return action.name.endsWith('scope_0');
+		}
+		if (action.name.includes('Extract to type alias')) {
+			return true;
 		}
 		return false;
 	}
@@ -236,7 +248,7 @@ export function register(
 	commandManager: CommandManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, API.v240, () => {
+	return new VersionDependentRegistration(client, TypeScriptRefactorProvider.minVersion, () => {
 		return vscode.languages.registerCodeActionsProvider(selector,
 			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);

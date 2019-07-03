@@ -53,7 +53,7 @@ export interface ISearchResultProvider {
 	clearCache(cacheKey: string): Promise<void>;
 }
 
-export interface IFolderQuery<U extends UriComponents=URI> {
+export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;

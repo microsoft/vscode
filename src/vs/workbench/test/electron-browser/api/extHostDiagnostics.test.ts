@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/node/extHostTypes';
+import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
+import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/common/extHostTypes';
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -91,18 +91,18 @@ suite('ExtHostDiagnostics', () => {
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
 		]);
 
-		let array = collection.get(URI.parse('foo:bar'));
+		let array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
 		assert.throws(() => array.length = 0);
 		assert.throws(() => array.pop());
 		assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 
-		collection.forEach((uri, array) => {
+		collection.forEach((uri, array: Diagnostic[]) => {
 			assert.throws(() => array.length = 0);
 			assert.throws(() => array.pop());
 			assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 		});
 
-		array = collection.get(URI.parse('foo:bar'));
+		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
 		assert.equal(array.length, 2);
 
 		collection.dispose();

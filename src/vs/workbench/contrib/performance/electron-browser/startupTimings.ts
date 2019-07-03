@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { appendFile } from 'fs';
-import { nfcall, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
+import { promisify } from 'util';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -59,7 +60,7 @@ export class StartupTimings implements IWorkbenchContribution {
 	}
 
 	private async _appendStartupTimes(isStandardStartup: boolean) {
-		let appendTo = this._envService.args['prof-append-timers'];
+		const appendTo = this._envService.args['prof-append-timers'];
 		if (!appendTo) {
 			// nothing to do
 			return;
@@ -71,7 +72,7 @@ export class StartupTimings implements IWorkbenchContribution {
 			this._timerService.startupMetrics,
 			timeout(15000), // wait: cached data creation, telemetry sending
 		]).then(([startupMetrics]) => {
-			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
+			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
 		}).then(() => {
 			this._windowsService.quit();
 		}).catch(err => {

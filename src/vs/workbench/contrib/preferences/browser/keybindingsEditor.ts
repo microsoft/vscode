@@ -8,8 +8,8 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
-import { dispose, Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { CheckboxActionItem } from 'vs/base/browser/ui/checkbox/checkbox';
+import { dispose, Disposable, toDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -330,6 +330,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;
 			this.delayedFiltering.trigger(() => this.filterKeybindings());
+			this.updateSearchOptions();
 		}));
 		this._register(this.searchWidget.onEscape(() => this.recordKeysAction.checked = false));
 
@@ -344,6 +345,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			if (e.checked !== undefined) {
 				this.renderKeybindingsEntries(false);
 			}
+			this.updateSearchOptions();
 		}));
 
 		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
@@ -364,23 +366,35 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.searchWidget.stopRecordingKeys();
 					this.searchWidget.focus();
 				}
+				this.updateSearchOptions();
 			}
 		}));
 
 		this.actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
-					return new CheckboxActionItem(null, action);
+					return new CheckboxActionViewItem(null, action);
 				}
 				if (action.id === this.recordKeysAction.id) {
-					return new CheckboxActionItem(null, action);
+					return new CheckboxActionViewItem(null, action);
 				}
 				return undefined;
 			}
 		}));
 
 		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
+	}
+
+	private updateSearchOptions(): void {
+		const keybindingsEditorInput = this.input as KeybindingsEditorInput;
+		if (keybindingsEditorInput) {
+			keybindingsEditorInput.searchOptions = {
+				searchValue: this.searchWidget.getValue(),
+				recordKeybindings: !!this.recordKeysAction.checked,
+				sortByPrecedence: !!this.sortByPrecedenceAction.checked
+			};
+		}
 	}
 
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
@@ -482,6 +496,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}, {});
 			await this.keybindingsEditorModel.resolve(editorActionsLabels);
 			this.renderKeybindingsEntries(false, preserveFocus);
+			if (input.searchOptions) {
+				this.recordKeysAction.checked = input.searchOptions.recordKeybindings;
+				this.sortByPrecedenceAction.checked = input.searchOptions.sortByPrecedence;
+				this.searchWidget.setValue(input.searchOptions.searchValue);
+			} else {
+				this.updateSearchOptions();
+			}
 		}
 	}
 
@@ -783,7 +804,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		const source = this.instantiationService.createInstance(SourceColumn, parent, this.keybindingsEditor);
 
 		const columns: Column[] = [actions, command, keybinding, when, source];
-		const disposables: IDisposable[] = [...columns];
+		const disposables = combinedDisposable(...columns);
 		const elements = columns.map(({ element }) => element);
 
 		this.keybindingsEditor.layoutColumns(elements);
@@ -793,7 +814,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		return {
 			parent,
 			columns,
-			disposable: toDisposable(() => dispose(disposables))
+			disposable: disposables
 		};
 	}
 
@@ -876,7 +897,7 @@ class ActionsColumn extends Column {
 	}
 
 	dispose(): void {
-		this.actionBar = dispose(this.actionBar);
+		dispose(this.actionBar);
 	}
 }
 

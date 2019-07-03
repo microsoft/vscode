@@ -42,10 +42,17 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
+	 * Returns a panel by id.
+	 */
+	getPanel(id: string): PanelDescriptor | null {
+		return this.getComposite(id);
+	}
+
+	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {
-		return this.getComposites() as PanelDescriptor[];
+		return this.getComposites();
 	}
 
 	/**

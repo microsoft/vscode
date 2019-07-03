@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 
 declare var process: any;
 
-export interface ISocket {
+export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
 	onClose(listener: () => void): IDisposable;
 	onEnd(listener: () => void): IDisposable;
@@ -27,7 +27,7 @@ function getEmptyBuffer(): VSBuffer {
 	return emptyBuffer;
 }
 
-class ChunkStream {
+export class ChunkStream {
 
 	private _chunks: VSBuffer[];
 	private _totalLength: number;
@@ -47,6 +47,15 @@ class ChunkStream {
 	}
 
 	public read(byteCount: number): VSBuffer {
+		return this._read(byteCount, true);
+	}
+
+	public peek(byteCount: number): VSBuffer {
+		return this._read(byteCount, false);
+	}
+
+	private _read(byteCount: number, advance: boolean): VSBuffer {
+
 		if (byteCount === 0) {
 			return getEmptyBuffer();
 		}
@@ -57,39 +66,53 @@ class ChunkStream {
 
 		if (this._chunks[0].byteLength === byteCount) {
 			// super fast path, precisely first chunk must be returned
-			const result = this._chunks.shift()!;
-			this._totalLength -= byteCount;
+			const result = this._chunks[0];
+			if (advance) {
+				this._chunks.shift();
+				this._totalLength -= byteCount;
+			}
 			return result;
 		}
 
 		if (this._chunks[0].byteLength > byteCount) {
 			// fast path, the reading is entirely within the first chunk
 			const result = this._chunks[0].slice(0, byteCount);
-			this._chunks[0] = this._chunks[0].slice(byteCount);
-			this._totalLength -= byteCount;
+			if (advance) {
+				this._chunks[0] = this._chunks[0].slice(byteCount);
+				this._totalLength -= byteCount;
+			}
 			return result;
 		}
 
 		let result = VSBuffer.alloc(byteCount);
 		let resultOffset = 0;
+		let chunkIndex = 0;
 		while (byteCount > 0) {
-			const chunk = this._chunks[0];
+			const chunk = this._chunks[chunkIndex];
 			if (chunk.byteLength > byteCount) {
 				// this chunk will survive
-				this._chunks[0] = chunk.slice(byteCount);
-
 				const chunkPart = chunk.slice(0, byteCount);
 				result.set(chunkPart, resultOffset);
 				resultOffset += byteCount;
-				this._totalLength -= byteCount;
+
+				if (advance) {
+					this._chunks[chunkIndex] = chunk.slice(byteCount);
+					this._totalLength -= byteCount;
+				}
+
 				byteCount -= byteCount;
 			} else {
 				// this chunk will be entirely read
-				this._chunks.shift();
-
 				result.set(chunk, resultOffset);
 				resultOffset += chunk.byteLength;
-				this._totalLength -= chunk.byteLength;
+
+				if (advance) {
+					this._chunks.shift();
+					this._totalLength -= chunk.byteLength;
+				} else {
+					chunkIndex++;
+				}
+
 				byteCount -= chunk.byteLength;
 			}
 		}
@@ -102,7 +125,8 @@ const enum ProtocolMessageType {
 	Regular = 1,
 	Control = 2,
 	Ack = 3,
-	KeepAlive = 4
+	KeepAlive = 4,
+	Disconnect = 5
 }
 
 export const enum ProtocolConstants {
@@ -116,17 +140,17 @@ export const enum ProtocolConstants {
 	 */
 	AcknowledgeTimeoutTime = 10000, // 10 seconds
 	/**
-	 * Send at least a message every 30s for keep alive reasons.
+	 * Send at least a message every 5s for keep alive reasons.
 	 */
-	KeepAliveTime = 30000, // 30 seconds
+	KeepAliveTime = 5000, // 5 seconds
 	/**
-	 * If there is no message received for 60 seconds, consider the connection closed...
+	 * If there is no message received for 10 seconds, consider the connection closed...
 	 */
-	KeepAliveTimeoutTime = 60000, // 60 seconds
+	KeepAliveTimeoutTime = 10000, // 10 seconds
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
-	ReconnectionGraceTime = 60 * 60 * 1000, // 1hr
+	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
 }
 
 class ProtocolMessage {
@@ -154,7 +178,7 @@ class ProtocolReader extends Disposable {
 	private readonly _incomingData: ChunkStream;
 	public lastReadTime: number;
 
-	private readonly _onMessage = new Emitter<ProtocolMessage>();
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	public readonly onMessage: Event<ProtocolMessage> = this._onMessage.event;
 
 	private readonly _state = {
@@ -192,10 +216,10 @@ class ProtocolReader extends Disposable {
 
 				// save new state => next time will read the body
 				this._state.readHead = false;
-				this._state.readLen = buff.readUint32BE(9);
-				this._state.messageType = <ProtocolMessageType>buff.readUint8(0);
-				this._state.id = buff.readUint32BE(1);
-				this._state.ack = buff.readUint32BE(5);
+				this._state.readLen = buff.readUInt32BE(9);
+				this._state.messageType = buff.readUInt8(0);
+				this._state.id = buff.readUInt32BE(1);
+				this._state.ack = buff.readUInt32BE(5);
 			} else {
 				// buff is the body
 				const messageType = this._state.messageType;
@@ -264,10 +288,10 @@ class ProtocolWriter {
 		msg.writtenTime = Date.now();
 		this.lastWriteTime = Date.now();
 		const header = VSBuffer.alloc(ProtocolConstants.HeaderLength);
-		header.writeUint8(msg.type, 0);
-		header.writeUint32BE(msg.id, 1);
-		header.writeUint32BE(msg.ack, 5);
-		header.writeUint32BE(msg.data.byteLength, 9);
+		header.writeUInt8(msg.type, 0);
+		header.writeUInt32BE(msg.id, 1);
+		header.writeUInt32BE(msg.ack, 5);
+		header.writeUInt32BE(msg.data.byteLength, 9);
 		this._writeSoon(header, msg.data);
 	}
 
@@ -349,6 +373,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 		return this._socket;
 	}
 
+	sendDisconnect(): void {
+		// Nothing to do...
+	}
+
 	send(buffer: VSBuffer): void {
 		this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
 	}
@@ -369,6 +397,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	dispose(): void {
 		super.dispose();
 		const socket = this.protocol.getSocket();
+		this.protocol.sendDisconnect();
 		this.protocol.dispose();
 		socket.end();
 	}
@@ -377,7 +406,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 /**
  * Will ensure no messages are lost if there are no event listeners.
  */
-function createBufferedEvent<T>(source: Event<T>): Event<T> {
+export function createBufferedEvent<T>(source: Event<T>): Event<T> {
 	let emitter: Emitter<T>;
 	let hasListeners = false;
 	let isDeliveringMessages = false;
@@ -484,7 +513,7 @@ class Queue<T> {
  * Same as Protocol, but will actually track messages and acks.
  * Moreover, it will ensure no messages are lost if there are no event listeners.
  */
-export class PersistentProtocol {
+export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _isReconnecting: boolean;
 
@@ -548,7 +577,6 @@ export class PersistentProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
-		this._socketDisposables.push(this._socket.onEnd(() => this._onClose.fire()));
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
@@ -575,6 +603,12 @@ export class PersistentProtocol {
 			this._incomingKeepAliveTimeout = null;
 		}
 		this._socketDisposables = dispose(this._socketDisposables);
+	}
+
+	sendDisconnect(): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
+		this._socketWriter.write(msg);
+		this._socketWriter.flush();
 	}
 
 	private _sendKeepAliveCheck(): void {
@@ -635,7 +669,6 @@ export class PersistentProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
-		this._socketDisposables.push(this._socket.onEnd(() => this._onClose.fire()));
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 
@@ -651,6 +684,10 @@ export class PersistentProtocol {
 
 		this._sendKeepAliveCheck();
 		this._recvKeepAliveCheck();
+	}
+
+	public acceptDisconnect(): void {
+		this._onClose.fire();
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {
@@ -679,6 +716,8 @@ export class PersistentProtocol {
 			}
 		} else if (msg.type === ProtocolMessageType.Control) {
 			this._onControlMessage.fire(msg.data);
+		} else if (msg.type === ProtocolMessageType.Disconnect) {
+			this._onClose.fire();
 		}
 	}
 

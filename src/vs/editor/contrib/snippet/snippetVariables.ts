@@ -9,7 +9,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
@@ -269,7 +269,10 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			return basename(workspaceIdentifier.path);
 		}
 
-		const filename = basename(workspaceIdentifier.configPath.path);
-		return filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		let filename = basename(workspaceIdentifier.configPath.path);
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+		return filename;
 	}
 }

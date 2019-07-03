@@ -109,6 +109,8 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			this.viewController.emitMouseWheel(browserEvent);
+
 			if (!this._context.configuration.editor.viewInfo.mouseWheelZoom) {
 				return;
 			}
@@ -258,6 +260,10 @@ export class MouseHandler extends ViewEventHandler {
 			event: e,
 			target: t
 		});
+	}
+
+	public _onMouseWheel(e: IMouseWheelEvent): void {
+		this.viewController.emitMouseWheel(e);
 	}
 }
 

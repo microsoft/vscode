@@ -96,6 +96,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				const uri = editor.document.uri;
 				return [{
 					path: uri.fsPath,
+					posixPath: uri.path,
 					workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)
 				}];
 			}
@@ -121,6 +122,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			const folder = vscode.workspace.getWorkspaceFolder(uri);
 			return [{
 				path: normalizedConfigPath,
+				posixPath: uri.path,
 				workspaceFolder: folder
 			}];
 		}
@@ -232,9 +234,11 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
-			return path.relative(project.workspaceFolder.uri.fsPath, project.path);
+			const workspaceNormalizedUri = vscode.Uri.file(path.normalize(project.workspaceFolder.uri.fsPath)); // Make sure the drive letter is lowercase
+			return path.posix.relative(workspaceNormalizedUri.path, project.posixPath);
 		}
-		return project.path;
+
+		return project.posixPath;
 	}
 
 	private onConfigurationChanged(): void {

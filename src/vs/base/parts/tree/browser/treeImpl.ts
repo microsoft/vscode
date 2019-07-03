@@ -181,49 +181,12 @@ export class Tree implements _.ITree {
 		return this.model.toggleExpansion(element, recursive);
 	}
 
-	public toggleExpansionAll(elements: any[]): Promise<any> {
-		return this.model.toggleExpansionAll(elements);
-	}
-
 	public isExpanded(element: any): boolean {
 		return this.model.isExpanded(element);
 	}
 
-	public getExpandedElements(): any[] {
-		return this.model.getExpandedElements();
-	}
-
 	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.model.reveal(element, relativeTop);
-	}
-
-	public getRelativeTop(element: any): number {
-		const item = this.model.getItem(element);
-		return item ? this.view.getRelativeTop(item) : 0;
-	}
-
-	public getFirstVisibleElement(): any {
-		return this.view.getFirstVisibleElement();
-	}
-
-	public getLastVisibleElement(): any {
-		return this.view.getLastVisibleElement();
-	}
-
-	public getScrollPosition(): number {
-		return this.view.getScrollPosition();
-	}
-
-	public setScrollPosition(pos: number): void {
-		this.view.setScrollPosition(pos);
-	}
-
-	getContentHeight(): number {
-		return this.view.getContentHeight();
-	}
-
-	public setHighlight(element?: any, eventPayload?: any): void {
-		this.model.setHighlight(element, eventPayload);
 	}
 
 	public getHighlight(): any {

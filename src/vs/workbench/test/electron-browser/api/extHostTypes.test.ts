@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 
 function assertToJSON(a: any, expected: any) {
@@ -31,6 +31,7 @@ suite('ExtHostTypes', function () {
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+			_sep: isWindows ? 1 : undefined,
 		});
 
 		assert.ok(uri.toString());
@@ -39,6 +40,7 @@ suite('ExtHostTypes', function () {
 			scheme: 'file',
 			path: '/path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+			_sep: isWindows ? 1 : undefined,
 			external: 'file:///path/test.file'
 		});
 	});
