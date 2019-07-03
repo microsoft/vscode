@@ -389,8 +389,20 @@ export interface MainThreadProgressShape extends IDisposable {
 	$progressEnd(handle: number): void;
 }
 
+export interface TerminalLaunchConfig {
+	name?: string;
+	shellPath?: string;
+	shellArgs?: string[] | string;
+	cwd?: string | UriComponents;
+	env?: { [key: string]: string | null };
+	waitOnExit?: boolean;
+	strictEnv?: boolean;
+	hideFromUser?: boolean;
+	isVirtualProcess?: boolean;
+}
+
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string | null }, waitOnExit?: boolean, strictEnv?: boolean, hideFromUser?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(config: TerminalLaunchConfig): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -403,6 +415,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 
@@ -424,6 +437,8 @@ export interface TransferQuickInputButton extends quickInput.IQuickInputButton {
 export type TransferQuickInput = TransferQuickPick | TransferInputBox;
 
 export interface BaseTransferQuickInput {
+
+	[key: string]: any;
 
 	id: number;
 
@@ -620,7 +635,7 @@ export interface MainThreadSearchShape extends IDisposable {
 
 export interface MainThreadTaskShape extends IDisposable {
 	$createTaskId(task: tasks.TaskDTO): Promise<string>;
-	$registerTaskProvider(handle: number): Promise<void>;
+	$registerTaskProvider(handle: number, type: string): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
 	$fetchTasks(filter?: tasks.TaskFilterDTO): Promise<tasks.TaskDTO[]>;
 	$executeTask(task: tasks.TaskHandleDTO | tasks.TaskDTO): Promise<tasks.TaskExecutionDTO>;
@@ -1168,6 +1183,7 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO>;
+	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Thenable<tasks.TaskDTO | undefined>;
 	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number): void;
 	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;

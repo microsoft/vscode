@@ -41,7 +41,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { Schemas } from 'vs/base/common/network';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { buildTelemetryMessage } from 'vs/platform/environment/node/argv';
+import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -85,7 +85,7 @@ export class Main {
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.installExtensions(args, argv['force']);
+			await this.installExtensions(args, !!argv['force']);
 
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];

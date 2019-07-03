@@ -55,6 +55,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	protected readonly _onInstanceRequestExtHostProcess = new Emitter<ITerminalProcessExtHostRequest>();
 	public get onInstanceRequestExtHostProcess(): Event<ITerminalProcessExtHostRequest> { return this._onInstanceRequestExtHostProcess.event; }
+	protected readonly _onInstanceRequestVirtualProcess = new Emitter<ITerminalProcessExtHostProxy>();
+	public get onInstanceRequestVirtualProcess(): Event<ITerminalProcessExtHostProxy> { return this._onInstanceRequestVirtualProcess.event; }
 	protected readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	protected readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
@@ -140,6 +142,11 @@ export abstract class TerminalService implements ITerminalService {
 			}
 			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
+	}
+
+	public requestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
+		// Don't need to wait on extensions here as this can only be triggered by an extension
+		this._onInstanceRequestVirtualProcess.fire(proxy);
 	}
 
 	public extHostReady(remoteAuthority: string): void {

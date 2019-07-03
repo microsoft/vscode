@@ -719,7 +719,11 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
 
 		if (!isMouseEvent) {
-			this.open(true, false, false, e.browserEvent);
+			const preserveFocus = (e.browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>e.browserEvent).preserveFocus === 'boolean') ?
+				!!(<SelectionKeyboardEvent>e.browserEvent).preserveFocus :
+				true;
+
+			this.open(preserveFocus, false, false, e.browserEvent);
 		}
 	}
 

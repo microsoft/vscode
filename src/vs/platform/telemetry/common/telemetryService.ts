@@ -57,13 +57,13 @@ export class TelemetryService implements ITelemetryService {
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
-			type OptInClass = {
+			type OptInClassification = {
 				optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
 			};
 			type OptInEvent = {
 				optIn: boolean;
 			};
-			this.publicLog2<OptInEvent, OptInClass>('optInStatus', { optIn: this._userOptIn });
+			this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._userOptIn });
 
 			this._commonProperties.then(values => {
 				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);

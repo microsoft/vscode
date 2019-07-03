@@ -35,10 +35,30 @@ steps:
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
 
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+
 - script: |
     set -e
     yarn --frozen-lockfile
   displayName: Install dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
 - script: |
     set -e
@@ -61,29 +81,21 @@ steps:
 
 - script: |
     set -e
-    cd $BUILD_STAGINGDIRECTORY
-    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
-    cd vscode-telemetry-extractor
-    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
-    npm i
-    npm run setup-extension-repos
-    node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
-    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
-    mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
-    mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
-    mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+    ./build/azure-pipelines/common/extract-telemetry.sh
   displayName: Extract Telemetry
 
 - script: |
     set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    yarn gulp vscode-darwin-min
+      yarn gulp vscode-darwin-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    yarn gulp vscode-reh-darwin-min
+      yarn gulp vscode-reh-darwin-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    yarn gulp vscode-web-darwin-min
+      yarn gulp vscode-web-darwin-ci
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-    yarn gulp upload-vscode-sourcemaps
+      yarn gulp upload-vscode-sourcemaps
   displayName: Build
 
 - script: |

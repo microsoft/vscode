@@ -8,29 +8,28 @@ import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
-import { statSync, readFileSync } from 'fs';
-import { writeFileSync, readdirSync } from 'vs/base/node/pfs';
+import { writeFileSync } from 'vs/base/node/pfs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
  */
 
-class HelpCategories {
-	o = localize('optionsUpperCase', "Options");
-	e = localize('extensionsManagement', "Extensions Management");
-	t = localize('troubleshooting', "Troubleshooting");
-}
+const helpCategories = {
+	o: localize('optionsUpperCase', "Options"),
+	e: localize('extensionsManagement', "Extensions Management"),
+	t: localize('troubleshooting', "Troubleshooting")
+};
 
 export interface Option {
-	id: string;
+	id: keyof ParsedArgs;
 	type: 'boolean' | 'string';
 	alias?: string;
 	deprecates?: string; // old deprecated id
 	args?: string | string[];
 	description?: string;
-	cat?: keyof HelpCategories;
+	cat?: keyof typeof helpCategories;
 }
-
+//_urls
 export const options: Option[] = [
 	{ id: 'diff', type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	{ id: 'add', type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
@@ -86,16 +85,16 @@ export const options: Option[] = [
 	{ id: 'skip-add-to-recently-opened', type: 'boolean' },
 	{ id: 'unity-launch', type: 'boolean' },
 	{ id: 'open-url', type: 'boolean' },
-	{ id: 'nolazy', type: 'boolean' },
-	{ id: 'issue', type: 'boolean' },
 	{ id: 'file-write', type: 'boolean' },
 	{ id: 'file-chmod', type: 'boolean' },
 	{ id: 'driver-verbose', type: 'boolean' },
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
-	{ id: 'prof-code-loading', type: 'boolean' },
-	{ id: '_', type: 'string' }
+	{ id: '_', type: 'string' },
+
+	{ id: 'js-flags', type: 'string' }, // chrome js flags
+	{ id: 'nolazy', type: 'boolean' }, // node inspect
 ];
 
 export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
@@ -122,8 +121,8 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 		}
 	}
 	// remote aliases to avoid confusion
-	const parsedArgs = minimist(args, { string, boolean, alias }) as ParsedArgs;
-	for (let o of options) {
+	const parsedArgs = minimist(args, { string, boolean, alias });
+	for (const o of options) {
 		if (o.alias) {
 			delete parsedArgs[o.alias];
 		}
@@ -190,8 +189,6 @@ function wrapText(text: string, columns: number): string[] {
 export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true, isPipeSupported = true): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 
-	let categories = new HelpCategories();
-
 	let help = [`${productName} ${version}`];
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
@@ -204,10 +201,12 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		}
 		help.push('');
 	}
-	for (let key in categories) {
+	for (let helpCategoryKey in helpCategories) {
+		const key = <keyof typeof helpCategories>helpCategoryKey;
+
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {
-			help.push(categories[key]);
+			help.push(helpCategories[key]);
 			help.push(...formatOptions(categoryOptions, columns));
 			help.push('');
 		}
@@ -217,41 +216,6 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
-}
-
-export function buildTelemetryMessage(appRoot: string, extensionsPath: string): string {
-	// Gets all the directories inside the extension directory
-	const dirs = readdirSync(extensionsPath).filter(files => {
-		// This handles case where broken symbolic links can cause statSync to throw and error
-		try {
-			return statSync(join(extensionsPath, files)).isDirectory();
-		} catch {
-			return false;
-		}
-	});
-	const telemetryJsonFolders: string[] = [];
-	dirs.forEach((dir) => {
-		const files = readdirSync(join(extensionsPath, dir)).filter(file => file === 'telemetry.json');
-		// We know it contains a telemetry.json file so we add it to the list of folders which have one
-		if (files.length === 1) {
-			telemetryJsonFolders.push(dir);
-		}
-	});
-	const mergedTelemetry = Object.create(null);
-	// Simple function to merge the telemetry into one json object
-	const mergeTelemetry = (contents: string, dirName: string) => {
-		const telemetryData = JSON.parse(contents);
-		mergedTelemetry[dirName] = telemetryData;
-	};
-	telemetryJsonFolders.forEach((folder) => {
-		const contents = readFileSync(join(extensionsPath, folder, 'telemetry.json')).toString();
-		mergeTelemetry(contents, folder);
-	});
-	let contents = readFileSync(join(appRoot, 'telemetry-core.json')).toString();
-	mergeTelemetry(contents, 'vscode-core');
-	contents = readFileSync(join(appRoot, 'telemetry-extensions.json')).toString();
-	mergeTelemetry(contents, 'vscode-extensions');
-	return JSON.stringify(mergedTelemetry, null, 4);
 }
 
 /**

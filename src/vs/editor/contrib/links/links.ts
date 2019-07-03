@@ -9,7 +9,7 @@ import * as async from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -172,7 +172,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private readonly editor: ICodeEditor;
 	private enabled: boolean;
-	private listenersToRemove: IDisposable[];
+	private readonly listenersToRemove = new DisposableStore();
 	private readonly timeout: async.TimeoutTimer;
 	private computePromise: async.CancelablePromise<LinksList> | null;
 	private activeLinksList: LinksList | null;
@@ -189,22 +189,21 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.editor = editor;
 		this.openerService = openerService;
 		this.notificationService = notificationService;
-		this.listenersToRemove = [];
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
-		this.listenersToRemove.push(clickLinkGesture);
-		this.listenersToRemove.push(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+		this.listenersToRemove.add(clickLinkGesture);
+		this.listenersToRemove.add(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this._onEditorMouseMove(mouseEvent, keyboardEvent);
 		}));
-		this.listenersToRemove.push(clickLinkGesture.onExecute((e) => {
+		this.listenersToRemove.add(clickLinkGesture.onExecute((e) => {
 			this.onEditorMouseUp(e);
 		}));
-		this.listenersToRemove.push(clickLinkGesture.onCancel((e) => {
+		this.listenersToRemove.add(clickLinkGesture.onCancel((e) => {
 			this.cleanUpActiveLinkDecoration();
 		}));
 
 		this.enabled = editor.getConfiguration().contribInfo.links;
-		this.listenersToRemove.push(editor.onDidChangeConfiguration((e) => {
+		this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
 			let enabled = editor.getConfiguration().contribInfo.links;
 			if (this.enabled === enabled) {
 				// No change in our configuration option
@@ -221,10 +220,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			// Start computing (for the getting enabled case)
 			this.beginCompute();
 		}));
-		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
-		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
-		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+		this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
+		this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
+		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
+		this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
 
 		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
@@ -414,7 +413,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.listenersToRemove = dispose(this.listenersToRemove);
+		this.listenersToRemove.dispose();
 		this.stop();
 		this.timeout.dispose();
 	}

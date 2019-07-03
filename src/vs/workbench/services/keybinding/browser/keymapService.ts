@@ -28,6 +28,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 
 export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper
@@ -71,6 +72,7 @@ export class BrowserKeyboardMapperFactoryBase {
 
 	protected constructor(
 		private _notificationService: INotificationService,
+		private _storageService: IStorageService,
 		private _commandService: ICommandService
 	) {
 		this._keyboardMapper = null;
@@ -179,6 +181,11 @@ export class BrowserKeyboardMapperFactoryBase {
 			let score = matchedKeyboardLayout.score;
 
 			if (keymap && score < 0) {
+				const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
+				if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
+					return;
+				}
+
 				// the keyboard layout doesn't actually match the key event or the keymap from chromium
 				this._notificationService.prompt(
 					Severity.Info,
@@ -186,7 +193,11 @@ export class BrowserKeyboardMapperFactoryBase {
 					[{
 						label: nls.localize('keyboardLayoutMissing.configure', "Configure"),
 						run: () => this._commandService.executeCommand('workbench.action.openKeyboardLayoutPicker')
-					}],
+					}, {
+						label: nls.localize('neverAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+					}]
 				);
 
 				return;
@@ -412,8 +423,8 @@ export class BrowserKeyboardMapperFactoryBase {
 }
 
 export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(notificationService: INotificationService, commandService: ICommandService) {
-		super(notificationService, commandService);
+	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
+		super(notificationService, storageService, commandService);
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
@@ -490,13 +501,14 @@ class BrowserKeymapService extends Disposable implements IKeymapService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
 		@ICommandService commandService: ICommandService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
 		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
 		const layout = keyboardConfig.layout;
-		this._factory = new BrowserKeyboardMapperFactory(notificationService, commandService);
+		this._factory = new BrowserKeyboardMapperFactory(notificationService, storageService, commandService);
 
 		this.registerKeyboardListener();
 

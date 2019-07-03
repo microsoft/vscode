@@ -388,7 +388,11 @@ export class RemoteFileDialog {
 		const relativePath = resources.relativePath(currentDisplayUri, directUri);
 		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
 		if (relativePath && isSameRoot) {
-			const path = resources.joinPath(this.currentFolder, relativePath);
+			let path = resources.joinPath(this.currentFolder, relativePath);
+			const directBasename = resources.basename(directUri);
+			if ((directBasename === '.') || (directBasename === '..')) {
+				path = this.remoteUriFrom(this.pathAppend(path, directBasename));
+			}
 			return resources.hasTrailingPathSeparator(directUri) ? resources.addTrailingPathSeparator(path) : path;
 		} else {
 			return directUri;
@@ -479,7 +483,7 @@ export class RemoteFileDialog {
 					} catch (e) {
 						// do nothing
 					}
-					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
+					if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
 						await this.updateItems(inputUriDirname, false, resources.basename(valueUri));
 						this.badPath = undefined;
 						return UpdateResult.Updated;
@@ -528,7 +532,7 @@ export class RemoteFileDialog {
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (itemBasename === '..') {
 			// Don't match on the up directory item ever.
-			this.userEnteredPathSegment = startingValue;
+			this.userEnteredPathSegment = '';
 			this.autoCompletePathSegment = '';
 			this.activeItem = quickPickItem;
 			if (force) {
@@ -689,7 +693,7 @@ export class RemoteFileDialog {
 		this.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
-		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
+		const newValue = trailing ? this.pathAppend(newFolder, trailing) : this.pathFromUri(newFolder, true);
 		this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
 		return this.createItems(this.currentFolder).then(items => {
 			this.filePickBox.items = items;
@@ -728,7 +732,7 @@ export class RemoteFileDialog {
 	private pathAppend(uri: URI, additional: string): string {
 		if ((additional === '..') || (additional === '.')) {
 			const basePath = this.pathFromUri(uri);
-			return basePath + (this.endsWithSlash(basePath) ? '' : this.separator) + additional;
+			return basePath + this.separator + additional;
 		} else {
 			return this.pathFromUri(resources.joinPath(uri, additional));
 		}

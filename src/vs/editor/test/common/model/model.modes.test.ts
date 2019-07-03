@@ -180,25 +180,18 @@ suite('Editor Model - Model Modes 2', () => {
 	};
 
 	function invalidEqual(model: TextModel, expected: number[]): void {
-		let actual: number[] = [];
-		for (let i = 0, len = model.getLineCount(); i < len; i++) {
-			if (model._tokens._isInvalid(i)) {
-				actual.push(i);
-			}
-		}
-		assert.deepEqual(actual, expected);
+		assert.deepEqual(model._tokens._getAllInvalid(model.getLineCount()), expected);
 	}
 
 	function stateEqual(state: modes.IState, content: string): void {
 		assert.equal((<ModelState2>state).prevLineContent, content);
 	}
 
-	function statesEqual(model: TextModel, states: string[]): void {
-		let i, len = states.length - 1;
-		for (i = 0; i < len; i++) {
-			stateEqual(model._tokens._getState(i)!, states[i]);
+	function statesEqual(model: TextModel, expectedStates: string[]): void {
+		const actualStates = model._tokens._getAllStates(model.getLineCount());
+		for (let i = 0, len = expectedStates.length; i < len; i++) {
+			stateEqual(actualStates[i]!, expectedStates[i]);
 		}
-		stateEqual((<any>model)._tokens._lastState, states[len]);
 	}
 
 	let thisModel: TextModel;

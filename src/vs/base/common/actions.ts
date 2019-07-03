@@ -12,12 +12,12 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
-export type WBActionExecutedClassification = {
+export type WorkbenchActionExecutedClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-export type WBActionExecutedEvent = {
+export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
 };

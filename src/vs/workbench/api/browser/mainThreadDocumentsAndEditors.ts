@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -144,7 +144,7 @@ const enum ActiveEditorOrder {
 
 class MainThreadDocumentAndEditorStateComputer {
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState: DocumentAndEditorState;
 	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
@@ -172,7 +172,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	private _onDidAddEditor(e: ICodeEditor): void {
@@ -304,9 +304,8 @@ class MainThreadDocumentAndEditorStateComputer {
 @extHostCustomer
 export class MainThreadDocumentsAndEditors {
 
-	private _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
-	private readonly _stateComputer: MainThreadDocumentAndEditorStateComputer;
 	private _textEditors = <{ [id: string]: MainThreadTextEditor }>Object.create(null);
 
 	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
@@ -336,28 +335,23 @@ export class MainThreadDocumentsAndEditors {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService);
+		const mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService));
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService);
+		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService);
+		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService));
 
-		this._toDispose = [
-			mainThreadDocuments,
-			mainThreadTextEditors,
-			this._stateComputer,
-			this._onTextEditorAdd,
-			this._onTextEditorRemove,
-			this._onDocumentAdd,
-			this._onDocumentRemove,
-		];
+		this._toDispose.add(this._onTextEditorAdd);
+		this._toDispose.add(this._onTextEditorRemove);
+		this._toDispose.add(this._onDocumentAdd);
+		this._toDispose.add(this._onDocumentRemove);
 	}
 
 	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { assign } from 'vs/base/common/objects';
 import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
@@ -19,6 +19,7 @@ import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { isString } from 'vs/base/common/types';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -339,14 +340,15 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		if (args['js-flags']) {
-			const match = /max_old_space_size=(\d+)/g.exec(args['js-flags']);
+		const jsFlags = args['js-flags'];
+		if (isString(jsFlags)) {
+			const match = /max_old_space_size=(\d+)/g.exec(jsFlags);
 			if (match && !args['max-memory']) {
 				addArg(argv, `--max-memory=${match[1]}`);
 			}
 		}
 
-		const options = {
+		const options: SpawnOptions = {
 			detached: true,
 			env
 		};

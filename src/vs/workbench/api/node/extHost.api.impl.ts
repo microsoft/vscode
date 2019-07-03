@@ -524,10 +524,14 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.TerminalVirtualProcessOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
-					nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
-					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
+					if ('virtualProcess' in nameOrOptions) {
+						return extHostTerminalService.createVirtualProcessTerminal(nameOrOptions);
+					} else {
+						nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
+						return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
+					}
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
@@ -671,7 +675,7 @@ export function createApiFactory(
 				return extHostDocumentContentProviders.registerTextDocumentContentProvider(scheme, provider);
 			},
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
-				return extHostTask.registerTaskProvider(extension, provider);
+				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
@@ -772,7 +776,7 @@ export function createApiFactory(
 
 		const tasks: typeof vscode.tasks = {
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
-				return extHostTask.registerTaskProvider(extension, provider);
+				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
 			fetchTasks: (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
 				return extHostTask.fetchTasks(filter);

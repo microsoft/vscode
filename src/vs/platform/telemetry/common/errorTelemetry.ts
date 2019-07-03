@@ -5,7 +5,7 @@
 
 import { binarySearch } from 'vs/base/common/arrays';
 import * as Errors from 'vs/base/common/errors';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -49,7 +49,7 @@ export default abstract class BaseErrorTelemetry {
 	private _flushDelay: number;
 	private _flushHandle: any = -1;
 	private _buffer: ErrorEvent[] = [];
-	protected _disposables: IDisposable[] = [];
+	protected readonly _disposables = new DisposableStore();
 
 	constructor(telemetryService: ITelemetryService, flushDelay = BaseErrorTelemetry.ERROR_FLUSH_TIMEOUT) {
 		this._telemetryService = telemetryService;
@@ -57,7 +57,7 @@ export default abstract class BaseErrorTelemetry {
 
 		// (1) check for unexpected but handled errors
 		const unbind = Errors.errorHandler.addListener((err) => this._onErrorEvent(err));
-		this._disposables.push(toDisposable(unbind));
+		this._disposables.add(toDisposable(unbind));
 
 		// (2) install implementation-specific error listeners
 		this.installErrorListeners();
@@ -66,7 +66,7 @@ export default abstract class BaseErrorTelemetry {
 	dispose() {
 		clearTimeout(this._flushHandle);
 		this._flushBuffer();
-		this._disposables = dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	protected installErrorListeners(): void {

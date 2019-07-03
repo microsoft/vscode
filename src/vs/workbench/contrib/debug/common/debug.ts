@@ -8,7 +8,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
@@ -845,8 +845,6 @@ export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HE
 
 export interface IDebugHelperService {
 	_serviceBrand: any;
-
-	createTerminalLauncher(instantiationService: IInstantiationService): ITerminalLauncher;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

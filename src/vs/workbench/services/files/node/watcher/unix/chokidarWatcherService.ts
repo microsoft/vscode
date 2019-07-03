@@ -103,13 +103,13 @@ export class ChokidarWatcherService implements IWatcherService {
 			this.log(`Start watching: ${basePath}]`);
 		}
 
-		const pollingInterval = this._pollingInterval || 1000;
+		const pollingInterval = this._pollingInterval || 5000;
 		const usePolling = this._usePolling;
 		if (usePolling && this._verboseLogging) {
 			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
 		}
 
-		const watcherOpts: chokidar.IOptions = {
+		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
@@ -149,7 +149,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		this._watcherCount++;
 
 		// Detect if for some reason the native watcher library fails to load
-		if (isMacintosh && !chokidarWatcher.options.useFsEvents) {
+		if (isMacintosh && chokidarWatcher.options && !chokidarWatcher.options.useFsEvents) {
 			this.warn('Watcher is not using native fsevents library and is falling back to unefficient polling.');
 		}
 
@@ -293,15 +293,15 @@ export class ChokidarWatcherService implements IWatcherService {
 	}
 
 	private log(message: string) {
-		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (chockidar)] ` + message });
+		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
 	}
 
 	private warn(message: string) {
-		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (chockidar)] ` + message });
+		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (chokidar)] ` + message });
 	}
 
 	private error(message: string) {
-		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (chockidar)] ` + message });
+		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (chokidar)] ` + message });
 	}
 }
 

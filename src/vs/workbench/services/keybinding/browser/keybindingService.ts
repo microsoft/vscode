@@ -675,8 +675,8 @@ function updateSchema() {
 	};
 
 	const allCommands = CommandsRegistry.getCommands();
-	for (let commandId in allCommands) {
-		const commandDescription = allCommands[commandId].description;
+	for (const [commandId, command] of allCommands) {
+		const commandDescription = command.description;
 
 		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
 
@@ -704,7 +704,7 @@ function updateSchema() {
 	}
 
 	const menuCommands = MenuRegistry.getCommands();
-	for (let commandId in menuCommands) {
+	for (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
 }
