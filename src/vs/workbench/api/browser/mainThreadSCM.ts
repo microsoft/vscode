@@ -266,8 +266,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 export class MainThreadSCM implements MainThreadSCMShape {
 
 	private readonly _proxy: ExtHostSCMShape;
-	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
-	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
+	private _repositories = new Map<number, ISCMRepository>();
+	private _inputDisposables = new Map<number, IDisposable>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -281,13 +281,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	dispose(): void {
-		Object.keys(this._repositories)
-			.forEach(id => this._repositories[id].dispose());
-		this._repositories = Object.create(null);
+		this._repositories.forEach(r => r.dispose());
+		this._repositories.clear();
 
-		Object.keys(this._inputDisposables)
-			.forEach(id => this._inputDisposables[id].dispose());
-		this._inputDisposables = Object.create(null);
+		this._inputDisposables.forEach(d => d.dispose());
+		this._inputDisposables.clear();
 
 		this._disposables.dispose();
 	}
@@ -295,14 +293,14 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
 		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.revive(rootUri), this.scmService);
 		const repository = this.scmService.registerSCMProvider(provider);
-		this._repositories[handle] = repository;
+		this._repositories.set(handle, repository);
 
 		const inputDisposable = repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
-		this._inputDisposables[handle] = inputDisposable;
+		this._inputDisposables.set(handle, inputDisposable);
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
-		const repository = this._repositories[handle];
+		const repository = this._repositories.get(handle);
 
 		if (!repository) {
 			return;
@@ -313,21 +311,21 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$unregisterSourceControl(handle: number): void {
-		const repository = this._repositories[handle];
+		const repository = this._repositories.get(handle);
 
 		if (!repository) {
 			return;
 		}
 
-		this._inputDisposables[handle].dispose();
-		delete this._inputDisposables[handle];
+		this._inputDisposables.get(handle)!.dispose();
+		this._inputDisposables.delete(handle);
 
 		repository.dispose();
-		delete this._repositories[handle];
+		this._repositories.delete(handle);
 	}
 
 	$registerGroup(sourceControlHandle: number, groupHandle: number, id: string, label: string): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -338,7 +336,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -349,7 +347,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -360,7 +358,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -371,7 +369,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$unregisterGroup(sourceControlHandle: number, handle: number): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -382,7 +380,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -392,7 +390,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -402,7 +400,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
@@ -412,7 +410,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {
-		const repository = this._repositories[sourceControlHandle];
+		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
