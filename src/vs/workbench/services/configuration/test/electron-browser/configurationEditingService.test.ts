@@ -102,7 +102,7 @@ suite('ConfigurationEditingService', () => {
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(workspaceDir), fileService)));
+		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(workspaceDir), fileService)));
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {

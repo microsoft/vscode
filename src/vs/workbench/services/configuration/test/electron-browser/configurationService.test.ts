@@ -98,7 +98,7 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const environmentService = new WorkbenchEnvironmentService(<IWindowConfiguration>parseArgs(process.argv), process.execPath);
 				const fileService = new FileService(new NullLogService());
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService(), new SignService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
@@ -163,7 +163,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -222,7 +222,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -482,7 +482,7 @@ suite('WorkspaceService - Initialization', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
@@ -745,7 +745,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
@@ -1074,7 +1074,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -1476,7 +1476,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 				const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
 				const fileService = new FileService(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(parentDir), fileService)));
+				fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(parentDir), fileService)));
 				const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve() };
 				testObject = new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, fileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, testObject);

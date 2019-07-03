@@ -90,7 +90,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-			fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(URI.file('/User').with({ scheme: Schemas.userData }), new FileUserDataProvider(URI.file(testDir), fileService)));
+			fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(testDir), fileService)));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
