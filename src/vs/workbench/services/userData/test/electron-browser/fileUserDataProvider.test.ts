@@ -22,6 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataContainerRegistry, Extensions } from 'vs/workbench/services/userData/common/userData';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isLinux } from 'vs/base/common/platform';
 
 suite('FileUserDataProvider', () => {
 
@@ -102,6 +103,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file - event is triggerred when file is created', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'settings.json');
 		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
@@ -113,6 +117,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file - event is triggerred when file is created externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'settings.json');
 		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
@@ -124,6 +131,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file - event is triggerred when file is updated', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		disposables.add(testObject.watch(resource));
@@ -136,6 +146,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file - event is triggerred when file is update externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		disposables.add(testObject.watch(resource));
@@ -148,6 +161,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file - event is triggerred when file is deleted', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		disposables.add(testObject.watch(resource));
@@ -160,6 +176,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file - event is triggerred when file is deleted externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		disposables.add(testObject.watch(resource));
@@ -320,6 +339,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file under container - event is triggerred when file is created', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
@@ -331,6 +353,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file under container - event is triggerred when file is created externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		disposables.add(testObject.watch(resource));
 		testObject.onFileChanges(e => {
@@ -343,6 +368,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file under container - event is triggerred when file is updated', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
@@ -356,6 +384,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file under container - event is triggerred when file is updated externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		await pfs.writeFile(path.join(userDataPath, 'testContainer', 'settings.json'), '{}');
@@ -369,6 +400,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file under container - event is triggerred when file is deleted', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		disposables.add(testObject.watch(resource));
@@ -381,6 +415,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch file under container - event is triggerred when file is deleted externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
 		disposables.add(testObject.watch(resource));
@@ -393,6 +430,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch container - event is triggerred when file under container is created', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const container = joinPath(userDataResource, 'testContainer');
 		disposables.add(testObject.watch(container));
 		testObject.onFileChanges(e => {
@@ -404,6 +444,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch container - event is triggerred when file under container is created externally', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		await pfs.mkdirp(path.join(userDataPath, 'testContainer'));
 		const container = joinPath(userDataResource, 'testContainer');
 		disposables.add(testObject.watch(container));
@@ -416,6 +459,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch container - event is triggerred when file under container is deleted', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const container = joinPath(userDataResource, 'testContainer');
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
@@ -429,6 +475,9 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('watch container - event is triggerred when file under container is deleted externally ', async (done) => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
 		const container = joinPath(userDataResource, 'testContainer');
 		const resource = joinPath(userDataResource, 'testContainer/settings.json');
 		await testObject.writeFile(resource, VSBuffer.fromString('{}'));
