@@ -11,7 +11,7 @@
 
 	const handlerPromise = new Promise<Handler>((resolve, reject) => {
 		// load loader
-		const baseUrl = './out/';
+		const baseUrl = '../../../../../';
 		importScripts(baseUrl + 'vs/loader.js');
 		require.config({
 			baseUrl,

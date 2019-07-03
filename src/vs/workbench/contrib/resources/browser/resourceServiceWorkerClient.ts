@@ -86,7 +86,7 @@ class ResourcesMutationObserver {
 	}
 
 	private async _rewriteUrls(textContent: string): Promise<string> {
-		return textContent.replace(this._regexp, function (_m, quote, url) {
+		return textContent.replace(this._regexp, function (_m, quote = '', url) {
 			return `url(${quote}${location.href}vscode-resources/fetch?${encodeURIComponent(url)}${quote})`;
 		});
 	}
@@ -108,9 +108,9 @@ class ResourceServiceWorker {
 	}
 
 	private _initServiceWorker(): void {
-		const url = './resourceServiceWorkerMain.js';
-		navigator.serviceWorker.register(url).then(() => {
-			// console.log('registered');
+		const url = require.toUrl('./resourceServiceWorkerMain.js');
+		navigator.serviceWorker.register(url, { scope: '/' }).then(reg => {
+			console.log('registered', reg);
 			return navigator.serviceWorker.ready;
 		}).then(() => {
 			// console.log('ready');
