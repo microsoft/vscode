@@ -85,7 +85,7 @@ export class Main {
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.installExtensions(args, argv['force']);
+			await this.installExtensions(args, !!argv['force']);
 
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepEqual, equal } from 'assert';
-import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminalService';
-import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal';
+import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService, DEFAULT_TERMINAL_OSX, getDefaultTerminalWindows, getDefaultTerminalLinuxReady } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
 suite('ExternalTerminalService', () => {
 	let mockOnExit: Function;

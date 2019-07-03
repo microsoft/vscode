@@ -37,7 +37,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
@@ -85,24 +85,24 @@ class MainProcessService implements IMainProcessService {
 async function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): Promise<void> {
 	const services = new ServiceCollection();
 
-	const disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 
-	const onExit = () => dispose(disposables);
+	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
 	ipcRenderer.once('handshake:goodbye', onExit);
 
-	disposables.push(server);
+	disposables.add(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', mainRouter));
 	const logService = new FollowerLogService(logLevelClient, new SpdLogService('sharedprocess', environmentService.logsPath, initData.logLevel));
-	disposables.push(logService);
+	disposables.add(logService);
 	logService.info('main', JSON.stringify(configuration));
 
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
-	disposables.push(configurationService);
+	disposables.add(configurationService);
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
@@ -137,7 +137,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
-				disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+				disposables.add(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
 			}
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
@@ -179,13 +179,13 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			// update localizations cache
 			(localizationsService as LocalizationsService).update();
 			// cache clean ups
-			disposables.push(combinedDisposable(
+			disposables.add(combinedDisposable(
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
 				instantiationService2.createInstance(LogsDataCleaner)
 			));
-			disposables.push(extensionManagementService as ExtensionManagementService);
+			disposables.add(extensionManagementService as ExtensionManagementService);
 		});
 	});
 }

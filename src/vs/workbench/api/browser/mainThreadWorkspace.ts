@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -28,7 +28,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
-	private readonly _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -52,7 +52,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	dispose(): void {
-		dispose(this._toDispose);
+		this._toDispose.dispose();
 
 		for (let requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];

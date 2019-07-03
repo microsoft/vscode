@@ -13,8 +13,6 @@ const fs = require("fs");
 const _rimraf = require("rimraf");
 const git = require("./git");
 const VinylFile = require("vinyl");
-const download_1 = require("../download/download");
-const REPO_ROOT = path.join(__dirname, '../../');
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
     const input = es.through();
@@ -68,6 +66,9 @@ function fixWin32DirectoryPermissions() {
 exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
 function setExecutableBit(pattern) {
     const setBit = es.mapSync(f => {
+        if (!f.stat) {
+            f.stat = { isFile() { return true; } };
+        }
         f.stat.mode = /* 100755 */ 33261;
         return f;
     });
@@ -177,7 +178,7 @@ function rimraf(dir) {
             return cb(err);
         });
     };
-    retry.taskName = `clean-${path.basename(dir)}`;
+    retry.taskName = `clean-${path.basename(dir).toLowerCase()}`;
     return retry;
 }
 exports.rimraf = rimraf;
@@ -218,38 +219,3 @@ function versionStringToNumber(versionStr) {
     return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
 exports.versionStringToNumber = versionStringToNumber;
-function download(requestOptions) {
-    const result = es.through();
-    const filename = path.join(REPO_ROOT, `.build/tmp-${Date.now()}-${path.posix.basename(requestOptions.path)}`);
-    const opts = {
-        requestOptions: requestOptions,
-        destinationPath: filename
-    };
-    download_1.downloadInExternalProcess(opts).then(() => {
-        fs.stat(filename, (err, stat) => {
-            if (err) {
-                result.emit('error', err);
-                return;
-            }
-            fs.readFile(filename, (err, data) => {
-                if (err) {
-                    result.emit('error', err);
-                    return;
-                }
-                fs.unlink(filename, () => {
-                    result.emit('data', new VinylFile({
-                        path: path.normalize(requestOptions.path),
-                        stat: stat,
-                        base: path.normalize(requestOptions.path),
-                        contents: data
-                    }));
-                    result.emit('end');
-                });
-            });
-        });
-    }, (err) => {
-        result.emit('error', err);
-    });
-    return result;
-}
-exports.download = download;

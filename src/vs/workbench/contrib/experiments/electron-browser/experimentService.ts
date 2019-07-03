@@ -77,8 +77,10 @@ export enum ExperimentActionType {
 	ExtensionSearchResults = 'ExtensionSearchResults'
 }
 
+export type LocalizedPromptText = { [locale: string]: string; };
+
 export interface IExperimentActionPromptProperties {
-	promptText: string | { [key: string]: string };
+	promptText: string | LocalizedPromptText;
 	commands: IExperimentActionPromptCommand[];
 }
 
