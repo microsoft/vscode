@@ -117,7 +117,7 @@ jobs:
 - job: Mooncake
   pool:
     vmImage: 'Ubuntu-16.04'
-  condition: true
+  condition: succeededOrFailed()
   dependsOn:
   - Windows
   - Windows32
