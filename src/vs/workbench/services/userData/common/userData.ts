@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 /**
  * The userDataProvider is used to handle user specific application
@@ -62,3 +64,37 @@ export interface IUserDataProvider {
 	 */
 	listFiles(path: string): Promise<string[]>;
 }
+
+export interface IUserDataContainerRegistry {
+
+	/**
+	 * Register the given path as an user data container if user data files are stored under this path.
+	 *
+	 * It is required to register the container to access the user data files under the container.
+	 */
+	registerContainer(path: string): void;
+
+	/**
+	 *	Returns true if the given path is an user data container.
+	 */
+	isContainer(path: string): boolean;
+}
+
+class UserDataContainerRegistry implements IUserDataContainerRegistry {
+
+	private containers: TernarySearchTree<string> = TernarySearchTree.forStrings();
+
+	public registerContainer(path: string): void {
+		this.containers.set(path, path);
+	}
+
+	isContainer(path: string): boolean {
+		return !!this.containers.get(path) || !!this.containers.findSuperstr(path);
+	}
+}
+
+export const Extensions = {
+	UserDataContainers: 'workbench.contributions.userDataContainers'
+};
+
+Registry.add(Extensions.UserDataContainers, new UserDataContainerRegistry());

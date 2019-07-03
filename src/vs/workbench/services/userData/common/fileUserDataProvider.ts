@@ -45,16 +45,8 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 
 	async readFile(path: string): Promise<Uint8Array> {
 		const resource = this.toResource(path);
-		try {
-			const content = await this.fileService.readFile(resource);
-			return content.value.buffer;
-		} catch (e) {
-			const exists = await this.fileService.exists(resource);
-			if (exists) {
-				throw e;
-			}
-		}
-		return VSBuffer.fromString('').buffer;
+		const content = await this.fileService.readFile(resource);
+		return content.value.buffer;
 	}
 
 	writeFile(path: string, value: Uint8Array): Promise<void> {
