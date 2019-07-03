@@ -52,56 +52,6 @@ suite('window namespace tests', () => {
 			const terminal = window.createTerminal('b');
 		});
 
-		test('createTerminalRenderer should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
-			const reg1 = window.onDidOpenTerminal(term => {
-				equal(term.name, 'c');
-				reg1.dispose();
-				const reg2 = window.onDidCloseTerminal(() => {
-					reg2.dispose();
-					done();
-				});
-				term.dispose();
-			});
-			window.createTerminalRenderer('c');
-		});
-
-		test('terminal renderers should get maximum dimensions set when shown', (done) => {
-			let terminal: Terminal;
-			const reg1 = window.onDidOpenTerminal(term => {
-				reg1.dispose();
-				term.show();
-				terminal = term;
-			});
-			const renderer = window.createTerminalRenderer('foo');
-			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
-				ok(dimensions.columns > 0);
-				ok(dimensions.rows > 0);
-				reg2.dispose();
-				const reg3 = window.onDidCloseTerminal(() => {
-					reg3.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-		});
-
-		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
-			const reg1 = window.onDidOpenTerminal(terminal => {
-				reg1.dispose();
-				const reg2 = terminal.onDidWriteData(data => {
-					equal(data, 'bar');
-					reg2.dispose();
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
-						done();
-					});
-					terminal.dispose();
-				});
-				renderer.write('bar');
-			});
-			const renderer = window.createTerminalRenderer('foo');
-		});
-
 		test('Terminal.sendText should fire Terminal.onInput', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
@@ -198,6 +148,58 @@ suite('window namespace tests', () => {
 				done();
 			});
 		});
+
+		suite('Terminal renderers (deprecated)', () => {
+			test('should fire onDidOpenTerminal and onDidCloseTerminal from createTerminalRenderer terminal', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					equal(term.name, 'c');
+					reg1.dispose();
+					const reg2 = window.onDidCloseTerminal(() => {
+						reg2.dispose();
+						done();
+					});
+					term.dispose();
+				});
+				window.createTerminalRenderer('c');
+			});
+
+			test('should get maximum dimensions set when shown', (done) => {
+				let terminal: Terminal;
+				const reg1 = window.onDidOpenTerminal(term => {
+					reg1.dispose();
+					term.show();
+					terminal = term;
+				});
+				const renderer = window.createTerminalRenderer('foo');
+				const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
+					ok(dimensions.columns > 0);
+					ok(dimensions.rows > 0);
+					reg2.dispose();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
+				});
+			});
+
+			test('should fire Terminal.onData on write', (done) => {
+				const reg1 = window.onDidOpenTerminal(terminal => {
+					reg1.dispose();
+					const reg2 = terminal.onDidWriteData(data => {
+						equal(data, 'bar');
+						reg2.dispose();
+						const reg3 = window.onDidCloseTerminal(() => {
+							reg3.dispose();
+							done();
+						});
+						terminal.dispose();
+					});
+					renderer.write('bar');
+				});
+				const renderer = window.createTerminalRenderer('foo');
+			});
+		})
 
 		suite('Virtual process terminals', () => {
 			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
