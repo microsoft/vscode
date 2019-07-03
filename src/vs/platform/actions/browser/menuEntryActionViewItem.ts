@@ -9,7 +9,7 @@ import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionba
 import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
 
-	private _subscriptions: IDisposable[] = [];
+	private readonly _subscriptions = new DisposableStore();
 	private _isPressed: boolean;
 	private static instance: AlternativeKeyEmitter;
 	private _suppressAltKeyUp: boolean = false;
@@ -28,10 +28,10 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
 
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+		this._subscriptions.add(domEvent(document.body, 'keydown')(e => {
 			this.isPressed = e.altKey || ((isWindows || isLinux) && e.shiftKey);
 		}));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+		this._subscriptions.add(domEvent(document.body, 'keyup')(e => {
 			if (this.isPressed) {
 				if (this._suppressAltKeyUp) {
 					e.preventDefault();
@@ -41,10 +41,10 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 			this._suppressAltKeyUp = false;
 			this.isPressed = false;
 		}));
-		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
+		this._subscriptions.add(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
+		this._subscriptions.add(domEvent(document.body, 'blur')(e => this.isPressed = false));
 		// Workaround since we do not get any events while a context menu is shown
-		this._subscriptions.push(contextMenuService.onDidContextMenu(() => this.isPressed = false));
+		this._subscriptions.add(contextMenuService.onDidContextMenu(() => this.isPressed = false));
 	}
 
 	get isPressed(): boolean {
@@ -72,7 +72,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	dispose() {
 		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
+		this._subscriptions.dispose();
 	}
 }
 

@@ -41,7 +41,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { Schemas } from 'vs/base/common/network';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { buildTelemetryMessage } from 'vs/platform/environment/node/argv';
+import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);

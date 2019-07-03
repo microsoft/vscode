@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -17,7 +17,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _proxy: ExtHostTerminalServiceShape;
 	private _remoteAuthority: string | null;
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private _terminalProcesses: { [id: number]: Promise<ITerminalProcessExtHostProxy> } = {};
 	private _terminalProcessesReady: { [id: number]: (proxy: ITerminalProcessExtHostProxy) => void } = {};
 	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
@@ -33,7 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._remoteAuthority = extHostContext.remoteAuthority;
 
 		// ITerminalService listeners
-		this._toDispose.push(_terminalService.onInstanceCreated((instance) => {
+		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
 			// to register non-extension API terminals in the extension host.
@@ -42,20 +42,21 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				this._onInstanceDimensionsChanged(instance);
 			}, EXT_HOST_CREATION_DELAY);
 		}));
-		this._toDispose.push(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
-		this._toDispose.push(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
-		this._toDispose.push(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
-		this._toDispose.push(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
-		this._toDispose.push(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
-		this._toDispose.push(_terminalService.onInstanceRequestVirtualProcess(proxy => this._onTerminalRequestVirtualProcess(proxy)));
-		this._toDispose.push(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
-		this._toDispose.push(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
-		this._toDispose.push(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
-		this._toDispose.push(_terminalService.onRequestAvailableShells(e => this._onRequestAvailableShells(e)));
+
+		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
+		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
+		this._toDispose.add(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
+		this._toDispose.add(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
+		this._toDispose.add(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
+		this._toDispose.add(_terminalService.onInstanceRequestVirtualProcess(proxy => this._onTerminalRequestVirtualProcess(proxy)));
+		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
+		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
+		this._toDispose.add(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
+		this._toDispose.add(_terminalService.onRequestAvailableShells(e => this._onRequestAvailableShells(e)));
 
 		// ITerminalInstanceService listeners
 		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.push(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
+			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
 		}
 
 		// Set initial ext host state
@@ -72,7 +73,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 
 		// TODO@Daniel: Should all the previously created terminals be disposed
 		// when the extension host process goes down ?

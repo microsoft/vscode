@@ -126,26 +126,28 @@ suite('window namespace tests', () => {
 			terminal1.show();
 		});
 
-		test('hideFromUser terminal: onDidWriteData should work', done => {
-			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-			let data = '';
-			terminal.onDidWriteData(e => {
-				data += e;
-				if (data.indexOf('foo') !== -1) {
-					terminal.dispose();
-					done();
-				}
+		suite('hideFromUser', () => {
+			test('should fire onDidWriteData correctly', done => {
+				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+				let data = '';
+				terminal.onDidWriteData(e => {
+					data += e;
+					if (data.indexOf('foo') !== -1) {
+						terminal.dispose();
+						done();
+					}
+				});
+				terminal.sendText('foo');
 			});
-			terminal.sendText('foo');
-		});
 
-		test('hideFromUser terminal: should be available to terminals API', done => {
-			const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-			window.onDidOpenTerminal(t => {
-				equal(t, terminal);
-				equal(t.name, 'bg');
-				ok(window.terminals.indexOf(terminal) !== -1);
-				done();
+			test('should be available to terminals API', done => {
+				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+				window.onDidOpenTerminal(t => {
+					equal(t, terminal);
+					equal(t.name, 'bg');
+					ok(window.terminals.indexOf(terminal) !== -1);
+					done();
+				});
 			});
 		});
 

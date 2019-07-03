@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -30,7 +30,7 @@ class ModelData implements IDisposable {
 	private _languageSelection: ILanguageSelection | null;
 	private _languageSelectionListener: IDisposable | null;
 
-	private _modelEventListeners: IDisposable[];
+	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
 		model: ITextModel,
@@ -42,9 +42,8 @@ class ModelData implements IDisposable {
 		this._languageSelection = null;
 		this._languageSelectionListener = null;
 
-		this._modelEventListeners = [];
-		this._modelEventListeners.push(model.onWillDispose(() => onWillDispose(model)));
-		this._modelEventListeners.push(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
+		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+		this._modelEventListeners.add(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
 	private _disposeLanguageSelection(): void {
@@ -59,7 +58,7 @@ class ModelData implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._modelEventListeners = dispose(this._modelEventListeners);
+		this._modelEventListeners.dispose();
 		this._disposeLanguageSelection();
 	}
 

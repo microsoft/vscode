@@ -210,7 +210,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: { [id: string]: string; }): IKeybindingItem {
-		const menuCommand = MenuRegistry.getCommand(command);
+		const menuCommand = MenuRegistry.getCommand(command)!;
 		const editorActionLabel = editorActions[command];
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
