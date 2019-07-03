@@ -14,7 +14,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -261,7 +261,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Log in telemetry
 			if (this.telemetryService) {
-				this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 			}
 		});
 

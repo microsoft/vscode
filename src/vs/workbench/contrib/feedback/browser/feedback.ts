@@ -17,7 +17,7 @@ import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBord
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/product';
 
@@ -213,7 +213,7 @@ export class FeedbackDropdown extends Dropdown {
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
-			this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: actionId, from: 'feedback' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionId, from: 'feedback' });
 		}));
 
 		// Contact: Request a Feature
