@@ -23,6 +23,8 @@ jobs:
     vmImage: VS2017-Win2016
   variables:
     VSCODE_ARCH: x64
+  dependsOn:
+  - Compile
   steps:
   - template: win32/product-build-win32.yml
 
@@ -33,6 +35,8 @@ jobs:
     vmImage: VS2017-Win2016
   variables:
     VSCODE_ARCH: ia32
+  dependsOn:
+  - Compile
   steps:
   - template: win32/product-build-win32.yml
 
@@ -68,6 +72,8 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: armhf
+  dependsOn:
+  - Compile
   steps:
   - template: linux/product-build-linux-arm.yml
 
@@ -78,6 +84,8 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: alpine
+  dependsOn:
+  - Compile
   steps:
   - template: linux/product-build-linux-alpine.yml
 
@@ -86,6 +94,8 @@ jobs:
   timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
+  dependsOn:
+  - Compile
   steps:
   - template: darwin/product-build-darwin.yml
 
