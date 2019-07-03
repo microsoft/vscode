@@ -1314,7 +1314,7 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   write: writeEmitter.event
+		 *   onDidWrite: writeEmitter.event
 		 * };
 		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
 		 * writeEmitter.fire('\x1b[31mHello world\x1b[0m');
@@ -1337,8 +1337,8 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   write: writeEmitter.event,
-		 *   overrideDimensions: dimensionsEmitter.event
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidOverrideDimensions: dimensionsEmitter.event
 		 * };
 		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
 		 * dimensionsEmitter.fire({
@@ -1352,6 +1352,17 @@ declare module 'vscode' {
 		/**
 		 * An event that when fired will exit the process with an exit code, this will behave the
 		 * same for a virtual process as when a regular process exits with an exit code.
+		 *
+		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const exitEmitter = new vscode.EventEmitter<number>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   input: data => exitEmitter.fire(data === 'y' ? 0 : 1)
+		 * };
+		 * vscode.window.createTerminal({ name: 'Exit example', virtualProcess });
+		 * writeEmitter.fire('Press y to exit successfully');
 		 */
 		onDidExit?: Event<number>;
 
@@ -1368,7 +1379,7 @@ declare module 'vscode' {
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   input: data => writeEmitter.fire(data === '\r' ? '\r\n' : data);
+		 *   input: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
 		 * };
 		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
 		 * ```
