@@ -505,7 +505,7 @@ import product from 'vs/platform/product/node/product';
 			},
 			'window.vibrancy': {
 				'type': 'string',
-				'enum': ['', 'light', 'medium-light', 'dark', 'ultra-dark'],
+				'enum': ['', 'appearance-based', 'light', 'dark', 'medium-light', 'ultra-dark'],
 				'default': '',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.vibrancy', "Enables macOS Mojave transparent window effects. Requires a theme that has transparent colors. Note that changes require a full restart to apply."),
