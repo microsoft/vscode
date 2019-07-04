@@ -10,13 +10,12 @@ import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
 import { assign } from 'vs/base/common/objects';
-import { IExternalTerminalService, IExternalTerminalConfiguration } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
+import { IExternalTerminalService, IExternalTerminalConfiguration, IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 
@@ -40,9 +39,9 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
-		const exec = configuration.external.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
+		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
@@ -134,9 +133,9 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
-		const terminalApp = configuration.external.osxExec || DEFAULT_TERMINAL_OSX;
+		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
@@ -230,10 +229,9 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
-		const terminalConfig = configuration.external;
-		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
