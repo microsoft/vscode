@@ -247,7 +247,7 @@ suite('window namespace tests', () => {
 				});
 				const renderer = window.createTerminalRenderer('foo');
 			});
-		})
+		});
 
 		suite('Virtual process terminals', () => {
 			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
@@ -317,7 +317,7 @@ suite('window namespace tests', () => {
 					const reg2 = window.onDidChangeTerminalDimensions(e => {
 						equal(e.dimensions.columns, 10);
 						equal(e.dimensions.rows, 5);
-						equal(e.terminal, terminal)
+						equal(e.terminal, terminal);
 						reg2.dispose();
 						const reg3 = window.onDidCloseTerminal(() => {
 							reg3.dispose();
