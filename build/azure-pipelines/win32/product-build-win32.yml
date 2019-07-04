@@ -46,7 +46,7 @@ steps:
     exec { git config user.name "VSCode" }
 
     mkdir .build -ea 0
-    echo $(VSCODE_ARCH) > .build\arch
+    "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
   displayName: Prepare tooling
 
 - powershell: |

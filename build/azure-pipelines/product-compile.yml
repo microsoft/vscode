@@ -98,6 +98,7 @@ steps:
 - script: |
     set -e
     yarn gulp compile-build
+    yarn gulp compile-extensions-build-legacy
     yarn gulp compile-extensions-build
     yarn gulp minify-vscode
     yarn gulp minify-vscode-reh

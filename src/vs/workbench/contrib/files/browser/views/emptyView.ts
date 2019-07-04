@@ -24,6 +24,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
 
 export class EmptyView extends ViewletPanel {
 
@@ -123,7 +124,7 @@ export class EmptyView extends ViewletPanel {
 			}
 			this.titleElement.textContent = EmptyView.NAME;
 		} else {
-			if (this.environmentService.configuration.remoteAuthority) {
+			if (this.environmentService.configuration.remoteAuthority && !isWeb) {
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
 				this.messageElement.textContent = hostLabel ? nls.localize('remoteNoFolderHelp', "Connected to {0}", hostLabel) : nls.localize('connecting', "Connecting...");
 			} else {

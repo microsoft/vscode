@@ -170,29 +170,22 @@ suite('Editor Model - Model Modes 2', () => {
 		}
 	}
 
+	let calledFor: string[] = [];
+
+	function checkAndClear(arr: string[]): void {
+		assert.deepEqual(calledFor, arr);
+		calledFor = [];
+	}
+
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
 		tokenize: undefined!,
 		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
 			return new TokenizationResult2(null!, state);
 		}
 	};
-
-	function invalidEqual(model: TextModel, expected: number[]): void {
-		assert.deepEqual(model._tokens._getAllInvalid(model.getLineCount()), expected);
-	}
-
-	function stateEqual(state: modes.IState, content: string): void {
-		assert.equal((<ModelState2>state).prevLineContent, content);
-	}
-
-	function statesEqual(model: TextModel, expectedStates: string[]): void {
-		const actualStates = model._tokens._getAllStates(model.getLineCount());
-		for (let i = 0, len = expectedStates.length; i < len; i++) {
-			stateEqual(actualStates[i]!, expectedStates[i]);
-		}
-	}
 
 	let thisModel: TextModel;
 	let languageRegistration: IDisposable;
@@ -216,64 +209,54 @@ suite('Editor Model - Model Modes 2', () => {
 
 	test('getTokensForInvalidLines one text insert', () => {
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '-')]);
-		invalidEqual(thisModel, [0]);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1-', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1-', 'Line2']);
 	});
 
 	test('getTokensForInvalidLines two text insert', () => {
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([
 			EditOperation.insert(new Position(1, 6), '-'),
 			EditOperation.insert(new Position(3, 6), '-')
 		]);
 
-		invalidEqual(thisModel, [0, 2]);
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1-', 'Line2', 'Line3-', 'Line4', 'Line5']);
+		checkAndClear(['Line1-', 'Line2', 'Line3-', 'Line4']);
 	});
 
 	test('getTokensForInvalidLines one multi-line text insert, one small text insert', () => {
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '\nNew line\nAnother new line')]);
-		invalidEqual(thisModel, [0, 1, 2]);
 		thisModel.applyEdits([EditOperation.insert(new Position(5, 6), '-')]);
-		invalidEqual(thisModel, [0, 1, 2, 4]);
 		thisModel.forceTokenization(7);
-		statesEqual(thisModel, ['', 'Line1', 'New line', 'Another new line', 'Line2', 'Line3-', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'New line', 'Another new line', 'Line2', 'Line3-', 'Line4']);
 	});
 
 	test('getTokensForInvalidLines one delete text', () => {
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 5))]);
-		invalidEqual(thisModel, [0]);
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', '1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['1', 'Line2']);
 	});
 
 	test('getTokensForInvalidLines one line delete text', () => {
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 2, 1))]);
-		invalidEqual(thisModel, [0]);
-		statesEqual(thisModel, ['', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.forceTokenization(4);
-		statesEqual(thisModel, ['', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line2']);
 	});
 
 	test('getTokensForInvalidLines multiple lines delete text', () => {
 		thisModel.forceTokenization(5);
-		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
+		checkAndClear(['Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 3))]);
-		invalidEqual(thisModel, [0]);
-		statesEqual(thisModel, ['', 'Line3', 'Line4', 'Line5']);
 		thisModel.forceTokenization(3);
-		statesEqual(thisModel, ['', 'ne3', 'Line4', 'Line5']);
+		checkAndClear(['ne3', 'Line4']);
 	});
 });
