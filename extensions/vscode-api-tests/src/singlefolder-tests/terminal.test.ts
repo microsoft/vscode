@@ -95,92 +95,92 @@ suite('window namespace tests', () => {
 			const renderer = window.createTerminalRenderer('foo');
 		});
 
-		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-				equal(active, terminal);
-				equal(active, window.activeTerminal);
-				reg1.dispose();
-				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
-					equal(active, undefined);
-					equal(active, window.activeTerminal);
-					reg2.dispose();
-					done();
-				});
-				terminal.dispose();
-			});
-			const terminal = window.createTerminal();
-			terminal.show();
-		});
+		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
+		// 	const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+		// 		equal(active, terminal);
+		// 		equal(active, window.activeTerminal);
+		// 		reg1.dispose();
+		// 		const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+		// 			equal(active, undefined);
+		// 			equal(active, window.activeTerminal);
+		// 			reg2.dispose();
+		// 			done();
+		// 		});
+		// 		terminal.dispose();
+		// 	});
+		// 	const terminal = window.createTerminal();
+		// 	terminal.show();
+		// });
 
-		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
-				equal(event.terminal, terminal1);
-				equal(typeof event.dimensions.columns, 'number');
-				equal(typeof event.dimensions.rows, 'number');
-				ok(event.dimensions.columns > 0);
-				ok(event.dimensions.rows > 0);
-				reg1.dispose();
-				let terminal2: Terminal;
-				const reg2 = window.onDidOpenTerminal((newTerminal) => {
-					// This is guarantees to fire before dimensions change event
-					if (newTerminal !== terminal1) {
-						terminal2 = newTerminal;
-						reg2.dispose();
-					}
-				});
-				let firstCalled = false;
-				let secondCalled = false;
-				const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
-					if (event.terminal === terminal1) {
-						// The original terminal should fire dimension change after a split
-						firstCalled = true;
-					} else if (event.terminal !== terminal1) {
-						// The new split terminal should fire dimension change
-						secondCalled = true;
-					}
-					if (firstCalled && secondCalled) {
-						let firstDisposed = false;
-						let secondDisposed = false;
-						const reg4 = window.onDidCloseTerminal(term => {
-							if (term === terminal1) {
-								firstDisposed = true;
-							}
-							if (term === terminal2) {
-								secondDisposed = true;
-							}
-							if (firstDisposed && secondDisposed) {
-								reg4.dispose();
-								done();
-							}
-						});
-						terminal1.dispose();
-						terminal2.dispose();
-						reg3.dispose();
-					}
-				});
-				await timeout(500);
-				commands.executeCommand('workbench.action.terminal.split');
-			});
-			const terminal1 = window.createTerminal({ name: 'test' });
-			terminal1.show();
-		});
+		// test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
+		// 	const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
+		// 		equal(event.terminal, terminal1);
+		// 		equal(typeof event.dimensions.columns, 'number');
+		// 		equal(typeof event.dimensions.rows, 'number');
+		// 		ok(event.dimensions.columns > 0);
+		// 		ok(event.dimensions.rows > 0);
+		// 		reg1.dispose();
+		// 		let terminal2: Terminal;
+		// 		const reg2 = window.onDidOpenTerminal((newTerminal) => {
+		// 			// This is guarantees to fire before dimensions change event
+		// 			if (newTerminal !== terminal1) {
+		// 				terminal2 = newTerminal;
+		// 				reg2.dispose();
+		// 			}
+		// 		});
+		// 		let firstCalled = false;
+		// 		let secondCalled = false;
+		// 		const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
+		// 			if (event.terminal === terminal1) {
+		// 				// The original terminal should fire dimension change after a split
+		// 				firstCalled = true;
+		// 			} else if (event.terminal !== terminal1) {
+		// 				// The new split terminal should fire dimension change
+		// 				secondCalled = true;
+		// 			}
+		// 			if (firstCalled && secondCalled) {
+		// 				let firstDisposed = false;
+		// 				let secondDisposed = false;
+		// 				const reg4 = window.onDidCloseTerminal(term => {
+		// 					if (term === terminal1) {
+		// 						firstDisposed = true;
+		// 					}
+		// 					if (term === terminal2) {
+		// 						secondDisposed = true;
+		// 					}
+		// 					if (firstDisposed && secondDisposed) {
+		// 						reg4.dispose();
+		// 						done();
+		// 					}
+		// 				});
+		// 				terminal1.dispose();
+		// 				terminal2.dispose();
+		// 				reg3.dispose();
+		// 			}
+		// 		});
+		// 		await timeout(500);
+		// 		commands.executeCommand('workbench.action.terminal.split');
+		// 	});
+		// 	const terminal1 = window.createTerminal({ name: 'test' });
+		// 	terminal1.show();
+		// });
 
 		suite('hideFromUser', () => {
-			test('should fire onDidWriteData correctly', done => {
-				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-				let data = '';
-				terminal.onDidWriteData(e => {
-					data += e;
-					if (data.indexOf('foo') !== -1) {
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
-						terminal.dispose();
-					}
-				});
-				terminal.sendText('foo');
-			});
+			// test('should fire onDidWriteData correctly', done => {
+			// 	const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
+			// 	let data = '';
+			// 	terminal.onDidWriteData(e => {
+			// 		data += e;
+			// 		if (data.indexOf('foo') !== -1) {
+			// 			const reg3 = window.onDidCloseTerminal(() => {
+			// 				reg3.dispose();
+			// 				done();
+			// 			});
+			// 			terminal.dispose();
+			// 		}
+			// 	});
+			// 	terminal.sendText('foo');
+			// });
 
 			test('should be available to terminals API', done => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
