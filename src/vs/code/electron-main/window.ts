@@ -164,7 +164,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const useVibrancy = isMacintosh && windowConfig && windowConfig.vibrancy !== '';
 		if (useVibrancy) {
 			options.vibrancy = windowConfig.vibrancy;
-			options.backgroundColor = '#00000000';
+			options.backgroundColor = '#00FFFFFF';
 		}
 
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
