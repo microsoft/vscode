@@ -71,7 +71,7 @@ steps:
 
 - script: |
     set -e
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
     node build/azure-pipelines/common/installDistroDependencies.js
     node build/azure-pipelines/common/installDistroDependencies.js remote
   displayName: Install dependencies
