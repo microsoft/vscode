@@ -1314,7 +1314,7 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   write: writeEmitter.event
+		 *   onDidWrite: writeEmitter.event
 		 * };
 		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
 		 * writeEmitter.fire('\x1b[31mHello world\x1b[0m');
@@ -1325,7 +1325,7 @@ declare module 'vscode' {
 		 * writeEmitter.fire('\x1b[10;20H*');
 		 * ```
 		 */
-		write: Event<string>;
+		onDidWrite: Event<string>;
 
 		/**
 		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
@@ -1337,8 +1337,8 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   write: writeEmitter.event,
-		 *   overrideDimensions: dimensionsEmitter.event
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidOverrideDimensions: dimensionsEmitter.event
 		 * };
 		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
 		 * dimensionsEmitter.fire({
@@ -1347,13 +1347,24 @@ declare module 'vscode' {
 		 * });
 		 * ```
 		 */
-		overrideDimensions?: Event<TerminalDimensions | undefined>;
+		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
 
 		/**
 		 * An event that when fired will exit the process with an exit code, this will behave the
 		 * same for a virtual process as when a regular process exits with an exit code.
+		 *
+		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const exitEmitter = new vscode.EventEmitter<number>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   input: data => exitEmitter.fire(data === 'y' ? 0 : 1)
+		 * };
+		 * vscode.window.createTerminal({ name: 'Exit example', virtualProcess });
+		 * writeEmitter.fire('Press y to exit successfully');
 		 */
-		exit?: Event<number>;
+		onDidExit?: Event<number>;
 
 		/**
 		 * Implement to handle keystrokes in the terminal or when an extension calls
@@ -1367,13 +1378,13 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   write: writeEmitter.event,
-		 *   onDidAcceptInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data);
+		 *   onDidWrite: writeEmitter.event,
+		 *   input: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
 		 * };
 		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
 		 * ```
 		 */
-		onDidAcceptInput?(data: string): void;
+		input?(data: string): void;
 
 		/**
 		 * Implement to handle when the number of rows and columns that fit into the terminal panel
@@ -1383,12 +1394,12 @@ declare module 'vscode' {
 		 *
 		 * @param dimensions The new dimensions.
 		 */
-		onDidChangeDimensions?(dimensions: TerminalDimensions): void;
+		setDimensions?(dimensions: TerminalDimensions): void;
 
 		/**
 		 * Implement to handle when the terminal shuts down by an act of the user.
 		 */
-		onDidShutdownTerminal?(): void;
+		shutdown?(): void;
 	}
 
 	//#endregion

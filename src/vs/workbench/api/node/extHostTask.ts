@@ -347,6 +347,7 @@ namespace TaskExecutionDTO {
 }
 
 interface HandlerData {
+	type: string;
 	provider: vscode.TaskProvider;
 	extension: IExtensionDescription;
 }
@@ -492,13 +493,13 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._activeCustomExecutions = new Map<string, CustomExecutionData>();
 	}
 
-	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
+	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
 		if (!provider) {
 			return new types.Disposable(() => { });
 		}
 		const handle = this.nextHandle();
-		this._handlers.set(handle, { provider, extension });
-		this._proxy.$registerTaskProvider(handle);
+		this._handlers.set(handle, { type, provider, extension });
+		this._proxy.$registerTaskProvider(handle, type);
 		return new types.Disposable(() => {
 			this._handlers.delete(handle);
 			this._proxy.$unregisterTaskProvider(handle);
@@ -652,15 +653,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 						taskDTOs.push(taskDTO);
 
 						if (CustomExecutionDTO.is(taskDTO.execution)) {
-							taskIdPromises.push(new Promise((resolve) => {
-								// The ID is calculated on the main thread task side, so, let's call into it here.
-								// We need the task id's pre-computed for custom task executions because when OnDidStartTask
-								// is invoked, we have to be able to map it back to our data.
-								this._proxy.$createTaskId(taskDTO).then((taskId) => {
-									this._providedCustomExecutions.set(taskId, new CustomExecutionData(<vscode.CustomExecution>(<vscode.Task2>task).execution2, this._terminalService));
-									resolve();
-								});
-							}));
+							// The ID is calculated on the main thread task side, so, let's call into it here.
+							// We need the task id's pre-computed for custom task executions because when OnDidStartTask
+							// is invoked, we have to be able to map it back to our data.
+							taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task));
 						}
 					}
 				}
@@ -678,6 +674,38 @@ export class ExtHostTask implements ExtHostTaskShape {
 				});
 			});
 		});
+	}
+
+	public async $resolveTask(handle: number, taskDTO: TaskDTO): Promise<TaskDTO | undefined> {
+		const handler = this._handlers.get(handle);
+		if (!handler) {
+			return Promise.reject(new Error('no handler found'));
+		}
+
+		if (taskDTO.definition.type !== handler.type) {
+			throw new Error(`Unexpected: Task of type [${taskDTO.definition.type}] cannot be resolved by provider of type [${handler.type}].`);
+		}
+
+		const task = await TaskDTO.to(taskDTO, this._workspaceProvider);
+		if (!task) {
+			throw new Error('Unexpected: Task cannot be resolved.');
+		}
+
+		const resolvedTask = await handler.provider.resolveTask(task, CancellationToken.None);
+		if (!resolvedTask) {
+			return;
+		}
+
+		const resolvedTaskDTO: TaskDTO | undefined = TaskDTO.from(resolvedTask, handler.extension);
+		if (!resolvedTaskDTO) {
+			throw new Error('Unexpected: Task cannot be resolved.');
+		}
+
+		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
+			await this.addCustomExecution(taskDTO, <vscode.Task2>task);
+		}
+
+		return resolvedTaskDTO;
 	}
 
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
@@ -723,6 +751,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	private nextHandle(): number {
 		return this._handleCounter++;
+	}
+
+	private async addCustomExecution(taskDTO: TaskDTO, task: vscode.Task2): Promise<void> {
+		const taskId = await this._proxy.$createTaskId(taskDTO);
+		this._providedCustomExecutions.set(taskId, new CustomExecutionData(<vscode.CustomExecution>(<vscode.Task2>task).execution2, this._terminalService));
 	}
 
 	private async getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {

@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -52,7 +52,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	private configProviders: IDebugConfigurationProvider[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
-	private terminalLauncher: ITerminalLauncher;
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
@@ -66,8 +65,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDebugHelperService private readonly debugHelperService: IDebugHelperService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
@@ -111,14 +109,11 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
-		let tl: ITerminalLauncher | undefined = this.debugAdapterFactories.get(debugType);
-		if (!tl) {
-			if (!this.terminalLauncher) {
-				this.terminalLauncher = this.debugHelperService.createTerminalLauncher(this.instantiationService);
-			}
-			tl = this.terminalLauncher;
+		let tl = this.debugAdapterFactories.get(debugType);
+		if (tl) {
+			return tl.runInTerminal(args, config);
 		}
-		return tl.runInTerminal(args, config);
+		return Promise.resolve(void 0);
 	}
 
 	// debug adapter

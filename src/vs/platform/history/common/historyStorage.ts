@@ -21,6 +21,14 @@ interface ILegacySerializedRecentlyOpened {
 interface ISerializedWorkspace { id: string; configURIPath: string; }
 interface ILegacySerializedWorkspace { id: string; configPath: string; }
 
+function isLegacySerializedWorkspace(curr: any): curr is ILegacySerializedWorkspace {
+	return typeof curr === 'object' && typeof curr['id'] === 'string' && typeof curr['configPath'] === 'string';
+}
+
+function isUriComponents(curr: any): curr is UriComponents {
+	return curr && typeof curr['path'] === 'string' && typeof curr['scheme'] === 'string';
+}
+
 export type RecentlyOpenedStorageData = object;
 
 export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined): IRecentlyOpened {
@@ -51,9 +59,9 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 			for (const workspace of storedRecents.workspaces) {
 				if (typeof workspace === 'string') {
 					result.workspaces.push({ folderUri: URI.file(workspace) });
-				} else if (typeof workspace === 'object' && typeof workspace['id'] === 'string' && typeof workspace['configPath'] === 'string') {
-					result.workspaces.push({ workspace: { id: workspace['id'], configPath: URI.file(workspace['configPath']) } });
-				} else if (workspace && typeof workspace['path'] === 'string' && typeof workspace['scheme'] === 'string') {
+				} else if (isLegacySerializedWorkspace(workspace)) {
+					result.workspaces.push({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } });
+				} else if (isUriComponents(window)) {
 					// added by 1.26-insiders
 					result.workspaces.push({ folderUri: URI.revive(<UriComponents>workspace) });
 				}

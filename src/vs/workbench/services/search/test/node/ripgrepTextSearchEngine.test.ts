@@ -159,15 +159,16 @@ suite('RipgrepTextSearchEngine', () => {
 
 		test('chopped-up input chunks', () => {
 			const dataStrs = [
-				makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+				makeRgMatch('file1.js', 'foo bar', 4, [{ start: 3, end: 7 }]),
 				makeRgMatch('app/file2.js', 'foobar', 4, [{ start: 3, end: 6 }]),
 				makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
 			];
 
+			const dataStr0Space = dataStrs[0].indexOf(' ');
 			testParser(
 				[
-					dataStrs[0].substring(0, 5),
-					dataStrs[0].substring(5),
+					dataStrs[0].substring(0, dataStr0Space + 1),
+					dataStrs[0].substring(dataStr0Space + 1),
 					'\n',
 					dataStrs[1].trim(),
 					'\n' + dataStrs[2].substring(0, 25),
@@ -176,11 +177,11 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					{
 						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+							text: 'foo bar',
+							matches: [new Range(0, 3, 0, 7)]
 						},
 						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						ranges: [new Range(3, 3, 3, 7)]
 					},
 					{
 						preview: {

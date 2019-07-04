@@ -58,6 +58,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	if (setLocaleVariables) {
 		env['LANG'] = _getLangEnvVariable(locale);
 	}
+	env['COLORTERM'] = 'truecolor';
 }
 
 function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
@@ -92,7 +93,7 @@ function _getLangEnvVariable(locale?: string) {
 	if (n === 1) {
 		// app.getLocale can return just a language without a variant, fill in the variant for
 		// supported languages as many shells expect a 2-part locale.
-		const languageVariants = {
+		const languageVariants: { [key: string]: string } = {
 			cs: 'CZ',
 			de: 'DE',
 			en: 'US',

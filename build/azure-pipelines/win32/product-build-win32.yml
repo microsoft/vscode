@@ -1,4 +1,23 @@
 steps:
+- powershell: |
+    mkdir .build -ea 0
+    "$env:BUILD_SOURCEVERSION" | Out-File -Encoding ascii -NoNewLine .build\commit
+  displayName: Prepare cache flag
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.build/commit'
+    targetfolder: '.build, **/out-build'
+    vstsFeed: 'npm-vscode'
+    platformIndependent: true
+    alias: 'Compilation'
+
+- powershell: |
+    $ErrorActionPreference = "Stop"
+    exit 1
+  displayName: Check RestoreCache
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
 - task: NodeTool@0
   inputs:
     versionSpec: "10.15.1"
@@ -25,6 +44,9 @@ steps:
 
     exec { git config user.email "vscode@microsoft.com" }
     exec { git config user.name "VSCode" }
+
+    mkdir .build -ea 0
+    echo $(VSCODE_ARCH) > .build\arch
   displayName: Prepare tooling
 
 - powershell: |
@@ -37,7 +59,7 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: '**/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
 
@@ -47,15 +69,24 @@ steps:
     $env:npm_config_arch="$(VSCODE_ARCH)"
     $env:CHILD_CONCURRENCY="1"
     exec { yarn --frozen-lockfile }
+    exec { node build/azure-pipelines/common/installDistroDependencies.js }
+    exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: '**/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { yarn postinstall }
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -66,41 +97,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn gulp hygiene }
-    exec { yarn monaco-compile-check }
-  displayName: Run hygiene checks
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { node build/azure-pipelines/common/installDistroDependencies.js }
-    exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
-    exec { node build/lib/builtInExtensions.js }
-  displayName: Install distro dependencies and extensions
-
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    cd $env:BUILD_STAGINGDIRECTORY
-    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
-    cd vscode-telemetry-extractor
-    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
-    npm i
-    npm run setup-extension-repos
-    node .\out\cli-extract.js --sourceDir $env:BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
-    node .\out\cli-extract-extensions.js --sourceDir .\src\telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
-    mkdir $env:BUILD_SOURCESDIRECTORY\.build\telemetry -ea 0
-    mv declarations-resolved.json $env:BUILD_SOURCESDIRECTORY\.build\telemetry\telemetry-core.json
-    mv declarations-extensions-resolved.json $env:BUILD_SOURCESDIRECTORY\.build\telemetry\telemetry-extensions.json
-  displayName: Extract Telemetry
-
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-    exec { yarn gulp compile-build }
-    exec { yarn gulp compile-extensions-build }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-web-win32-$env:VSCODE_ARCH-min-ci" }

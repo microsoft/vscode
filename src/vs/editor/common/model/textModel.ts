@@ -23,9 +23,9 @@ import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd }
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
+import { ModelLinesTokens, ModelTokensChangedEventBuilder, IModelLinesTokens, TokensStore, ITokensStore } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions } from 'vs/editor/common/modes';
+import { LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions, IState } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
@@ -33,8 +33,6 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-
-const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -287,7 +285,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _tokenizationListener: IDisposable;
 	private readonly _languageRegistryListener: IDisposable;
 	private _revalidateTokensTimeout: any;
-	/*private*/_tokens: ModelLinesTokens;
+	private _tokenization: IModelLinesTokens;
+	/*private*/_tokens: ITokensStore;
 	//#endregion
 
 	constructor(source: string | model.ITextBufferFactory, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier | null, associatedResource: URI | null = null) {
@@ -531,7 +530,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 				? null
 				: TokenizationRegistry.get(this._languageIdentifier.language)
 		);
-		this._tokens = new ModelLinesTokens(this._languageIdentifier, tokenizationSupport);
+		let initialState: IState | null = null;
+		if (tokenizationSupport) {
+			try {
+				initialState = tokenizationSupport.getInitialState();
+			} catch (e) {
+				onUnexpectedError(e);
+				tokenizationSupport = null;
+			}
+		}
+		this._tokenization = new ModelLinesTokens(this._languageIdentifier, tokenizationSupport);
+		this._tokens = new TokensStore(initialState);
 		this._beginBackgroundTokenization();
 	}
 
@@ -1341,12 +1350,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
-				try {
-					this._tokens.applyEdits(change.range, eolCount, firstLineLength);
-				} catch (err) {
-					// emergency recovery => reset tokens
-					this._tokens = new ModelLinesTokens(this._tokens.languageIdentifier, this._tokens.tokenizationSupport);
-				}
+				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1407,7 +1411,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			);
 		}
 
-		if (this._tokens.hasLinesToTokenize(this._buffer)) {
+		if (this._tokenization.hasLinesToTokenize(this._tokens, this._buffer)) {
 			this._beginBackgroundTokenization();
 		}
 
@@ -1776,76 +1780,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	//#region Tokenization
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		if (!this._tokens.tokenizationSupport) {
-			// nothing to do
-			return;
-		}
-
 		startLineNumber = Math.max(1, startLineNumber);
 		endLineNumber = Math.min(this.getLineCount(), endLineNumber);
 
-		if (endLineNumber <= this._tokens.inValidLineStartIndex) {
-			// nothing to do
-			return;
-		}
-
-		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
-			// tokenization has reached the viewport start...
-			this.forceTokenization(endLineNumber);
-			return;
-		}
-
-		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
-		let fakeLines: string[] = [];
-		let initialState: IState | null = null;
-		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
-			let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
-
-			if (newNonWhitespaceIndex === 0) {
-				continue;
-			}
-
-			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-				initialState = this._tokens._getState(i - 1);
-				if (initialState) {
-					break;
-				}
-				fakeLines.push(this.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
-			}
-		}
-
-		if (!initialState) {
-			initialState = this._tokens.tokenizationSupport.getInitialState();
-		}
-
-		let state = initialState.clone();
-		for (let i = fakeLines.length - 1; i >= 0; i--) {
-			let r = this._tokens._tokenizeText(this._buffer, fakeLines[i], state);
-			if (r) {
-				state = r.endState.clone();
-			} else {
-				state = initialState.clone();
-			}
-		}
-
 		const eventBuilder = new ModelTokensChangedEventBuilder();
-		for (let i = startLineNumber; i <= endLineNumber; i++) {
-			let text = this.getLineContent(i);
-			let r = this._tokens._tokenizeText(this._buffer, text, state);
-			if (r) {
-				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);
-
-				// We cannot trust these states/tokens to be valid!
-				// (see https://github.com/Microsoft/vscode/issues/67607)
-				this._tokens._setIsInvalid(i - 1, true);
-				this._tokens._setState(i - 1, state);
-				state = r.endState.clone();
-				eventBuilder.registerChangedTokens(i);
-			} else {
-				state = initialState.clone();
-			}
-		}
+		this._tokenization.tokenizeViewport(this._tokens, this._buffer, eventBuilder, startLineNumber, endLineNumber);
 
 		const e = eventBuilder.build();
 		if (e) {
@@ -1871,7 +1810,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		const eventBuilder = new ModelTokensChangedEventBuilder();
 
-		this._tokens._updateTokensUntilLine(this._buffer, eventBuilder, lineNumber);
+		this._tokenization.updateTokensUntilLine(this._tokens, this._buffer, eventBuilder, lineNumber);
 
 		const e = eventBuilder.build();
 		if (e) {
@@ -1880,19 +1819,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
-		if (!this._tokens.isCheapToTokenize(lineNumber)) {
-			return false;
-		}
-
-		if (lineNumber < this._tokens.inValidLineStartIndex + 1) {
-			return true;
-		}
-
-		if (this.getLineLength(lineNumber) < CHEAP_TOKENIZATION_LENGTH_LIMIT) {
-			return true;
-		}
-
-		return false;
+		return this._tokenization.isCheapToTokenize(this._tokens, this._buffer, lineNumber);
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
@@ -1950,7 +1877,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public getLanguageIdAtPosition(_lineNumber: number, _column: number): LanguageId {
-		if (!this._tokens.tokenizationSupport) {
+		if (!this._tokenization.tokenizationSupport) {
 			return this._languageIdentifier.id;
 		}
 		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
@@ -1973,7 +1900,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const maxLineNumber = Math.min(100, this.getLineCount());
 		this._revalidateTokensNow(maxLineNumber);
 
-		if (this._tokens.hasLinesToTokenize(this._buffer)) {
+		if (this._tokenization.hasLinesToTokenize(this._tokens, this._buffer)) {
 			this._beginBackgroundTokenization();
 		}
 	}
@@ -1983,20 +1910,20 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const eventBuilder = new ModelTokensChangedEventBuilder();
 		const sw = StopWatch.create(false);
 
-		while (this._tokens.hasLinesToTokenize(this._buffer)) {
+		while (this._tokenization.hasLinesToTokenize(this._tokens, this._buffer)) {
 			if (sw.elapsed() > MAX_ALLOWED_TIME) {
 				// Stop if MAX_ALLOWED_TIME is reached
 				break;
 			}
 
-			const tokenizedLineNumber = this._tokens._tokenizeOneLine(this._buffer, eventBuilder);
+			const tokenizedLineNumber = this._tokenization.tokenizeOneInvalidLine(this._tokens, this._buffer, eventBuilder);
 
 			if (tokenizedLineNumber >= toLineNumber) {
 				break;
 			}
 		}
 
-		if (this._tokens.hasLinesToTokenize(this._buffer)) {
+		if (this._tokenization.hasLinesToTokenize(this._tokens, this._buffer)) {
 			this._beginBackgroundTokenization();
 		}
 
