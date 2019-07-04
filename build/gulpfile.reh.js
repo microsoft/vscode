@@ -313,7 +313,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
 
-		const nodePath = `.build/node/v${nodeVersion}/${platform}-${arch}`;
+		const nodePath = `.build/node/v${nodeVersion}/${platform}-${platform === 'darwin' ? 'x64' : arch}`;
 		const node = gulp.src(`${nodePath}/**`, { base: nodePath, dot: true });
 
 		let all = es.merge(
