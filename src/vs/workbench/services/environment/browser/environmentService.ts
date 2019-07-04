@@ -73,6 +73,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
+		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 
 		this.logsPath = '/web/logs';
 
@@ -100,6 +101,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
+	localeResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 	settingsSearchBuildId?: number;
