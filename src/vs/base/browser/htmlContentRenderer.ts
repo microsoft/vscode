@@ -75,12 +75,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		return encodeURIComponent(JSON.stringify(data));
 	};
 
-	const _href = function (href: string): string {
+	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
 		if (!data) {
 			return href;
 		}
 		let uri = URI.revive(data);
+		if (isDomUri) {
+			uri = DOM.asDomUri(uri);
+		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
@@ -97,7 +100,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
-		href = _href(href);
+		href = _href(href, true);
 		let dimensions: string[] = [];
 		if (href) {
 			const splitted = href.split('|').map(s => s.trim());
@@ -138,7 +141,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		if (href === text) { // raw link case
 			text = removeMarkdownEscapes(text);
 		}
-		href = _href(href);
+		href = _href(href, false);
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (
