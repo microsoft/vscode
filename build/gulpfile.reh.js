@@ -313,7 +313,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 				const pkg = JSON.parse(fs.readFileSync(qualityPackagePath, 'utf8'));
 
 				// @ts-ignore JSON checking: dependencies is optional
-				const distroDependencies = _.flatten(Object.keys(pkg.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`, `!node_modules/${d}/.bin/**`]));
+				const distroDependencies = _.flatten(Object.keys(pkg.dependencies || {}).map(d => [`remote/node_modules/${d}/**`, `!remote/node_modules/${d}/**/{test,tests}/**`, `!remote/node_modules/${d}/.bin/**`]));
 				dependenciesSrc.push(...distroDependencies);
 			}
 		}
