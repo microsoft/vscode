@@ -88,6 +88,7 @@ steps:
 - script: |
     set -e
     yarn gulp compile-build
+    yarn gulp compile-extensions-build-legacy
     yarn gulp compile-extensions-build
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-linux-$VSCODE_ARCH-min-ci

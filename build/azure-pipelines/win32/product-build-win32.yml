@@ -110,6 +110,7 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     exec { yarn gulp compile-build }
+    exec { yarn gulp compile-extensions-build-legacy }
     exec { yarn gulp compile-extensions-build }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
