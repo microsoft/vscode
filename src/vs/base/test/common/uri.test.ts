@@ -448,7 +448,7 @@ suite('URI', () => {
 
 		uri = URI.file('/test with %25/c#code');
 		assert.equal(uri.path, '/test with %25/c#code');
-		assert.equal(uri.toString(), 'file:///test%20with%20%25/c%23code');
+		assert.equal(uri.toString(), 'file:///test%20with%20%2525/c%23code');
 
 		uri = URI.from({
 			scheme: 'http',
@@ -474,6 +474,12 @@ suite('URI', () => {
 		uri = URI.parse('http://www.test.com/path/service?authId=CN%3DQ10');
 		assert.equal(uri.query, 'authId=CN%3DQ10');
 		assert.equal(uri.toString(), 'http://www.test.com/path/service?authId=CN%3DQ10');
+	});
+
+	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+		assert.equal(URI.file('/%2f.txt').toString(), 'file:///%2f.txt');
+		assert.equal(URI.file('/%2e.txt').toString(), 'file:///%252e.txt');
+		assert.equal(URI.file('/%a0.txt').toString(), 'file:///%25a0.txt');
 	});
 
 

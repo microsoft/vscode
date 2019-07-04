@@ -610,43 +610,62 @@ function encodeURIComponentFast(uriComponent: string, isPath: boolean, isQuerySt
 				res += uriComponent.charAt(pos);
 			}
 
-		} else if (code === CharCode.PercentSign && isHex(uriComponent, pos + 1) && isHex(uriComponent, pos + 2)) {
-			// at percentage encoded value
+			continue;
+		}
+
+		// at percentage encoded value
+		if (code === CharCode.PercentSign && isHex(uriComponent, pos + 1) && isHex(uriComponent, pos + 2)) {
+
+			const chA = uriComponent.charCodeAt(pos + 1);
+			const chB = uriComponent.charCodeAt(pos + 2);
+
+			// when in a path -> check and accept %2f and %2F (fwd slash)
+			// when in a query string -> check and accept %3D, %26, and %3B (equals, ampersand, semi-colon)
+			if (
+				(isPath && chA === CharCode.Digit2 && (chB === CharCode.F || chB === CharCode.f))
+				||
+				(isQueryString && (
+					(chA === CharCode.Digit2 && chB === CharCode.Digit6) // %26
+					||
+					(chA === CharCode.Digit3 && (chB === CharCode.B || chB === CharCode.b || chB === CharCode.D || chB === CharCode.d)) // %3D, %3B
+				))
+			) {
+				// check if we are delaying native encode
+				if (nativeEncodePos !== -1) {
+					res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
+					nativeEncodePos = -1;
+				}
+				// check if we write into a new string (by default we try to return the param)
+				if (res !== undefined) {
+					res += uriComponent.substr(pos, 3);
+				}
+
+				pos += 2;
+				continue;
+			}
+		}
+
+		// encoding needed, we need to allocate a new string
+		if (res === undefined) {
+			res = uriComponent.substr(0, pos);
+		}
+
+		// check with default table first
+		const escaped = encodeTable[code];
+		if (escaped !== undefined) {
 
 			// check if we are delaying native encode
 			if (nativeEncodePos !== -1) {
 				res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
 				nativeEncodePos = -1;
 			}
-			// check if we write into a new string (by default we try to return the param)
-			if (res !== undefined) {
-				res += uriComponent.substr(pos, 3);
-			}
-			pos += 2;
 
-		} else {
-			// encoding needed, we need to allocate a new string
-			if (res === undefined) {
-				res = uriComponent.substr(0, pos);
-			}
+			// append escaped variant to result
+			res += escaped;
 
-			// check with default table first
-			const escaped = encodeTable[code];
-			if (escaped !== undefined) {
-
-				// check if we are delaying native encode
-				if (nativeEncodePos !== -1) {
-					res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
-					nativeEncodePos = -1;
-				}
-
-				// append escaped variant to result
-				res += escaped;
-
-			} else if (nativeEncodePos === -1) {
-				// use native encode only when needed
-				nativeEncodePos = pos;
-			}
+		} else if (nativeEncodePos === -1) {
+			// use native encode only when needed
+			nativeEncodePos = pos;
 		}
 	}
 
