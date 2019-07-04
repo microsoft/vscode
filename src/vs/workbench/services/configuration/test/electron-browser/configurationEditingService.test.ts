@@ -39,10 +39,20 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFil
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { dirname } from 'vs/base/common/resources';
+
+class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
+
+	constructor(private _appSettingsHome: URI) {
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+	}
+
+	get appSettingsHome() { return this._appSettingsHome; }
+
+}
 
 suite('ConfigurationEditingService', () => {
 
@@ -95,14 +105,15 @@ suite('ConfigurationEditingService', () => {
 		clearServices();
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = new WorkbenchEnvironmentService(<IWindowConfiguration>parseArgs(process.argv), process.execPath);
+		const environmentService = new TestBackupEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 		const fileService = new FileService(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(URI.file(workspaceDir), dirname(URI.file(workspaceDir)), diskFileSystemProvider));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(workspaceDir), fileService)));
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {

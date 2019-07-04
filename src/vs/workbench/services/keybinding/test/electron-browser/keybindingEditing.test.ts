@@ -45,11 +45,21 @@ import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { URI } from 'vs/base/common/uri';
-import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { dirname } from 'vs/base/common/resources';
+
+class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
+
+	constructor(private _appSettingsHome: URI) {
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+	}
+
+	get appSettingsHome() { return this._appSettingsHome; }
+
+}
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -71,7 +81,7 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
-			const environmentService = new WorkbenchEnvironmentService(<IWindowConfiguration>parseArgs(process.argv), process.execPath);
+			const environmentService = new TestBackupEnvironmentService(URI.file(testDir));
 			instantiationService.stub(IEnvironmentService, environmentService);
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
@@ -89,8 +99,9 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			const fileService = new FileService(new NullLogService());
-			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-			fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.userRoamingDataHome, new FileUserDataProvider(URI.file(testDir), fileService)));
+			const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, dirname(environmentService.appSettingsHome), diskFileSystemProvider));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

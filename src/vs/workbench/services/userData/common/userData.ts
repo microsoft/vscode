@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { Event } from 'vs/base/common/event';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
 /**
@@ -80,59 +78,3 @@ export interface IUserDataProvider {
 	 */
 	listFiles(path: string): Promise<string[]>;
 }
-
-export interface IUserDataContainerRegistry {
-
-	/**
-	 * An event to signal that a container has been registered.
-	 */
-	readonly onDidRegisterContainer: Event<string>;
-
-	/**
-	 * Registered containers
-	 */
-	readonly containers: string[];
-
-	/**
-	 * Register the given path as an user data container if user data files are stored under this path.
-	 *
-	 * It is required to register the container to access the user data files under the container.
-	 */
-	registerContainer(path: string): void;
-
-	/**
-	 *	Returns true if the given path is an user data container or sub container of user data container
-	 */
-	isContainer(path: string): boolean;
-}
-
-class UserDataContainerRegistry implements IUserDataContainerRegistry {
-
-	private _containers: TernarySearchTree<string> = TernarySearchTree.forStrings();
-
-	private _onDidRegisterContainer: Emitter<string> = new Emitter<string>();
-	readonly onDidRegisterContainer: Event<string> = this._onDidRegisterContainer.event;
-
-	get containers(): string[] {
-		const containers: string[] = [];
-		this._containers.forEach(c => containers.push(c));
-		return containers;
-	}
-
-	public registerContainer(path: string): void {
-		if (!this._containers.get(path)) {
-			this._containers.set(path, path);
-			this._onDidRegisterContainer.fire(path);
-		}
-	}
-
-	isContainer(path: string): boolean {
-		return !!this._containers.get(path) || !!this._containers.findSuperstr(path);
-	}
-}
-
-export const Extensions = {
-	UserDataContainers: 'workbench.contributions.userDataContainers'
-};
-
-Registry.add(Extensions.UserDataContainers, new UserDataContainerRegistry());
