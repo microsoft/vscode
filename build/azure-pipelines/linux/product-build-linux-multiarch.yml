@@ -38,7 +38,7 @@ steps:
     azureSubscriptionEndpoint: 'vscode-builds-subscription'
     azureContainerRegistry: vscodehub.azurecr.io
     command: 'Run an image'
-    imageName: 'vscode-linux-build-agent:armhf'
+    imageName: 'vscode-linux-build-agent:$(VSCODE_ARCH)'
     containerCommand: uname
 
 - script: |
@@ -97,12 +97,12 @@ steps:
 
 - script: |
     set -e
-    ./build/azure-pipelines/linux/prebuild-arm.sh
+    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/prebuild.sh
   displayName: Prebuild
 
 - script: |
     set -e
-    ./build/azure-pipelines/linux/build-arm.sh
+    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/build.sh
   displayName: Build
 
 - script: |
@@ -111,7 +111,7 @@ steps:
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/linux/publish-arm.sh
+    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/publish.sh
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

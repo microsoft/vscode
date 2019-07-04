@@ -75,7 +75,7 @@ jobs:
   dependsOn:
   - Compile
   steps:
-  - template: linux/product-build-linux-arm.yml
+  - template: linux/product-build-linux-multiarch.yml
 
 - job: LinuxAlpine
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
@@ -87,7 +87,7 @@ jobs:
   dependsOn:
   - Compile
   steps:
-  - template: linux/product-build-linux-alpine.yml
+  - template: linux/product-build-linux-multiarch.yml
 
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
