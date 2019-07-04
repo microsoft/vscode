@@ -531,7 +531,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey) {
+		if (event.ctrlKey || event.metaKey || event.altKey) {
 			// ignore ctrl/cmd-combination but not shift/alt-combinatios
 			return false;
 		}
