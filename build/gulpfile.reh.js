@@ -152,6 +152,7 @@ const buildfile = require('../src/buildfile');
 const webEntryPoints = [
 	...entryPoints,
 	buildfile.workbenchWeb,
+	buildfile.serviceWorker,
 	buildfile.keyboardMaps,
 	buildfile.base
 ];
