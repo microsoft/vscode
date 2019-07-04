@@ -1,7 +1,7 @@
 steps:
 - script: |
     mkdir -p .build
-    echo $BUILD_SOURCEVERSION > .build/commit
+    echo -n $BUILD_SOURCEVERSION > .build/commit
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1

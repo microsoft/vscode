@@ -1,7 +1,7 @@
 steps:
 - powershell: |
     mkdir .build -ea 0
-    "$env:BUILD_SOURCEVERSION`n" | Out-File -NoNewLine .build\commit
+    "$env:BUILD_SOURCEVERSION" | Out-File -Encoding ascii -NoNewLine .build\commit
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
