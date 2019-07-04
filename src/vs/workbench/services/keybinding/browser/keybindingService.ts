@@ -46,6 +46,7 @@ import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapIn
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
+import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -534,7 +535,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			// ignore ctrl/cmd-combination but not shift/alt-combinatios
 			return false;
 		}
-		if (event.keyCode === KeyCode.Escape) {
+		const code = ScanCodeUtils.toEnum(event.code);
+		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		if (keycode !== -1) {
 			// https://github.com/microsoft/vscode/issues/74934
 			return false;
 		}
