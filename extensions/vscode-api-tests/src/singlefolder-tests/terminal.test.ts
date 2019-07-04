@@ -8,35 +8,61 @@ import { doesNotThrow, equal, ok } from 'assert';
 
 suite('window namespace tests', () => {
 	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/75689 */ : suite)('Terminal', () => {
-		test('sendText immediately after createTerminal should not throw', () => {
+		test('sendText immediately after createTerminal should not throw', (done) => {
+			const reg1 = window.onDidOpenTerminal(term => {
+				equal(terminal, term);
+				terminal.dispose();
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
+			});
 			const terminal = window.createTerminal();
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
-			terminal.dispose();
 		});
 
 		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
-			const terminal = window.createTerminal();
-			const reg = window.onDidCloseTerminal((eventTerminal) => {
-				equal(terminal, eventTerminal);
-				reg.dispose();
-				done();
+			const reg1 = window.onDidOpenTerminal(term => {
+				equal(terminal, term);
+				terminal.dispose();
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
 			});
-			terminal.dispose();
+			const terminal = window.createTerminal();
 		});
 
 		test('processId immediately after createTerminal should fetch the pid', (done) => {
-			const terminal = window.createTerminal();
-			terminal.processId.then(id => {
-				ok(id > 0);
-				terminal.dispose();
-				done();
+			const reg1 = window.onDidOpenTerminal(term => {
+				equal(terminal, term);
+				reg1.dispose();
+				terminal.processId.then(id => {
+					ok(id > 0);
+					terminal.dispose();
+					const reg2 = window.onDidCloseTerminal(() => {
+						reg2.dispose();
+						done();
+					});
+				});
 			});
+			const terminal = window.createTerminal();
 		});
 
-		test('name in constructor should set terminal.name', () => {
+		test('name in constructor should set terminal.name', (done) => {
+			const reg1 = window.onDidOpenTerminal(term => {
+				equal(terminal, term);
+				terminal.dispose();
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
+			});
 			const terminal = window.createTerminal('a');
 			equal(terminal.name, 'a');
-			terminal.dispose();
 		});
 
 		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
@@ -113,10 +139,23 @@ suite('window namespace tests', () => {
 						secondCalled = true;
 					}
 					if (firstCalled && secondCalled) {
+						let firstDisposed = false;
+						let secondDisposed = false;
+						const reg4 = window.onDidCloseTerminal(term => {
+							if (term === terminal1) {
+								firstDisposed = true;
+							}
+							if (term === terminal2) {
+								secondDisposed = true;
+							}
+							if (firstDisposed && secondDisposed) {
+								reg4.dispose();
+								done();
+							}
+						});
 						terminal1.dispose();
 						terminal2.dispose();
 						reg3.dispose();
-						done();
 					}
 				});
 				await timeout(500);
@@ -133,8 +172,11 @@ suite('window namespace tests', () => {
 				terminal.onDidWriteData(e => {
 					data += e;
 					if (data.indexOf('foo') !== -1) {
+						const reg3 = window.onDidCloseTerminal(() => {
+							reg3.dispose();
+							done();
+						});
 						terminal.dispose();
-						done();
 					}
 				});
 				terminal.sendText('foo');
@@ -146,7 +188,11 @@ suite('window namespace tests', () => {
 					equal(t, terminal);
 					equal(t.name, 'bg');
 					ok(window.terminals.indexOf(terminal) !== -1);
-					done();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
 				});
 			});
 		});
