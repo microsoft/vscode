@@ -673,7 +673,6 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
-				console.log('WHAT');
 				resource = this.getSCMResource();
 			}
 
