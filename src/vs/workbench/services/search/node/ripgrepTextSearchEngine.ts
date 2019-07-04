@@ -210,7 +210,7 @@ export class RipgrepParser extends EventEmitter {
 			newlineIdx = dataStr.indexOf('\n', prevIdx);
 		}
 
-		this.remainder = dataStr.substring(prevIdx).trim();
+		this.remainder = dataStr.substring(prevIdx);
 	}
 
 	private handleLine(outputLine: string): void {

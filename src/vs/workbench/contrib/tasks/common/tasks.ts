@@ -745,6 +745,9 @@ export class ConfiguringTask extends CommonTask {
 		return object;
 	}
 
+	public getDefinition(): KeyedTaskIdentifier {
+		return this.configures;
+	}
 }
 
 export class ContributedTask extends CommonTask {
