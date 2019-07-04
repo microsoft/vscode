@@ -24,7 +24,7 @@ export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestAr
 		}
 	}
 	if (externalTerminalService) {
-		externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config);
+		externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 	}
 }
 
