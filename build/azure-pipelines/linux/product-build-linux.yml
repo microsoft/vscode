@@ -64,14 +64,9 @@ steps:
 - script: |
     set -e
     yarn --frozen-lockfile
-  displayName: Install dependencies
-  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
-
-- script: |
-    set -e
     node build/azure-pipelines/common/installDistroDependencies.js
     node build/azure-pipelines/common/installDistroDependencies.js remote
-  displayName: Install distro dependencies
+  displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1

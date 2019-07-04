@@ -56,7 +56,7 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
@@ -64,12 +64,14 @@ steps:
 - script: |
     set -e
     yarn --frozen-lockfile
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
