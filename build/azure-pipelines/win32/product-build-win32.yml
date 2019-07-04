@@ -95,6 +95,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
+    $env:CHILD_CONCURRENCY="1"
     exec { node build/azure-pipelines/common/installDistroDependencies.js }
     exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
   displayName: Install distro dependencies
