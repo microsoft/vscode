@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, Terminal, TerminalDimensionsChangeEvent, TerminalVirtualProcess, EventEmitter, TerminalDimensions } from 'vscode';
+import { window, Terminal, TerminalVirtualProcess, EventEmitter, TerminalDimensions } from 'vscode';
 import { doesNotThrow, equal, ok } from 'assert';
 
 suite('window namespace tests', () => {
