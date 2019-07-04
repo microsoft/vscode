@@ -6,7 +6,7 @@
 import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { QUICK_INPUT_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
@@ -76,7 +76,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
 	return {
-		backgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
+		backgroundColor: getColor(theme, QUICK_INPUT_BACKGROUND),
 		color: getColor(theme, foreground),
 		textLinkColor: getColor(theme, textLinkForeground),
 		textLinkActiveForeground: getColor(theme, textLinkActiveForeground),

@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { QUICK_INPUT_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
@@ -90,7 +90,7 @@ export class EmptyView extends ViewletPanel {
 
 		this._register(new DragAndDropObserver(container, {
 			onDrop: e => {
-				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				const color = this.themeService.getTheme().getColor(QUICK_INPUT_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
 				dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
@@ -100,11 +100,11 @@ export class EmptyView extends ViewletPanel {
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragEnd: () => {
-				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				const color = this.themeService.getTheme().getColor(QUICK_INPUT_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragLeave: () => {
-				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				const color = this.themeService.getTheme().getColor(QUICK_INPUT_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragOver: e => {
