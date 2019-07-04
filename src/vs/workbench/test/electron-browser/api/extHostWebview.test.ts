@@ -17,7 +17,7 @@ suite('ExtHostWebview', function () {
 		const viewType = 'view.type';
 
 		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape));
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), { webviewCspRule: '', webviewResourceRoot: '' });
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 

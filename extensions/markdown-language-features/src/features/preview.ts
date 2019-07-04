@@ -16,6 +16,7 @@ import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { isMarkdownFile } from '../util/file';
 import { resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
+import { WebviewResourceProvider } from '../util/resources';
 const localize = nls.loadMessageBundle();
 
 interface WebviewMessage {
@@ -388,6 +389,10 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private async doUpdate(): Promise<void> {
+		if (this._disposed) {
+			return;
+		}
+
 		const resource = this._resource;
 
 		clearTimeout(this.throttleTimer);
@@ -398,6 +403,10 @@ export class MarkdownPreview extends Disposable {
 			document = await vscode.workspace.openTextDocument(resource);
 		} catch {
 			await this.showFileNotFoundError();
+			return;
+		}
+
+		if (this._disposed) {
 			return;
 		}
 
@@ -412,7 +421,12 @@ export class MarkdownPreview extends Disposable {
 
 		this.currentVersion = pendingVersion;
 		if (this._resource === resource) {
-			const content = await this._contentProvider.provideTextDocumentContent(document, await this.editor.webview.resourceRoot, this._previewConfigurations, this.line, this.state);
+			const self = this;
+			const resourceProvider: WebviewResourceProvider = {
+				toWebviewResource: (resource) => this.editor.webview.toWebviewResource(resource),
+				get cspRule() { return self.editor.webview.cspRule; }
+			};
+			const content = await this._contentProvider.provideTextDocumentContent(document, resourceProvider, this._previewConfigurations, this.line, this.state);
 			// Another call to `doUpdate` may have happened.
 			// Make sure we are still updating for the correct document
 			if (this.currentVersion && this.currentVersion.equals(pendingVersion)) {
