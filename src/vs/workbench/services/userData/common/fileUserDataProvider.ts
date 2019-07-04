@@ -82,7 +82,11 @@ export class FileUserDataProvider extends Disposable implements IUserDataProvide
 		const resource = this.toResource(path);
 		try {
 			const result = await this.fileService.resolve(resource);
-			return result.children ? result.children.map(c => this.toRelativePath(c.resource, resource)!) : [];
+			if (result.children) {
+				return result.children
+					.filter(c => !c.isDirectory)
+					.map(c => this.toRelativePath(c.resource, resource)!);
+			}
 		} catch (error) {
 		}
 		return [];
