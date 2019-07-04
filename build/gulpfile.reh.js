@@ -134,6 +134,7 @@ const minifyVSCodeREHTask = task.define('minify-vscode-reh', task.series(
 	util.rimraf('out-vscode-reh-min'),
 	common.minifyTask('out-vscode-reh', baseUrl)
 ));
+gulp.task(minifyVSCodeREHTask);
 
 // Web server
 
@@ -174,6 +175,7 @@ const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
 	util.rimraf('out-vscode-web-min'),
 	common.minifyTask('out-vscode-web', baseUrl)
 ));
+gulp.task(minifyVSCodeWebTask);
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
