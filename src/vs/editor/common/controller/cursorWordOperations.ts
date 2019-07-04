@@ -38,8 +38,7 @@ const enum WordType {
 
 export const enum WordNavigationType {
 	WordStart = 0,
-	WordStartFast = 1,
-	WordEnd = 2
+	WordEnd = 1
 }
 
 export class WordOperations {
@@ -161,11 +160,11 @@ export class WordOperations {
 	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
-		let movedToPreviousLine = false;
+		let movedUp = false;
 
 		if (column === 1) {
 			if (lineNumber > 1) {
-				movedToPreviousLine = true;
+				movedUp = true;
 				lineNumber = lineNumber - 1;
 				column = model.getLineMaxColumn(lineNumber);
 			}
@@ -174,41 +173,24 @@ export class WordOperations {
 		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column));
 
 		if (wordNavigationType === WordNavigationType.WordStart) {
-
-			if (prevWordOnLine && !movedToPreviousLine) {
-				// Special case for Visual Studio compatibility:
-				// when starting in the trim whitespace at the end of a line,
-				// go to the end of the last word
-				const lastWhitespaceColumn = model.getLineLastNonWhitespaceColumn(lineNumber);
-				if (lastWhitespaceColumn < column) {
-					return new Position(lineNumber, prevWordOnLine.end + 1);
+			if (prevWordOnLine && prevWordOnLine.wordType === WordType.Separator) {
+				if (prevWordOnLine.end - prevWordOnLine.start === 1 && prevWordOnLine.nextCharClass === WordCharacterClass.Regular) {
+					prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 				}
 			}
-
-			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
-		}
-
-		if (wordNavigationType === WordNavigationType.WordStartFast) {
-			if (
-				prevWordOnLine
-				&& prevWordOnLine.wordType === WordType.Separator
-				&& prevWordOnLine.end - prevWordOnLine.start === 1
-				&& prevWordOnLine.nextCharClass === WordCharacterClass.Regular
-			) {
-				// Skip over a word made up of one single separator and followed by a regular character
+		} else {
+			if (prevWordOnLine && !movedUp && column <= prevWordOnLine.end + 1) {
 				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 			}
-
-			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
 		}
 
-		// We are stopping at the ending of words
-
-		if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-			prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+		if (prevWordOnLine) {
+			column = prevWordOnLine.start + 1;
+		} else {
+			column = 1;
 		}
 
-		return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.end + 1 : 1);
+		return new Position(lineNumber, column);
 	}
 
 	public static _moveWordPartLeft(model: ICursorSimpleModel, position: Position): Position {
