@@ -49,6 +49,7 @@ const nodeModules = ['electron', 'original-fs']
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
+	buildfile.serviceWorker,
 	buildfile.workbench,
 	buildfile.code
 ]);
