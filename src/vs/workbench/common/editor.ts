@@ -987,6 +987,7 @@ interface IEditorPartConfiguration {
 	closeEmptyGroups?: boolean;
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
+	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 }
