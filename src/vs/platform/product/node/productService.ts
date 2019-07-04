@@ -20,9 +20,9 @@ export class ProductService implements IProductService {
 
 	get urlProtocol(): string { return product.urlProtocol; }
 
-	get extensionAllowedProposedApi(): string[] { return product.extensionAllowedProposedApi; }
+	get extensionAllowedProposedApi(): readonly string[] { return product.extensionAllowedProposedApi; }
 
-	get uiExtensions(): string[] | undefined { return product.uiExtensions; }
+	get uiExtensions(): readonly string[] | undefined { return product.uiExtensions; }
 
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
 
