@@ -7,7 +7,7 @@ steps:
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build'
+    targetfolder: '.build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'
@@ -62,7 +62,7 @@ steps:
 
 - script: |
     set -e
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
     node build/azure-pipelines/common/installDistroDependencies.js
     node build/azure-pipelines/common/installDistroDependencies.js remote
   displayName: Install dependencies
@@ -89,11 +89,11 @@ steps:
 - script: |
     set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-darwin-ci
+      yarn gulp vscode-darwin-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-darwin-ci
+      yarn gulp vscode-reh-darwin-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-darwin-ci
+      yarn gulp vscode-web-darwin-min-ci
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       yarn gulp upload-vscode-sourcemaps
   displayName: Build

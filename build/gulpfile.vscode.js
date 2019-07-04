@@ -116,6 +116,7 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	},
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
+gulp.task(minifyVSCodeTask);
 
 // Package
 
@@ -437,7 +438,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
-			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		));
@@ -446,6 +446,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			compileBuildTask,
 			compileExtensionsBuildTask,
+			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
