@@ -15,7 +15,7 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -143,7 +143,7 @@ export type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedI
 export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 
 	private renderedNodes = new Map<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, IResourceMarkersTemplateData>();
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private labels: ResourceLabels,
@@ -207,7 +207,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -245,7 +245,7 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly multilineActionbar: ActionBar;
 	private readonly messageAndDetailsContainer: HTMLElement;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		private parent: HTMLElement,
@@ -259,15 +259,12 @@ class MarkerWidget extends Disposable {
 		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
-		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
 		this.actionBar.clear();
 		this.multilineActionbar.clear();
-		if (this.disposables.length) {
-			this.disposables = dispose(this.disposables);
-		}
+		this.disposables.clear();
 		dom.clearNode(this.messageAndDetailsContainer);
 
 		this.icon.className = `marker-icon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
@@ -275,8 +272,8 @@ class MarkerWidget extends Disposable {
 		this.renderMultilineActionbar(element);
 
 		this.renderMessageAndDetails(element, filterData);
-		this.disposables.push(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
-		this.disposables.push(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_LEAVE, () => this.markersViewModel.onMarkerMouseLeave(element)));
+		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
+		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_LEAVE, () => this.markersViewModel.onMarkerMouseLeave(element)));
 	}
 
 	private renderQuickfixActionbar(marker: Marker): void {
