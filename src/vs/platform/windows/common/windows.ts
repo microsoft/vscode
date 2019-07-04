@@ -278,7 +278,7 @@ export interface IWindowSettings {
 	menuBarVisibility: MenuBarVisibility;
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
-	vibrancy: '' | 'appearance-based' | 'light' | 'dark' | 'medium-light' | 'ultra-dark';
+	vibrancy: '' | 'appearance-based' | 'light' | 'dark';
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;

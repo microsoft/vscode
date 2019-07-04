@@ -32,7 +32,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
-	private vibrancy: '' | 'appearance-based' | 'light' | 'dark' | 'medium-light' | 'ultra-dark';
+	private vibrancy: '' | 'appearance-based' | 'light' | 'dark';
 	private nativeFullScreen: boolean;
 	private clickThroughInactive: boolean;
 	private updateMode: string;
