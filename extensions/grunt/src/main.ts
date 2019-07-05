@@ -54,14 +54,14 @@ function isTestTask(name: string): boolean {
 let _channel: vscode.OutputChannel;
 function getOutputChannel(): vscode.OutputChannel {
 	if (!_channel) {
-		_channel = vscode.window.createOutputChannel('Gulp Auto Detection');
+		_channel = vscode.window.createOutputChannel('Grunt Auto Detection');
 	}
 	return _channel;
 }
 
 function showError() {
-	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding jake tasks. See the output for more information.'),
-		localize('jakeShowOutput', 'Go to output')).then(() => {
+	vscode.window.showWarningMessage(localize('gruntTaskDetectError', 'Problem finding grunt tasks. See the output for more information.'),
+		localize('gruntShowOutput', 'Go to output')).then(() => {
 			getOutputChannel().show(true);
 		});
 }

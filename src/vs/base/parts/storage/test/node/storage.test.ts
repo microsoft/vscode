@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions, IStorageItemsChangeEvent } from 'vs/base/node/storage';
+import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/parts/storage/node/storage';
+import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';

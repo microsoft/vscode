@@ -377,6 +377,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
+		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),

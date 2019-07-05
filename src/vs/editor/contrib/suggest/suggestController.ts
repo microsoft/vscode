@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -45,7 +45,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _model: SuggestModel;
 	private readonly _widget: IdleValue<SuggestWidget>;
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 
 	private readonly _sticky = false; // for development purposes only
 
@@ -63,23 +63,21 @@ export class SuggestController implements IEditorContribution {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
-			this._toDispose.push(widget);
-			this._toDispose.push(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
+			this._toDispose.add(widget);
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
 			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true));
-			this._toDispose.push(
-				commitCharacterController,
-				this._model.onDidSuggest(e => {
-					if (e.completionModel.items.length === 0) {
-						commitCharacterController.reset();
-					}
-				})
-			);
+			this._toDispose.add(commitCharacterController);
+			this._toDispose.add(this._model.onDidSuggest(e => {
+				if (e.completionModel.items.length === 0) {
+					commitCharacterController.reset();
+				}
+			}));
 
 			// Wire up makes text edit context key
 			let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
-			this._toDispose.push(widget.onDidFocus(({ item }) => {
+			this._toDispose.add(widget.onDidFocus(({ item }) => {
 
 				const position = this._editor.getPosition()!;
 				const startColumn = item.completion.range.startColumn;
@@ -103,36 +101,32 @@ export class SuggestController implements IEditorContribution {
 				}
 				makesTextEdit.set(value);
 			}));
-			this._toDispose.push({
-				dispose() { makesTextEdit.reset(); }
-			});
+			this._toDispose.add(toDisposable(() => makesTextEdit.reset()));
 
 			return widget;
 		});
 
 		this._alternatives = new IdleValue(() => {
-			let res = new SuggestAlternatives(this._editor, this._contextKeyService);
-			this._toDispose.push(res);
-			return res;
+			return this._toDispose.add(new SuggestAlternatives(this._editor, this._contextKeyService));
 		});
 
-		this._toDispose.push(_instantiationService.createInstance(WordContextKey, _editor));
+		this._toDispose.add(_instantiationService.createInstance(WordContextKey, _editor));
 
-		this._toDispose.push(this._model.onDidTrigger(e => {
+		this._toDispose.add(this._model.onDidTrigger(e => {
 			this._widget.getValue().showTriggered(e.auto, e.shy ? 250 : 50);
 		}));
-		this._toDispose.push(this._model.onDidSuggest(e => {
+		this._toDispose.add(this._model.onDidSuggest(e => {
 			if (!e.shy) {
 				let index = this._memoryService.select(this._editor.getModel()!, this._editor.getPosition()!, e.completionModel.items);
 				this._widget.getValue().showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
-		this._toDispose.push(this._model.onDidCancel(e => {
+		this._toDispose.add(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.getValue().hideWidget();
 			}
 		}));
-		this._toDispose.push(this._editor.onDidBlurEditorWidget(() => {
+		this._toDispose.add(this._editor.onDidBlurEditorWidget(() => {
 			if (!this._sticky) {
 				this._model.cancel();
 				this._model.clear();
@@ -145,7 +139,7 @@ export class SuggestController implements IEditorContribution {
 			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
-		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
+		this._toDispose.add(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();
 	}
 
@@ -155,7 +149,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 		this._widget.dispose();
 		if (this._model) {
 			this._model.dispose();

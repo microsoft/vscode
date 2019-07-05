@@ -8,8 +8,8 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
 
 export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
@@ -20,6 +20,7 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 		execPath: string
 	) {
 		super(_configuration, execPath);
+		this._configuration.backupWorkspaceResource = this._configuration.backupPath ? toBackupWorkspaceResource(this._configuration.backupPath, this) : undefined;
 	}
 
 	get configuration(): IWindowConfiguration {
@@ -27,8 +28,5 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 	}
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.appSettingsHome, 'settings.json').with({ scheme: Schemas.userData }); }
-
-	@memoize
-	get keybindingsResource(): URI { return joinPath(this.appSettingsHome, 'keybindings.json').with({ scheme: Schemas.userData }); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 }

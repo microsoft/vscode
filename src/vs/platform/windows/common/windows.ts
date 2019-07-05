@@ -419,6 +419,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;

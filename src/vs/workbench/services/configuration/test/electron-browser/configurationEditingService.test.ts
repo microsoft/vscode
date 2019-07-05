@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
@@ -38,20 +38,19 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
-import { dirname } from 'vs/base/common/resources';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
-class SettingsTestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends WorkbenchEnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private _settingsPath: string) {
-		super(<IWindowConfiguration>args, _execPath);
+	constructor(private _appSettingsHome: URI) {
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
 	}
 
-	get appSettingsHome(): URI { return dirname(URI.file(this._settingsPath)); }
+	get appSettingsHome() { return this._appSettingsHome; }
+
 }
 
 suite('ConfigurationEditingService', () => {
@@ -105,14 +104,15 @@ suite('ConfigurationEditingService', () => {
 		clearServices();
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+		const environmentService = new TestEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 		const fileService = new FileService(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(environmentService.appSettingsHome.with({ scheme: Schemas.userData }), new FileUserDataProvider(environmentService.appSettingsHome, fileService)));
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {

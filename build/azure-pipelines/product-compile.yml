@@ -1,0 +1,128 @@
+steps:
+- script: |
+    mkdir -p .build
+    echo -n $BUILD_SOURCEVERSION > .build/commit
+  displayName: Prepare cache flag
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.build/commit'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    vstsFeed: 'npm-vscode'
+    platformIndependent: true
+    alias: 'Compilation'
+
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    export npm_config_arch="$(VSCODE_ARCH)"
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(devops-pat)
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+  displayName: Install dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), eq(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js
+    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js remote
+  displayName: Install distro dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+# Mixin must run before optimize, because the CSS loader will
+# inline small SVGs
+- script: |
+    set -e
+    yarn gulp mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
+    yarn gulp hygiene
+    yarn monaco-compile-check
+  displayName: Run hygiene checks
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -
+    ./build/azure-pipelines/common/extract-telemetry.sh
+  displayName: Extract Telemetry
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build-legacy
+    yarn gulp compile-extensions-build
+    yarn gulp minify-vscode
+    yarn gulp minify-vscode-reh
+    yarn gulp minify-vscode-web
+  displayName: Compile
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '.build/commit'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    vstsFeed: 'npm-vscode'
+    platformIndependent: true
+    alias: 'Compilation'
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
