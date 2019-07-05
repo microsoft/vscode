@@ -114,9 +114,9 @@ export class BackupFileService implements IBackupFileService {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService fileService: IFileService
 	) {
-		const backupWorkspacePath = environmentService.configuration.backupPath;
-		if (backupWorkspacePath) {
-			this.impl = new BackupFileServiceImpl(backupWorkspacePath, this.hashPath, environmentService, fileService);
+		const backupWorkspaceResource = environmentService.configuration.backupWorkspaceResource;
+		if (backupWorkspaceResource) {
+			this.impl = new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, environmentService, fileService);
 		} else {
 			this.impl = new InMemoryBackupFileService(this.hashPath);
 		}
@@ -127,9 +127,9 @@ export class BackupFileService implements IBackupFileService {
 		return hash(str).toString(16);
 	}
 
-	initialize(backupWorkspacePath: string): void {
+	initialize(backupWorkspaceResource: URI): void {
 		if (this.impl instanceof BackupFileServiceImpl) {
-			this.impl.initialize(backupWorkspacePath);
+			this.impl.initialize(backupWorkspaceResource);
 		}
 	}
 
@@ -181,7 +181,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
 
 	constructor(
-		backupWorkspacePath: string,
+		backupWorkspaceResource: URI,
 		private readonly hashPath: (resource: URI) => string,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService
@@ -189,11 +189,11 @@ class BackupFileServiceImpl implements IBackupFileService {
 		this.isShuttingDown = false;
 		this.ioOperationQueues = new ResourceQueue();
 
-		this.initialize(backupWorkspacePath);
+		this.initialize(backupWorkspaceResource);
 	}
 
-	initialize(backupWorkspacePath: string): void {
-		this.backupWorkspacePath = joinPath(this.environmentService.userRoamingDataHome, relativePath(URI.file(this.environmentService.userDataPath), URI.file(backupWorkspacePath))!);
+	initialize(backupWorkspaceResource: URI): void {
+		this.backupWorkspacePath = joinPath(this.environmentService.userRoamingDataHome, relativePath(URI.file(this.environmentService.userDataPath), backupWorkspaceResource)!);
 
 		this.ready = this.init();
 	}

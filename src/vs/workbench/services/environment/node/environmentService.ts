@@ -19,6 +19,7 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 		execPath: string
 	) {
 		super(_configuration, execPath);
+		this._configuration.backupWorkspaceResource = this._configuration.backupPath ? URI.file(this._configuration.backupPath) : undefined;
 	}
 
 	get configuration(): IWindowConfiguration {
