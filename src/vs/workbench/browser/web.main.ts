@@ -35,7 +35,8 @@ import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
+import { BACKUPS } from 'vs/platform/environment/common/environment';
 
 class CodeRendererMain extends Disposable {
 
@@ -83,8 +84,14 @@ class CodeRendererMain extends Disposable {
 		const logService = new SimpleLogService();
 		serviceCollection.set(ILogService, logService);
 
+		const payload = await this.resolveWorkspaceInitializationPayload();
+
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
+		const environmentService = new BrowserWorkbenchEnvironmentService({
+			workspaceId: payload.id,
+			remoteAuthority: this.configuration.remoteAuthority,
+			webviewEndpoint: this.configuration.webviewEndpoint
+		});
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -118,7 +125,7 @@ class CodeRendererMain extends Disposable {
 			if (!userDataProvider) {
 				const remoteUserDataUri = this.getRemoteUserDataUri();
 				if (remoteUserDataUri) {
-					userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, dirname(remoteUserDataUri), remoteFileSystemProvider, environmentService));
+					userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService));
 				}
 			}
 		}
@@ -127,8 +134,6 @@ class CodeRendererMain extends Disposable {
 		if (userDataProvider) {
 			fileService.registerProvider(Schemas.userData, userDataProvider);
 		}
-
-		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
