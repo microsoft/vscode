@@ -7,54 +7,45 @@ resources:
     image: snapcore/snapcraft:stable
 
 jobs:
-- job: Compile
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: x64
-  container: vscode-x64
-  steps:
-  - template: product-compile.yml
+# - job: Compile
+#   pool:
+#     vmImage: 'Ubuntu-16.04'
+#   steps:
+#   - template: compile.yml
 
 - job: Windows
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
     VSCODE_ARCH: x64
-  dependsOn:
-  - Compile
   steps:
   - template: win32/product-build-win32.yml
 
 - job: Windows32
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
     VSCODE_ARCH: ia32
-  dependsOn:
-  - Compile
   steps:
   - template: win32/product-build-win32.yml
 
 - job: Linux
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: x64
   container: vscode-x64
-  dependsOn:
-  - Compile
   steps:
   - template: linux/product-build-linux.yml
 
 - job: LinuxSnap
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
@@ -66,41 +57,35 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: LinuxArmhf
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: armhf
-  dependsOn:
-  - Compile
   steps:
-  - template: linux/product-build-linux-multiarch.yml
+  - template: linux/product-build-linux-arm.yml
 
 - job: LinuxAlpine
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: alpine
-  dependsOn:
-  - Compile
   steps:
-  - template: linux/product-build-linux-multiarch.yml
+  - template: linux/product-build-linux-alpine.yml
 
 - job: macOS
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+  condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
   timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
-  dependsOn:
-  - Compile
   steps:
   - template: darwin/product-build-darwin.yml
 
 - job: Release
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+  condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
   pool:
     vmImage: 'Ubuntu-16.04'
   dependsOn:
@@ -117,7 +102,7 @@ jobs:
 - job: Mooncake
   pool:
     vmImage: 'Ubuntu-16.04'
-  condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  condition: true
   dependsOn:
   - Windows
   - Windows32

@@ -13,9 +13,17 @@ steps:
     azureSubscription: 'vscode-builds-subscription'
     KeyVaultName: vscode
 
+- task: Docker@1
+  displayName: 'Pull image'
+  inputs:
+    azureSubscriptionEndpoint: 'vscode-builds-subscription'
+    azureContainerRegistry: vscodehub.azurecr.io
+    command: 'Run an image'
+    imageName: 'vscode-linux-build-agent:armhf'
+    containerCommand: uname
+
 - script: |
     set -e
-    export npm_config_arch="$(VSCODE_ARCH)"
 
     cat << EOF > ~/.netrc
     machine monacotools.visualstudio.com
@@ -75,40 +83,16 @@ steps:
 
 - script: |
     set -e
-    node build/azure-pipelines/common/installDistroDependencies.js
-    node build/azure-pipelines/common/installDistroDependencies.js remote
-    node build/lib/builtInExtensions.js
-  displayName: Install distro dependencies and extensions
-
-- script: |
-    set -e
-    ./build/azure-pipelines/common/extract-telemetry.sh
-  displayName: Extract Telemetry
+    ./build/azure-pipelines/linux/prebuild-arm.sh
+  displayName: Prebuild
 
 - script: |
     set -e
     yarn gulp compile-build
     yarn gulp compile-extensions-build-legacy
     yarn gulp compile-extensions-build
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min-ci
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-linux-$VSCODE_ARCH-min-ci
+    ./build/azure-pipelines/linux/build-arm.sh
   displayName: Build
-
-- script: |
-    set -e
-    yarn gulp "electron-$(VSCODE_ARCH)"
-
-    # xvfb seems to be crashing often, let's make sure it's always up
-    service xvfb start
-
-    DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
-    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-  displayName: Run unit tests
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -116,15 +100,9 @@ steps:
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/linux/publish.sh
+    ./build/azure-pipelines/linux/publish-arm.sh
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
   continueOnError: true
-
-- task: PublishPipelineArtifact@0
-  displayName: 'Publish Pipeline Artifact'
-  inputs:
-    artifactName: snap-$(VSCODE_ARCH)
-    targetPath: .build/linux/snap-tarball

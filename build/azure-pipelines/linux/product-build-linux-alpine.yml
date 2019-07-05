@@ -1,23 +1,4 @@
 steps:
-- script: |
-    mkdir -p .build
-    echo -n $BUILD_SOURCEVERSION > .build/commit
-  displayName: Prepare cache flag
-
-- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-  inputs:
-    keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
-    vstsFeed: 'npm-vscode'
-    platformIndependent: true
-    alias: 'Compilation'
-
-- script: |
-    set -e
-    exit 1
-  displayName: Check RestoreCache
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
 - task: NodeTool@0
   inputs:
     versionSpec: "10.15.1"
@@ -38,7 +19,7 @@ steps:
     azureSubscriptionEndpoint: 'vscode-builds-subscription'
     azureContainerRegistry: vscodehub.azurecr.io
     command: 'Run an image'
-    imageName: 'vscode-linux-build-agent:$(VSCODE_ARCH)'
+    imageName: 'vscode-linux-build-agent:alpine'
     containerCommand: uname
 
 - script: |
@@ -65,19 +46,19 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+    yarn --frozen-lockfile
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
@@ -95,12 +76,22 @@ steps:
 
 - script: |
     set -e
-    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/prebuild.sh
-  displayName: Prebuild
+    yarn gulp hygiene
+    yarn monaco-compile-check
+  displayName: Run hygiene checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
-    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/build.sh
+    ./build/azure-pipelines/linux/prebuild-alpine.sh
+  displayName: Prepare build
+
+- script: |
+    set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build-legacy
+    yarn gulp compile-extensions-build
+    ./build/azure-pipelines/linux/build-alpine.sh
   displayName: Build
 
 - script: |
@@ -109,7 +100,7 @@ steps:
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/publish.sh
+    ./build/azure-pipelines/linux/publish-alpine.sh
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
