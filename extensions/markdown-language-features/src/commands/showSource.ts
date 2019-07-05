@@ -15,9 +15,11 @@ export class ShowSourceCommand implements Command {
 	) { }
 
 	public execute() {
-		if (this.previewManager.activePreviewResource) {
-			return vscode.workspace.openTextDocument(this.previewManager.activePreviewResource)
-				.then(document => vscode.window.showTextDocument(document));
+		const { activePreviewResource, activePreviewSourceViewColumn } = this.previewManager;
+		if (activePreviewResource && activePreviewSourceViewColumn) {
+			return vscode.workspace.openTextDocument(activePreviewResource).then(document => {
+				vscode.window.showTextDocument(document, activePreviewSourceViewColumn);
+			});
 		}
 		return undefined;
 	}
