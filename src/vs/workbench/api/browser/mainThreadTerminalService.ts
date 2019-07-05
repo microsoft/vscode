@@ -262,8 +262,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalRequestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
-		this._terminalProcessesReady[proxy.terminalId](proxy);
-		delete this._terminalProcessesReady[proxy.terminalId];
+		const ready = this._terminalProcessesReady[proxy.terminalId];
+		if (!ready) {
+			this._terminalProcesses[proxy.terminalId] = Promise.resolve(proxy);
+		} else {
+			ready(proxy);
+			delete this._terminalProcessesReady[proxy.terminalId];
+		}
 
 		// Note that onReisze is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override

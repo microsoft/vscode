@@ -337,7 +337,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminal;
 	}
 
-	public async attachVirtualProcessToTerminal(id: number, virtualProcess: vscode.TerminalVirtualProcess): Promise<void> {
+	public attachVirtualProcessToTerminal(id: number, virtualProcess: vscode.TerminalVirtualProcess) {
 		const terminal = this._getTerminalById(id);
 		if (!terminal) {
 			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
@@ -411,7 +411,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			}
 			return;
 		}
-		this._performTerminalIdAction(id, terminal => {
+		this.performTerminalIdAction(id, terminal => {
 			if (terminal) {
 				this._activeTerminal = terminal;
 				if (original !== this._activeTerminal) {
@@ -496,10 +496,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
-		this._performTerminalIdAction(id, terminal => terminal._setProcessId(processId));
+		this.performTerminalIdAction(id, terminal => terminal._setProcessId(processId));
 	}
 
-	private _performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
+	public performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
 		let terminal = this._getTerminalById(id);
 		if (terminal) {
 			callback(terminal);
@@ -721,7 +721,7 @@ class ApiRequest {
 	}
 }
 
-class ExtHostVirtualProcess implements ITerminalChildProcess {
+export class ExtHostVirtualProcess implements ITerminalChildProcess {
 	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }> | IQueuedEvent<ITerminalDimensions | undefined>)[] = [];
 	private _queueDisposables: IDisposable[] | undefined;
 
@@ -786,7 +786,9 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		this._queueDisposables = undefined;
 
 		// Attach the real listeners
-		this._virtualProcess.onDidWrite(e => this._onProcessData.fire(e));
+		this._virtualProcess.onDidWrite(e => {
+			this._onProcessData.fire(e);
+		});
 		if (this._virtualProcess.onDidExit) {
 			this._virtualProcess.onDidExit(e => this._onProcessExit.fire(e));
 		}
