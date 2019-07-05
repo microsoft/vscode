@@ -117,22 +117,10 @@ steps:
 
 - script: |
     set -e
-    ls -la .build/extensions/ms-vscode.node-debug2/node_modules
-  displayName: Debug
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- script: |
-    set -e
     yarn gulp minify-vscode
     yarn gulp minify-vscode-reh
     yarn gulp minify-vscode-web
   displayName: Compile
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- script: |
-    set -e
-    ls -la .build/extensions/ms-vscode.node-debug2/node_modules
-  displayName: Debug
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
