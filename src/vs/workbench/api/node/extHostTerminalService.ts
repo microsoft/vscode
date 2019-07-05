@@ -721,7 +721,7 @@ class ApiRequest {
 	}
 }
 
-export class ExtHostVirtualProcess implements ITerminalChildProcess {
+class ExtHostVirtualProcess implements ITerminalChildProcess {
 	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }> | IQueuedEvent<ITerminalDimensions | undefined>)[] = [];
 	private _queueDisposables: IDisposable[] | undefined;
 
