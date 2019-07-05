@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'vs/base/common/path';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 import { coalesce } from 'vs/base/common/arrays';
@@ -116,7 +116,7 @@ export class BackupFileService implements IBackupFileService {
 	) {
 		const backupWorkspacePath = environmentService.configuration.backupPath;
 		if (backupWorkspacePath) {
-			this.impl = new BackupFileServiceImpl(backupWorkspacePath, this.hashPath, fileService);
+			this.impl = new BackupFileServiceImpl(backupWorkspacePath, this.hashPath, environmentService, fileService);
 		} else {
 			this.impl = new InMemoryBackupFileService(this.hashPath);
 		}
@@ -183,6 +183,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	constructor(
 		backupWorkspacePath: string,
 		private readonly hashPath: (resource: URI) => string,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		this.isShuttingDown = false;
@@ -192,7 +193,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	initialize(backupWorkspacePath: string): void {
-		this.backupWorkspacePath = URI.file(backupWorkspacePath);
+		this.backupWorkspacePath = joinPath(this.environmentService.userRoamingDataHome, relativePath(URI.file(this.environmentService.userDataPath), URI.file(backupWorkspacePath))!);
 
 		this.ready = this.init();
 	}
