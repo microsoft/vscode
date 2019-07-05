@@ -5,16 +5,14 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, FileStorageDatabase } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
-import { IStorage, IStorageDatabase, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath } from 'vs/base/common/resources';
-import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
@@ -122,85 +120,4 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	}
 
 	//#endregion
-}
-
-export class FileStorageDatabase extends Disposable implements IStorageDatabase {
-
-	readonly onDidChangeItemsExternal = Event.None; // TODO@Ben implement global UI storage events
-
-	private cache: Map<string, string> | undefined;
-
-	private pendingUpdate: Promise<void> = Promise.resolve();
-
-	constructor(
-		private readonly file: URI,
-		private readonly fileService: IFileService
-	) {
-		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.fileService.watch(this.file));
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-
-	}
-
-	async getItems(): Promise<Map<string, string>> {
-		if (!this.cache) {
-			try {
-				this.cache = await this.doGetItemsFromFile();
-			} catch (error) {
-				this.cache = new Map();
-			}
-		}
-
-		return this.cache;
-	}
-
-	private async doGetItemsFromFile(): Promise<Map<string, string>> {
-		await this.pendingUpdate;
-
-		const itemsRaw = await this.fileService.readFile(this.file);
-
-		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
-	}
-
-	async updateItems(request: IUpdateRequest): Promise<void> {
-		let updateCount = 0;
-		if (request.insert) {
-			updateCount += request.insert.size;
-		}
-		if (request.delete) {
-			updateCount += request.delete.size;
-		}
-
-		if (updateCount === 0) {
-			return Promise.resolve();
-		}
-
-		const items = await this.getItems();
-
-		if (request.insert) {
-			request.insert.forEach((value, key) => items.set(key, value));
-		}
-
-		if (request.delete) {
-			request.delete.forEach(key => items.delete(key));
-		}
-
-		await this.pendingUpdate;
-
-		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items)))).then();
-
-		return this.pendingUpdate;
-	}
-
-	close(): Promise<void> {
-		return this.pendingUpdate;
-	}
 }

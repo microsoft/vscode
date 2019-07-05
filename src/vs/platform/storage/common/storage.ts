@@ -7,6 +7,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IUpdateRequest, IStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -20,6 +25,7 @@ export interface IWillSaveStateEvent {
 }
 
 export interface IStorageService {
+
 	_serviceBrand: any;
 
 	/**
@@ -199,6 +205,76 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	logStorage(): void {
 		logStorage(this.globalCache, this.workspaceCache, 'inMemory', 'inMemory');
+	}
+}
+
+export class FileStorageDatabase extends Disposable implements IStorageDatabase {
+
+	readonly onDidChangeItemsExternal = Event.None; // TODO@Ben implement global UI storage events
+
+	private cache: Map<string, string> | undefined;
+
+	private pendingUpdate: Promise<void> = Promise.resolve();
+
+	constructor(
+		private readonly file: URI,
+		private readonly fileService: IFileService
+	) {
+		super();
+	}
+
+	async getItems(): Promise<Map<string, string>> {
+		if (!this.cache) {
+			try {
+				this.cache = await this.doGetItemsFromFile();
+			} catch (error) {
+				this.cache = new Map();
+			}
+		}
+
+		return this.cache;
+	}
+
+	private async doGetItemsFromFile(): Promise<Map<string, string>> {
+		await this.pendingUpdate;
+
+		const itemsRaw = await this.fileService.readFile(this.file);
+
+		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
+	}
+
+	async updateItems(request: IUpdateRequest): Promise<void> {
+		let updateCount = 0;
+		if (request.insert) {
+			updateCount += request.insert.size;
+		}
+		if (request.delete) {
+			updateCount += request.delete.size;
+		}
+
+		if (updateCount === 0) {
+			return Promise.resolve();
+		}
+
+		const items = await this.getItems();
+
+		if (request.insert) {
+			request.insert.forEach((value, key) => items.set(key, value));
+		}
+
+		if (request.delete) {
+			request.delete.forEach(key => items.delete(key));
+		}
+
+		await this.pendingUpdate;
+
+		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items)))).then();
+
+		return this.pendingUpdate;
+	}
+
+	close(): Promise<void> {
+		return this.pendingUpdate;
 	}
 }
 
