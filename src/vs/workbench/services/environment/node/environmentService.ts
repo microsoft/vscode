@@ -9,6 +9,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
 
 export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
@@ -19,7 +20,7 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 		execPath: string
 	) {
 		super(_configuration, execPath);
-		this._configuration.backupWorkspaceResource = this._configuration.backupPath ? URI.file(this._configuration.backupPath) : undefined;
+		this._configuration.backupWorkspaceResource = this._configuration.backupPath ? toBackupWorkspaceResource(this._configuration.backupPath, this) : undefined;
 	}
 
 	get configuration(): IWindowConfiguration {

@@ -16,7 +16,7 @@ import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
@@ -397,7 +397,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			await this.migrateStorage(result.workspace);
 			// Reinitialize backup service
 			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.initialize(URI.file(result.backupPath!));
+				this.backupFileService.initialize(toBackupWorkspaceResource(result.backupPath!, this.environmentService));
 			}
 		}
 
