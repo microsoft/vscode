@@ -21,6 +21,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { isNative } from 'vs/base/common/platform';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -421,7 +422,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
  */
 export function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	if (typeof require !== 'undefined') {
+	if (isNative) {
 		const _crypto: typeof crypto = require.__$__nodeRequire('crypto');
 		return _crypto['createHash']('md5').update(str).digest('hex');
 	}
