@@ -42,9 +42,8 @@ import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workben
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { dirname } from 'vs/base/common/resources';
 
-class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
 		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
@@ -105,13 +104,13 @@ suite('ConfigurationEditingService', () => {
 		clearServices();
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = new TestBackupEnvironmentService(URI.file(workspaceDir));
+		const environmentService = new TestEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 		const fileService = new FileService(new NullLogService());
 		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(URI.file(workspaceDir), dirname(URI.file(workspaceDir)), diskFileSystemProvider));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);

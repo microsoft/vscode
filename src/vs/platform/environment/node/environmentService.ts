@@ -151,10 +151,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get backupHome(): string { return path.join(this.userDataPath, BACKUPS); }
+	get backupHome(): URI { return URI.file(path.join(this.userDataPath, BACKUPS)); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
+	get backupWorkspacesPath(): string { return path.join(this.backupHome.fsPath, 'workspaces.json'); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }

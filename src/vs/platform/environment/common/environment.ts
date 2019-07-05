@@ -124,7 +124,7 @@ export interface IEnvironmentService {
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 
-	backupHome: string;
+	backupHome: URI;
 	backupWorkspacesPath: string;
 
 	untitledWorkspacesHome: URI;

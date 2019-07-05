@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { startsWith } from 'vs/base/common/strings';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
-import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class FileUserDataProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability {
 
@@ -20,15 +20,20 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
 
+	private readonly userDataHome: URI;
+
 	constructor(
-		private readonly userDataHome: URI,
-		private readonly backupsHome: URI,
+		private readonly fileSystemUserDataHome: URI,
+		private readonly fileSystemBackupsHome: URI,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
+		environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
+		this.userDataHome = environmentService.userRoamingDataHome;
+
 		// Assumption: This path always exists
-		this._register(this.fileSystemProvider.watch(this.userDataHome, { recursive: false, excludes: [] }));
+		this._register(this.fileSystemProvider.watch(this.fileSystemUserDataHome, { recursive: false, excludes: [] }));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 
@@ -115,21 +120,21 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 	}
 
 	private toFileSystemResource(userDataResource: URI): URI {
-		const fileSystemResource = userDataResource.with({ scheme: this.userDataHome.scheme });
-		const relativePath = resources.relativePath(this.userDataHome, fileSystemResource);
-		if (relativePath && startsWith(relativePath, BACKUPS)) {
-			return resources.joinPath(resources.dirname(this.backupsHome), relativePath);
+		const relativePath = resources.relativePath(this.userDataHome, userDataResource)!;
+		if (startsWith(relativePath, BACKUPS)) {
+			return resources.joinPath(resources.dirname(this.fileSystemBackupsHome), relativePath);
 		}
-		return fileSystemResource;
+		return resources.joinPath(this.fileSystemUserDataHome, relativePath);
 	}
 
 	private toUserDataResource(fileSystemResource: URI): URI | null {
-		if (resources.relativePath(this.userDataHome, fileSystemResource)) {
-			return fileSystemResource.with({ scheme: Schemas.userData });
+		const userDataRelativePath = resources.relativePath(this.fileSystemUserDataHome, fileSystemResource);
+		if (userDataRelativePath) {
+			return resources.joinPath(this.userDataHome, userDataRelativePath);
 		}
-		const relativePath = resources.relativePath(this.backupsHome, fileSystemResource);
-		if (relativePath) {
-			return resources.joinPath(this.userDataHome, BACKUPS, relativePath).with({ scheme: Schemas.userData });
+		const backupRelativePath = resources.relativePath(this.fileSystemBackupsHome, fileSystemResource);
+		if (backupRelativePath) {
+			return resources.joinPath(this.userDataHome, BACKUPS, backupRelativePath);
 		}
 		return null;
 	}

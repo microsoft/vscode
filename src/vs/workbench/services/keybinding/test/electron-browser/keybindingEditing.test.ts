@@ -49,9 +49,8 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { dirname } from 'vs/base/common/resources';
 
-class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
 		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
@@ -81,7 +80,7 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
-			const environmentService = new TestBackupEnvironmentService(URI.file(testDir));
+			const environmentService = new TestEnvironmentService(URI.file(testDir));
 			instantiationService.stub(IEnvironmentService, environmentService);
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
@@ -101,7 +100,7 @@ suite('KeybindingsEditing', () => {
 			const fileService = new FileService(new NullLogService());
 			const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, dirname(environmentService.appSettingsHome), diskFileSystemProvider));
+			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

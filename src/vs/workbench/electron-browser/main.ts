@@ -200,7 +200,7 @@ class CodeRendererMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, URI.file(environmentService.backupHome), diskFileSystemProvider));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
