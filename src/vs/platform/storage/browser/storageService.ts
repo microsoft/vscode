@@ -13,6 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { runWhenIdle } from 'vs/base/common/async';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
@@ -37,6 +38,26 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
+
+		// In the browser we do not have support for long running unload sequences. As such,
+		// we cannot ask for saving state in that moment, because that would result in a
+		// long running operation.
+		// Instead, periodically ask customers to save save. The library will be clever enough
+		// to only save state that has actually changed.
+		this.saveStatePeriodically();
+	}
+
+	private saveStatePeriodically(): void {
+		setTimeout(() => {
+			runWhenIdle(() => {
+
+				// this event will potentially cause new state to be stored
+				this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+
+				// repeat
+				this.saveStatePeriodically();
+			});
+		}, 5000);
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
@@ -66,8 +87,6 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		]);
 	}
 
-	//#region
-
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope): string | undefined;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
@@ -94,18 +113,6 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		this.getStorage(scope).delete(key);
 	}
 
-	async close(): Promise<void> {
-
-		// Signal as event so that clients can still store data
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
-
-		// Do it
-		await Promise.all([
-			this.globalStorage.close(),
-			this.workspaceStorage.close()
-		]);
-	}
-
 	private getStorage(scope: StorageScope): IStorage {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
@@ -118,6 +125,4 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		return logStorage(result[0], result[1], this.globalStorageFile.toString(), this.workspaceStorageFile.toString());
 	}
-
-	//#endregion
 }
