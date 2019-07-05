@@ -786,9 +786,7 @@ export class ExtHostVirtualProcess implements ITerminalChildProcess {
 		this._queueDisposables = undefined;
 
 		// Attach the real listeners
-		this._virtualProcess.onDidWrite(e => {
-			this._onProcessData.fire(e);
-		});
+		this._virtualProcess.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._virtualProcess.onDidExit) {
 			this._virtualProcess.onDidExit(e => this._onProcessExit.fire(e));
 		}
