@@ -19,7 +19,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -35,10 +35,7 @@ import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
 import { joinPath, dirname } from 'vs/base/common/resources';
-import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
-import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
 class CodeRendererMain extends Disposable {
 
@@ -87,8 +84,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const remoteUserDataUri = this.getRemoteUserDataUri();
-		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration, remoteUserDataUri);
+		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -111,16 +107,26 @@ class CodeRendererMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
+		let userDataProvider: IFileSystemProvider | undefined = this.configuration.userDataProvider;
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
+
+			if (!userDataProvider) {
+				const remoteUserDataUri = this.getRemoteUserDataUri();
+				if (remoteUserDataUri) {
+					userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, dirname(remoteUserDataUri), remoteFileSystemProvider));
+				}
+			}
 		}
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), this.getUserDataPovider(fileService, remoteUserDataUri)));
+		if (userDataProvider) {
+			fileService.registerProvider(Schemas.userData, userDataProvider);
+		}
 
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
@@ -168,15 +174,6 @@ class CodeRendererMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private getUserDataPovider(fileService: IFileService, remoteUserDataUri: URI | null): IUserDataProvider {
-		if (this.configuration.userDataProvider) {
-			return this.configuration.userDataProvider;
-		} else if (this.configuration.remoteAuthority && remoteUserDataUri) {
-			return this._register(new FileUserDataProvider(remoteUserDataUri, fileService));
-		}
-		return this._register(new InMemoryUserDataProvider());
 	}
 
 	private getRemoteUserDataUri(): URI | null {

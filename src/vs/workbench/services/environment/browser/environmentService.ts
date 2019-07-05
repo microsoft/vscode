@@ -63,24 +63,17 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(configuration: IWorkbenchConstructionOptions, remoteUserDataUri: URI | null) {
+	constructor(configuration: IWorkbenchConstructionOptions) {
 		this.args = { _: [] };
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
 		this.configuration.remoteAuthority = configuration.remoteAuthority;
-
-		if (remoteUserDataUri) {
-			this.appSettingsHome = remoteUserDataUri;
-			this.settingsResource = joinPath(this.appSettingsHome, 'settings.json').with({ scheme: Schemas.userData });
-			this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json').with({ scheme: Schemas.userData });
-		} else {
-			const appSettingsHome = URI.file('/User').with({ scheme: Schemas.userData });
-			this.settingsResource = joinPath(appSettingsHome, 'settings.json');
-			this.keybindingsResource = joinPath(appSettingsHome, 'keybindings.json');
-		}
-
-		this.keyboardLayoutResource = joinPath(this.appSettingsHome, 'keyboardLayout.json');
+		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
+		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
+		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
+		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
+		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 
 		this.logsPath = '/web/logs';
 
@@ -104,9 +97,11 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
+	userRoamingDataHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
+	localeResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 	settingsSearchBuildId?: number;

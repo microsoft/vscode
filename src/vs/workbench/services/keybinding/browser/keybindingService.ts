@@ -579,7 +579,6 @@ class UserKeybindings extends Disposable {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(this.fileService.watch(this.keybindingsResource));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 

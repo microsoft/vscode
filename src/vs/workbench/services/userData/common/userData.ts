@@ -4,6 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { FileChangeType } from 'vs/platform/files/common/files';
+
+/**
+ * The event user data providers must use to signal a file change.
+ */
+export interface FileChangeEvent {
+
+	/**
+	 * The type of change.
+	 */
+	readonly type: FileChangeType;
+
+	/**
+	 * The path of the file that has changed.
+	 */
+	readonly path: string;
+}
 
 /**
  * The userDataProvider is used to handle user specific application
@@ -27,10 +44,9 @@ import { Event } from 'vs/base/common/event';
 export interface IUserDataProvider {
 
 	/**
-	 * Emitted when one ore more files are added, changed or deleted. The event provides
-	 * an array of paths of these files.
+	 * An event to signal that a file has been created, changed, or deleted.
 	 */
-	readonly onDidChangeFile: Event<string[]>;
+	readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
 	/**
 	 * Read the file contents of the given path.
