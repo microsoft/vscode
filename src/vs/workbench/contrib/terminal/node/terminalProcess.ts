@@ -68,7 +68,12 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			conptyInheritCursor: true
 		};
 
-		const cwdVerification = stat(cwd).catch((err) => {
+		const cwdVerification = stat(cwd).then(stat => {
+			if (!stat.isDirectory()) {
+				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
+			}
+			return;
+		}).catch((err) => {
 			if (err && err.code === 'ENOENT') {
 				// So we can include in the error message the specified CWD
 				shellLaunchConfig.cwd = cwd;
