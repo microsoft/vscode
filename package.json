@@ -38,7 +38,7 @@
     "keytar": "4.2.1",
     "minimist": "1.2.0",
     "native-is-elevated": "^0.2.1",
-    "native-keymap": "1.2.6",
+    "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
     "node-pty": "0.9.0-beta17",
     "nsfw": "1.2.5",
