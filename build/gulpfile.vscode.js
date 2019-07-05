@@ -104,6 +104,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 		bundleInfo: undefined
 	})
 ));
+gulp.task(optimizeVSCodeTask);
 
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
@@ -117,6 +118,7 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	},
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
+gulp.task(minifyVSCodeTask);
 
 // Package
 
@@ -307,13 +309,22 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
-		const depsSrc = [
-			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
-			// @ts-ignore JSON checking: dependencies is optional
-			..._.flatten(Object.keys(product.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`]))
-		];
+		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
-		const deps = gulp.src(depsSrc, { base: '.', dot: true })
+		// Collect distro dependencies, if any
+		if (quality) {
+			const qualityPackagePath = path.join(root, 'quality', quality, 'package.json');
+
+			if (fs.existsSync(qualityPackagePath)) {
+				const pkg = JSON.parse(fs.readFileSync(qualityPackagePath, 'utf8'));
+
+				// @ts-ignore JSON checking: dependencies is optional
+				const distroDependencies = _.flatten(Object.keys(pkg.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`]));
+				dependenciesSrc.push(...distroDependencies);
+			}
+		}
+
+		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
@@ -438,7 +449,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
-			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		));
@@ -447,6 +457,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			compileBuildTask,
 			compileExtensionsBuildTask,
+			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
