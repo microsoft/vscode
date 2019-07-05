@@ -244,7 +244,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			return;
 		}
 
-		this._terminalProcessesReady[request.proxy.terminalId](request.proxy);
+		const ready = this._terminalProcessesReady[request.proxy.terminalId];
+		if (ready) {
+			ready(request.proxy);
+			delete this._terminalProcessesReady[request.proxy.terminalId];
+		} else {
+			this._terminalProcesses[request.proxy.terminalId] = Promise.resolve(request.proxy);
+		}
 		const shellLaunchConfigDto: ShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,
 			executable: request.shellLaunchConfig.executable,
