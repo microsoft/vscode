@@ -112,11 +112,6 @@ steps:
     yarn gulp compile-build
     yarn gulp compile-extensions-build-legacy
     yarn gulp compile-extensions-build
-  displayName: Compile
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- script: |
-    set -e
     yarn gulp minify-vscode
     yarn gulp minify-vscode-reh
     yarn gulp minify-vscode-web
