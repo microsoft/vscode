@@ -404,6 +404,11 @@ export class URI implements UriComponents {
 	}
 }
 
+export const toExternal: (uri: URI) => string = typeof URL === 'function'
+	? (uri: URI): string => new URL(uri.toString(true)).href
+	: (uri: URI): string => uri.toString(true); // IE11 is out of luck...
+
+
 export interface UriComponents {
 	scheme: string;
 	authority: string;

@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { URI, toExternal } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
@@ -55,7 +55,7 @@ export class OpenerService implements IOpenerService {
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
 			// open http or default mail application
-			dom.windowOpenNoOpener(resource.toString());
+			dom.windowOpenNoOpener(toExternal(resource));
 			return Promise.resolve(true);
 
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {

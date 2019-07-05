@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, toExternal } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
 
@@ -476,6 +476,15 @@ suite('URI', () => {
 		assert.equal(uri.toString(), 'http://www.test.com/path/service?authId=CN%3DQ10');
 	});
 
+	test('vscode.env.openExternal is not working correctly because of unnecessary escape processing. #76606', function () {
+		const uri = URI.parse('x-github-client://openRepo/https://github.com/wraith13/open-in-github-desktop-vscode.git');
+		assert.equal(uri.toString(), 'x-github-client://openrepo/https%3A//github.com/wraith13/open-in-github-desktop-vscode.git');
+		assert.equal(toExternal(uri), 'x-github-client://openrepo/https://github.com/wraith13/open-in-github-desktop-vscode.git');
+
+		const uri2 = URI.parse('x-github-client://openRepo/https://githüb.com/wraith13/open-in-github-desktop-vscode.git');
+		assert.equal(toExternal(uri2), 'x-github-client://openrepo/https://gith%C3%BCb.com/wraith13/open-in-github-desktop-vscode.git');
+
+	});
 
 	test('URI - (de)serialize', function () {
 

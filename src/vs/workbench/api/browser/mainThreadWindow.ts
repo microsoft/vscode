@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, toExternal } from 'vs/base/common/uri';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
@@ -58,7 +58,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			}
 		}
 
-		return this.windowsService.openExternal(uri.toString());
+		return this.windowsService.openExternal(toExternal(uri));
 	}
 
 	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
