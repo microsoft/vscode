@@ -95,7 +95,7 @@ steps:
 
 - script: |
     set -e
-    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/prebuild.sh
+    CHILD_CONCURRENCY=1 ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/prebuild.sh
   displayName: Prebuild
 
 - script: |
