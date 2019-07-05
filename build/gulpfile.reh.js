@@ -282,7 +282,8 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			.map(name => `.build/extensions/${name}/**`);
 
 		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
-		const sources = es.merge(src, extensions);
+		const extensionsCommonDependencies = gulp.src('.build/extensions/node_modules/**', { base: '.build', dot: true });
+		const sources = es.merge(src, extensions, extensionsCommonDependencies);
 
 		let version = packageJson.version;
 		// @ts-ignore JSON checking: quality is optional
