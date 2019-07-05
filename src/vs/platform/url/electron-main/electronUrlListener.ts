@@ -5,12 +5,10 @@
 
 import { Event } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/product/node/product';
 import { app } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 
 function uriFromRawUrl(url: string): URI | null {
@@ -42,10 +40,6 @@ export class ElectronURLListener {
 				urlService.open(uri);
 			}
 		});
-
-		if (isWindows) {
-			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
-		}
 
 		const onOpenElectronUrl = Event.map(
 			Event.fromNodeEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url })),
