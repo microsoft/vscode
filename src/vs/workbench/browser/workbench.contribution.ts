@@ -111,7 +111,13 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'type': 'boolean',
 				'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
 				'default': false,
-				'included': isMacintosh
+				'included': isMacintosh && !isWeb
+			},
+			'workbench.editor.mouseBackForwardToNavigate': {
+				'type': 'boolean',
+				'description': nls.localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
+				'default': true,
+				'included': !isMacintosh
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',

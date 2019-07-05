@@ -371,9 +371,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		});
 
-		// App commands support
-		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
-
 		// Window Focus
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
@@ -464,23 +461,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (isMacintosh) {
 			const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
-				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
+				this.registerSwipeListener();
 			} else {
 				this._win.removeAllListeners('swipe');
 			}
 		}
 	}
 
-	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
-		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
+	private registerSwipeListener() {
+		this._win.on('swipe', (event: Electron.Event, cmd: string) => {
 			if (!this.isReady) {
 				return; // window must be ready
 			}
 
-			if (cmd === back) {
-				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack', from: 'mouse' } as IRunActionInWindowRequest);
-			} else if (cmd === forward) {
-				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
+			if (cmd === 'left') {
+				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' } as IRunActionInWindowRequest);
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
 	}
