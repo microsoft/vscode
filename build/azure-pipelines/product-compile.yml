@@ -82,8 +82,8 @@ steps:
 
 - script: |
     set -e
-    node build/azure-pipelines/common/installDistroDependencies.js
-    node build/azure-pipelines/common/installDistroDependencies.js remote
+    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js
+    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js remote
   displayName: Install distro dependencies
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
