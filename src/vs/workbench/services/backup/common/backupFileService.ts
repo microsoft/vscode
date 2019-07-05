@@ -21,7 +21,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { isNative } from 'vs/base/common/platform';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -118,10 +117,15 @@ export class BackupFileService implements IBackupFileService {
 	) {
 		const backupWorkspacePath = environmentService.configuration.backupPath;
 		if (backupWorkspacePath) {
-			this.impl = new BackupFileServiceImpl(backupWorkspacePath, fileService);
+			this.impl = new BackupFileServiceImpl(backupWorkspacePath, this.hashPath, fileService);
 		} else {
-			this.impl = new InMemoryBackupFileService();
+			this.impl = new InMemoryBackupFileService(this.hashPath);
 		}
+	}
+
+	protected hashPath(resource: URI): string {
+		const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
+		return hash(str).toString(16);
 	}
 
 	initialize(backupWorkspacePath: string): void {
@@ -179,6 +183,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 	constructor(
 		backupWorkspacePath: string,
+		private readonly hashPath: (resource: URI) => string,
 		@IFileService private readonly fileService: IFileService
 	) {
 		this.isShuttingDown = false;
@@ -357,7 +362,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	toBackupResource(resource: URI): URI {
-		return joinPath(this.backupWorkspacePath, resource.scheme, hashPath(resource));
+		return joinPath(this.backupWorkspacePath, resource.scheme, this.hashPath(resource));
 	}
 }
 
@@ -366,6 +371,8 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	_serviceBrand: ServiceIdentifier<IBackupFileService>;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
+
+	constructor(private readonly hashPath: (resource: URI) => string) { }
 
 	hasBackups(): Promise<boolean> {
 		return Promise.resolve(this.backups.size > 0);
@@ -413,21 +420,8 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	}
 
 	toBackupResource(resource: URI): URI {
-		return URI.file(join(resource.scheme, hashPath(resource)));
+		return URI.file(join(resource.scheme, this.hashPath(resource)));
 	}
-}
-
-/*
- * Exported only for testing
- */
-export function hashPath(resource: URI): string {
-	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	if (isNative) {
-		const _crypto: typeof crypto = require.__$__nodeRequire('crypto');
-		return _crypto['createHash']('md5').update(str).digest('hex');
-	}
-
-	return hash(str).toString(16);
 }
 
 registerSingleton(IBackupFileService, BackupFileService);

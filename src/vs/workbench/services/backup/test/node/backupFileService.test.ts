@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/common/backupFileService';
+import { BackupFilesModel } from 'vs/workbench/services/backup/common/backupFileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
@@ -24,6 +24,7 @@ import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/n
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
+import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
