@@ -986,6 +986,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			for (const terminal of values(this.terminals)) {
 				if (terminal.group === group) {
 					const originalInstance = terminal.terminal;
+					await originalInstance.waitForTitle();
 					const config = this.currentTask.shellLaunchConfig;
 					result = this.terminalService.splitInstance(originalInstance, config);
 					if (result) {
