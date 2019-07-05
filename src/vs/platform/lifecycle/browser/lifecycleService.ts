@@ -22,7 +22,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		window.addEventListener('beforeunload', () => this.beforeUnload());
+		window.onbeforeunload = () => this.beforeUnload();
 	}
 
 	private beforeUnload(): string | null {

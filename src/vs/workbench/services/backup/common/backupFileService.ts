@@ -310,7 +310,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 			return contents.substr(0, newLineIndex);
 		}
 
-		throw new Error(`Could not find ${matchingString} in first ${maximumBytesToRead} bytes of ${file}`);
+		throw new Error(`Could not find ${JSON.stringify(matchingString)} in first ${maximumBytesToRead} bytes of ${file}`);
 	}
 
 	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
