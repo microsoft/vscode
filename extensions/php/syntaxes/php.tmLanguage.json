@@ -1207,7 +1207,7 @@
 		"function-call": {
 			"patterns": [
 				{
-					"begin": "(?xi)\n(\n  \\\\?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])                            # Optional root namespace\n  [a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*          # First namespace\n  (?:\\\\[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additional namespaces\n)\\s*(\\()",
+					"begin": "(?x)\n(\n  \\\\?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])                            # Optional root namespace\n  [a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*          # First namespace\n  (?:\\\\[a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additional namespaces\n)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1238,7 +1238,7 @@
 					]
 				},
 				{
-					"begin": "(?i)(\\\\)?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()",
+					"begin": "(\\\\)?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
