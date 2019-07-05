@@ -87,6 +87,14 @@ steps:
   displayName: Install distro dependencies
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
+# Mixin must run before optimize, because the CSS loader will
+# inline small SVGs
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { yarn gulp mixin }
+  displayName: Mix in quality
+
 - script: |
     set -e
     yarn gulp hygiene
