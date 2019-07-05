@@ -101,13 +101,13 @@ export class MarkdownPreview extends Disposable {
 		const resource = vscode.Uri.parse(state.resource);
 		const locked = state.locked;
 		const line = state.line;
-		const sourceViewColumn = state.sourceViewColumn;
+		const resourceColumn = state.resourceColumn;
 
 		const preview = new MarkdownPreview(
 			webview,
 			resource,
 			locked,
-			sourceViewColumn,
+			resourceColumn,
 			contentProvider,
 			previewConfigurations,
 			logger,
@@ -158,7 +158,7 @@ export class MarkdownPreview extends Disposable {
 		webview: vscode.WebviewPanel,
 		resource: vscode.Uri,
 		locked: boolean,
-		private readonly _sourceViewColumn: vscode.ViewColumn,
+		private readonly _resourceColumn: vscode.ViewColumn,
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
 		private readonly _logger: Logger,
@@ -253,8 +253,8 @@ export class MarkdownPreview extends Disposable {
 		return this._resource;
 	}
 
-	public get sourceViewColumn(): vscode.ViewColumn {
-		return this._sourceViewColumn;
+	public get resourceColumn(): vscode.ViewColumn {
+		return this._resourceColumn;
 	}
 
 	public get state() {
@@ -262,7 +262,7 @@ export class MarkdownPreview extends Disposable {
 			resource: this.resource.toString(),
 			locked: this._locked,
 			line: this.line,
-			sourceViewColumn: this.sourceViewColumn,
+			resourceColumn: this.resourceColumn,
 			imageInfo: this.imageInfo
 		};
 	}
