@@ -63,13 +63,13 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(configuration: IWorkbenchConstructionOptions) {
+	constructor(configuration: IWorkbenchConstructionOptions, remoteUserDataUri: URI | null) {
 		this.args = { _: [] };
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
 		this.configuration.remoteAuthority = configuration.remoteAuthority;
-		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
+		this.userRoamingDataHome = remoteUserDataUri ? remoteUserDataUri.with({ scheme: Schemas.userData }) : URI.file('/User').with({ scheme: Schemas.userData });
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');

@@ -84,7 +84,8 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration);
+		const remoteUserDataUri = this.getRemoteUserDataUri();
+		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration, remoteUserDataUri);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -115,11 +116,8 @@ class CodeRendererMain extends Disposable {
 
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 
-			if (!userDataProvider) {
-				const remoteUserDataUri = this.getRemoteUserDataUri();
-				if (remoteUserDataUri) {
-					userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, dirname(remoteUserDataUri), remoteFileSystemProvider));
-				}
+			if (!userDataProvider && remoteUserDataUri) {
+				userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, dirname(remoteUserDataUri), remoteFileSystemProvider));
 			}
 		}
 
