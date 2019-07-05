@@ -14,6 +14,7 @@ import { IStorage, IStorageDatabase, IUpdateRequest, Storage } from 'vs/base/par
 import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath } from 'vs/base/common/resources';
+import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
@@ -51,12 +52,12 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 
 		// Workspace Storage
-		this.workspaceStorageFile = joinPath(this.environmentService.userRoamingDataHome, 'workspaceStorage', `${payload.id}.json`);
+		this.workspaceStorageFile = joinPath(this.environmentService.userRoamingDataHome, 'state', `${payload.id}.json`);
 		this.workspaceStorage = new Storage(this._register(new FileStorageDatabase(this.workspaceStorageFile, this.fileService)));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
 
 		// Global Storage
-		this.globalStorageFile = joinPath(this.environmentService.userRoamingDataHome, 'globalStorage', 'global.json');
+		this.globalStorageFile = joinPath(this.environmentService.userRoamingDataHome, 'state', 'global.json');
 		this.globalStorage = new Storage(this._register(new FileStorageDatabase(this.globalStorageFile, this.fileService)));
 		this._register(this.globalStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL })));
 
@@ -166,7 +167,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 		const itemsRaw = await this.fileService.readFile(this.file);
 
-		return new Map(JSON.parse(itemsRaw.value.toString()));
+		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
@@ -192,11 +193,9 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 			request.delete.forEach(key => items.delete(key));
 		}
 
-		const itemsRaw = JSON.stringify([...items]);
-
 		await this.pendingUpdate;
 
-		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(itemsRaw)).then();
+		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items)))).then();
 
 		return this.pendingUpdate;
 	}
