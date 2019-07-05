@@ -5,8 +5,8 @@
 
 import { join } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
-import { createHash } from 'crypto';
 import { URI } from 'vs/base/common/uri';
+import { hash } from 'vs/base/common/hash';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
@@ -421,7 +421,12 @@ export class InMemoryBackupFileService implements IBackupFileService {
  */
 export function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return createHash('md5').update(str).digest('hex');
+	if (typeof require !== 'undefined') {
+		const _crypto: typeof crypto = require.__$__nodeRequire('crypto');
+		return _crypto['createHash']('md5').update(str).digest('hex');
+	}
+
+	return hash(str).toString(16);
 }
 
 registerSingleton(IBackupFileService, BackupFileService);

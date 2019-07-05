@@ -5,10 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as browser from 'vs/base/browser/browser';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -54,68 +50,6 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-
-//#region Backup File
-
-export class SimpleBackupFileService implements IBackupFileService {
-
-	_serviceBrand: any;
-
-	private backups: Map<string, ITextSnapshot> = new Map();
-
-	hasBackups(): Promise<boolean> {
-		return Promise.resolve(this.backups.size > 0);
-	}
-
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
-		const backupResource = this.toBackupResource(resource);
-		if (this.backups.has(backupResource.toString())) {
-			return Promise.resolve(backupResource);
-		}
-
-		return Promise.resolve(undefined);
-	}
-
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		const backupResource = this.toBackupResource(resource);
-		this.backups.set(backupResource.toString(), content);
-
-		return Promise.resolve();
-	}
-
-	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
-		const snapshot = this.backups.get(backupResource.toString());
-		if (snapshot) {
-			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
-		}
-
-		return Promise.reject('Unexpected backup resource to resolve');
-	}
-
-	getWorkspaceFileBackups(): Promise<URI[]> {
-		return Promise.resolve(keys(this.backups).map(key => URI.parse(key)));
-	}
-
-	discardResourceBackup(resource: URI): Promise<void> {
-		this.backups.delete(this.toBackupResource(resource).toString());
-
-		return Promise.resolve();
-	}
-
-	discardAllWorkspaceBackups(): Promise<void> {
-		this.backups.clear();
-
-		return Promise.resolve();
-	}
-
-	toBackupResource(resource: URI): URI {
-		return resource;
-	}
-}
-
-registerSingleton(IBackupFileService, SimpleBackupFileService, true);
-
-//#endregion
 
 //#region Clipboard
 
