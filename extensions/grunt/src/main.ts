@@ -70,12 +70,32 @@ interface GruntTaskDefinition extends vscode.TaskDefinition {
 	file?: string;
 }
 
+async function findGruntCommand(rootPath: string): Promise<string> {
+	let gruntCommand: string;
+	let platform = process.platform;
+	if (platform === 'win32' && await exists(path.join(rootPath, 'node_modules', '.bin', 'grunt.cmd'))) {
+		const globalGrunt = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'grunt.cmd');
+		if (await exists(globalGrunt)) {
+			gruntCommand = `" ${globalGrunt} "`;
+		} else {
+			gruntCommand = path.join('.', 'node_modules', '.bin', 'grunt.cmd');
+		}
+	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath))) {
+		gruntCommand = path.join('.', 'node_modules', '.bin', 'grunt');
+	} else {
+		gruntCommand = 'grunt';
+	}
+	return gruntCommand;
+}
+
 class FolderDetector {
 
 	private fileWatcher: vscode.FileSystemWatcher | undefined;
 	private promise: Thenable<vscode.Task[]> | undefined;
 
-	constructor(private _workspaceFolder: vscode.WorkspaceFolder) {
+	constructor(
+		private _workspaceFolder: vscode.WorkspaceFolder,
+		private _gruntCommand: Promise<string>) {
 	}
 
 	public get workspaceFolder(): vscode.WorkspaceFolder {
@@ -99,6 +119,20 @@ class FolderDetector {
 			this.promise = this.computeTasks();
 		}
 		return this.promise;
+	}
+
+	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+		const gruntTask = (<any>_task.definition).task;
+		if (gruntTask) {
+			let kind: GruntTaskDefinition = {
+				type: 'grunt',
+				task: gruntTask
+			};
+			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
+			let task = new vscode.Task(kind, this.workspaceFolder, gruntTask, 'grunt', new vscode.ShellExecution(await this._gruntCommand, [gruntTask], options));
+			return task;
+		}
+		return undefined;
 	}
 
 	private async computeTasks(): Promise<vscode.Task[]> {
@@ -239,7 +273,7 @@ class TaskDetector {
 			}
 		}
 		for (let add of added) {
-			let detector = new FolderDetector(add);
+			let detector = new FolderDetector(add, findGruntCommand(add.uri.fsPath));
 			if (detector.isEnabled()) {
 				this.detectors.set(add.uri.toString(), detector);
 				detector.start();
@@ -259,7 +293,7 @@ class TaskDetector {
 		if (folders) {
 			for (let folder of folders) {
 				if (!this.detectors.has(folder.uri.toString())) {
-					let detector = new FolderDetector(folder);
+					let detector = new FolderDetector(folder, findGruntCommand(folder.uri.fsPath));
 					if (detector.isEnabled()) {
 						this.detectors.set(folder.uri.toString(), detector);
 						detector.start();
@@ -272,12 +306,13 @@ class TaskDetector {
 
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
-			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
-				provideTasks: () => {
-					return this.getTasks();
+			const thisCapture = this;
+			this.taskProvider = vscode.workspace.registerTaskProvider('grunt', {
+				provideTasks: (): Promise<vscode.Task[]> => {
+					return thisCapture.getTasks();
 				},
-				resolveTask(_task: vscode.Task): vscode.Task | undefined {
-					return undefined;
+				resolveTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+					return thisCapture.getTask(_task);
 				}
 			});
 		}
@@ -310,6 +345,24 @@ class TaskDetector {
 				}
 				return result;
 			});
+		}
+	}
+
+	public async getTask(task: vscode.Task): Promise<vscode.Task | undefined> {
+		if (this.detectors.size === 0) {
+			return undefined;
+		} else if (this.detectors.size === 1) {
+			return this.detectors.values().next().value.getTask(task);
+		} else {
+			if ((task.scope === vscode.TaskScope.Workspace) || (task.scope === vscode.TaskScope.Global)) {
+				return undefined;
+			} else if (task.scope) {
+				const detector = this.detectors.get(task.scope.uri.toString());
+				if (detector) {
+					return detector.getTask(task);
+				}
+			}
+			return undefined;
 		}
 	}
 }
