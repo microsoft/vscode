@@ -337,6 +337,16 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminal;
 	}
 
+	public async attachVirtualProcessToTerminal(id: number, virtualProcess: vscode.TerminalVirtualProcess): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (!terminal) {
+			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
+		}
+		const p = new ExtHostVirtualProcess(virtualProcess);
+		this._setupExtHostProcessListeners(id, p);
+		p.startSendingEvents();
+	}
+
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
 		const terminal = new ExtHostTerminal(this._proxy, name);
 		terminal._setProcessId(undefined);
