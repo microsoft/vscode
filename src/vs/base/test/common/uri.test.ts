@@ -262,11 +262,11 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/c%23code');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');
