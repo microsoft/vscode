@@ -128,13 +128,13 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 	}
 
 	private toUserDataResource(fileSystemResource: URI): URI | null {
-		const userDataRelativePath = resources.relativePath(this.fileSystemUserDataHome, fileSystemResource);
-		if (userDataRelativePath) {
-			return resources.joinPath(this.userDataHome, userDataRelativePath);
+		if (resources.isEqualOrParent(fileSystemResource, this.fileSystemUserDataHome)) {
+			const relativePath = resources.relativePath(this.fileSystemUserDataHome, fileSystemResource);
+			return relativePath ? resources.joinPath(this.userDataHome, relativePath) : this.userDataHome;
 		}
-		const backupRelativePath = resources.relativePath(this.fileSystemBackupsHome, fileSystemResource);
-		if (backupRelativePath) {
-			return resources.joinPath(this.userDataHome, BACKUPS, backupRelativePath);
+		if (resources.isEqualOrParent(fileSystemResource, this.fileSystemBackupsHome)) {
+			const relativePath = resources.relativePath(this.fileSystemBackupsHome, fileSystemResource);
+			return relativePath ? resources.joinPath(this.userDataHome, BACKUPS, relativePath) : resources.joinPath(this.userDataHome, BACKUPS);
 		}
 		return null;
 	}
