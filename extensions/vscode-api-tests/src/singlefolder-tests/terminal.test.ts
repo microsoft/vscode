@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Terminal, TerminalVirtualProcess, EventEmitter, TerminalDimensions } from 'vscode';
+import { window, Terminal, TerminalVirtualProcess, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget } from 'vscode';
 import { doesNotThrow, equal, ok } from 'assert';
 
 suite('window namespace tests', () => {
-	(process.platform === 'win32' ? suite.skip /* https://github.com/microsoft/vscode/issues/75689 */ : suite)('Terminal', () => {
+	suiteSetup(async () => {
+		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
+		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
+	});
+	suite('Terminal', () => {
 		test('sendText immediately after createTerminal should not throw', (done) => {
 			const reg1 = window.onDidOpenTerminal(term => {
 				equal(terminal, term);

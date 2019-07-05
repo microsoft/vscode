@@ -247,7 +247,10 @@ suite('Files - TextFileService i/o', () => {
 	}
 
 	test('write - use encoding (cp1252)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_cp1252.txt')), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(isWindows ? '\r\n' : '\n'));
+		const filePath = join(testDir, 'some_cp1252.txt');
+		const contents = await readFile(filePath, 'utf8');
+		const eol = /\r\n/.test(contents) ? '\r\n' : '\n';
+		await testEncodingKeepsData(URI.file(filePath), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(eol));
 	});
 
 	test('write - use encoding (shiftjis)', async () => {

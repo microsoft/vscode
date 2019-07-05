@@ -28,11 +28,6 @@ import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
 //#endregion
 
-//#region --- Remote Resource loading
-
-import 'vs/workbench/contrib/resources/browser/resourceServiceWorkerClient';
-
-//#endregion
 
 //#region --- API Extension Points
 
@@ -116,7 +111,7 @@ import 'vs/workbench/services/textmodelResolver/common/textModelResolverService'
 import 'vs/workbench/services/textfile/browser/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 // import 'vs/workbench/services/dialogs/electron-browser/dialogService';
-// import 'vs/workbench/services/backup/node/backupFileService';
+import 'vs/workbench/services/backup/common/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
@@ -192,6 +187,9 @@ import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 //#region --- workbench contributions
 
+// Resource Service Worker
+import 'vs/workbench/contrib/resources/browser/resourceServiceWorkerClient';
+
 // Workspace File Watching
 import 'vs/workbench/services/files/common/workspaceWatcher';
 
@@ -224,7 +222,7 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // Stats
-// import 'vs/workbench/contrib/stats/node/stats.contribution';
+// import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 // import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';

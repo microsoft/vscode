@@ -1,4 +1,23 @@
 steps:
+- script: |
+    mkdir -p .build
+    echo -n $BUILD_SOURCEVERSION > .build/commit
+  displayName: Prepare cache flag
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.build/commit'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    vstsFeed: 'npm-vscode'
+    platformIndependent: true
+    alias: 'Compilation'
+
+- script: |
+    set -e
+    exit 1
+  displayName: Check RestoreCache
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
 - task: NodeTool@0
   inputs:
     versionSpec: "10.15.1"
@@ -37,19 +56,19 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
 
 - script: |
     set -e
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
@@ -62,38 +81,23 @@ steps:
 
 - script: |
     set -e
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
+  displayName: Install distro dependencies
+
+- script: |
+    set -e
     yarn gulp mixin
   displayName: Mix in quality
 
 - script: |
     set -e
-    yarn gulp hygiene
-    yarn monaco-compile-check
-  displayName: Run hygiene checks
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
-    node build/azure-pipelines/common/installDistroDependencies.js
-    node build/azure-pipelines/common/installDistroDependencies.js remote
-    node build/lib/builtInExtensions.js
-  displayName: Install distro dependencies and extensions
-
-- script: |
-    set -e
-    ./build/azure-pipelines/common/extract-telemetry.sh
-  displayName: Extract Telemetry
-
-- script: |
-    set -e
-    yarn gulp compile-build
-    yarn gulp compile-extensions-build
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-darwin-ci
+      yarn gulp vscode-darwin-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-darwin-ci
+      yarn gulp vscode-reh-darwin-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-darwin-ci
+      yarn gulp vscode-web-darwin-min-ci
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       yarn gulp upload-vscode-sourcemaps
   displayName: Build

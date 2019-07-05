@@ -123,11 +123,20 @@ const tasks = compilations.map(function (tsconfigFile) {
 			.pipe(gulp.dest(out));
 	}));
 
+	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
+		const pipeline = createPipeline(true, true);
+		const input = gulp.src(src, srcOpts);
+
+		return input
+			.pipe(pipeline())
+			.pipe(gulp.dest(out));
+	}));
+
 	// Tasks
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return { compileTask, watchTask };
+	return { compileTask, watchTask, compileBuildTask };
 });
 
 const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
@@ -137,6 +146,9 @@ exports.compileExtensionsTask = compileExtensionsTask;
 const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);
 exports.watchExtensionsTask = watchExtensionsTask;
+
+const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
+gulp.task(compileExtensionsBuildLegacyTask);
 
 // Azure Pipelines
 

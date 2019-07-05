@@ -229,9 +229,16 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private sort(): void {
+		const mapEntryToIndex = new Map<IStatusbarViewModelEntry, number>();
+		this._entries.forEach((entry, index) => mapEntryToIndex.set(entry, index));
+
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority !== entryB.priority) {
+					return entryB.priority - entryA.priority; // higher priority towards the left
+				}
+
+				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!; // otherwise maintain stable order
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -395,7 +402,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
 		// Create item
-		const itemContainer = this.doCreateStatusItem(id, name, alignment, priority, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
+		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
 		// Append to parent
@@ -585,7 +592,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
-	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
+	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
 		itemContainer.id = id;
 

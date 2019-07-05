@@ -5,14 +5,13 @@
 
 import { join } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
-import { createHash } from 'crypto';
 import { URI } from 'vs/base/common/uri';
+import { hash } from 'vs/base/common/hash';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IFileService } from 'vs/platform/files/common/files';
-import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -22,6 +21,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { isNative } from 'vs/base/common/platform';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -278,7 +278,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const model = await this.ready;
 
 		const backups = await Promise.all(model.get().map(async fileBackup => {
-			const backupPreamble = await readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH / 5, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
+			const backupPreamble = await this.readToMatchingString(fileBackup, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
 			if (!backupPreamble) {
 				return undefined;
 			}
@@ -296,6 +296,17 @@ class BackupFileServiceImpl implements IBackupFileService {
 		}));
 
 		return coalesce(backups);
+	}
+
+	private async readToMatchingString(file: URI, matchingString: string, maximumBytesToRead: number): Promise<string> {
+		const contents = (await this.fileService.readFile(file, { length: maximumBytesToRead })).value.toString();
+
+		const newLineIndex = contents.indexOf(matchingString);
+		if (newLineIndex >= 0) {
+			return contents.substr(0, newLineIndex);
+		}
+
+		throw new Error(`Could not find ${matchingString} in first ${maximumBytesToRead} bytes of ${file}`);
 	}
 
 	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
@@ -411,7 +422,12 @@ export class InMemoryBackupFileService implements IBackupFileService {
  */
 export function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return createHash('md5').update(str).digest('hex');
+	if (isNative) {
+		const _crypto: typeof crypto = require.__$__nodeRequire('crypto');
+		return _crypto['createHash']('md5').update(str).digest('hex');
+	}
+
+	return hash(str).toString(16);
 }
 
 registerSingleton(IBackupFileService, BackupFileService);

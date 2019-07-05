@@ -192,15 +192,11 @@ export interface ITokensStore {
 	getBeginState(lineIndex: number): IState | null;
 
 	applyEdits(range: Range, eolCount: number, firstLineLength: number): void;
-
-	_getAllStates(linesLength: number): (IState | null)[];
-	_getAllInvalid(linesLength: number): number[];
 }
 
 export class TokensStore implements ITokensStore {
 	private _tokens: ModelLineTokens[];
 	private _invalidLineStartIndex: number;
-	private _lastState: IState | null;
 
 	constructor(initialState: IState | null) {
 		this._reset(initialState);
@@ -209,7 +205,6 @@ export class TokensStore implements ITokensStore {
 	private _reset(initialState: IState | null): void {
 		this._tokens = [];
 		this._invalidLineStartIndex = 0;
-		this._lastState = null;
 
 		if (initialState) {
 			this._setBeginState(0, initialState);
@@ -310,7 +305,6 @@ export class TokensStore implements ITokensStore {
 
 		// Check if this was the last line
 		if (lineIndex === linesLength - 1) {
-			this._lastState = r.endState;
 			return;
 		}
 
@@ -423,25 +417,6 @@ export class TokensStore implements ITokensStore {
 	}
 
 	//#endregion
-
-	_getAllStates(linesLength: number): (IState | null)[] {
-		const r: (IState | null)[] = [];
-		for (let i = 0; i < linesLength; i++) {
-			r[i] = this.getBeginState(i);
-		}
-		r[linesLength] = this._lastState;
-		return r;
-	}
-
-	_getAllInvalid(linesLength: number): number[] {
-		const r: number[] = [];
-		for (let i = 0; i < linesLength; i++) {
-			if (!this._isValid(i)) {
-				r.push(i);
-			}
-		}
-		return r;
-	}
 }
 
 export interface IModelLinesTokens {

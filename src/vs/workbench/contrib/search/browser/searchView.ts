@@ -64,6 +64,12 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 
 const $ = dom.$;
 
+enum SearchUIState {
+	Idle,
+	Searching,
+	SlowSearch
+}
+
 export class SearchView extends ViewletPanel {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
@@ -92,8 +98,7 @@ export class SearchView extends ViewletPanel {
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 
-	private searchSubmitted: boolean;
-	private searching: boolean;
+	private state: SearchUIState;
 
 	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
@@ -335,9 +340,11 @@ export class SearchView extends ViewletPanel {
 	protected updateActions(): void {
 		for (const action of this.actions) {
 			action.update();
-			this.refreshAction.update();
-			this.cancelAction.update();
 		}
+
+		this.refreshAction.update();
+		this.cancelAction.update();
+
 		super.updateActions();
 	}
 
@@ -907,12 +914,8 @@ export class SearchView extends ViewletPanel {
 		return this.tree;
 	}
 
-	isSearchSubmitted(): boolean {
-		return this.searchSubmitted;
-	}
-
-	isSearching(): boolean {
-		return this.searching;
+	isSlowSearch(): boolean {
+		return this.state === SearchUIState.SlowSearch;
 	}
 
 	allSearchFieldsClear(): boolean {
@@ -1256,16 +1259,17 @@ export class SearchView extends ViewletPanel {
 		});
 
 		this.searchWidget.searchInput.clearMessage();
-		this.searching = true;
-		setTimeout(() => {
-			if (this.searching) {
-				this.updateActions();
-			}
-		}, 2000);
+		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 
+		const slowTimer = setTimeout(() => {
+			this.state = SearchUIState.SlowSearch;
+			this.updateActions();
+		}, 2000);
+
 		const onComplete = (completed?: ISearchComplete) => {
-			this.searching = false;
+			clearTimeout(slowTimer);
+			this.state = SearchUIState.Idle;
 
 			// Complete up to 100% as needed
 			progressComplete();
@@ -1283,7 +1287,6 @@ export class SearchView extends ViewletPanel {
 
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
-			this.searchSubmitted = true;
 			this.updateActions();
 			const hasResults = !this.viewModel.searchResult.isEmpty();
 
@@ -1358,10 +1361,11 @@ export class SearchView extends ViewletPanel {
 		};
 
 		const onError = (e: any) => {
+			clearTimeout(slowTimer);
+			this.state = SearchUIState.Idle;
 			if (errors.isPromiseCanceledError(e)) {
 				return onComplete(undefined);
 			} else {
-				this.searching = false;
 				this.updateActions();
 				progressComplete();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
@@ -1381,7 +1385,7 @@ export class SearchView extends ViewletPanel {
 
 		// Handle UI updates in an interval to show frequent progress and results
 		const uiRefreshHandle: any = setInterval(() => {
-			if (!this.searching) {
+			if (this.state === SearchUIState.Idle) {
 				window.clearInterval(uiRefreshHandle);
 				return;
 			}
@@ -1515,9 +1519,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private showEmptyStage(): void {
-
 		// disable 'result'-actions
-		this.searchSubmitted = false;
 		this.updateActions();
 
 		// clean up ui
@@ -1617,7 +1619,7 @@ export class SearchView extends ViewletPanel {
 
 	getActions(): IAction[] {
 		return [
-			this.searching ?
+			this.state === SearchUIState.SlowSearch ?
 				this.cancelAction :
 				this.refreshAction,
 			...this.actions
