@@ -35,8 +35,10 @@ import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { joinPath } from 'vs/base/common/resources';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
+import { joinPath } from 'vs/base/common/resources';
+import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 class CodeRendererMain extends Disposable {
 
@@ -146,9 +148,32 @@ class CodeRendererMain extends Disposable {
 
 				return service;
 			}),
+
+			this.createStorageService(payload, environmentService, fileService, logService).then(service => {
+
+				// Storage
+				serviceCollection.set(IStorageService, service);
+
+				return service;
+			})
 		]);
 
 		return { serviceCollection, logService };
+	}
+
+	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<IStorageService> {
+		const storageService = new BrowserStorageService(environmentService, fileService);
+
+		try {
+			await storageService.initialize(payload);
+
+			return storageService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return storageService;
+		}
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {

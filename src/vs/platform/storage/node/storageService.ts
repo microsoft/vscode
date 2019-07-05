@@ -6,20 +6,20 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { Storage, ISQLiteStorageDatabaseLoggingOptions, IStorage, StorageHint, IStorageDatabase, SQLiteStorageDatabase } from 'vs/base/node/storage';
-import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { localize } from 'vs/nls';
-import { mark, getDuration } from 'vs/base/common/performance';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
+import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { mark } from 'vs/base/common/performance';
 import { join } from 'vs/base/common/path';
 import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class StorageService extends Disposable implements IStorageService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';
@@ -201,63 +201,13 @@ export class StorageService extends Disposable implements IStorageService {
 		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getSize(scope: StorageScope): number {
-		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
-	}
-
-	checkIntegrity(scope: StorageScope, full: boolean): Promise<string> {
-		return scope === StorageScope.GLOBAL ? this.globalStorage.checkIntegrity(full) : this.workspaceStorage.checkIntegrity(full);
-	}
-
 	async logStorage(): Promise<void> {
 		const result = await Promise.all([
 			this.globalStorage.items,
-			this.workspaceStorage.items,
-			this.globalStorage.checkIntegrity(true /* full */),
-			this.workspaceStorage.checkIntegrity(true /* full */)
+			this.workspaceStorage.items
 		]);
 
-		const safeParse = (value: string) => {
-			try {
-				return JSON.parse(value);
-			} catch (error) {
-				return value;
-			}
-		};
-
-		const globalItems = new Map<string, string>();
-		const globalItemsParsed = new Map<string, string>();
-		result[0].forEach((value, key) => {
-			globalItems.set(key, value);
-			globalItemsParsed.set(key, safeParse(value));
-		});
-
-		const workspaceItems = new Map<string, string>();
-		const workspaceItemsParsed = new Map<string, string>();
-		result[1].forEach((value, key) => {
-			workspaceItems.set(key, value);
-			workspaceItemsParsed.set(key, safeParse(value));
-		});
-
-		console.group(`Storage: Global (integrity: ${result[2]}, path: ${this.environmentService.globalStorageHome})`);
-		let globalValues: { key: string, value: string }[] = [];
-		globalItems.forEach((value, key) => {
-			globalValues.push({ key, value });
-		});
-		console.table(globalValues);
-		console.groupEnd();
-
-		console.log(globalItemsParsed);
-
-		console.group(`Storage: Workspace (integrity: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')}, path: ${this.workspaceStoragePath})`);
-		let workspaceValues: { key: string, value: string }[] = [];
-		workspaceItems.forEach((value, key) => {
-			workspaceValues.push({ key, value });
-		});
-		console.table(workspaceValues);
-		console.groupEnd();
-
-		console.log(workspaceItemsParsed);
+		logStorage(result[0], result[1], this.environmentService.globalStorageHome, this.workspaceStoragePath);
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
@@ -278,26 +228,5 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
-	}
-}
-
-export class LogStorageAction extends Action {
-
-	static readonly ID = 'workbench.action.logStorage';
-	static LABEL = localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
-
-	constructor(
-		id: string,
-		label: string,
-		@IStorageService private readonly storageService: StorageService,
-		@IWindowService private readonly windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		this.storageService.logStorage();
-
-		return this.windowService.openDevTools();
 	}
 }
