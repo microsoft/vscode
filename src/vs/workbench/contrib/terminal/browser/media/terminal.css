@@ -102,7 +102,6 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm {
-	position: absolute;
 	bottom: 0;
 	left: 0;
 	user-select: none;
@@ -123,7 +122,6 @@
 	display: block;
 	content: "";
 	border: 1px solid;
-	position: absolute;
 	left: -5px;
 	top: 0;
 	right: -5px;
