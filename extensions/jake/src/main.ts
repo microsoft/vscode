@@ -60,7 +60,7 @@ function getOutputChannel(): vscode.OutputChannel {
 }
 
 function showError() {
-	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding jake tasks. See the output for more information.'),
+	vscode.window.showWarningMessage(localize('jakeTaskDetectError', 'Problem finding jake tasks. See the output for more information.'),
 		localize('jakeShowOutput', 'Go to output')).then(() => {
 			getOutputChannel().show(true);
 		});
@@ -272,7 +272,7 @@ class TaskDetector {
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
 			const thisCapture = this;
-			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
+			this.taskProvider = vscode.workspace.registerTaskProvider('jake', {
 				provideTasks(): Promise<vscode.Task[]> {
 					return thisCapture.getTasks();
 				},
