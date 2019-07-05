@@ -68,25 +68,22 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			conptyInheritCursor: true
 		};
 
-		const cwdVerification = stat(cwd).then(stat => {
+		const cwdVerification = stat(cwd).then(async stat => {
 			if (!stat.isDirectory()) {
 				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
-			return;
-		}, err => {
+		}, async err => {
 			if (err && err.code === 'ENOENT') {
 				// So we can include in the error message the specified CWD
 				shellLaunchConfig.cwd = cwd;
 				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
-			return;
 		});
 
-		const exectuableVerification = stat(shellLaunchConfig.executable!).then(stat => {
+		const exectuableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
 			if (!stat.isFile() && !stat.isSymbolicLink()) {
 				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
 			}
-			return;
 		}, async (err) => {
 			if (err && err.code === 'ENOENT') {
 				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
