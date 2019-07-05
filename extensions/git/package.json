@@ -650,7 +650,7 @@
         },
         {
           "command": "git.dropStash",
-          "when": "config.get.enabled && gitOpeneRepositoryCount != 0"
+          "when": "config.get.enabled && gitOpenRepositoryCount != 0"
         }
       ],
       "scm/title": [
