@@ -112,7 +112,6 @@ import 'vs/workbench/services/textmodelResolver/common/textModelResolverService'
 import 'vs/workbench/services/textfile/node/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
-import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
@@ -136,7 +135,11 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 
+
+registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
 registerSingleton(IOpenerService, OpenerService, true);

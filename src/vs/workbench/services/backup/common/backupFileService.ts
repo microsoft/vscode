@@ -17,7 +17,6 @@ import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot 
 import { keys, ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -423,5 +422,3 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return URI.file(join(resource.scheme, this.hashPath(resource)));
 	}
 }
-
-registerSingleton(IBackupFileService, BackupFileService);
