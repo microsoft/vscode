@@ -177,21 +177,14 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
-		let updateCount = 0;
 		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
 
 		if (request.insert) {
 			serializableRequest.insert = mapToSerializable(request.insert);
-			updateCount += request.insert.size;
 		}
 
 		if (request.delete) {
 			serializableRequest.delete = values(request.delete);
-			updateCount += request.delete.size;
-		}
-
-		if (updateCount === 0) {
-			return Promise.resolve(); // prevent work if not needed
 		}
 
 		return this.channel.call('updateItems', serializableRequest);

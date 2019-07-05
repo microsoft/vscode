@@ -77,18 +77,6 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	}
 
 	private doUpdateItems(connection: IDatabaseConnection, request: IUpdateRequest): Promise<void> {
-		let updateCount = 0;
-		if (request.insert) {
-			updateCount += request.insert.size;
-		}
-		if (request.delete) {
-			updateCount += request.delete.size;
-		}
-
-		if (updateCount === 0) {
-			return Promise.resolve();
-		}
-
 		if (this.logger.isTracing) {
 			this.logger.trace(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
 		}

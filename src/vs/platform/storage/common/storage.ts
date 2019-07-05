@@ -244,18 +244,6 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
-		let updateCount = 0;
-		if (request.insert) {
-			updateCount += request.insert.size;
-		}
-		if (request.delete) {
-			updateCount += request.delete.size;
-		}
-
-		if (updateCount === 0) {
-			return Promise.resolve();
-		}
-
 		const items = await this.getItems();
 
 		if (request.insert) {
