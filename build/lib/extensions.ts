@@ -93,7 +93,7 @@ function fromLocalWebpack(extensionPath: string): Stream {
 			.pipe(packageJsonFilter.restore);
 
 
-		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => () => {
+		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
 
 			const webpackDone = (err: any, stats: any) => {
 				fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
@@ -140,7 +140,7 @@ function fromLocalWebpack(extensionPath: string): Stream {
 				}));
 		});
 
-		es.merge(sequence(webpackStreams), patchFilesStream)
+		es.merge(...webpackStreams, patchFilesStream)
 			// .pipe(es.through(function (data) {
 			// 	// debug
 			// 	console.log('out', data.path, data.contents.length);
@@ -227,31 +227,7 @@ interface IBuiltInExtension {
 
 const builtInExtensions: IBuiltInExtension[] = require('../builtInExtensions.json');
 
-/**
- * We're doing way too much stuff at once, with webpack et al. So much stuff
- * that while downloading extensions from the marketplace, node js doesn't get enough
- * stack frames to complete the download in under 2 minutes, at which point the
- * marketplace server cuts off the http request. So, we sequentialize the extensino tasks.
- */
-function sequence(streamProviders: { (): Stream }[]): Stream {
-	const result = es.through();
-
-	function pop() {
-		if (streamProviders.length === 0) {
-			result.emit('end');
-		} else {
-			const fn = streamProviders.shift()!;
-			fn()
-				.on('end', function () { setTimeout(pop, 0); })
-				.pipe(result, { end: false });
-		}
-	}
-
-	pop();
-	return result;
-}
-
-export function packageExtensionsStream(): NodeJS.ReadWriteStream {
+export function packageLocalExtensionsStream(): NodeJS.ReadWriteStream {
 	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
 		.map(manifestPath => {
 			const extensionPath = path.dirname(path.join(root, manifestPath));
@@ -261,22 +237,22 @@ export function packageExtensionsStream(): NodeJS.ReadWriteStream {
 		.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
 		.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
-	const localExtensions = () => sequence([...localExtensionDescriptions.map(extension => () => {
-		return fromLocal(extension.path)
+	return es.merge(
+		gulp.src('extensions/node_modules/**', { base: '.' }),
+		...localExtensionDescriptions.map(extension => {
+			return fromLocal(extension.path)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+		})
+	)
+		.pipe(util2.setExecutableBit(['**/*.sh']))
+		.pipe(filter(['**', '!**/*.js.map']));
+}
+
+export function packageMarketplaceExtensionsStream(): NodeJS.ReadWriteStream {
+	return es.merge(builtInExtensions.map(extension => {
+		return fromMarketplace(extension.name, extension.version, extension.metadata)
 			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-	})]);
-
-	const localExtensionDependencies = () => gulp.src('extensions/node_modules/**', { base: '.' });
-
-	const marketplaceExtensions = () => es.merge(
-		...builtInExtensions
-			.map(extension => {
-				return fromMarketplace(extension.name, extension.version, extension.metadata)
-					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-			})
-	);
-
-	return sequence([localExtensions, localExtensionDependencies, marketplaceExtensions])
+	}))
 		.pipe(util2.setExecutableBit(['**/*.sh']))
 		.pipe(filter(['**', '!**/*.js.map']));
 }
