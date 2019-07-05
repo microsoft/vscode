@@ -12,7 +12,6 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IFileService } from 'vs/platform/files/common/files';
-import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -278,7 +277,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const model = await this.ready;
 
 		const backups = await Promise.all(model.get().map(async fileBackup => {
-			const backupPreamble = await readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH / 5, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
+			const backupPreamble = await this.readToMatchingString(fileBackup, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
 			if (!backupPreamble) {
 				return undefined;
 			}
@@ -296,6 +295,17 @@ class BackupFileServiceImpl implements IBackupFileService {
 		}));
 
 		return coalesce(backups);
+	}
+
+	private async readToMatchingString(file: URI, matchingString: string, maximumBytesToRead: number): Promise<string> {
+		const contents = (await this.fileService.readFile(file, { length: maximumBytesToRead })).value.toString();
+
+		const newLineIndex = contents.indexOf(matchingString);
+		if (newLineIndex >= 0) {
+			return contents.substr(0, newLineIndex);
+		}
+
+		throw new Error(`Could not find ${matchingString} in first ${maximumBytesToRead} bytes of ${file}`);
 	}
 
 	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
