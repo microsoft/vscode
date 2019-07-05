@@ -157,7 +157,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionedToCenteredEditorLayout: false,
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
-			transitionDisposeables: new DisposableStore()
+			transitionDisposables: new DisposableStore()
 		}
 
 	};
@@ -567,7 +567,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
 		this.state.zenMode.active = !this.state.zenMode.active;
-		this.state.zenMode.transitionDisposeables.clear();
+		this.state.zenMode.transitionDisposables.clear();
 
 		const setLineNumbers = (lineNumbers: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => editor.updateOptions({ lineNumbers }));
 
@@ -606,11 +606,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (config.hideLineNumbers) {
 				setLineNumbers('off');
-				this.state.zenMode.transitionDisposeables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
+				this.state.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
 			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.zenMode.transitionDisposeables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+				this.state.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
 			}
 
 			if (config.centerLayout) {
