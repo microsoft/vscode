@@ -139,7 +139,7 @@ export class SuggestController implements IEditorContribution {
 			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
-		this._toDispose.add(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
+		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));
 		updateFromConfig();
 	}
 
@@ -151,9 +151,7 @@ export class SuggestController implements IEditorContribution {
 	dispose(): void {
 		this._toDispose.dispose();
 		this._widget.dispose();
-		if (this._model) {
-			this._model.dispose();
-		}
+		this._model.dispose();
 	}
 
 	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
