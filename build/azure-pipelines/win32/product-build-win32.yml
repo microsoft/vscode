@@ -59,7 +59,7 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: '.build/arch, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: 'build/.cachesalt, .build/arch, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
 
@@ -69,14 +69,12 @@ steps:
     $env:npm_config_arch="$(VSCODE_ARCH)"
     $env:CHILD_CONCURRENCY="1"
     exec { yarn --frozen-lockfile }
-    exec { node build/azure-pipelines/common/installDistroDependencies.js }
-    exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: '.build/arch, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: 'build/.cachesalt, .build/arch, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
@@ -87,6 +85,13 @@ steps:
     exec { yarn postinstall }
   displayName: Run postinstall scripts
   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { node build/azure-pipelines/common/installDistroDependencies.js }
+    exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
+  displayName: Install distro dependencies
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
