@@ -104,10 +104,17 @@ suite('window namespace tests', () => {
 				equal(active, terminal);
 				equal(active, window.activeTerminal);
 				reg1.dispose();
+				let activeChanged = false;
 				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+					activeChanged = true;
 					equal(active, undefined);
 					equal(active, window.activeTerminal);
 					reg2.dispose();
+				});
+				const reg3 = window.onDidCloseTerminal(term => {
+					equal(activeChanged, true, 'onDidChangeActiveTerminal should have fired before onDidCloseTerminal');
+					equal(term, terminal);
+					reg3.dispose();
 					done();
 				});
 				terminal.dispose();
