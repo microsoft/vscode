@@ -89,10 +89,9 @@ steps:
 
 # Mixin must run before optimize, because the CSS loader will
 # inline small SVGs
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn gulp mixin }
+- script: |
+    set -e
+    yarn gulp mixin
   displayName: Mix in quality
 
 - script: |
