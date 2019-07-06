@@ -138,7 +138,7 @@ suite('ExtHostConfiguration', function () {
 
 		testObject = all.getConfiguration('workbench');
 		actual = testObject.get('colorCustomizations')!;
-		delete actual['statusBar.foreground'];
+		actual['statusBar.foreground'] = undefined;
 		assert.equal(actual['statusBar.foreground'], undefined);
 		testObject = all.getConfiguration('workbench');
 		actual = testObject.get('colorCustomizations')!;
