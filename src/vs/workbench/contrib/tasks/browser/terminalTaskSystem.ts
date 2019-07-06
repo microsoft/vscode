@@ -471,7 +471,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(this.currentTask.systemInfo, this.currentTask.workspaceFolder!, task, variables);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			if (resolvedVariables && task.command && task.command.runtime) {
+			const isCustomExecution = task.command.runtime === RuntimeType.CustomExecution;
+			if (resolvedVariables && task.command && task.command.runtime && (isCustomExecution || task.command.name)) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder!, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
 			} else {
@@ -986,6 +987,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			for (const terminal of values(this.terminals)) {
 				if (terminal.group === group) {
 					const originalInstance = terminal.terminal;
+					await originalInstance.waitForTitle();
 					const config = this.currentTask.shellLaunchConfig;
 					result = this.terminalService.splitInstance(originalInstance, config);
 					if (result) {

@@ -1287,11 +1287,15 @@ export class TerminalInstance implements ITerminalInstance {
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
+			if (isNaN(cols) || isNaN(rows)) {
+				return;
+			}
+
 			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
 			}
-
 			this._xterm.resize(cols, rows);
+
 			if (this._isVisible) {
 				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
 				// This is to fix an issue where dragging the window to the top of the screen to

@@ -785,12 +785,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, joinPath(this.environmentService.appSettingsHome, 'locale.json'), !isLinux)) {
+		if (isEqual(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'locale.json'), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, joinPath(this.environmentService.appSettingsHome, 'snippets'))) {
+		if (isEqualOrParent(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
 			return 'snippets';
 		}
 

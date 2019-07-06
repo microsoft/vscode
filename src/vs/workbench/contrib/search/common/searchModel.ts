@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree, values } from 'vs/base/common/map';
 import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
@@ -1044,7 +1044,7 @@ export class RangeHighlightDecorations implements IDisposable {
 
 	private _decorationId: string | null = null;
 	private _model: ITextModel | null = null;
-	private _modelDisposables: IDisposable[] = [];
+	private readonly _modelDisposables = new DisposableStore();
 
 	constructor(
 		@IModelService private readonly _modelService: IModelService
@@ -1079,30 +1079,29 @@ export class RangeHighlightDecorations implements IDisposable {
 
 	private setModel(model: ITextModel) {
 		if (this._model !== model) {
-			this.disposeModelListeners();
+			this.clearModelListeners();
 			this._model = model;
-			this._modelDisposables.push(this._model.onDidChangeDecorations((e) => {
-				this.disposeModelListeners();
+			this._modelDisposables.add(this._model.onDidChangeDecorations((e) => {
+				this.clearModelListeners();
 				this.removeHighlightRange();
 				this._model = null;
 			}));
-			this._modelDisposables.push(this._model.onWillDispose(() => {
-				this.disposeModelListeners();
+			this._modelDisposables.add(this._model.onWillDispose(() => {
+				this.clearModelListeners();
 				this.removeHighlightRange();
 				this._model = null;
 			}));
 		}
 	}
 
-	private disposeModelListeners() {
-		this._modelDisposables.forEach(disposable => disposable.dispose());
-		this._modelDisposables = [];
+	private clearModelListeners() {
+		this._modelDisposables.clear();
 	}
 
 	dispose() {
 		if (this._model) {
 			this.removeHighlightRange();
-			this.disposeModelListeners();
+			this._modelDisposables.dispose();
 			this._model = null;
 		}
 	}

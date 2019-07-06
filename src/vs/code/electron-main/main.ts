@@ -161,7 +161,7 @@ class CodeMain {
 			environmentService.logsPath,
 			environmentService.globalStorageHome,
 			environmentService.workspaceStorageHome,
-			environmentService.backupHome
+			environmentService.backupHome.fsPath
 		].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 		// Configuration service

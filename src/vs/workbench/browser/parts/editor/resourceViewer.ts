@@ -21,6 +21,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IMAGE_PREVIEW_BORDER } from 'vs/workbench/common/theme';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
@@ -66,6 +68,11 @@ interface ResourceViewerDelegate {
 	openExternalClb?(uri: URI): void;
 	metadataClb(meta: string): void;
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const borderColor = theme.getColor(IMAGE_PREVIEW_BORDER);
+	collector.addRule(`.monaco-resource-viewer.image img { border : 1px solid ${borderColor ? borderColor.toString() : ''}; }`);
+});
 
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading

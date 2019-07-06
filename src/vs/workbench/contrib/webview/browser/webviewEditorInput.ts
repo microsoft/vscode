@@ -39,10 +39,10 @@ export class WebviewEditorInput extends EditorInput {
 		this._icons.forEach((value, key) => {
 			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 			if (URI.isUri(value)) {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.toString()}); }`);
+				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value).toString()}); }`);
 			} else {
-				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
-				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${value.dark.toString()}); }`);
+				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value.light).toString()}); }`);
+				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value.dark).toString()}); }`);
 			}
 		});
 		this._styleElement.innerHTML = cssRules.join('\n');

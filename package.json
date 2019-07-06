@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "4da75531dc397fa0fc57820ea9ab863eceab9a64",
+  "distro": "e856b9e79a3a77d1a33f40a6d4a7ae182c69bdc6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -38,7 +38,7 @@
     "keytar": "4.8.0",
     "minimist": "1.2.0",
     "native-is-elevated": "^0.2.1",
-    "native-keymap": "microsoft/node-native-keymap#node_v12",
+    "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
     "node-pty": "^0.9.0-beta18",
     "nsfw": "1.2.5",
