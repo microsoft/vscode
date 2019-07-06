@@ -26,7 +26,8 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 			if (!settings) {
 				rule.settings = {};
 			} else {
-				for (let key in settings) {
+				for (const settingKey in settings) {
+					const key = <keyof typeof settings>settingKey;
 					let mappings = settingToColorIdMapping[key];
 					if (mappings) {
 						let colorHex = settings[key];

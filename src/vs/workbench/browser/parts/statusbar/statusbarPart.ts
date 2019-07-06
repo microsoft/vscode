@@ -15,7 +15,7 @@ import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiat
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action, IAction, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
+import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -229,9 +229,16 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private sort(): void {
+		const mapEntryToIndex = new Map<IStatusbarViewModelEntry, number>();
+		this._entries.forEach((entry, index) => mapEntryToIndex.set(entry, index));
+
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority !== entryB.priority) {
+					return entryB.priority - entryA.priority; // higher priority towards the left
+				}
+
+				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!; // otherwise maintain stable order
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -395,7 +402,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
 		// Create item
-		const itemContainer = this.doCreateStatusItem(id, name, alignment, priority, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
+		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
 		// Append to parent
@@ -585,7 +592,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
-	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
+	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
 		itemContainer.id = id;
 
@@ -725,7 +732,7 @@ class StatusbarEntryItem extends Disposable {
 			activeTextEditorWidget.focus();
 		}
 
-		this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
 		try {
 			await this.commandService.executeCommand(id, ...args);
 		} catch (error) {

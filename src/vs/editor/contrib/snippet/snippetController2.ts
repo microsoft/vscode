@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -35,7 +35,7 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
-	private _snippetListener: IDisposable[] = [];
+	private _snippetListener = new DisposableStore();
 	private _modelVersionId: number;
 	private _currentChoice?: Choice;
 
@@ -54,6 +54,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		dispose(this._session);
+		this._snippetListener.dispose();
 	}
 
 	getId(): string {
@@ -93,7 +94,7 @@ export class SnippetController2 implements IEditorContribution {
 
 		// don't listen while inserting the snippet
 		// as that is the inflight state causing cancelation
-		this._snippetListener = dispose(this._snippetListener);
+		this._snippetListener.clear();
 
 		if (undoStopBefore) {
 			this._editor.getModel().pushStackElement();
@@ -113,11 +114,9 @@ export class SnippetController2 implements IEditorContribution {
 
 		this._updateState();
 
-		this._snippetListener = [
-			this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()),
-			this._editor.onDidChangeModel(() => this.cancel()),
-			this._editor.onDidChangeCursorSelection(() => this._updateState())
-		];
+		this._snippetListener.add(this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()));
+		this._snippetListener.add(this._editor.onDidChangeModel(() => this.cancel()));
+		this._snippetListener.add(this._editor.onDidChangeCursorSelection(() => this._updateState()));
 	}
 
 	private _updateState(): void {

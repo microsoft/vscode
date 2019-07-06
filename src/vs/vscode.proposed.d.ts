@@ -1162,6 +1162,8 @@ declare module 'vscode' {
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
 	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *
+	 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+	 *
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
 	 * const renderer = window.createTerminalRenderer('foo');
@@ -1172,6 +1174,7 @@ declare module 'vscode' {
 	export interface TerminalRenderer {
 		/**
 		 * The name of the terminal, this will appear in the terminal selector.
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		name: string;
 
@@ -1179,6 +1182,8 @@ declare module 'vscode' {
 		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
 		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
 		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 *
 		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
 		 * ```typescript
@@ -1195,17 +1200,24 @@ declare module 'vscode' {
 		 * terminal renderer is created and also until the terminal becomes visible in the UI.
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		readonly terminal: Terminal;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
 		 * text to the underlying _process_, this will write the text to the terminal itself.
+		 *
+		 * @param text The text to write.
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
@@ -1216,8 +1228,6 @@ declare module 'vscode' {
 		 * ```typescript
 		 * terminalRenderer.write('\x1b[10;20H*');
 		 * ```
-		 *
-		 * @param text The text to write.
 		 */
 		write(text: string): void;
 
@@ -1225,6 +1235,8 @@ declare module 'vscode' {
 		 * An event which fires on keystrokes in the terminal or when an extension calls
 		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
 		 * corresponding VT sequence representation.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 *
 		 * **Example:** Simulate interaction with the terminal from an outside extension or a
 		 * workbench command such as `workbench.action.terminal.runSelectedText`
@@ -1241,6 +1253,8 @@ declare module 'vscode' {
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
+		 *
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
@@ -1250,8 +1264,142 @@ declare module 'vscode' {
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
+		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
 		 */
 		export function createTerminalRenderer(name: string): TerminalRenderer;
+	}
+
+	//#endregion
+
+	//#region Terminal virtual process
+
+	export namespace window {
+		/**
+		 * Creates a [Terminal](#Terminal) where an extension acts as the process.
+		 *
+		 * @param options A [TerminalVirtualProcessOptions](#TerminalVirtualProcessOptions) object describing the
+		 * characteristics of the new terminal.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(options: TerminalVirtualProcessOptions): Terminal;
+	}
+
+	/**
+	 * Value-object describing what options a virtual process terminal should use.
+	 */
+	export interface TerminalVirtualProcessOptions {
+		/**
+		 * A human-readable string which will be used to represent the terminal in the UI.
+		 */
+		name: string;
+
+		/**
+		 * An implementation of [TerminalVirtualProcess](#TerminalVirtualProcess) that allows an
+		 * extension to act as a terminal's backing process.
+		 */
+		virtualProcess: TerminalVirtualProcess;
+	}
+
+	/**
+	 * Defines the interface of a terminal virtual process, enabling extensions to act as a process
+	 * in the terminal.
+	 */
+	interface TerminalVirtualProcess {
+		/**
+		 * An event that when fired will write data to the terminal. Unlike
+		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_,
+		 * this will write the text to the terminal itself.
+		 *
+		 * **Example:** Write red text to the terminal
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   onDidWrite: writeEmitter.event
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
+		 * writeEmitter.fire('\x1b[31mHello world\x1b[0m');
+		 * ```
+		 *
+		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
+		 * ```typescript
+		 * writeEmitter.fire('\x1b[10;20H*');
+		 * ```
+		 */
+		onDidWrite: Event<string>;
+
+		/**
+		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
+		 * terminal. Note that when set the overridden dimensions will only take effect when they
+		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
+		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions.
+		 *
+		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
+		 * ```typescript
+		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidOverrideDimensions: dimensionsEmitter.event
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
+		 * dimensionsEmitter.fire({
+		 *   columns: 20,
+		 *   rows: 10
+		 * });
+		 * ```
+		 */
+		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
+
+		/**
+		 * An event that when fired will exit the process with an exit code, this will behave the
+		 * same for a virtual process as when a regular process exits with an exit code.
+		 *
+		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const exitEmitter = new vscode.EventEmitter<number>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   input: data => exitEmitter.fire(data === 'y' ? 0 : 1)
+		 * };
+		 * vscode.window.createTerminal({ name: 'Exit example', virtualProcess });
+		 * writeEmitter.fire('Press y to exit successfully');
+		 */
+		onDidExit?: Event<number>;
+
+		/**
+		 * Implement to handle keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
+		 * corresponding VT sequence representation.
+		 *
+		 * @param data The sent data.
+		 *
+		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
+		 * CRLF to go to a new line and move the cursor to the start of the line.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const virtualProcess: TerminalVirtualProcess = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   input: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
+		 * };
+		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
+		 * ```
+		 */
+		input?(data: string): void;
+
+		/**
+		 * Implement to handle when the number of rows and columns that fit into the terminal panel
+		 * changes, for example when font size changes or when the panel is resized. The initial
+		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
+		 * as the size of a terminal isn't know until it shows up in the user interface.
+		 *
+		 * @param dimensions The new dimensions.
+		 */
+		setDimensions?(dimensions: TerminalDimensions): void;
+
+		/**
+		 * Implement to handle when the terminal shuts down by an act of the user.
+		 */
+		shutdown?(): void;
 	}
 
 	//#endregion
@@ -1383,44 +1531,6 @@ declare module 'vscode' {
 		 */
 		group?: string;
 	}
-	//#endregion
-
-	//#region Workspace URI Ben
-
-	export namespace workspace {
-
-		/**
-		 * The location of the workspace file, for example:
-		 *
-		 * `file:///Users/name/Development/myProject.code-workspace`
-		 *
-		 * or
-		 *
-		 * `untitled:1555503116870`
-		 *
-		 * for a workspace that is untitled and not yet saved.
-		 *
-		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace or  a single folder is opened
-		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
-		 * is untitled, the returned URI will use the `untitled:` scheme
-		 *
-		 * The location can e.g. be used with the `vscode.openFolder` command to
-		 * open the workspace again after it has been closed.
-		 *
-		 * **Example:**
-		 * ```typescript
-		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
-		 * ```
-		 *
-		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
-		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
-		 * for that purpose which will work both when a single folder is opened as
-		 * well as an untitled or saved workspace.
-		 */
-		export const workspaceFile: Uri | undefined;
-	}
-
 	//#endregion
 
 	// #region Ben - status bar item with ID and Name

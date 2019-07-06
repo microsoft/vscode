@@ -35,7 +35,7 @@ function trackDisposable<T extends IDisposable>(x: T): T {
 		return x;
 	}
 
-	const stack = new Error().stack!;
+	const stack = new Error('Potentially leaked disposable').stack!;
 	setTimeout(() => {
 		if (!(x as any)[__is_disposable_tracked__]) {
 			console.log(stack);

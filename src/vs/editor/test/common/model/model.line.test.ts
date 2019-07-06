@@ -9,6 +9,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 
 interface ILineEdit {
 	startColumn: number;
@@ -92,6 +94,10 @@ class TestToken {
 	}
 }
 
+function toTokenizationResult2(tokens: Uint32Array): TokenizationResult2 {
+	return new TokenizationResult2(tokens, NULL_STATE);
+}
+
 suite('ModelLinesTokens', () => {
 
 	interface IBufferLineState {
@@ -110,7 +116,7 @@ suite('ModelLinesTokens', () => {
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
-			model._tokens._setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
+			model._tokens.setFakeTokens(0, lineIndex, lineTextLength, toTokenizationResult2(TestToken.toTokens(lineTokens)));
 		}
 
 		model.applyEdits(edits.map((ed) => ({
@@ -441,14 +447,14 @@ suite('ModelLinesTokens', () => {
 
 	test('insertion on empty line', () => {
 		const model = new TextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
-		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
+		model._tokens.setFakeTokens(0, 0, model.getLineMaxColumn(1) - 1, toTokenizationResult2(TestToken.toTokens([new TestToken(0, 1)])));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 10),
 			text: ''
 		}]);
 
-		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
+		model._tokens.setFakeTokens(0, 0, model.getLineMaxColumn(1) - 1, toTokenizationResult2(new Uint32Array(0)));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 1),

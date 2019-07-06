@@ -8,7 +8,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
+import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
+import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
@@ -163,9 +164,5 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Do it
 		return this.storage.close();
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return this.storage.checkIntegrity(full);
 	}
 }

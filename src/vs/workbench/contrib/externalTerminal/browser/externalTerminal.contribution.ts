@@ -4,19 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as env from 'vs/base/common/platform';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import * as paths from 'vs/base/common/path';
 import { URI as uri } from 'vs/base/common/uri';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
-import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal';
-import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -28,56 +22,6 @@ import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-if (env.isWindows) {
-	registerSingleton(IExternalTerminalService, WindowsExternalTerminalService, true);
-} else if (env.isMacintosh) {
-	registerSingleton(IExternalTerminalService, MacExternalTerminalService, true);
-} else if (env.isLinux) {
-	registerSingleton(IExternalTerminalService, LinuxExternalTerminalService, true);
-}
-
-getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
-	let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	configurationRegistry.registerConfiguration({
-		id: 'externalTerminal',
-		order: 100,
-		title: nls.localize('terminalConfigurationTitle', "External Terminal"),
-		type: 'object',
-		properties: {
-			'terminal.explorerKind': {
-				type: 'string',
-				enum: [
-					'integrated',
-					'external'
-				],
-				enumDescriptions: [
-					nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
-					nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
-				],
-				description: nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-				default: 'integrated'
-			},
-			'terminal.external.windowsExec': {
-				type: 'string',
-				description: nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				default: getDefaultTerminalWindows(),
-				scope: ConfigurationScope.APPLICATION
-			},
-			'terminal.external.osxExec': {
-				type: 'string',
-				description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
-				default: DEFAULT_TERMINAL_OSX,
-				scope: ConfigurationScope.APPLICATION
-			},
-			'terminal.external.linuxExec': {
-				type: 'string',
-				description: nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				default: defaultTerminalLinux,
-				scope: ConfigurationScope.APPLICATION
-			}
-		}
-	});
-});
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({

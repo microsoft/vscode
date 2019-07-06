@@ -6,7 +6,7 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
-import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
+import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -139,10 +139,6 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 				break;
 			}
 
-			case 'checkIntegrity': {
-				return this.storageMainService.checkIntegrity(arg);
-			}
-
 			default:
 				throw new Error(`Call not found: ${command}`);
 		}
@@ -181,28 +177,17 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
-		let updateCount = 0;
 		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
 
 		if (request.insert) {
 			serializableRequest.insert = mapToSerializable(request.insert);
-			updateCount += request.insert.size;
 		}
 
 		if (request.delete) {
 			serializableRequest.delete = values(request.delete);
-			updateCount += request.delete.size;
-		}
-
-		if (updateCount === 0) {
-			return Promise.resolve(); // prevent work if not needed
 		}
 
 		return this.channel.call('updateItems', serializableRequest);
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return this.channel.call('checkIntegrity', full);
 	}
 
 	close(): Promise<void> {

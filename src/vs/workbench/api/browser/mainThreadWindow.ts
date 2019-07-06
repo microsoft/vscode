@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -17,7 +17,7 @@ import { extractLocalHostUriMetaDataForPortMapping } from 'vs/workbench/contrib/
 export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
 
 	constructor(
@@ -34,7 +34,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 
 		for (const tunnel of this._tunnels.values()) {
 			tunnel.then(tunnel => tunnel.dispose());

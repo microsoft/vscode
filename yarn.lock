@@ -4329,10 +4329,10 @@ iconv-lite@0.4.19, iconv-lite@^0.4.19:
   resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.4.19.tgz#f7468f60135f5e5dad3399c0a81be9a1603a082b"
   integrity sha512-oTZqweIP51xaGPI4uPa56/Pri/480R+mo7SeU+YETByQNhDG55ycFyNLIgta9vXhILrxXDmF7ZGhqZIcuN0gJQ==
 
-iconv-lite@0.4.23, iconv-lite@^0.4.22, iconv-lite@^0.4.4:
-  version "0.4.23"
-  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.4.23.tgz#297871f63be507adcfbfca715d0cd0eed84e9a63"
-  integrity sha512-neyTUVFtahjf0mB3dZT77u+8O0QB89jFdnBkd5P1JgYPbPaia3gXXOVL2fq8VyU2gMMD7SaN7QukTB/pmXYvDA==
+iconv-lite@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.5.0.tgz#59cdde0a2a297cc2aeb0c6445a195ee89f127550"
+  integrity sha512-NnEhI9hIEKHOzJ4f697DMz9IQEXr/MMJ5w64vN2/4Ai+wRnvV7SBrL0KLoRlwaKVghOc7LQ5YkPLuX146b6Ydw==
   dependencies:
     safer-buffer ">= 2.1.2 < 3"
 
@@ -4340,6 +4340,13 @@ iconv-lite@^0.4.17, iconv-lite@^0.4.24:
   version "0.4.24"
   resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.4.24.tgz#2022b4b25fbddc21d2f524974a474aafe733908b"
   integrity sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==
+  dependencies:
+    safer-buffer ">= 2.1.2 < 3"
+
+iconv-lite@^0.4.22, iconv-lite@^0.4.4:
+  version "0.4.23"
+  resolved "https://registry.yarnpkg.com/iconv-lite/-/iconv-lite-0.4.23.tgz#297871f63be507adcfbfca715d0cd0eed84e9a63"
+  integrity sha512-neyTUVFtahjf0mB3dZT77u+8O0QB89jFdnBkd5P1JgYPbPaia3gXXOVL2fq8VyU2gMMD7SaN7QukTB/pmXYvDA==
   dependencies:
     safer-buffer ">= 2.1.2 < 3"
 
@@ -5621,7 +5628,7 @@ methods@~1.1.2:
   resolved "https://registry.yarnpkg.com/methods/-/methods-1.1.2.tgz#5529a4d67654134edcc5266656835b0f851afcee"
   integrity sha1-VSmk1nZUE07cxSZmVoNbD4Ua/O4=
 
-micromatch@^2.1.5, micromatch@^2.3.7:
+micromatch@^2.3.7:
   version "2.3.11"
   resolved "https://registry.yarnpkg.com/micromatch/-/micromatch-2.3.11.tgz#86677c97d1720b363431d04d0d15293bd38c1565"
   integrity sha1-hmd8l9FyCzY0MdBNDRUpO9OMFWU=
@@ -5924,7 +5931,7 @@ nan@^2.12.1:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.12.1.tgz#7b1aa193e9aa86057e3c7bbd0ac448e770925552"
   integrity sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
 
-nan@^2.9.2, nan@~2.10.0:
+nan@^2.9.2:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.10.0.tgz#96d0cd610ebd58d4b4de9cc0c6828cda99c7548f"
   integrity sha512-bAdJv7fBLhWC+/Bls0Oza+mvTaNQtP+1RyhhhvD95pgUJz6XM5IzgmxOkItJ9tkoCiplvAnXI1tNmmUD/eScyA==
@@ -5951,10 +5958,10 @@ native-is-elevated@^0.2.1:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
   integrity sha1-cKISOoV1ufYko+9GXZjLdK4Bc4U=
 
-native-keymap@1.2.6:
-  version "1.2.6"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.6.tgz#93d1b4c4ae0e9136bc14538cafe02c0bbe95bebf"
-  integrity sha512-8hEr6wNkb7OmGPFLFk1cAsnOt2Y3F4mtBffr8uOyX0kKOjr2JVetSt9TKjk0xyJw/B/HcEgMhXmjFKzGN+9JjA==
+native-keymap@2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-2.0.0.tgz#7491ba8f9cc75bd6ada7e754dadb7716c793a3e3"
+  integrity sha512-KIlDZp0yKaHaGIkEVdlYN3QIaZICXwG1qh/oeBeQdM8TwAi90IAZlAD57qsNDkEvIJIzerCzb5jYYQAdHGBgYg==
 
 native-watchdog@1.0.0:
   version "1.0.0"
@@ -6103,17 +6110,17 @@ normalize-path@^1.0.0:
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-1.0.0.tgz#32d0e472f91ff345701c15a8311018d3b0a90379"
   integrity sha1-MtDkcvkf80VwHBWoMRAY07CpA3k=
 
-normalize-path@^2.0.0, normalize-path@^2.1.1:
+normalize-path@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-2.0.1.tgz#47886ac1662760d4261b7d979d241709d3ce3f7a"
+  integrity sha1-R4hqwWYnYNQmG32XnSQXCdPOP3o=
+
+normalize-path@^2.1.1:
   version "2.1.1"
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-2.1.1.tgz#1ab28b556e198363a8c1a6f7e6fa20137fe6aed9"
   integrity sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
   dependencies:
     remove-trailing-separator "^1.0.1"
-
-normalize-path@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-2.0.1.tgz#47886ac1662760d4261b7d979d241709d3ce3f7a"
-  integrity sha1-R4hqwWYnYNQmG32XnSQXCdPOP3o=
 
 normalize-path@^3.0.0:
   version "3.0.0"
@@ -6721,6 +6728,11 @@ performance-now@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/performance-now/-/performance-now-2.1.0.tgz#6309f4e0e5fa913ec1c69307ae364b4b377c9e7b"
   integrity sha1-Ywn04OX6kT7BxpMHrjZLSzd8nns=
+
+picomatch@^2.0.4:
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.0.7.tgz#514169d8c7cd0bdbeecc8a2609e34a7163de69f6"
+  integrity sha512-oLHIdio3tZ0qH76NybpeneBhYVj0QFTfXEFTc/B3zKQspYfYYkWYgFsmzo+4kvId/bQRcNkVeguI3y+CD22BtA==
 
 pify@^2.0.0:
   version "2.3.0"
@@ -8504,10 +8516,10 @@ strip-json-comments@^2.0.1, strip-json-comments@~2.0.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
   integrity sha1-PFMZQukIwml8DsNEhYwobHygpgo=
 
-sudo-prompt@8.2.0:
-  version "8.2.0"
-  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-8.2.0.tgz#bcd4aaacdb367b77b4bffcce1c658c2b1dd327f3"
-  integrity sha512-n5Nv2lIZaWfVBg10EWC8yaJCB6xV7sEsuaISAVFIS9F4fTRjy/O35A82lkweKuSqQItDlKOGQpTHK9/udQhRRw==
+sudo-prompt@9.0.0:
+  version "9.0.0"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.0.0.tgz#eebedeee9fcd6f661324e6bb46335e3288e8dc8a"
+  integrity sha512-kUn5fiOk0nhY2oKD9onIkcNCE4Zt85WTsvOfSmqCplmlEvXCcPOmp1npH5YWuf8Bmyy9wLWkIxx+D+8cThBORQ==
 
 sumchecker@^2.0.1:
   version "2.0.2"
@@ -9154,6 +9166,11 @@ upath@^1.0.5, upath@^1.1.0:
   resolved "https://registry.yarnpkg.com/upath/-/upath-1.1.0.tgz#35256597e46a581db4793d0ce47fa9aebfc9fabd"
   integrity sha512-bzpH/oBhoS/QI/YtbkqCg6VEiPYjSZtrHQM6/QnJS6OL9pKUFLqb3aFh4Scvwm45+7iAgiMkLhSbaZxUqmrprw==
 
+upath@^1.1.1:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/upath/-/upath-1.1.2.tgz#3db658600edaeeccbe6db5e684d67ee8c2acd068"
+  integrity sha512-kXpym8nmDmlCBr7nKdIx8P2jNBa+pBpIUFRnKJ4dr8htyYGJFokkr2ZvERRtUN+9SY+JqXouNgUPtv6JQva/2Q==
+
 uri-js@^4.2.1, uri-js@^4.2.2:
   version "4.2.2"
   resolved "https://registry.yarnpkg.com/uri-js/-/uri-js-4.2.2.tgz#94c540e1ff772956e2299507c010aea6c8838eb0"
@@ -9426,41 +9443,44 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-anymatch@1.3.3:
-  version "1.3.3"
-  resolved "https://registry.yarnpkg.com/vscode-anymatch/-/vscode-anymatch-1.3.3.tgz#0613d31a949c8025473bbdad848d219f47a44f86"
-  integrity sha512-LQ4vF4BWb9gwAvbMtN+3HC4HKDxLd+ZyWmAjACOdD05O/ZMcgvvnjO24GseEIQ6cWn8gW+Ft08gHFihnQy1eSw==
+vscode-anymatch@3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-anymatch/-/vscode-anymatch-3.0.3.tgz#5a79101e6df7e659a1f070367bc42f190eb4ae76"
+  integrity sha512-qQgfbzJJ5nNShh4jjC3BBekY4d8emcxHFgnqcXwsB/PUKvJPCg7AZYXM7hqS7EDnKrX9tsIFwFMihZ7yut92Qg==
   dependencies:
-    micromatch "^2.1.5"
-    normalize-path "^2.0.0"
+    normalize-path "^3.0.0"
+    picomatch "^2.0.4"
 
-vscode-chokidar@1.6.5:
-  version "1.6.5"
-  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.5.tgz#f38a1f909fa364a5429a4d4d70ecb40a15b54d0b"
-  integrity sha512-bc5dNF8tW2R+oesYT/Au//qumyd/0HTwSRqVXcg8ADQW1MsWKFwv+IxfSIuCHckaEy4I81GpSDaRWVGQqtsELw==
+vscode-chokidar@2.1.7:
+  version "2.1.7"
+  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-2.1.7.tgz#c5b31eb87402f4779bb4170915245bdcb6f7854b"
+  integrity sha512-uSNEQetPjAlgIAHmcF9E6M+KCw0f842rsEnJ64aamUAV6TO7gkXNCvLSzb4MuLsPU7ZQyCa++DrLQFjvciK5dg==
   dependencies:
-    async-each "^1.0.0"
-    glob-parent "^2.0.0"
-    inherits "^2.0.1"
+    async-each "^1.0.1"
+    braces "^2.3.2"
+    glob-parent "^3.1.0"
+    inherits "^2.0.3"
     is-binary-path "^1.0.0"
-    is-glob "^2.0.0"
+    is-glob "^4.0.0"
+    normalize-path "^3.0.0"
     path-is-absolute "^1.0.0"
-    readdirp "^2.0.0"
-    vscode-anymatch "1.3.3"
+    readdirp "^2.2.1"
+    upath "^1.1.1"
+    vscode-anymatch "3.0.3"
   optionalDependencies:
-    vscode-fsevents "0.3.10"
+    vscode-fsevents "1.2.12"
 
 vscode-debugprotocol@1.35.0:
   version "1.35.0"
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.35.0.tgz#565140cd42945e30c6c85cafb38c631457d4a46c"
   integrity sha512-+OMm11R1bGYbpIJ5eQIkwoDGFF4GvBz3Ztl6/VM+/RNNb2Gjk2c0Ku+oMmfhlTmTlPCpgHBsH4JqVCbUYhu5bA==
 
-vscode-fsevents@0.3.10:
-  version "0.3.10"
-  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-0.3.10.tgz#65a586c3c6df3080bea20482146963a0f3a2c58d"
-  integrity sha512-iNlCKNgEB9A2JZkLf4h4sJlOS1u0lbe4QjM0Dr0PHaTmsttkJEfOaQeci2Ja1wUA7hUUAF6sNbei/Qp2DacFLw==
+vscode-fsevents@1.2.12:
+  version "1.2.12"
+  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-1.2.12.tgz#01a71a01f90ee95ca822c34427aba437a17c03a7"
+  integrity sha512-bH/jRdDpSesGpqiVLjp6gHLSKUOh7oNvppzZ17JIrdbRYCcDmV7dIWR5gQc27DFy0RD9JDT+t+ixMid94MkM1A==
   dependencies:
-    nan "^2.10.0"
+    nan "^2.14.0"
 
 vscode-nls-dev@3.2.5:
   version "3.2.5"
@@ -9490,17 +9510,17 @@ vscode-proxy-agent@0.4.0:
     https-proxy-agent "2.2.1"
     socks-proxy-agent "4.0.1"
 
-vscode-ripgrep@^1.2.5:
-  version "1.2.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.5.tgz#2093c8f36d52bd2dab9eb45b003dd02533c5499c"
-  integrity sha512-n5XBm9od5hahpljw9T8wbkuMnAY7LlAG1OyEEtcCZEX9aCHFuBKSP0IcvciGRTbtWRovNuT83A2iRjt6PL3bLg==
+vscode-ripgrep@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.3.1.tgz#51fb93debcd0c18a8b90dbc37f84f94333d0c486"
+  integrity sha512-4WLB/n4ZeWNi5AEzPTkfYrqbKtXlv0SlgmxbRVdulwZzGx/lfWeWPu9Shy32orM27IofQAQDuirbRBOYNJVzBA==
 
-vscode-sqlite3@4.0.7:
-  version "4.0.7"
-  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.7.tgz#7adbf0fe411c87716ca3c4e467f04de3a7353125"
-  integrity sha512-1BqWdf6Nzs+q7JC+JFXDLX2Z8ZID7lZH69AoLh9FXos7XgLbF4dsmUZO5a6d9X3Jccu/m0PfKK1K4E6dk/xiRg==
+vscode-sqlite3@4.0.8:
+  version "4.0.8"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.8.tgz#1eba415b996d2661628d80d4a191a20767713829"
+  integrity sha512-FsFtYSHmy0mYjtt9ibFKsJqbRzqaltDKZ5SLdpykjvORugFMr0HfGunkh+qGaz9CvAiqjM2KVO91NE9KdyTWKQ==
   dependencies:
-    nan "~2.10.0"
+    nan "^2.14.0"
 
 vscode-textmate@^4.1.1:
   version "4.1.1"
@@ -9792,20 +9812,20 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-search@0.1.0-beta6:
-  version "0.1.0-beta6"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.1.0-beta6.tgz#e2a2b441f8f7b0245c63731d0b2af32c7d4e6747"
-  integrity sha512-XKxdfO48HkCJW2m1wXW0PK/BOk00WEaN+W2LgDQqCBwwUjyBzWc9HaV8gzLXhSCDAYesWvtQa3RfqHfSp9qsbQ==
+xterm-addon-search@0.2.0-beta2:
+  version "0.2.0-beta2"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0-beta2.tgz#c3173f0a6f207ee9f1848849174ee5d6b6ce8262"
+  integrity sha512-XEcwi2TeFGk2MuIFjiI/OpVXSNO5dGQBvHH3o+9KzqG3ooVqhhDqzwxs092QGNcNCGh8hGn/PWZiczaBBnKm/g==
 
 xterm-addon-web-links@0.1.0-beta10:
   version "0.1.0-beta10"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta50:
-  version "3.15.0-beta50"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta50.tgz#6413057fe36ff5808a41eba337f83076144d5c10"
-  integrity sha512-LAJ8kP3U8oXnVR3uaL4NxNFKcFDt3Zoec53hgYppwW8P5LdmL/dc0eDpgqiEsPLx4GgD37d8J92EcoMzKs2vVw==
+xterm@3.15.0-beta67:
+  version "3.15.0-beta67"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta67.tgz#71973e174bdc08df620945eecd3f87912f1ac550"
+  integrity sha512-qLfo9GHVlu/IxgDI3vRGObWZM7UL4eLhMfjZhprx2aXNMpzmrOW6l3JDRsCjUWm93EoVavbULtnDhGSiTlKitQ==
 
 y18n@^3.2.1:
   version "3.2.1"

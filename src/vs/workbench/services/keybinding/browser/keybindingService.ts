@@ -46,6 +46,7 @@ import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapIn
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
+import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -530,11 +531,13 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			// ignore ctrl/cmd/alt-combination but not shift-combinatios
 			return false;
 		}
-		if (event.keyCode === KeyCode.Escape) {
+		const code = ScanCodeUtils.toEnum(event.code);
+		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		if (keycode !== -1) {
 			// https://github.com/microsoft/vscode/issues/74934
 			return false;
 		}
@@ -576,7 +579,6 @@ class UserKeybindings extends Disposable {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(this.fileService.watch(this.keybindingsResource));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
@@ -675,8 +677,8 @@ function updateSchema() {
 	};
 
 	const allCommands = CommandsRegistry.getCommands();
-	for (let commandId in allCommands) {
-		const commandDescription = allCommands[commandId].description;
+	for (const [commandId, command] of allCommands) {
+		const commandDescription = command.description;
 
 		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
 
@@ -704,7 +706,7 @@ function updateSchema() {
 	}
 
 	const menuCommands = MenuRegistry.getCommands();
-	for (let commandId in menuCommands) {
+	for (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
 }

@@ -174,7 +174,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
-	private _dimensionsOverride: ITerminalDimensions;
+	private _dimensionsOverride: ITerminalDimensions | undefined;
 	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<void>;
 	private _titleReadyPromise: Promise<string>;
@@ -363,12 +363,15 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._cols !== newCols || this._rows !== newRows) {
 			this._cols = newCols;
 			this._rows = newRows;
-			if (this.shellLaunchConfig.isRendererOnly) {
-				this._onMaximumDimensionsChanged.fire();
-			}
+			this._fireMaximumDimensionsChanged();
 		}
 
 		return dimension.width;
+	}
+
+	@debounce(50)
+	private _fireMaximumDimensionsChanged(): void {
+		this._onMaximumDimensionsChanged.fire();
 	}
 
 	private _getDimension(width: number, height: number): dom.Dimension | null {
@@ -414,7 +417,6 @@ export class TerminalInstance implements ITerminalInstance {
 		xtermConstructor = new Promise<typeof XTermTerminal>(async (resolve) => {
 			const Terminal = await this._terminalInstanceService.getXtermConstructor();
 			// Localize strings
-			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
 			resolve(Terminal);
@@ -945,6 +947,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
+		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -1284,11 +1287,15 @@ export class TerminalInstance implements ITerminalInstance {
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
+			if (isNaN(cols) || isNaN(rows)) {
+				return;
+			}
+
 			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
 			}
-
 			this._xterm.resize(cols, rows);
+
 			if (this._isVisible) {
 				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
 				// This is to fix an issue where dragging the window to the top of the screen to
@@ -1343,7 +1350,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._titleReadyPromise;
 	}
 
-	public setDimensions(dimensions: ITerminalDimensions): void {
+	public setDimensions(dimensions: ITerminalDimensions | undefined): void {
 		this._dimensionsOverride = dimensions;
 		this._resize();
 	}

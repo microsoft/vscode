@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { sep } from 'vs/base/common/path';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
@@ -45,10 +45,11 @@ export async function loadLocalResource(
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ): Promise<LocalResourceResponse> {
-	const requestPath = requestUri.path;
+	const requestPath = requestUri.authority ? `//${requestUri.authority}${requestUri.path}` : requestUri.path;
 	const normalizedPath = URI.file(requestPath);
 	for (const root of getRoots()) {
-		if (!startsWith(normalizedPath.fsPath, root.fsPath + sep)) {
+		const rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+		if (!startsWith(normalizedPath.fsPath, rootPath)) {
 			continue;
 		}
 

@@ -20,7 +20,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 				oldOnError.apply(this, arguments);
 			}
 		};
-		this._disposables.push(toDisposable(function () {
+		this._disposables.add(toDisposable(() => {
 			if (oldOnError) {
 				globals.onerror = oldOnError;
 			}

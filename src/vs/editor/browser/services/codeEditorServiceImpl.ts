@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -123,7 +123,7 @@ interface ProviderArguments {
 
 class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
-	private _disposables: IDisposable[];
+	private readonly _disposables = new DisposableStore();
 	public refCount: number;
 
 	public className: string | undefined;
@@ -138,11 +138,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
 		this.refCount = 0;
-		this._disposables = [];
 
 		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
 			const rules = new DecorationCSSRules(type, providerArgs, themeService);
-			this._disposables.push(rules);
+			this._disposables.add(rules);
 			if (rules.hasContent) {
 				return rules.className;
 			}
@@ -150,7 +149,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		};
 		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
 			const rules = new DecorationCSSRules(type, providerArgs, themeService);
-			this._disposables.push(rules);
+			this._disposables.add(rules);
 			if (rules.hasContent) {
 				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
 			}
@@ -202,7 +201,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	}
 
 	public dispose(): void {
-		this._disposables = disposeAll(this._disposables);
+		this._disposables.dispose();
 	}
 }
 
@@ -400,7 +399,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, dom.asDomUri(URI.revive(opts.contentIconPath)).toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -427,7 +426,7 @@ class DecorationCSSRules {
 		const cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, dom.asDomUri(URI.revive(opts.gutterIconPath)).toString(true).replace(/'/g, '%27')));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

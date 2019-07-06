@@ -1,4 +1,23 @@
 steps:
+- script: |
+    mkdir -p .build
+    echo -n $BUILD_SOURCEVERSION > .build/commit
+  displayName: Prepare cache flag
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.build/commit'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    vstsFeed: 'npm-vscode'
+    platformIndependent: true
+    alias: 'Compilation'
+
+- script: |
+    set -e
+    exit 1
+  displayName: Check RestoreCache
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
 - task: NodeTool@0
   inputs:
     versionSpec: "10.15.1"
@@ -36,10 +55,36 @@ steps:
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
 
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+
 - script: |
     set -e
     CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js
+    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js remote
+  displayName: Install distro dependencies
 
 - script: |
     set -e
@@ -48,46 +93,12 @@ steps:
 
 - script: |
     set -e
-    yarn gulp hygiene
-    yarn monaco-compile-check
-  displayName: Run hygiene checks
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
-    node build/azure-pipelines/common/installDistroDependencies.js
-    node build/azure-pipelines/common/installDistroDependencies.js remote
-    node build/lib/builtInExtensions.js
-  displayName: Install distro dependencies and extensions
-
-- script: |
-    set -e
-    cd $BUILD_STAGINGDIRECTORY
-    git clone https://github.com/microsoft/vscode-telemetry-extractor.git
-    cd vscode-telemetry-extractor
-    git checkout 3b04aba5bfdfcca1a5426cd2c51a90d18740d0bc
-    npm i
-    npm run setup-extension-repos
-    node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
-    node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
-    mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
-    mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
-    mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
-  displayName: Extract Telemetry
-
-- script: |
-    set -e
-    if [[ "$VSCODE_ARCH" == "ia32" ]]; then
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-linux-$VSCODE_ARCH-min
-    else
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-linux-$VSCODE_ARCH-min
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-linux-$VSCODE_ARCH-min
-    fi
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-linux-$VSCODE_ARCH-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-linux-$VSCODE_ARCH-min-ci
   displayName: Build
 
 - script: |
@@ -111,12 +122,12 @@ steps:
     ./build/azure-pipelines/linux/publish.sh
   displayName: Publish
 
-- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-  displayName: 'Component Detection'
-  continueOnError: true
-
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
   inputs:
     artifactName: snap-$(VSCODE_ARCH)
     targetPath: .build/linux/snap-tarball
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true

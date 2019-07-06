@@ -400,7 +400,7 @@ CommandsRegistry.registerCommand({
 
 function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
-		sequence(resources.map(r => () => windowsService.showItemInFolder(r)));
+		sequence(resources.map(r => () => windowsService.showItemInFolder(r.scheme === Schemas.userData ? r.with({ scheme: Schemas.file }) : r)));
 	} else if (workspaceContextService.getWorkspace().folders.length) {
 		windowsService.showItemInFolder(workspaceContextService.getWorkspace().folders[0].uri);
 	} else {
