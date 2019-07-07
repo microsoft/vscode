@@ -106,7 +106,7 @@ let languageService = getLanguageService({
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
+const documents: TextDocuments = new TextDocuments();
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
