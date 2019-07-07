@@ -739,8 +739,8 @@ export class Minimap extends ViewPart {
 			const height = lineHeight * lineHeightRatio;
 
 			// Loop over decorations, ignoring those that don't have the minimap property set and rendering those on the same line together
-			let i = 0;
-			for (; i < decorations.length; i++) {
+
+			for (let i = 0; i < decorations.length; i++) {
 				if (!decorations[i].options.minimap) {
 					continue;
 				}
