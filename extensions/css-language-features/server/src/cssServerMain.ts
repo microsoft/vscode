@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
@@ -33,7 +33,7 @@ process.on('unhandledRejection', (e: any) => {
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
+const documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
