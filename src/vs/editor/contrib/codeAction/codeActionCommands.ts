@@ -60,7 +60,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._editor = editor;
 		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
-		this._codeActionWidget = new CodeActionWidget(editor, contextMenuService, {
+		this._codeActionWidget = this._register(new CodeActionWidget(editor, contextMenuService, {
 			onSelectCodeAction: async (action) => {
 				try {
 					await this._applyCodeAction(action);
@@ -69,7 +69,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 					this._trigger({ type: 'auto', filter: {} });
 				}
 			}
-		});
+		}));
 		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
 
 		this._updateLightBulbTitle();
