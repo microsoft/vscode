@@ -383,7 +383,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
 						collapsed: this.showCollapsed(container),
-						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, container),
+						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name, container),
 						order: ExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined,
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key
