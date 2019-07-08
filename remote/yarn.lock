@@ -1561,10 +1561,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-vsda@^1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/vsda/-/vsda-1.4.0.tgz#234909e14711309fcb6e3dc04b7353bc6f9c090a"
-  integrity sha512-3naJz46AFIGs1zdUBX6otH6E3mg0PKVGKbjZpk+BEjkpjDSed61RA7WZZMV5Ib5FYfiHAddgy0jBoZjYiuTIYA==
+vsda@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/vsda/-/vsda-1.4.1.tgz#eee9d265a10d994a3d685dc59c0d19720f4b3802"
+  integrity sha512-2mzWiJXtBC/98CiYijKAaw96w0ANH23+dzYAJAH7u/+AScahCSGPatYgiKLlnLUOaYwtnJnlKXxC3CZxgS16Pg==
   dependencies:
     prebuild-install "^5.3.0"
 
