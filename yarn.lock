@@ -9543,6 +9543,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
+"vsda@https://github.com/microsoft/vsda.git#1d2f596e271c17a1c5d0884a862c3b5395bfd1ea":
+  version "1.4.1"
+  resolved "https://github.com/microsoft/vsda.git#1d2f596e271c17a1c5d0884a862c3b5395bfd1ea"
+
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
   resolved "https://registry.yarnpkg.com/vso-node-api/-/vso-node-api-6.1.2-preview.tgz#aab3546df2451ecd894e071bb99b5df19c5fa78f"

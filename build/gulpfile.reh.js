@@ -306,19 +306,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
 
-		// Collect distro dependencies, if any
-		if (quality) {
-			const qualityPackagePath = path.join(REPO_ROOT, 'quality', quality, 'package.json');
-
-			if (fs.existsSync(qualityPackagePath)) {
-				const pkg = JSON.parse(fs.readFileSync(qualityPackagePath, 'utf8'));
-
-				// @ts-ignore JSON checking: dependencies is optional
-				const distroDependencies = _.flatten(Object.keys(pkg.dependencies || {}).map(d => [`remote/node_modules/${d}/**`, `!remote/node_modules/${d}/**/{test,tests}/**`, `!remote/node_modules/${d}/.bin/**`]));
-				dependenciesSrc.push(...distroDependencies);
-			}
-		}
-
 		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
