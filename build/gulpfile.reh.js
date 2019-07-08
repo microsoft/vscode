@@ -335,7 +335,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			node
 		);
 
-		if (process.env['VSCODE_WEB_BUILD']) {
+		if (type === 'web') {
 			all = es.merge(all,
 				gulp.src('resources/server/favicon.ico', { base: '.' })
 					.pipe(rename('resources/server/favicon.ico')));
