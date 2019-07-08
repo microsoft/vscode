@@ -16,7 +16,7 @@ import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -33,7 +33,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
-	private toUnhook: IDisposable[];
+	private readonly toUnhook = new DisposableStore();
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition | null;
 	private previousPromise: CancelablePromise<LocationLink[] | null> | null;
@@ -43,19 +43,18 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		this.toUnhook = [];
 		this.decorations = [];
 		this.editor = editor;
 		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
-		this.toUnhook.push(linkGesture);
+		this.toUnhook.add(linkGesture);
 
-		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this.startFindDefinition(mouseEvent, withNullAsUndefined(keyboardEvent));
 		}));
 
-		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
+		this.toUnhook.add(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
 				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
 					this.removeDecorations();
@@ -66,7 +65,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			}
 		}));
 
-		this.toUnhook.push(linkGesture.onCancel(() => {
+		this.toUnhook.add(linkGesture.onCancel(() => {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}));
@@ -303,7 +302,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	public dispose(): void {
-		this.toUnhook = dispose(this.toUnhook);
+		this.toUnhook.dispose();
 	}
 }
 

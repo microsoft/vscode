@@ -119,7 +119,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 		// Viewlet deregister
 		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
-			if (this.getActiveViewlet().getId() === viewletDescriptor.id) {
+			const activeViewlet = this.getActiveViewlet();
+			if (!activeViewlet || activeViewlet.getId() === viewletDescriptor.id) {
 				await this.openViewlet(this.getDefaultViewletId());
 			}
 
@@ -177,7 +178,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet {
+	getActiveViewlet(): IViewlet | null {
 		return <IViewlet>this.getActiveComposite();
 	}
 

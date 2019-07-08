@@ -835,6 +835,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 	const viewletService = accessor.get(IViewletService);
+	const notificationService = accessor.get(INotificationService);
 
 	await viewletService.openViewlet(VIEWLET_ID, true);
 
@@ -863,8 +864,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 				refreshIfSeparator(value, explorerService);
 				return isFolder ? explorerService.select(created.resource, true)
 					: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
-			}, (error) => {
-				onErrorWithRetry(accessor.get(INotificationService), error, () => onSuccess(value));
+			}, error => {
+				onErrorWithRetry(notificationService, error, () => onSuccess(value));
 			});
 		};
 

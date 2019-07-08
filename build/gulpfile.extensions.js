@@ -153,10 +153,11 @@ gulp.task(compileExtensionsBuildLegacyTask);
 // Azure Pipelines
 
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
-const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(cleanExtensionsBuildTask, () => {
-	return ext.packageExtensionsStream()
-		.pipe(gulp.dest('.build'));
-}));
+const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
+	cleanExtensionsBuildTask,
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream().pipe(gulp.dest('.build'))),
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream().pipe(gulp.dest('.build'))),
+));
 
 gulp.task(compileExtensionsBuildTask);
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;

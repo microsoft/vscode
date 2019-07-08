@@ -532,7 +532,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey || event.altKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			// ignore ctrl/cmd/alt-combination but not shift-combinatios
 			return false;
 		}
 		const code = ScanCodeUtils.toEnum(event.code);
@@ -579,7 +579,6 @@ class UserKeybindings extends Disposable {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(this.fileService.watch(this.keybindingsResource));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 

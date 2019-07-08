@@ -5,14 +5,15 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataProvider, FileChangeEvent } from 'vs/workbench/services/userData/common/userData';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { FileChangeType } from 'vs/platform/files/common/files';
 
 export class InMemoryUserDataProvider extends Disposable implements IUserDataProvider {
 	_serviceBrand: any;
 
-	private _onDidChangeFile: Emitter<string[]> = this._register(new Emitter<string[]>());
-	readonly onDidChangeFile: Event<string[]> = this._onDidChangeFile.event;
+	private _onDidChangeFile: Emitter<FileChangeEvent[]> = this._register(new Emitter<FileChangeEvent[]>());
+	readonly onDidChangeFile: Event<FileChangeEvent[]> = this._onDidChangeFile.event;
 
 	private readonly store: Map<string, string> = new Map<string, string>();
 
@@ -26,29 +27,25 @@ export class InMemoryUserDataProvider extends Disposable implements IUserDataPro
 	}
 
 	async readFile(path: string): Promise<Uint8Array> {
-		return VSBuffer.fromString(this.getValue(path)).buffer;
+		if (this.store.has(path)) {
+			return VSBuffer.fromString(this.store.get(path)!).buffer;
+		}
+		throw new Error(`Not Found: ${path}`);
 	}
 
 	async writeFile(path: string, value: Uint8Array): Promise<void> {
+		const exists = this.store.has(path);
 		const content = VSBuffer.wrap(value).toString();
-		if (content !== this.getValue(path)) {
-			if (content) {
-				this.store.set(path, content);
-				this._onDidChangeFile.fire([path]);
-			} else {
-				this.deleteFile(path);
-			}
+		if (!exists || content !== this.store.get(path)) {
+			this.store.set(path, content);
+			this._onDidChangeFile.fire([{ path, type: exists ? FileChangeType.UPDATED : FileChangeType.ADDED }]);
 		}
 	}
 
 	async deleteFile(path: string): Promise<void> {
 		if (this.store.has(path)) {
 			this.store.delete(path);
-			this._onDidChangeFile.fire([path]);
+			this._onDidChangeFile.fire([{ path, type: FileChangeType.DELETED }]);
 		}
-	}
-
-	private getValue(key: string): string {
-		return this.store.get(key) || '';
 	}
 }

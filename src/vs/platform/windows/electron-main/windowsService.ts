@@ -352,7 +352,8 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async openExternal(url: string): Promise<boolean> {
 		this.logService.trace('windowsService#openExternal');
 
-		return shell.openExternal(url);
+		shell.openExternal(url);
+		return true;
 	}
 
 	async startCrashReporter(config: Electron.CrashReporterStartOptions): Promise<void> {

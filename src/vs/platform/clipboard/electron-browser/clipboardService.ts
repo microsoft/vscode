@@ -14,11 +14,11 @@ export class ClipboardService implements IClipboardService {
 
 	_serviceBrand: any;
 
-	writeText(text: string, type?: string): void {
+	writeText(text: string, type?: 'selection' | 'clipboard'): void {
 		clipboard.writeText(text, type);
 	}
 
-	readText(type?: string): string {
+	readText(type?: 'selection' | 'clipboard'): string {
 		return clipboard.readText(type);
 	}
 
