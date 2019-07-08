@@ -1373,12 +1373,12 @@ declare module 'vscode' {
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const virtualProcess: TerminalVirtualProcess = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   input: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
+		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
 		 * };
 		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
 		 * ```
 		 */
-		input?(data: string): void;
+		handleInput?(data: string): void;
 
 		/**
 		 * Implement to handle when the number of rows and columns that fit into the terminal panel
