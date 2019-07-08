@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { basename, dirname } from 'vs/base/common/path';
+import * as path from 'vs/base/common/path';
+import { dirname } from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
@@ -13,6 +14,7 @@ import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, end
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -126,6 +128,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
+		private readonly _labelService: ILabelService,
 		private readonly _model: ITextModel
 	) {
 		//
@@ -136,10 +139,10 @@ export class ModelBasedVariableResolver implements VariableResolver {
 		const { name } = variable;
 
 		if (name === 'TM_FILENAME') {
-			return basename(this._model.uri.fsPath);
+			return path.basename(this._model.uri.fsPath);
 
 		} else if (name === 'TM_FILENAME_BASE') {
-			const name = basename(this._model.uri.fsPath);
+			const name = path.basename(this._model.uri.fsPath);
 			const idx = name.lastIndexOf('.');
 			if (idx <= 0) {
 				return name;
@@ -148,11 +151,13 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			}
 
 		} else if (name === 'TM_DIRECTORY') {
-			const dir = dirname(this._model.uri.fsPath);
-			return dir !== '.' ? dir : '';
+			if (path.dirname(this._model.uri.fsPath) === '.') {
+				return '';
+			}
+			return this._labelService.getUriLabel(dirname(this._model.uri));
 
 		} else if (name === 'TM_FILEPATH') {
-			return this._model.uri.fsPath;
+			return this._labelService.getUriLabel(this._model.uri);
 		}
 
 		return undefined;
@@ -266,10 +271,10 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return basename(workspaceIdentifier.path);
+			return path.basename(workspaceIdentifier.path);
 		}
 
-		let filename = basename(workspaceIdentifier.configPath.path);
+		let filename = path.basename(workspaceIdentifier.configPath.path);
 		if (endsWith(filename, WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}

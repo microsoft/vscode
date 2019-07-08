@@ -22,6 +22,7 @@ import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, Model
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -384,9 +385,9 @@ export class SnippetSession {
 		}
 		const model = editor.getModel();
 
-		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
 		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
 		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService, optional));
+		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService, optional), model));
 
 		let delta = 0;
 
