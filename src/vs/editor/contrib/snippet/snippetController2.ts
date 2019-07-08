@@ -208,7 +208,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
-		dispose(this._snippetListener);
+		this._snippetListener.clear();
 		dispose(this._session);
 		this._session = undefined;
 		this._modelVersionId = -1;

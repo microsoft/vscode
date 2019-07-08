@@ -149,6 +149,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._alternatives.dispose();
 		this._toDispose.dispose();
 		this._widget.dispose();
 		this._model.dispose();
