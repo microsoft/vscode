@@ -91,13 +91,13 @@ nsfw/includes/**
 !nsfw/build/Release/*.node
 !nsfw/**/*.a
 
+vsda/build/**
+vsda/ci/**
+vsda/src/**
+vsda/.gitignore
 vsda/binding.gyp
 vsda/README.md
-vsda/build/**
-vsda/*.bat
-vsda/*.sh
-vsda/*.cpp
-vsda/*.h
+vsda/targets
 !vsda/build/Release/vsda.node
 
 vscode-windows-ca-certs/**/*

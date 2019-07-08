@@ -21,5 +21,7 @@ int main () {
   rect.set_values (3,4);
   cout << "area: " << rect.area();
   Task<ANY_OUTPUT_TYPE, ANY_INPUT_TYPE>::links_to;
+  int t = 2;
+  if (t > 0) puts("\n*************************************************");
   return 0;
 }

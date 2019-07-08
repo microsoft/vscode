@@ -484,7 +484,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController.insert(template, 0, 0, opts.undoStopBefore, opts.undoStopAfter);
+		snippetController.insert(template, { overwriteBefore: 0, overwriteAfter: 0, undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter });
 
 		return true;
 	}

@@ -6080,6 +6080,12 @@ declare module 'vscode' {
 		export const remoteName: string | undefined;
 
 		/**
+		 * The detected default shell for the extension host, this is overridden by the
+		 * `terminal.integrated.shell` setting for the extension host's platform.
+		 */
+		export const shell: string;
+
+		/**
 		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
 		 * default application.
 		 *
