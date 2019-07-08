@@ -439,7 +439,7 @@ export class SnippetSession {
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
-				new ClipboardBasedVariableResolver(clipboardService && clipboardService.readText(), idx, indexedSelections.length),
+				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
 				new SelectionBasedVariableResolver(model, selection),
 				new CommentBasedVariableResolver(model),
 				new TimeBasedVariableResolver,
