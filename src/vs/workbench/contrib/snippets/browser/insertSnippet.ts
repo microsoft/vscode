@@ -167,7 +167,7 @@ class InsertSnippetAction extends EditorAction {
 			}
 		}).then(snippet => {
 			if (snippet) {
-				SnippetController2.get(editor).insert(snippet.codeSnippet, 0, 0);
+				SnippetController2.get(editor).insert(snippet.codeSnippet, { overwriteBefore: 0, overwriteAfter: 0 });
 			}
 		});
 	}
