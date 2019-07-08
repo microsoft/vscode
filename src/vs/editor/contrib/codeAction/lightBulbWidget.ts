@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -27,6 +27,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _position: IContentWidgetPosition | null;
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _futureFixes = new CancellationTokenSource();
+	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -116,6 +117,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// cancel pending show request in any case
 			this._futureFixes.cancel();
 		}
+		this._showingActions.clear();
 
 		this._futureFixes = new CancellationTokenSource();
 		const { token } = this._futureFixes;
@@ -123,6 +125,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		const selection = this._state.rangeOrSelection;
 		this._state.actions.then(fixes => {
+			this._showingActions.value = fixes;
 			if (!token.isCancellationRequested && fixes.actions.length > 0 && selection) {
 				this._show(fixes);
 			} else {

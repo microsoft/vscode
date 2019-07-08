@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -26,7 +26,6 @@ import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -46,7 +45,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	private readonly _model: CodeActionModel;
 	private readonly _codeActionWidget: CodeActionWidget;
 	private readonly _lightBulbWidget: LightBulbWidget;
-	private readonly _currentCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(
 		editor: ICodeEditor,
@@ -81,29 +79,30 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
 	}
 
-
 	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
 		if (newState.type === CodeActionsState.Type.Triggered) {
 			newState.actions.then(actions => {
-				this._currentCodeActions.value = actions;
-
 				if (!actions.actions.length && newState.trigger.context) {
 					MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
+					actions.dispose();
 				}
 			});
 
 			if (newState.trigger.filter && newState.trigger.filter.kind) {
 				// Triggered for specific scope
-				newState.actions.then(codeActions => {
+				newState.actions.then(async codeActions => {
 					if (codeActions.actions.length > 0) {
 						// Apply if we only have one action or requested autoApply
 						if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && codeActions.actions.length === 1)) {
-							this._applyCodeAction(codeActions.actions[0]);
+							try {
+								await this._applyCodeAction(codeActions.actions[0]);
+							} finally {
+								codeActions.dispose();
+							}
 							return;
 						}
 					}
 					this._codeActionWidget.show(newState.actions, newState.position);
-
 				}).catch(onUnexpectedError);
 			} else if (newState.trigger.type === 'manual') {
 				this._codeActionWidget.show(newState.actions, newState.position);
@@ -118,7 +117,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 				}
 			}
 		} else {
-			this._currentCodeActions.clear();
 			this._lightBulbWidget.hide();
 		}
 	}
