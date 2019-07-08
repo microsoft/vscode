@@ -123,10 +123,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const { token } = this._futureFixes;
 		this._state = newState;
 
-		const selection = this._state.rangeOrSelection;
 		this._state.actions.then(fixes => {
 			this._showingActions.value = fixes;
-			if (!token.isCancellationRequested && fixes.actions.length > 0 && selection) {
+			if (!token.isCancellationRequested && fixes.actions.length > 0) {
 				this._show(fixes);
 			} else {
 				this.hide();
