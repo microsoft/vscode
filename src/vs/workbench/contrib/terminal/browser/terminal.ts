@@ -10,6 +10,7 @@ import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITermina
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
@@ -30,7 +31,7 @@ export interface ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 
-	getDefaultShellAndArgs(platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
+	getDefaultShellAndArgs(configurationResolverService?: IConfigurationResolverService, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 

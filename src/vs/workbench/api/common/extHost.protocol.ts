@@ -47,6 +47,7 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1161,7 +1162,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
-	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean, configurationResolverService: IConfigurationResolverService): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
@@ -1170,7 +1171,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
-	$requestDefaultShellAndArgs(): Promise<IShellAndArgsDto>;
+	$requestDefaultShellAndArgs(configurationResolverService: IConfigurationResolverService): Promise<IShellAndArgsDto>;
 }
 
 export interface ExtHostSCMShape {

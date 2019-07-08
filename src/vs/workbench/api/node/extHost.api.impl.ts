@@ -258,7 +258,7 @@ export function createApiFactory(
 				return extHostClipboard;
 			},
 			get shell() {
-				return extHostTerminalService.getDefaultShell(configProvider);
+				return extHostTerminalService.getDefaultShell(configProvider, undefined);
 			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });

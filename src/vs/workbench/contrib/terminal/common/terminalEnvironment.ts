@@ -169,7 +169,8 @@ export function getDefaultShell(
 	defaultShell: string,
 	isWoW64: boolean,
 	windir: string | undefined,
-	platformOverride: platform.Platform = platform.platform
+	configurationResolverService?: IConfigurationResolverService,
+	platformOverride: platform.Platform = platform.platform,
 ): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
@@ -190,17 +191,29 @@ export function getDefaultShell(
 		executable = executable.replace(/\//g, '\\');
 	}
 
+	if (configurationResolverService) {
+		executable = configurationResolverService.resolve(undefined, executable);
+	}
+
 	return executable;
 }
 
 export function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
-	platformOverride: platform.Platform = platform.platform
+	configurationResolverService?: IConfigurationResolverService,
+	platformOverride: platform.Platform = platform.platform,
 ): string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	const args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	let args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	if (configurationResolverService) {
+		const resolvedArgs: string[] = [];
+		for (const arg of args) {
+			resolvedArgs.push(configurationResolverService.resolve(undefined, arg));
+		}
+		args = resolvedArgs;
+	}
 	return args;
 }
 
@@ -234,17 +247,6 @@ export function createTerminalEnvironment(
 			}
 			if (shellLaunchConfig.env) {
 				resolveConfigurationVariables(configurationResolverService, shellLaunchConfig.env, lastActiveWorkspace);
-			}
-			if (shellLaunchConfig.args) {
-				if (Array.isArray(shellLaunchConfig.args)) {
-					const resolvedArgs: string[] = [];
-					for (const arg of shellLaunchConfig.args) {
-						resolvedArgs.push(configurationResolverService.resolve(undefined, arg));
-					}
-					shellLaunchConfig.args = resolvedArgs;
-				} else {
-					shellLaunchConfig.args = configurationResolverService.resolve(undefined, shellLaunchConfig.args);
-				}
 			}
 		}
 

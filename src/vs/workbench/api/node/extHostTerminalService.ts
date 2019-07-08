@@ -23,6 +23,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -358,7 +359,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return renderer;
 	}
 
-	public getDefaultShell(configProvider: ExtHostConfigProvider): string {
+	public getDefaultShell(configProvider: ExtHostConfigProvider, configurationResolverService?: IConfigurationResolverService): string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -370,18 +371,19 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			this._isWorkspaceShellAllowed,
 			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
-			process.env.windir
+			process.env.windir,
+			configurationResolverService
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string | undefined {
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider, configurationResolverService: IConfigurationResolverService): string[] {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, configurationResolverService);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -530,7 +532,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return env;
 	}
 
-	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean, configurationResolverService: IConfigurationResolverService): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -543,8 +545,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
-			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
+			shellLaunchConfig.executable = this.getDefaultShell(configProvider, configurationResolverService);
+			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, configurationResolverService);
 		}
 
 		// Get the initial cwd
@@ -631,11 +633,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
+	public async $requestDefaultShellAndArgs(configurationResolverService: IConfigurationResolverService): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return Promise.resolve({
-			shell: this.getDefaultShell(configProvider),
-			args: this._getDefaultShellArgs(configProvider)
+			shell: this.getDefaultShell(configProvider, configurationResolverService),
+			args: this._getDefaultShellArgs(configProvider, configurationResolverService)
 		});
 	}
 

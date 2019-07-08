@@ -17,6 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -65,7 +66,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 	}
 
-	public getDefaultShellAndArgs(platformOverride: Platform = platform): Promise<{ shell: string, args: string[] | undefined }> {
+	public getDefaultShellAndArgs(configurationResolverService: IConfigurationResolverService, platformOverride: Platform = platform): Promise<{ shell: string, args: string[] | undefined }> {
 		const isWorkspaceShellAllowed = this._isWorkspaceShellAllowed();
 		const shell = getDefaultShell(
 			(key) => this._configurationService.inspect(key),
@@ -73,11 +74,13 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			getSystemShell(platformOverride),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
+			configurationResolverService,
 			platformOverride
 		);
 		const args = getDefaultShellArgs(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
+			configurationResolverService,
 			platformOverride
 		);
 		return Promise.resolve({ shell, args });

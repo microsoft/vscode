@@ -773,7 +773,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			const defaultConfig = await this.terminalInstanceService.getDefaultShellAndArgs(platform);
+			const defaultConfig = await this.terminalInstanceService.getDefaultShellAndArgs(undefined, platform);
 			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
