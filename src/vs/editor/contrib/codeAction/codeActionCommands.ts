@@ -33,6 +33,7 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
+
 export class QuickFixController extends Disposable implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.quickFixController';
@@ -88,24 +89,26 @@ export class QuickFixController extends Disposable implements IEditorContributio
 				}
 			});
 
-			if (newState.trigger.filter && newState.trigger.filter.kind) {
-				// Triggered for specific scope
-				newState.actions.then(async codeActions => {
-					if (codeActions.actions.length > 0) {
-						// Apply if we only have one action or requested autoApply
-						if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && codeActions.actions.length === 1)) {
-							try {
-								await this._applyCodeAction(codeActions.actions[0]);
-							} finally {
-								codeActions.dispose();
+			if (newState.trigger.type === 'manual') {
+				if (newState.trigger.filter && newState.trigger.filter.kind) {
+					// Triggered for specific scope
+					newState.actions.then(async codeActions => {
+						if (codeActions.actions.length > 0) {
+							// Apply if we only have one action or requested autoApply
+							if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && codeActions.actions.length === 1)) {
+								try {
+									await this._applyCodeAction(codeActions.actions[0]);
+								} finally {
+									codeActions.dispose();
+								}
+								return;
 							}
-							return;
 						}
-					}
+						this._codeActionWidget.show(newState.actions, newState.position);
+					}).catch(onUnexpectedError);
+				} else {
 					this._codeActionWidget.show(newState.actions, newState.position);
-				}).catch(onUnexpectedError);
-			} else if (newState.trigger.type === 'manual') {
-				this._codeActionWidget.show(newState.actions, newState.position);
+				}
 			} else {
 				// auto magically triggered
 				// * update an existing list of code actions
