@@ -8,7 +8,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeAction } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
-import * as nls from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
@@ -24,12 +23,12 @@ export class CodeActionUi extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly quickFixActionId: string,
+		quickFixActionId: string,
 		private readonly delegate: {
 			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => void
 		},
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -38,12 +37,9 @@ export class CodeActionUi extends Disposable {
 				this.delegate.applyCodeAction(action, /* retrigger */true);
 			}
 		}));
-		this._lightBulbWidget = this._register(new LightBulbWidget(this._editor));
-
-		this._updateLightBulbTitle();
+		this._lightBulbWidget = this._register(new LightBulbWidget(this._editor, quickFixActionId, keybindingService));
 
 		this._register(this._lightBulbWidget.onClick(this._handleLightBulbSelect, this));
-		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
 	}
 
 	public update(newState: CodeActionsState.State): void {
@@ -92,16 +88,5 @@ export class CodeActionUi extends Disposable {
 
 	private _handleLightBulbSelect(e: { x: number, y: number, state: CodeActionsState.Triggered }): void {
 		this._codeActionWidget.show(e.state.actions, e);
-	}
-
-	private _updateLightBulbTitle(): void {
-		const kb = this._keybindingService.lookupKeybinding(this.quickFixActionId);
-		let title: string;
-		if (kb) {
-			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
-		} else {
-			title = nls.localize('quickFix', "Show Fixes");
-		}
-		this._lightBulbWidget.title = title;
 	}
 }

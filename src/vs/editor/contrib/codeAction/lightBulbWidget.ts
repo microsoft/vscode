@@ -12,6 +12,8 @@ import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import * as nls from 'vs/nls';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
 
 export class LightBulbWidget extends Disposable implements IContentWidget {
@@ -19,7 +21,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
 	private readonly _domNode: HTMLDivElement;
-	private readonly _editor: ICodeEditor;
 
 	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>());
 	public readonly onClick = this._onClick.event;
@@ -29,12 +30,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _futureFixes = new CancellationTokenSource();
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _quickFixActionId: string,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
 		super();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'lightbulb-glyph';
 
-		this._editor = editor;
 		this._editor.addContentWidget(this);
 
 		this._register(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
@@ -89,6 +93,10 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				this.hide();
 			}
 		}));
+
+		this._updateLightBulbTitle();
+		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
+
 	}
 
 	dispose(): void {
@@ -135,12 +143,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		});
 	}
 
-	set title(value: string) {
+	private set title(value: string) {
 		this._domNode.title = value;
-	}
-
-	get title(): string {
-		return this._domNode.title;
 	}
 
 	private _show(codeActions: CodeActionSet): void {
@@ -187,10 +191,21 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._editor.layoutContentWidget(this);
 	}
 
-	hide(): void {
+	public hide(): void {
 		this._position = null;
 		this._state = CodeActionsState.Empty;
 		this._futureFixes.cancel();
 		this._editor.layoutContentWidget(this);
+	}
+
+	private _updateLightBulbTitle(): void {
+		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
+		let title: string;
+		if (kb) {
+			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
+		} else {
+			title = nls.localize('quickFix', "Show Fixes");
+		}
+		this.title = title;
 	}
 }

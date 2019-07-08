@@ -71,7 +71,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 				}
 			}
 		}, contextMenuService, keybindingService));
-
 	}
 
 	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
