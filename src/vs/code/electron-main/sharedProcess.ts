@@ -38,7 +38,6 @@ export class SharedProcess implements ISharedProcess {
 				images: false,
 				nodeIntegration: true,
 				webgl: false,
-				nodeIntegration: true,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
