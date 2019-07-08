@@ -675,7 +675,6 @@ interface ITreeExplorerTemplateData {
 	resourceLabel: IResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
-	aligner: Aligner;
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
@@ -704,16 +703,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		const labelAndActionContainer = document.createElement('div');
-		labelAndActionContainer.setAttribute('class', 'monaco-icon-label custom-view-tree-node-item-resourceLabel');
-		container.appendChild(labelAndActionContainer);
-		const resourceLabel = this.labels.create(labelAndActionContainer, { supportHighlights: true, donotSupportOcticons: true });
-		const actionsContainer = DOM.append(labelAndActionContainer, DOM.$('.actions'));
+		const resourceLabel = this.labels.create(container, { supportHighlights: true, donotSupportOcticons: true });
+		const actionsContainer = DOM.append(container, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider
 		});
 
-		return { resourceLabel, icon, actionBar, aligner: this.aligner, container, elementDisposable: Disposable.None };
+		return { resourceLabel, icon, actionBar, container, elementDisposable: Disposable.None };
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
@@ -742,7 +738,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 		this.setAlignment(templateData.container, node);
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
+		templateData.elementDisposable = (this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
@@ -761,10 +757,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
+	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
+		templateData.elementDisposable.dispose();
+	}
+
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
-		templateData.aligner.dispose();
+		templateData.elementDisposable.dispose();
 	}
 }
 

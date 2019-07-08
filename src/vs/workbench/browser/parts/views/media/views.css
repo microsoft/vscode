@@ -94,18 +94,6 @@
 	display: none;
 }
 
-/* .customview-tree .monaco-list-row .monaco-tl-contents::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-	vertical-align: top;
-	content: ' ';
-} */
-
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
 	display: none;
 }
