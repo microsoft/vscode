@@ -91,15 +91,6 @@ nsfw/includes/**
 !nsfw/build/Release/*.node
 !nsfw/**/*.a
 
-vsda/binding.gyp
-vsda/README.md
-vsda/build/**
-vsda/*.bat
-vsda/*.sh
-vsda/*.cpp
-vsda/*.h
-!vsda/build/Release/vsda.node
-
 vscode-windows-ca-certs/**/*
 !vscode-windows-ca-certs/package.json
 !vscode-windows-ca-certs/**/*.node
