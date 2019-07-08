@@ -484,6 +484,8 @@ export interface ITerminalInstance {
 	 */
 	readonly commandTracker: ITerminalCommandTracker;
 
+	readonly navigationMode: INavigationMode | undefined;
+
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
@@ -617,10 +619,6 @@ export interface ITerminalInstance {
 	/** Scroll the terminal buffer to the top. */
 	scrollToTop(): void;
 
-	/** Focus the previous line in the accessibility tree */
-	focusPreviousA11yLine(): void;
-	focusNextA11yLine(): void;
-
 	/**
 	 * Clears the terminal buffer, leaving only the prompt line.
 	 */
@@ -633,17 +631,6 @@ export interface ITerminalInstance {
 	 * @param container The element to attach the terminal instance to.
 	 */
 	attachToElement(container: HTMLElement): void;
-
-	/**
-	 * Updates the configuration of the terminal instance.
-	 */
-	updateConfig(): void;
-
-	/**
-	 * Updates the accessibility support state of the terminal instance.
-	 * @param isEnabled Whether it's enabled.
-	 */
-	updateAccessibilitySupport(isEnabled: boolean): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.
@@ -690,6 +677,12 @@ export interface ITerminalCommandTracker {
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
+}
+
+export interface INavigationMode {
+	exitNavigationMode(): void;
+	focusPreviousLine(): void;
+	focusNextLine(): void;
 }
 
 export interface IBeforeProcessDataEvent {

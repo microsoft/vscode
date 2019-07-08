@@ -34,9 +34,7 @@ export const enum TERMINAL_COMMAND_ID {
 	RESIZE_PANE_DOWN = 'workbench.action.terminal.resizePaneDown',
 	FOCUS = 'workbench.action.terminal.focus',
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
-	FOCUS_NEXT_A11Y_LINE = 'workbench.action.terminal.focusNextA11yLine',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
-	FOCUS_PREVIOUS_A11Y_LINE = 'workbench.action.terminal.focusPreviousA11yLine',
 	PASTE = 'workbench.action.terminal.paste',
 	SELECT_DEFAULT_SHELL = 'workbench.action.terminal.selectDefaultShell',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
@@ -70,6 +68,9 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE_FIND_REGEX_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindRegexTerminalFocus',
 	TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindWholeWordTerminalFocus',
 	TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindCaseSensitiveTerminalFocus',
+	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
+	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
+	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'
 }
 
 export function setupTerminalCommands(): void {

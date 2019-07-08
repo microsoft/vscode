@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -35,8 +35,9 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { Terminal as XTermTerminal, IBuffer } from 'xterm';
+import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
+import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -57,10 +58,8 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
 	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
 	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.FOCUS_NEXT_A11Y_LINE,
 	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
 	TERMINAL_COMMAND_ID.FOCUS_NEXT,
-	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_A11Y_LINE,
 	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
 	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
 	TERMINAL_COMMAND_ID.FOCUS,
@@ -93,6 +92,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
 	TERMINAL_COMMAND_ID.SPLIT,
 	TERMINAL_COMMAND_ID.TOGGLE,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS,
 	'editor.action.toggleTabFocusMode',
 	'workbench.action.quickOpen',
 	'workbench.action.quickOpenPreviousEditor',
@@ -189,6 +191,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
 	private _commandTracker: TerminalCommandTracker;
+	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
@@ -216,6 +219,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
+	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
 	private readonly _onExit = new Emitter<number>();
 	public get onExit(): Event<number> { return this._onExit.event; }
@@ -446,13 +450,13 @@ export class TerminalInstance implements ITerminalInstance {
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			bellStyle: config.enableBell ? 'sound' : 'none',
-			screenReaderMode: this._isScreenReaderOptimized(),
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
+		this.updateAccessibilitySupport();
 		this._terminalInstanceService.getXtermSearchConstructor().then(Addon => {
 			this._xtermSearch = new Addon();
 			this._xterm.loadAddon(this._xtermSearch);
@@ -911,84 +915,6 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public focusPreviousA11yLine(): void {
-		// Focus previous row if a row is already focused
-		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = <HTMLElement | null>document.activeElement.previousElementSibling;
-			if (element) {
-				element.focus();
-				const disposable = dom.addDisposableListener(element, 'blur', () => {
-					this._terminalA11yTreeFocusContextKey.set(false);
-					disposable.dispose();
-				});
-				this._terminalA11yTreeFocusContextKey.set(true);
-			}
-			return;
-		}
-
-		// Ensure a11y tree exists
-		const treeContainer = this._xterm.element.querySelector('.xterm-accessibility-tree');
-		if (!treeContainer) {
-			return;
-		}
-
-		// Target is row before the cursor
-		const targetRow = Math.max(this._xterm.buffer.cursorY - 1, 0);
-
-		// Check bounds
-		if (treeContainer.childElementCount < targetRow) {
-			return;
-		}
-
-		// Focus
-		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
-		element.focus();
-		const disposable = dom.addDisposableListener(element, 'blur', () => {
-			this._terminalA11yTreeFocusContextKey.set(false);
-			disposable.dispose();
-		});
-		this._terminalA11yTreeFocusContextKey.set(true);
-	}
-
-	public focusNextA11yLine(): void {
-		// Focus previous row if a row is already focused
-		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
-			const element = <HTMLElement | null>document.activeElement.nextElementSibling;
-			if (element) {
-				element.focus();
-				const disposable = dom.addDisposableListener(element, 'blur', () => {
-					this._terminalA11yTreeFocusContextKey.set(false);
-					disposable.dispose();
-				});
-				this._terminalA11yTreeFocusContextKey.set(true);
-			}
-			return;
-		}
-
-		// Ensure a11y tree exists
-		const treeContainer = this._xterm.element.querySelector('.xterm-accessibility-tree');
-		if (!treeContainer) {
-			return;
-		}
-
-		// Target is cursor row
-		const targetRow = this._xterm.buffer.cursorY;
-
-		// Check bounds
-		if (treeContainer.childElementCount < targetRow) {
-			return;
-		}
-
-		// Focus row before cursor
-		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
-		element.focus();
-		const disposable = dom.addDisposableListener(element, 'blur', () => {
-			this._terminalA11yTreeFocusContextKey.set(false);
-			disposable.dispose();
-		});
-		this._terminalA11yTreeFocusContextKey.set(true);
-	}
-
 	public scrollDownLine(): void {
 		this._xterm.scrollLines(1);
 	}
@@ -1284,7 +1210,17 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateAccessibilitySupport(): void {
-		this._xterm.setOption('screenReaderMode', this._isScreenReaderOptimized());
+		const isEnabled = this._isScreenReaderOptimized();
+		if (isEnabled) {
+			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
+			this._xterm.loadAddon(this._navigationModeAddon);
+		} else {
+			if (this._navigationModeAddon) {
+				this._navigationModeAddon.dispose();
+				this._navigationModeAddon = undefined;
+			}
+		}
+		this._xterm.setOption('screenReaderMode', isEnabled);
 	}
 
 	private _setCursorBlink(blink: boolean): void {

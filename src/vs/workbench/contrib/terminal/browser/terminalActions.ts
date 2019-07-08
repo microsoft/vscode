@@ -886,10 +886,10 @@ export class ScrollToTopTerminalAction extends Action {
 	}
 }
 
-export class FocusPreviousA11yLineTerminalAction extends Action {
+export class NavigationModeExitTerminalAction extends Action {
 
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_A11Y_LINE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPreviousA11yLine', "Focus Previous Line (Accessibility Mode)");
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode");
 
 	constructor(
 		id: string, label: string,
@@ -900,17 +900,19 @@ export class FocusPreviousA11yLineTerminalAction extends Action {
 
 	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.focusPreviousA11yLine();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.exitNavigationMode();
 		}
 		return Promise.resolve(undefined);
 	}
 }
 
-export class FocusNextA11yLineTerminalAction extends Action {
 
-	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_NEXT_A11Y_LINE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusNextA11yLine', "Focus Next Line (Accessibility Mode)");
+
+export class NavigationModeFocusPreviousTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)");
 
 	constructor(
 		id: string, label: string,
@@ -921,8 +923,29 @@ export class FocusNextA11yLineTerminalAction extends Action {
 
 	public run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.focusNextA11yLine();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusPreviousLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class NavigationModeFocusNextTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusNextLine();
 		}
 		return Promise.resolve(undefined);
 	}
