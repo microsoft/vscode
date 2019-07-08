@@ -192,13 +192,13 @@ export class SuggestController implements IEditorContribution {
 		const overwriteBefore = position.column - suggestion.range.startColumn;
 		const overwriteAfter = suggestion.range.endColumn - position.column;
 
-		SnippetController2.get(this._editor).insert(
-			insertText,
-			overwriteBefore + columnDelta,
+		SnippetController2.get(this._editor).insert(insertText, {
+			overwriteBefore: overwriteBefore + columnDelta,
 			overwriteAfter,
-			false, false,
-			!(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
-		);
+			undoStopBefore: false,
+			undoStopAfter: false,
+			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
+		});
 
 		if (undoStops) {
 			this._editor.pushUndoStop();
