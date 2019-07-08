@@ -71,21 +71,16 @@ interface GruntTaskDefinition extends vscode.TaskDefinition {
 }
 
 async function findGruntCommand(rootPath: string): Promise<string> {
-	let gruntCommand: string;
+	let command: string;
 	let platform = process.platform;
-	if (platform === 'win32' && await exists(path.join(rootPath, 'node_modules', '.bin', 'grunt.cmd'))) {
-		const globalGrunt = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'grunt.cmd');
-		if (await exists(globalGrunt)) {
-			gruntCommand = `" ${globalGrunt} "`;
-		} else {
-			gruntCommand = path.join('.', 'node_modules', '.bin', 'grunt.cmd');
-		}
-	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath))) {
-		gruntCommand = path.join('.', 'node_modules', '.bin', 'grunt');
+	if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt.cmd'))) {
+		command = path.join('.', 'node_modules', '.bin', 'grunt.cmd');
+	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt'))) {
+		command = path.join('.', 'node_modules', '.bin', 'grunt');
 	} else {
-		gruntCommand = 'grunt';
+		command = 'grunt';
 	}
-	return gruntCommand;
+	return command;
 }
 
 class FolderDetector {
@@ -145,17 +140,7 @@ class FolderDetector {
 			return emptyTasks;
 		}
 
-		let command: string;
-		let platform = process.platform;
-		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt.cmd'))) {
-			command = path.join('.', 'node_modules', '.bin', 'grunt.cmd');
-		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt'))) {
-			command = path.join('.', 'node_modules', '.bin', 'grunt');
-		} else {
-			command = 'grunt';
-		}
-
-		let commandLine = `${command} --help --no-color`;
+		let commandLine = `${await this._gruntCommand} --help --no-color`;
 		try {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr) {
@@ -202,8 +187,8 @@ class FolderDetector {
 								let source = 'grunt';
 								let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 								let task = name.indexOf(' ') === -1
-									? new vscode.Task(kind, this.workspaceFolder, name, source, new vscode.ShellExecution(`${command} ${name}`, options))
-									: new vscode.Task(kind, this.workspaceFolder, name, source, new vscode.ShellExecution(`${command} "${name}"`, options));
+									? new vscode.Task(kind, this.workspaceFolder, name, source, new vscode.ShellExecution(`${await this._gruntCommand} ${name}`, options))
+									: new vscode.Task(kind, this.workspaceFolder, name, source, new vscode.ShellExecution(`${await this._gruntCommand} "${name}"`, options));
 								result.push(task);
 								let lowerCaseTaskName = name.toLowerCase();
 								if (isBuildTask(lowerCaseTaskName)) {
