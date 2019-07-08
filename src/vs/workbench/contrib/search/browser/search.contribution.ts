@@ -55,6 +55,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_CONTAINER, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
@@ -210,6 +212,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusPreviousInputAction, FocusPreviousInputAction.ID, '').run();
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: REVEAL_IN_EXPLORER_COMMAND_ID,
+		title: nls.localize('revealInSideBar', "Reveal in Side Bar")
+	},
+	when: ResourceContextKey.IsFileSystemResource && Constants.HasSearchResults,
+	group: '2_files',
 });
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
