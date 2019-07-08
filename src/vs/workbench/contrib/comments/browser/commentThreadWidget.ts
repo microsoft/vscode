@@ -381,13 +381,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.show({ lineNumber, column: 1 }, 2);
 		}
 
-		// The collapsible state is not initialized yet.
-		if (this._isExpanded === undefined) {
-			if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
-				this.show({ lineNumber, column: 1 }, 2);
-			} else {
-				this.hide();
-			}
+		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
+			this.show({ lineNumber, column: 1 }, 2);
+		} else {
+			this.hide();
 		}
 
 		if (this._commentThread.contextValue) {
