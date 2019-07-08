@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -57,8 +57,10 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
 	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
 	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT_A11Y_LINE,
 	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
 	TERMINAL_COMMAND_ID.FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_A11Y_LINE,
 	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
 	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
 	TERMINAL_COMMAND_ID.FOCUS,
@@ -172,6 +174,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
+	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions | undefined;
@@ -270,6 +273,7 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
+		this._terminalA11yTreeFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
@@ -907,6 +911,84 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	public focusPreviousA11yLine(): void {
+		// Focus previous row if a row is already focused
+		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
+			const element = <HTMLElement | null>document.activeElement.previousElementSibling;
+			if (element) {
+				element.focus();
+				const disposable = dom.addDisposableListener(element, 'blur', () => {
+					this._terminalA11yTreeFocusContextKey.set(false);
+					disposable.dispose();
+				});
+				this._terminalA11yTreeFocusContextKey.set(true);
+			}
+			return;
+		}
+
+		// Ensure a11y tree exists
+		const treeContainer = this._xterm.element.querySelector('.xterm-accessibility-tree');
+		if (!treeContainer) {
+			return;
+		}
+
+		// Target is row before the cursor
+		const targetRow = Math.max(this._xterm.buffer.cursorY - 1, 0);
+
+		// Check bounds
+		if (treeContainer.childElementCount < targetRow) {
+			return;
+		}
+
+		// Focus
+		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
+		element.focus();
+		const disposable = dom.addDisposableListener(element, 'blur', () => {
+			this._terminalA11yTreeFocusContextKey.set(false);
+			disposable.dispose();
+		});
+		this._terminalA11yTreeFocusContextKey.set(true);
+	}
+
+	public focusNextA11yLine(): void {
+		// Focus previous row if a row is already focused
+		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
+			const element = <HTMLElement | null>document.activeElement.nextElementSibling;
+			if (element) {
+				element.focus();
+				const disposable = dom.addDisposableListener(element, 'blur', () => {
+					this._terminalA11yTreeFocusContextKey.set(false);
+					disposable.dispose();
+				});
+				this._terminalA11yTreeFocusContextKey.set(true);
+			}
+			return;
+		}
+
+		// Ensure a11y tree exists
+		const treeContainer = this._xterm.element.querySelector('.xterm-accessibility-tree');
+		if (!treeContainer) {
+			return;
+		}
+
+		// Target is cursor row
+		const targetRow = this._xterm.buffer.cursorY;
+
+		// Check bounds
+		if (treeContainer.childElementCount < targetRow) {
+			return;
+		}
+
+		// Focus row before cursor
+		const element = <HTMLElement>treeContainer.childNodes.item(targetRow);
+		element.focus();
+		const disposable = dom.addDisposableListener(element, 'blur', () => {
+			this._terminalA11yTreeFocusContextKey.set(false);
+			disposable.dispose();
+		});
+		this._terminalA11yTreeFocusContextKey.set(true);
+	}
+
 	public scrollDownLine(): void {
 		this._xterm.scrollLines(1);
 	}
@@ -938,7 +1020,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
 		const isActive = !!activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
-
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 

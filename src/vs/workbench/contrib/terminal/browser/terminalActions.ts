@@ -886,6 +886,48 @@ export class ScrollToTopTerminalAction extends Action {
 	}
 }
 
+export class FocusPreviousA11yLineTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_A11Y_LINE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPreviousA11yLine', "Focus Previous Line (Accessibility Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.focusPreviousA11yLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class FocusNextA11yLineTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.FOCUS_NEXT_A11Y_LINE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusNextA11yLine', "Focus Next Line (Accessibility Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.focusNextA11yLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
 export class ClearTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;

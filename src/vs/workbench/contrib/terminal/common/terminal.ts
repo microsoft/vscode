@@ -21,6 +21,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('t
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+/** A context key that is set when the user is navigating the accessibility tree */
+export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
@@ -614,6 +616,10 @@ export interface ITerminalInstance {
 	scrollUpPage(): void;
 	/** Scroll the terminal buffer to the top. */
 	scrollToTop(): void;
+
+	/** Focus the previous line in the accessibility tree */
+	focusPreviousA11yLine(): void;
+	focusNextA11yLine(): void;
 
 	/**
 	 * Clears the terminal buffer, leaving only the prompt line.
