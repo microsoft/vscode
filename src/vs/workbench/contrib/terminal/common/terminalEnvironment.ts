@@ -235,6 +235,17 @@ export function createTerminalEnvironment(
 			if (shellLaunchConfig.env) {
 				resolveConfigurationVariables(configurationResolverService, shellLaunchConfig.env, lastActiveWorkspace);
 			}
+			if (shellLaunchConfig.args) {
+				if (Array.isArray(shellLaunchConfig.args)) {
+					const resolvedArgs: string[] = [];
+					for (const arg of shellLaunchConfig.args) {
+						resolvedArgs.push(configurationResolverService.resolve(undefined, arg));
+					}
+					shellLaunchConfig.args = resolvedArgs;
+				} else {
+					shellLaunchConfig.args = configurationResolverService.resolve(undefined, shellLaunchConfig.args);
+				}
+			}
 		}
 
 		// Merge config (settings) and ShellLaunchConfig environments
