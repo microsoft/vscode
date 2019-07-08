@@ -26,6 +26,8 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
+const RUN_TEXTMATE_IN_WORKER = false;
+
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string | string[];
@@ -128,6 +130,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
 				backgroundThrottling: false,
 				nodeIntegration: true,
+				nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 				webviewTag: true
 			}
 		};

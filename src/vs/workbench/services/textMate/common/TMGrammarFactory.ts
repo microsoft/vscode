@@ -16,7 +16,7 @@ interface ITMGrammarFactoryHost {
 	readFile(resource: URI): Promise<string>;
 }
 
-interface ICreateGrammarResult {
+export interface ICreateGrammarResult {
 	languageId: LanguageId;
 	grammar: IGrammar;
 	initialState: StackElement;

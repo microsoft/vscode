@@ -23,7 +23,7 @@ import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/comm
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { ITokenColorizationRule, IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IGrammar, StackElement, IOnigLib } from 'vscode-textmate';
+import { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
@@ -67,6 +67,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			if (this._grammarFactory) {
 				this._grammarFactory.dispose();
 				this._grammarFactory = null;
+				this._onDidDisposeGrammarFactory();
 			}
 			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
 
@@ -191,6 +192,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 				return content.value.toString();
 			}
 		}, this._grammarDefinitions || [], vscodeTextmate, this._loadOnigLib());
+		this._onDidCreateGrammarFactory(this._grammarDefinitions || []);
 
 		this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), true);
 
@@ -242,8 +244,11 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			return;
 		}
 		this._currentTokenColors = colorTheme.tokenColors;
+		this._doUpdateTheme(grammarFactory, { name: colorTheme.label, settings: colorTheme.tokenColors });
+	}
 
-		grammarFactory.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
+		grammarFactory.setTheme(theme);
 		let colorMap = AbstractTextMateService._toColorMap(grammarFactory.getColorMap());
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
@@ -311,6 +316,12 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		const grammarFactory = await this._getOrCreateGrammarFactory();
 		const { grammar } = await grammarFactory.createGrammar(this._modeService.getLanguageIdentifier(modeId)!.id);
 		return grammar;
+	}
+
+	protected _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {
+	}
+
+	protected _onDidDisposeGrammarFactory(): void {
 	}
 
 	protected abstract _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')>;
