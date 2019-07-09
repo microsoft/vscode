@@ -7,6 +7,7 @@ import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { getMac } from 'vs/base/node/macAddress';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
@@ -81,30 +82,16 @@ export function getMachineId(): Promise<string> {
 		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
 }
 
-function getMacMachineId(): Promise<string> {
-	return new Promise<string>(resolve => {
-		Promise.all([import('crypto'), import('getmac')]).then(([crypto, getmac]) => {
-			try {
-				getmac.getMac((error, macAddress) => {
-					if (!error) {
-						resolve(crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex'));
-					} else {
-						resolve(undefined);
-					}
-				});
-
-				// Timeout due to hang with reduced privileges #58392
-				// TODO@sbatten: Remove this when getmac is patched
-				setTimeout(() => {
-					resolve(undefined);
-				}, 10000);
-			} catch (err) {
-				errors.onUnexpectedError(err);
-				resolve(undefined);
-			}
-		}, err => {
+function getMacMachineId(): Promise<string | undefined> {
+	return import('crypto').then(crypto => {
+		return getMac().then((macAddress: string) => {
+			return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
+		}).catch((err: any) => {
 			errors.onUnexpectedError(err);
-			resolve(undefined);
+			return undefined;
 		});
+	}).catch(err => {
+		errors.onUnexpectedError(err);
+		return undefined;
 	});
 }
