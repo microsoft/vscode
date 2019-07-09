@@ -19,6 +19,7 @@ import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/T
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { UriComponents, URI } from 'vs/base/common/uri';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -83,6 +84,18 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 	}
 }
 
+export class TextMateWorkerHost {
+
+	constructor(@IFileService private readonly _fileService: IFileService) {
+	}
+
+	async readFile(_resource: UriComponents): Promise<string> {
+		const resource = URI.revive(_resource);
+		const content = await this._fileService.readFile(resource);
+		return content.value.toString();
+	}
+}
+
 export class TextMateService extends AbstractTextMateService {
 
 	private _worker: MonacoWebWorker<TextMateWorker> | null;
@@ -139,12 +152,14 @@ export class TextMateService extends AbstractTextMateService {
 		this._killWorker();
 
 		if (RUN_TEXTMATE_IN_WORKER) {
+			const workerHost = new TextMateWorkerHost(this._fileService);
 			const worker = createWebWorker<TextMateWorker>(this._modelService, {
 				createData: {
 					grammarDefinitions
 				},
 				label: 'textMateWorker',
 				moduleId: 'vs/workbench/services/textMate/electron-browser/textMateWorker',
+				host: workerHost
 			});
 
 			this._worker = worker;

@@ -9,6 +9,7 @@ import { LanguageId } from 'vs/editor/common/modes';
 import { IValidEmbeddedLanguagesMap, IValidTokenTypeMap, IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
+import { TextMateWorkerHost } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
@@ -49,20 +50,21 @@ class TextMateWorkerModel extends MirrorTextModel {
 	}
 
 	private _resetTokenization(): void {
-		console.log(this._worker, this._languageId);
-		// this._worker.getOrCreateGrammar(this._languageId).then((r) => {
-		// 	console.log(r);
-		// });
+		this._worker.getOrCreateGrammar(this._languageId).then((r) => {
+			console.log(r);
+		});
 	}
 }
 
 export class TextMateWorker {
 
+	private readonly _host: TextMateWorkerHost;
 	private readonly _models: { [uri: string]: TextMateWorkerModel; };
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[];
 	private readonly _grammarFactory: TMGrammarFactory;
 
-	constructor(ctx: IWorkerContext, createData: ICreateData) {
+	constructor(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData) {
+		this._host = ctx.host;
 		this._models = Object.create(null);
 		this._grammarCache = [];
 		const grammarDefinitions = createData.grammarDefinitions.map<IValidGrammarDefinition>((def) => {
@@ -91,9 +93,7 @@ export class TextMateWorker {
 		this._grammarFactory = new TMGrammarFactory({
 			logTrace: (msg: string) => console.log(msg),
 			logError: (msg: string, err: any) => console.error(msg, err),
-			readFile: async (resource: URI) => {
-				throw new Error(`Not implemented!`);
-			}
+			readFile: (resource: URI) => this._host.readFile(resource)
 		}, grammarDefinitions, vscodeTextmate, undefined);
 	}
 
@@ -123,6 +123,6 @@ export class TextMateWorker {
 	}
 }
 
-export function create(ctx: IWorkerContext, createData: ICreateData): TextMateWorker {
+export function create(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData): TextMateWorker {
 	return new TextMateWorker(ctx, createData);
 }
