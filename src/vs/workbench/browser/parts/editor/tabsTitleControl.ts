@@ -61,7 +61,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private tabResourceLabels: ResourceLabels;
 	private tabLabels: IEditorInputLabel[] = [];
-	private tabDisposeables: IDisposable[] = [];
+	private tabDisposables: IDisposable[] = [];
 
 	private dimension: Dimension;
 	private readonly layoutScheduled = this._register(new MutableDisposable());
@@ -301,7 +301,7 @@ export class TabsTitleControl extends TitleControl {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
-				this.tabDisposeables.pop()!.dispose();
+				this.tabDisposables.pop()!.dispose();
 			}
 
 			// A removal of a label requires to recompute all labels
@@ -315,7 +315,7 @@ export class TabsTitleControl extends TitleControl {
 		else {
 			clearNode(this.tabsContainer);
 
-			this.tabDisposeables = dispose(this.tabDisposeables);
+			this.tabDisposables = dispose(this.tabDisposables);
 			this.tabResourceLabels.clear();
 			this.tabLabels = [];
 
@@ -454,7 +454,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
+		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
 
 		return tabContainer;
 	}
@@ -1149,7 +1149,7 @@ export class TabsTitleControl extends TitleControl {
 	dispose(): void {
 		super.dispose();
 
-		this.tabDisposeables = dispose(this.tabDisposeables);
+		this.tabDisposables = dispose(this.tabDisposables);
 	}
 }
 
