@@ -345,10 +345,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 					toLineNumber: this.getLineCount()
 				}]
 			});
-
-			if (this._shouldAutoTokenize()) {
-				this._warmUpTokens();
-			}
 		});
 		this._revalidateTokensTimeout = -1;
 		this._languageRegistryListener = LanguageConfigurationRegistry.onDidChange((e) => {
@@ -556,8 +552,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public onBeforeAttached(): void {
 		this._attachedEditorCount++;
-		// Warm up tokens for the editor
-		this._warmUpTokens();
+		this._beginBackgroundTokenization();
 		if (this._attachedEditorCount === 1) {
 			this._onDidChangeAttached.fire(undefined);
 		}
@@ -568,10 +563,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (this._attachedEditorCount === 0) {
 			this._onDidChangeAttached.fire(undefined);
 		}
-	}
-
-	private _shouldAutoTokenize(): boolean {
-		return this.isAttachedToEditor();
 	}
 
 	public isAttachedToEditor(): boolean {
@@ -1896,21 +1887,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	private _beginBackgroundTokenization(): void {
-		if (this._shouldAutoTokenize() && this._revalidateTokensTimeout === -1) {
+		if (this.isAttachedToEditor() && this._revalidateTokensTimeout === -1) {
 			this._revalidateTokensTimeout = setTimeout(() => {
 				this._revalidateTokensTimeout = -1;
 				this._revalidateTokensNow();
 			}, 0);
-		}
-	}
-
-	_warmUpTokens(): void {
-		// Warm up first 100 lines (if it takes less than 50ms)
-		const maxLineNumber = Math.min(100, this.getLineCount());
-		this._revalidateTokensNow(maxLineNumber);
-
-		if (this._tokenization.hasLinesToTokenize(this._tokens, this._buffer)) {
-			this._beginBackgroundTokenization();
 		}
 	}
 
