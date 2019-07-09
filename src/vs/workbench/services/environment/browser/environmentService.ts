@@ -150,7 +150,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
 	}
 
-	get webviewCspRule(): string {
+	get webviewCspSource(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
 	}
 }

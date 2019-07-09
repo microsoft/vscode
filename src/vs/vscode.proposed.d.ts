@@ -1586,7 +1586,7 @@ declare module 'vscode' {
 		/**
 		 * Content security policy rule for webview resources.
 		 */
-		readonly cspRule: string;
+		readonly cspSource: string;
 	}
 
 	//#endregion

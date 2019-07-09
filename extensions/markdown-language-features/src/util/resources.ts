@@ -8,5 +8,5 @@ import * as vscode from 'vscode';
 export interface WebviewResourceProvider {
 	toWebviewResource(resource: vscode.Uri): vscode.Uri;
 
-	readonly cspRule: string;
+	readonly cspSource: string;
 }

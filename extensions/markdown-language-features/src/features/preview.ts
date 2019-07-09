@@ -424,7 +424,7 @@ export class MarkdownPreview extends Disposable {
 			const self = this;
 			const resourceProvider: WebviewResourceProvider = {
 				toWebviewResource: (resource) => this.editor.webview.toWebviewResource(resource),
-				get cspRule() { return self.editor.webview.cspRule; }
+				get cspSource() { return self.editor.webview.cspSource; }
 			};
 			const content = await this._contentProvider.provideTextDocumentContent(document, resourceProvider, this._previewConfigurations, this.line, this.state);
 			// Another call to `doUpdate` may have happened.

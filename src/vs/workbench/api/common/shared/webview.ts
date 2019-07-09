@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 
 export interface WebviewInitData {
 	readonly webviewResourceRoot: string;
-	readonly webviewCspRule: string;
+	readonly webviewCspSource: string;
 }
 
 export function toWebviewResource(

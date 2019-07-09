@@ -41,8 +41,8 @@ export class ExtHostWebview implements vscode.Webview {
 		return toWebviewResource(this._initData, this._uuid, resource);
 	}
 
-	public get cspRule(): string {
-		return this._initData.webviewCspRule;
+	public get cspSource(): string {
+		return this._initData.webviewCspSource;
 	}
 
 	public get html(): string {

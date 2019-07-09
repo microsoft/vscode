@@ -69,8 +69,8 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 				return toWebviewResource(that._initData, this._uuid, resource);
 			}
 
-			get cspRule(): string {
-				return that._initData.webviewCspRule;
+			get cspSource(): string {
+				return that._initData.webviewCspSource;
 			}
 
 			set options(value: vscode.WebviewOptions) {
