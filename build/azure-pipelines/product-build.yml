@@ -131,7 +131,7 @@ jobs:
 
 schedules:
 - cron: "0 6 * * Mon-Fri"
-  displayName: Mon-Fri at 6:00
+  displayName: Mon-Fri at 8:00
   branches:
     include:
-    - master
+    - electron-6.0.x
