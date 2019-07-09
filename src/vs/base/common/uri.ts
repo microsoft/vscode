@@ -557,10 +557,8 @@ function encodeURIComponentMinimal(path: string): string {
 				res = path.substr(0, pos);
 			}
 			res += encodeTable[code];
-		} else (res !== undefined) {
-	
-			res += path[pos];
-			
+		} else if (res !== undefined) {
+			res += path[pos];	
 		}
 	}
 	return res !== undefined ? res : path;
