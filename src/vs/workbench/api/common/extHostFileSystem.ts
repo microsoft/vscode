@@ -8,7 +8,7 @@ import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystem
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
+import { FileChangeType, FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
@@ -108,28 +108,36 @@ class ConsumerFileSystem implements vscode.FileSystem {
 	constructor(private _proxy: MainThreadFileSystemShape) { }
 
 	stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-		return this._proxy.$stat(uri);
+		return this._proxy.$stat(uri).catch(ConsumerFileSystem._handleError);
 	}
 	readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-		return this._proxy.$readdir(uri);
+		return this._proxy.$readdir(uri).catch(ConsumerFileSystem._handleError);
 	}
 	createDirectory(uri: vscode.Uri): Promise<void> {
-		return this._proxy.$mkdir(uri);
+		return this._proxy.$mkdir(uri).catch(ConsumerFileSystem._handleError);
 	}
 	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-		return (await this._proxy.$readFile(uri)).buffer;
+		return this._proxy.$readFile(uri).then(buff => buff.buffer).catch(ConsumerFileSystem._handleError);
 	}
 	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean; overwrite: boolean; } = { create: true, overwrite: true }): Promise<void> {
-		return this._proxy.$writeFile(uri, VSBuffer.wrap(content), options);
+		return this._proxy.$writeFile(uri, VSBuffer.wrap(content), options).catch(ConsumerFileSystem._handleError);
 	}
 	delete(uri: vscode.Uri, options: { recursive: boolean; } = { recursive: false }): Promise<void> {
-		return this._proxy.$delete(uri, { ...options, useTrash: false }); //todo@joh useTrash
+		return this._proxy.$delete(uri, { ...options, useTrash: false }).catch(ConsumerFileSystem._handleError);  //todo@joh useTrash
 	}
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean; } = { overwrite: false }): Promise<void> {
-		return this._proxy.$rename(oldUri, newUri, options);
+		return this._proxy.$rename(oldUri, newUri, options).catch(ConsumerFileSystem._handleError);
 	}
 	copy(source: vscode.Uri, destination: vscode.Uri, options: { overwrite: boolean } = { overwrite: false }): Promise<void> {
-		return this._proxy.$copy(source, destination, options);
+		return this._proxy.$copy(source, destination, options).catch(ConsumerFileSystem._handleError);
+	}
+	private static _handleError(err: any): never {
+		if (err instanceof Error && err.name === 'ENOPRO') {
+			throw FileSystemError.Unavailable(err.message);
+		} else {
+			// generic error
+			throw new FileSystemError(String(err));
+		}
 	}
 }
 

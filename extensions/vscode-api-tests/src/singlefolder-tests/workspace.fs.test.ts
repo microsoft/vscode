@@ -116,4 +116,27 @@ suite('workspace-fs', () => {
 			assert.ok(true);
 		}
 	});
+
+	test('throws FileSystemError', async function () {
+
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.file(`/c468bf16-acfd-4591-825e-2bcebba508a3/71b1f274-91cb-4c19-af00-8495eaab4b73/4b60cb48-a6f2-40ea-9085-0936f4a8f59a.tx6`));
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(e instanceof vscode.FileSystemError);
+			assert.ok(e.message);
+		}
+	});
+
+	test('throws FileSystemError', async function () {
+
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.parse('foo:/bar'));
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(e instanceof vscode.FileSystemError);
+			assert.ok(e.message);
+			assert.ok(e.name);
+		}
+	});
 });
