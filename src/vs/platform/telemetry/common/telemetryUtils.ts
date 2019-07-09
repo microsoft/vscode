@@ -54,7 +54,7 @@ export class LogAppender implements ITelemetryAppender {
 	}
 
 	log(eventName: string, data: any): void {
-		const strippedData = {};
+		const strippedData: { [key: string]: any } = {};
 		Object.keys(data).forEach(key => {
 			if (!this.commonPropertiesRegex.test(key)) {
 				strippedData[key] = data[key];
@@ -244,7 +244,7 @@ export function keybindingsTelemetry(telemetryService: ITelemetryService, keybin
 	});
 }
 
-function flattenKeys(value: Object): string[] {
+function flattenKeys(value: Object | undefined): string[] {
 	if (!value) {
 		return [];
 	}
@@ -253,7 +253,7 @@ function flattenKeys(value: Object): string[] {
 	return result;
 }
 
-function flatKeys(result: string[], prefix: string, value: Object): void {
+function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
 	if (value && typeof value === 'object' && !Array.isArray(value)) {
 		Object.keys(value)
 			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
@@ -262,7 +262,7 @@ function flatKeys(result: string[], prefix: string, value: Object): void {
 	}
 }
 
-function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] {
+function flattenValues(value: { [key: string]: any } | undefined, keys: string[]): { [key: string]: any }[] {
 	if (!value) {
 		return [];
 	}
