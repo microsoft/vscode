@@ -119,11 +119,11 @@ class ConsumerFileSystem implements vscode.FileSystem {
 	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
 		return this._proxy.$readFile(uri).then(buff => buff.buffer).catch(ConsumerFileSystem._handleError);
 	}
-	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean; overwrite: boolean; } = { create: true, overwrite: true }): Promise<void> {
-		return this._proxy.$writeFile(uri, VSBuffer.wrap(content), options).catch(ConsumerFileSystem._handleError);
+	writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
+		return this._proxy.$writeFile(uri, VSBuffer.wrap(content)).catch(ConsumerFileSystem._handleError);
 	}
-	delete(uri: vscode.Uri, options: { recursive: boolean; } = { recursive: false }): Promise<void> {
-		return this._proxy.$delete(uri, { ...options, useTrash: false }).catch(ConsumerFileSystem._handleError);  //todo@joh useTrash
+	delete(uri: vscode.Uri, options: { recursive: boolean; useTrash: boolean; } = { recursive: false, useTrash: false }): Promise<void> {
+		return this._proxy.$delete(uri, options).catch(ConsumerFileSystem._handleError);
 	}
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean; } = { overwrite: false }): Promise<void> {
 		return this._proxy.$rename(oldUri, newUri, options).catch(ConsumerFileSystem._handleError);

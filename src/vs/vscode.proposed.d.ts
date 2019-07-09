@@ -1638,17 +1638,16 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
-		 * @param options Defines if missing files should or must be created.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
 
 		/**
 		 * Delete a file.
 		 *
 		 * @param uri The resource that is to be deleted.
-		 * @param options Defines if deletion of folders is recursive.
+		 * @param options Defines if trash can should be used and if deletion of folders is recursive
 		 */
-		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive: boolean, useTrash: boolean }): Thenable<void>;
 
 		/**
 		 * Rename a file or folder.

@@ -83,7 +83,7 @@ suite('workspace-fs', () => {
 
 		// ensure non empty folder cannot be deleted
 		try {
-			await vscode.workspace.fs.delete(folder, { recursive: false });
+			await vscode.workspace.fs.delete(folder, { recursive: false, useTrash: false });
 			assert.ok(false);
 		} catch {
 			await vscode.workspace.fs.stat(folder);
@@ -100,7 +100,7 @@ suite('workspace-fs', () => {
 		}
 
 		// delete non empty folder with recursive-flag
-		await vscode.workspace.fs.delete(folder, { recursive: true });
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 
 		// esnure folder/file are gone
 		try {

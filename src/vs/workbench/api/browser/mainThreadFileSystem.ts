@@ -79,9 +79,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return this._fileService.readFile(URI.revive(uri)).then(file => file.value).catch(MainThreadFileSystem._handleError);
 	}
 
-	$writeFile(uri: UriComponents, content: VSBuffer, opts: FileWriteOptions): Promise<void> {
-		//todo@joh honor opts
-		return this._fileService.writeFile(URI.revive(uri), content, {}).catch(MainThreadFileSystem._handleError);
+	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
+		return this._fileService.writeFile(URI.revive(uri), content).catch(MainThreadFileSystem._handleError);
 	}
 
 	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
