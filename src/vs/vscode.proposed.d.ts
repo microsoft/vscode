@@ -1579,12 +1579,14 @@ declare module 'vscode' {
 
 	export interface Webview {
 		/**
-		 * Root url from which local resources are loaded inside of webviews.
-		 *
-		 * This is `vscode-resource:` when vscode is run on the desktop. When vscode is run
-		 * on the web, this points to a server endpoint.
+		 * Convert a uri for the local file system to one that can be used inside webviews.
 		 */
-		readonly resourceRoot: Thenable<string>;
+		toWebviewResource(localResource: Uri): Uri;
+
+		/**
+		 * Content security policy rule for webview resources.
+		 */
+		readonly cspRule: string;
 	}
 
 	//#endregion
