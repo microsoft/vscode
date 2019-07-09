@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // trigger service worker updates
-const VERSION = 2;
+const _tag = 'e4d8e56a-394f-4541-b817-421b1e2feed1';
 
 (function () {
 
