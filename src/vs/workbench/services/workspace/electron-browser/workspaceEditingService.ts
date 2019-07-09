@@ -32,10 +32,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IWorkspaceEditingService>;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
@@ -424,7 +425,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const targetWorkspaceConfiguration = {};
+		const targetWorkspaceConfiguration: any = {};
 		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {

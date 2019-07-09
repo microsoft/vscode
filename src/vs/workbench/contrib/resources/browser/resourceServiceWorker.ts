@@ -17,7 +17,7 @@ const _pending = new Map<string, Function>();
 export function handleMessageEvent(event: MessageEvent): void {
 	const fn = _pending.get(event.data.token);
 	if (fn) {
-		fn(event.data.data);
+		fn(event.data.data, event.data.isExtensionResource);
 		_pending.delete(event.data.token);
 	}
 }
@@ -49,16 +49,24 @@ export async function handleFetchEvent(event: any): Promise<Response | undefined
 				_pending.delete(token);
 			}, 5000);
 
-			_pending.set(token, (data: ArrayBuffer) => {
+			_pending.set(token, (data: ArrayBuffer, isExtensionResource: boolean) => {
 				clearTimeout(handle);
 				const res = new Response(data, {
 					status: 200,
 					headers: { 'Content-Type': getMediaMime(URI.parse(url.query).path) || 'text/plain' }
 				});
-				caches.open(cacheName).then(cache => {
-					cache.put(event.request, res.clone());
+
+				if (!isExtensionResource) {
+					// only cache extension resources but not other
+					// resources, esp not workspace resources
 					resolve(res);
-				});
+
+				} else {
+					caches.open(cacheName).then(cache => {
+						cache.put(event.request, res.clone());
+						resolve(res);
+					});
+				}
 			});
 
 			const client = await clients.get(event.clientId);

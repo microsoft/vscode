@@ -1117,6 +1117,12 @@ export interface ITextModel {
 	 */
 	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
 	/**
+	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeAttached(listener: () => void): IDisposable;
+	/**
 	 * An event emitted right before disposing the model.
 	 * @event
 	 */

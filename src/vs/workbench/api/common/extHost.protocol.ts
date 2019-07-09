@@ -91,7 +91,7 @@ export interface IInitData {
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
-	configurationScopes: { [key: string]: ConfigurationScope };
+	configurationScopes: [string, ConfigurationScope | undefined][];
 }
 
 export interface IWorkspaceConfigurationChangeEventData {
@@ -612,7 +612,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$stat(uri: UriComponents): Promise<files.IStat>;
 	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
 	$readFile(resource: UriComponents): Promise<VSBuffer>;
-	$writeFile(resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
+	$writeFile(resource: UriComponents, content: VSBuffer): Promise<void>;
 	$rename(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$mkdir(resource: UriComponents): Promise<void>;

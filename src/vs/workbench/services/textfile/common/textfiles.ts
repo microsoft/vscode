@@ -468,6 +468,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	backup(target?: URI): Promise<void>;
 
+	hasBackup(): boolean;
+
 	isDirty(): boolean;
 
 	isResolved(): this is IResolvedTextFileEditorModel;

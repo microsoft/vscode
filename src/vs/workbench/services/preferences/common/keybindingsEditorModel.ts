@@ -160,7 +160,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	resolve(editorActionsLabels: { [id: string]: string; }): Promise<EditorModel> {
+	resolve(editorActionsLabels: Map<string, string>): Promise<EditorModel> {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		this._keybindingItemsSortedByPrecedence = [];
@@ -209,9 +209,9 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: { [id: string]: string; }): IKeybindingItem {
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: Map<string, string>): IKeybindingItem {
 		const menuCommand = MenuRegistry.getCommand(command)!;
-		const editorActionLabel = editorActions[command];
+		const editorActionLabel = editorActions.get(command)!;
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
