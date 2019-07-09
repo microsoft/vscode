@@ -1647,7 +1647,7 @@ declare module 'vscode' {
 		 * @param uri The resource that is to be deleted.
 		 * @param options Defines if trash can should be used and if deletion of folders is recursive
 		 */
-		delete(uri: Uri, options?: { recursive: boolean, useTrash: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -1656,7 +1656,7 @@ declare module 'vscode' {
 		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
-		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -1666,7 +1666,7 @@ declare module 'vscode' {
 		 * @param destination The destination location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
-		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
 	}
 
 	export namespace workspace {

@@ -122,14 +122,14 @@ class ConsumerFileSystem implements vscode.FileSystem {
 	writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
 		return this._proxy.$writeFile(uri, VSBuffer.wrap(content)).catch(ConsumerFileSystem._handleError);
 	}
-	delete(uri: vscode.Uri, options: { recursive: boolean; useTrash: boolean; } = { recursive: false, useTrash: false }): Promise<void> {
-		return this._proxy.$delete(uri, options).catch(ConsumerFileSystem._handleError);
+	delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean; }): Promise<void> {
+		return this._proxy.$delete(uri, { ...{ recursive: false, useTrash: false }, ...options }).catch(ConsumerFileSystem._handleError);
 	}
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean; } = { overwrite: false }): Promise<void> {
-		return this._proxy.$rename(oldUri, newUri, options).catch(ConsumerFileSystem._handleError);
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
+		return this._proxy.$rename(oldUri, newUri, { ...{ overwrite: false }, ...options }).catch(ConsumerFileSystem._handleError);
 	}
-	copy(source: vscode.Uri, destination: vscode.Uri, options: { overwrite: boolean } = { overwrite: false }): Promise<void> {
-		return this._proxy.$copy(source, destination, options).catch(ConsumerFileSystem._handleError);
+	copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean }): Promise<void> {
+		return this._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ConsumerFileSystem._handleError);
 	}
 	private static _handleError(err: any): never {
 		// generic error
