@@ -40,7 +40,7 @@ suite('ExtHostConfiguration', function () {
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
 			folders: Object.create(null),
-			configurationScopes: {}
+			configurationScopes: []
 		};
 	}
 
@@ -278,7 +278,7 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace: new ConfigurationModel({}, []),
 				folders: Object.create(null),
-				configurationScopes: {}
+				configurationScopes: []
 			}
 		);
 
@@ -326,7 +326,7 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace,
 				folders,
-				configurationScopes: {}
+				configurationScopes: []
 			}
 		);
 
@@ -402,7 +402,7 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace,
 				folders,
-				configurationScopes: {}
+				configurationScopes: []
 			}
 		);
 

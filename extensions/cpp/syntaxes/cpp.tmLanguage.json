@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/cb9cb59b32d0cb9e2cbbca1a9cdb62769fc2ca8e",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/992c5ba8789288707f2a13778452d644677d9699",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -142,9 +142,6 @@
 				},
 				{
 					"include": "#preprocessor_rule_conditional"
-				},
-				{
-					"include": "#macro_argument"
 				},
 				{
 					"include": "#meta_preprocessor_macro"
@@ -19409,6 +19406,9 @@
 				},
 				{
 					"include": "#evaluation_context"
+				},
+				{
+					"include": "#macro_argument"
 				}
 			]
 		}

@@ -308,16 +308,21 @@ export class RemoteFileDialog {
 			this.filePickBox.onDidChangeActive(i => {
 				isAcceptHandled = false;
 				// update input box to match the first selected item
-				if ((i.length === 1) && this.isChangeFromUser()) {
+				if ((i.length === 1) && this.isSelectionChangeFromUser()) {
 					this.filePickBox.validationMessage = undefined;
-					this.setAutoComplete(this.constructFullUserPath(), this.userEnteredPathSegment, i[0], true);
+					const userPath = this.constructFullUserPath();
+					if (!equalsIgnoreCase(this.filePickBox.value.substring(0, userPath.length), userPath)) {
+						this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+						this.insertText(userPath, userPath);
+					}
+					this.setAutoComplete(userPath, this.userEnteredPathSegment, i[0], true);
 				}
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
 				try {
 					// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
-					if (this.isChangeFromUser()) {
+					if (this.isValueChangeFromUser()) {
 						// If the user has just entered more bad path, don't change anything
 						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
 							this.filePickBox.validationMessage = undefined;
@@ -361,17 +366,24 @@ export class RemoteFileDialog {
 		return this.badPath && (value.length > this.badPath.length) && equalsIgnoreCase(value.substring(0, this.badPath.length), this.badPath);
 	}
 
-	private isChangeFromUser(): boolean {
-		if (equalsIgnoreCase(this.filePickBox.value, this.pathAppend(this.currentFolder, this.userEnteredPathSegment + this.autoCompletePathSegment))
-			&& (this.activeItem === (this.filePickBox.activeItems ? this.filePickBox.activeItems[0] : undefined))) {
+	private isValueChangeFromUser(): boolean {
+		if (equalsIgnoreCase(this.filePickBox.value, this.pathAppend(this.currentFolder, this.userEnteredPathSegment + this.autoCompletePathSegment))) {
+			return false;
+		}
+		return true;
+	}
+
+	private isSelectionChangeFromUser(): boolean {
+		if (this.activeItem === (this.filePickBox.activeItems ? this.filePickBox.activeItems[0] : undefined)) {
 			return false;
 		}
 		return true;
 	}
 
 	private constructFullUserPath(): string {
-		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
-			return this.pathFromUri(this.currentFolder);
+		const currentFolderPath = this.pathFromUri(this.currentFolder);
+		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment) && equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
+			return currentFolderPath;
 		} else {
 			return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
 		}

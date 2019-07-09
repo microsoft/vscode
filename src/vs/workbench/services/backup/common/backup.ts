@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, relativePath } from 'vs/base/common/resources';
@@ -20,12 +20,18 @@ export interface IResolvedBackup<T extends object> {
  * A service that handles any I/O and state associated with the backup system.
  */
 export interface IBackupFileService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<IBackupFileService>;
 
 	/**
 	 * Finds out if there are any backups stored.
 	 */
 	hasBackups(): Promise<boolean>;
+
+	/**
+	 * Finds out if the provided resource with the given version is backed up.
+	 */
+	hasBackupSync(resource: URI, versionId?: number): boolean;
 
 	/**
 	 * Loads the backup resource for a particular resource within the current workspace.

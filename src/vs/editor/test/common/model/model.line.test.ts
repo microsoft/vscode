@@ -116,7 +116,7 @@ suite('ModelLinesTokens', () => {
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
-			model._tokens.setFakeTokens(0, lineIndex, lineTextLength, toTokenizationResult2(TestToken.toTokens(lineTokens)));
+			model._tokenization._tokens.setFakeTokens(0, lineIndex, lineTextLength, toTokenizationResult2(TestToken.toTokens(lineTokens)));
 		}
 
 		model.applyEdits(edits.map((ed) => ({
@@ -447,14 +447,14 @@ suite('ModelLinesTokens', () => {
 
 	test('insertion on empty line', () => {
 		const model = new TextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
-		model._tokens.setFakeTokens(0, 0, model.getLineMaxColumn(1) - 1, toTokenizationResult2(TestToken.toTokens([new TestToken(0, 1)])));
+		model._tokenization._tokens.setFakeTokens(0, 0, model.getLineMaxColumn(1) - 1, toTokenizationResult2(TestToken.toTokens([new TestToken(0, 1)])));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 10),
 			text: ''
 		}]);
 
-		model._tokens.setFakeTokens(0, 0, model.getLineMaxColumn(1) - 1, toTokenizationResult2(new Uint32Array(0)));
+		model._tokenization._tokens.setFakeTokens(0, 0, model.getLineMaxColumn(1) - 1, toTokenizationResult2(new Uint32Array(0)));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 1),

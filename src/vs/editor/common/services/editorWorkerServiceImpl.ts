@@ -6,7 +6,7 @@
 import { IntervalTimer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -15,7 +15,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -224,12 +224,12 @@ class WorkerManager extends Disposable {
 
 class EditorModelManager extends Disposable {
 
-	private readonly _proxy: EditorSimpleWorkerImpl;
+	private readonly _proxy: EditorSimpleWorker;
 	private readonly _modelService: IModelService;
 	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
-	constructor(proxy: EditorSimpleWorkerImpl, modelService: IModelService, keepIdleModels: boolean) {
+	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
 		super();
 		this._proxy = proxy;
 		this._modelService = modelService;
@@ -319,11 +319,6 @@ class EditorModelManager extends Disposable {
 	}
 }
 
-interface IWorkerClient<T> {
-	getProxyObject(): Promise<T>;
-	dispose(): void;
-}
-
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
 	private readonly _instance: T;
 	private readonly _proxyObj: Promise<T>;
@@ -342,10 +337,24 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 }
 
+export class EditorWorkerHost {
+
+	private readonly _workerClient: EditorWorkerClient;
+
+	constructor(workerClient: EditorWorkerClient) {
+		this._workerClient = workerClient;
+	}
+
+	// foreign host request
+	public fhr(method: string, args: any[]): Promise<any> {
+		return this._workerClient.fhr(method, args);
+	}
+}
+
 export class EditorWorkerClient extends Disposable {
 
 	private readonly _modelService: IModelService;
-	private _worker: IWorkerClient<EditorSimpleWorkerImpl> | null;
+	private _worker: IWorkerClient<EditorSimpleWorker> | null;
 	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager | null;
 
@@ -357,37 +366,43 @@ export class EditorWorkerClient extends Disposable {
 		this._modelManager = null;
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorkerImpl> {
+	// foreign host request
+	public fhr(method: string, args: any[]): Promise<any> {
+		throw new Error(`Not implemented!`);
+	}
+
+	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorkerImpl>(
+				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker, EditorWorkerHost>(
 					this._workerFactory,
-					'vs/editor/common/services/editorSimpleWorker'
+					'vs/editor/common/services/editorSimpleWorker',
+					new EditorWorkerHost(this)
 				));
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
+				this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
 			}
 		}
 		return this._worker;
 	}
 
-	protected _getProxy(): Promise<EditorSimpleWorkerImpl> {
+	protected _getProxy(): Promise<EditorSimpleWorker> {
 		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
 			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
+			this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
 			return this._getOrCreateWorker().getProxyObject();
 		});
 	}
 
-	private _getOrCreateModelManager(proxy: EditorSimpleWorkerImpl): EditorModelManager {
+	private _getOrCreateModelManager(proxy: EditorSimpleWorker): EditorModelManager {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new EditorModelManager(proxy, this._modelService, false));
 		}
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorkerImpl> {
+	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorker> {
 		return this._getProxy().then((proxy) => {
 			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
 			return proxy;

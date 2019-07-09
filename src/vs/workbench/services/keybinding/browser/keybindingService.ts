@@ -192,12 +192,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
-			/* __GDPR__
-				"customKeybindingsChanged" : {
-					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this._telemetryService.publicLog('customKeybindingsChanged', {
+			type CustomKeybindingsChangedClassification = {
+				keyCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true }
+			};
+
+			this._telemetryService.publicLog2<{ keyCount: number }, CustomKeybindingsChangedClassification>('customKeybindingsChanged', {
 				keyCount: this.userKeybindings.keybindings.length
 			});
 			this.updateResolver({

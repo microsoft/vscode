@@ -237,7 +237,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		const connection = await this.whenConnected;
 		const row = await this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check');
 
-		const integrity = full ? row['integrity_check'] : row['quick_check'];
+		const integrity = full ? (row as any)['integrity_check'] : (row as any)['quick_check'];
 
 		if (connection.isErroneous) {
 			return `${integrity} (last error: ${connection.lastError})`;

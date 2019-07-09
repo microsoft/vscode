@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// trigger service worker updates
+const _tag = '586d4b79-f5c4-4aff-9a14-2139ddfbb486';
+
 (function () {
+
 	type Handler = {
 		handleFetchEvent(event: Event): Promise<Response | undefined>;
 		handleMessageEvent(event: MessageEvent): void;
@@ -49,7 +53,9 @@
 	self.addEventListener('activate', (event: any) => {
 
 		event.waitUntil((async () => {
-			await (self as any).registration.navigationPreload.enable(); // Enable navigation preloads!
+			if ((self as any).registration.navigationPreload) {
+				await (self as any).registration.navigationPreload.enable(); // Enable navigation preloads!
+			}
 			await (self as any).clients.claim(); // Become available to all pages
 		})());
 	});

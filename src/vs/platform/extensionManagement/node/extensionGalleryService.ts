@@ -202,13 +202,16 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 	return result ? result.value : 0;
 }
 
-function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): { [languageId: string]: IGalleryExtensionAsset } {
+function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): [string, IGalleryExtensionAsset][] {
 	const coreTranslationAssetPrefix = 'Microsoft.VisualStudio.Code.Translation.';
 	const result = version.files.filter(f => f.assetType.indexOf(coreTranslationAssetPrefix) === 0);
-	return result.reduce((result, file) => {
-		result[file.assetType.substring(coreTranslationAssetPrefix.length)] = getVersionAsset(version, file.assetType);
+	return result.reduce<[string, IGalleryExtensionAsset][]>((result, file) => {
+		const asset = getVersionAsset(version, file.assetType);
+		if (asset) {
+			result.push([file.assetType.substring(coreTranslationAssetPrefix.length), asset]);
+		}
 		return result;
-	}, {});
+	}, []);
 }
 
 function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset | null {
@@ -576,9 +579,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
-		const asset = extension.assets.coreTranslations[languageId.toUpperCase()];
+		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
-			return this.getAsset(asset)
+			return this.getAsset(asset[1])
 				.then(asText)
 				.then(JSON.parse);
 		}

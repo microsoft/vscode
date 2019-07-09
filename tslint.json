@@ -430,7 +430,8 @@
 					"**/vs/editor/common/**",
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/**/common/**",
-					"**/vs/workbench/api/**/common/**"
+					"**/vs/workbench/api/**/common/**",
+					"vscode-textmate"
 				]
 			},
 			{

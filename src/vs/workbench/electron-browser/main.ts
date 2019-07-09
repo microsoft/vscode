@@ -210,7 +210,6 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
