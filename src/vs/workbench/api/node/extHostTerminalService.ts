@@ -375,17 +375,15 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		);
 	}
 
-	private async _getDefaultShellArgs(configProvider: ExtHostConfigProvider): Promise<string[]> {
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider, configurationResolverService: ExtHostVariableResolverService | undefined): string[] {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
-		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, variableResolver);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, configurationResolverService);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -550,7 +548,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		if (!shellLaunchConfig.executable) {
 			shellLaunchConfig.executable = this.getDefaultShell(configProvider, variableResolver);
-			shellLaunchConfig.args = await this._getDefaultShellArgs(configProvider);
+			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, variableResolver);
 		}
 
 		// Get the initial cwd
@@ -641,7 +639,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		return Promise.resolve({
 			shell: this.getDefaultShell(configProvider, variableResolver),
-			args: await this._getDefaultShellArgs(configProvider)
+			args: this._getDefaultShellArgs(configProvider, variableResolver)
 		});
 	}
 
