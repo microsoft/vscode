@@ -858,15 +858,15 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	}
 }
 
-function workbenchTreeDataPreamble<T, TFilterData>(
+function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>>(
 	container: HTMLElement,
-	options: IAbstractTreeOptions<T, TFilterData>,
+	options: TOptions,
 	contextKeyService: IContextKeyService,
 	themeService: IThemeService,
 	configurationService: IConfigurationService,
 	keybindingService: IKeybindingService,
 	accessibilityService: IAccessibilityService,
-): { options: IAbstractTreeOptions<T, TFilterData>, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
+): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
 	WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
 	if (!didBindWorkbenchListAutomaticKeyboardNavigation) {
@@ -907,7 +907,7 @@ function workbenchTreeDataPreamble<T, TFilterData>(
 			horizontalScrolling,
 			openOnSingleClick,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
-		}
+		} as TOptions
 	};
 }
 
@@ -922,7 +922,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	constructor(
 		tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData>,
-		options: IAbstractTreeOptions<T, TFilterData>,
+		options: IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>,
 		getAutomaticKeyboardNavigation: () => boolean | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
