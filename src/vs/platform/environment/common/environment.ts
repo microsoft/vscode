@@ -79,8 +79,6 @@ export interface ParsedArgs {
 	'nolazy'?: boolean;
 
 	// Web flags
-	'folder'?: string;
-	'workspace'?: string;
 	'web-user-data-dir'?: string;
 }
 
