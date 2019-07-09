@@ -110,10 +110,14 @@ class FolderDetector {
 	}
 
 	public async getTasks(): Promise<vscode.Task[]> {
-		if (!this.promise) {
-			this.promise = this.computeTasks();
+		if (this.isEnabled()) {
+			if (!this.promise) {
+				this.promise = this.computeTasks();
+			}
+			return this.promise;
+		} else {
+			return [];
 		}
-		return this.promise;
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
@@ -124,7 +128,10 @@ class FolderDetector {
 				task: gruntTask
 			};
 			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-			let task = new vscode.Task(kind, this.workspaceFolder, gruntTask, 'grunt', new vscode.ShellExecution(await this._gruntCommand, [gruntTask], options));
+			let source = 'grunt';
+			let task = gruntTask.indexOf(' ') === -1
+				? new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} ${name}`, options))
+				: new vscode.Task(kind, this.workspaceFolder, gruntTask, source, new vscode.ShellExecution(`${await this._gruntCommand} "${name}"`, options));
 			return task;
 		}
 		return undefined;
@@ -259,8 +266,8 @@ class TaskDetector {
 		}
 		for (let add of added) {
 			let detector = new FolderDetector(add, findGruntCommand(add.uri.fsPath));
+			this.detectors.set(add.uri.toString(), detector);
 			if (detector.isEnabled()) {
-				this.detectors.set(add.uri.toString(), detector);
 				detector.start();
 			}
 		}
@@ -269,18 +276,16 @@ class TaskDetector {
 
 	private updateConfiguration(): void {
 		for (let detector of this.detectors.values()) {
-			if (!detector.isEnabled()) {
-				detector.dispose();
-				this.detectors.delete(detector.workspaceFolder.uri.toString());
-			}
+			detector.dispose();
+			this.detectors.delete(detector.workspaceFolder.uri.toString());
 		}
 		let folders = vscode.workspace.workspaceFolders;
 		if (folders) {
 			for (let folder of folders) {
 				if (!this.detectors.has(folder.uri.toString())) {
 					let detector = new FolderDetector(folder, findGruntCommand(folder.uri.fsPath));
+					this.detectors.set(folder.uri.toString(), detector);
 					if (detector.isEnabled()) {
-						this.detectors.set(folder.uri.toString(), detector);
 						detector.start();
 					}
 				}
