@@ -1402,7 +1402,7 @@ declare module 'vscode' {
 		shutdown?(): void;
 
 		/**
-		 * Implement to handle when the terminal is ready.
+		 * Implement to handle when the terminal is ready to start firing events.
 		 */
 		start?(): void;
 	}
