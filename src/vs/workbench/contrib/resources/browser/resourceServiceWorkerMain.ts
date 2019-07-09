@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// trigger service worker updates
+const VERSION = 2;
+
 (function () {
+
 	type Handler = {
 		handleFetchEvent(event: Event): Promise<Response | undefined>;
 		handleMessageEvent(event: MessageEvent): void;
