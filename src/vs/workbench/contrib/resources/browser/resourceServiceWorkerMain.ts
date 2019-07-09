@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // trigger service worker updates
-const _tag = 'e4d8e56a-394f-4541-b817-421b1e2feed1';
+const _tag = '586d4b79-f5c4-4aff-9a14-2139ddfbb486';
 
 (function () {
 
@@ -38,12 +38,7 @@ const _tag = 'e4d8e56a-394f-4541-b817-421b1e2feed1';
 				return value;
 			}
 			// try the network (prefetch or fetch)
-			const res = await event.preloadResponse;
-			if (res) {
-				return res;
-			} else {
-				return fetch(event.request);
-			}
+			return event.preloadResponse || fetch(event.request);
 		}));
 	});
 	self.addEventListener('install', (event: any) => {
@@ -53,7 +48,9 @@ const _tag = 'e4d8e56a-394f-4541-b817-421b1e2feed1';
 	self.addEventListener('activate', (event: any) => {
 
 		event.waitUntil((async () => {
-			await (self as any).registration.navigationPreload.enable(); // Enable navigation preloads!
+			if ((self as any).registration.navigationPreload) {
+				await (self as any).registration.navigationPreload.enable(); // Enable navigation preloads!
+			}
 			await (self as any).clients.claim(); // Become available to all pages
 		})());
 	});
