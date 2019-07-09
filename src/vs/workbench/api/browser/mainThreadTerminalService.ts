@@ -27,7 +27,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
