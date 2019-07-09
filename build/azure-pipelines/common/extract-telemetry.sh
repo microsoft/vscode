@@ -4,7 +4,7 @@ set -e
 cd $BUILD_STAGINGDIRECTORY
 git clone https://github.com/microsoft/vscode-telemetry-extractor.git
 cd vscode-telemetry-extractor
-git checkout a3089d42a45b7be4a0cdc9e2783e068d028e0b36
+git checkout 615c5491625341c4276b0e256dd8d6b014d8051b
 npm i
 cd src
 mkdir telemetry-sources
