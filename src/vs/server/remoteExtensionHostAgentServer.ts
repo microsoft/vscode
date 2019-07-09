@@ -16,7 +16,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
@@ -86,8 +85,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		const webviewServer = this.spawnWebviewServer(webviewPort);
 
-		let transformer: IURITransformer;
-
 		const server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
 
 			// Only serve GET requests
@@ -119,9 +116,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 
 					const remoteAuthority = req.headers.host!; // TODO@web this is localhost when opening 127.0.0.1 and is possibly undefined, does it matter?
-					if (!transformer) {
-						transformer = createRemoteURITransformer(remoteAuthority);
-					}
+					const transformer = createRemoteURITransformer(remoteAuthority);
 
 					const { workspacePath, isFolder } = await this._getWorkspace(req.url);
 
