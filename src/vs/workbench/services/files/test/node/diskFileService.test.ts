@@ -660,6 +660,23 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 	});
 
+	test('move - same file should throw', async () => {
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+
+		const targetParent = URI.file(dirname(source.resource.fsPath));
+		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
+
+		try {
+			await service.move(source.resource, target, true);
+		} catch (error) {
+			assert.ok(error);
+		}
+
+		source = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(originalSize, source.size);
+	});
+
 	test('move - source parent of target', async () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
@@ -822,7 +839,9 @@ suite('Disk File Service', () => {
 	});
 
 	test('copy - same file should throw', async () => {
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+
 		const targetParent = URI.file(dirname(source.resource.fsPath));
 		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
 
@@ -831,6 +850,9 @@ suite('Disk File Service', () => {
 		} catch (error) {
 			assert.ok(error);
 		}
+
+		source = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(originalSize, source.size);
 	});
 
 	test('readFile - small file - buffered', () => {
