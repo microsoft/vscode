@@ -1594,19 +1594,87 @@ declare module 'vscode' {
 
 	//#region Joh - read/write files of any scheme
 
+	/**
+	 * The file system interface exposes the editor's built-in and contributed
+	 * [file system providers](#FileSystemProvider). It allows extensions to work
+	 * with files from the local disk as well as files from remote places, like the
+	 * remote extension host or ftp-servers.
+	 */
 	export interface FileSystem {
+
+		/**
+		 * Retrieve metadata about a file.
+		 *
+		 * @param uri The uri of the file to retrieve metadata about.
+		 * @return The file metadata about the file.
+		 */
 		stat(uri: Uri): Thenable<FileStat>;
+
+		/**
+		 * Retrieve all entries of a [directory](#FileType.Directory).
+		 *
+		 * @param uri The uri of the folder.
+		 * @return An array of name/type-tuples or a thenable that resolves to such.
+		 */
 		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+
+		/**
+		 * Create a new directory (Note, that new files are created via `write`-calls).
+		 *
+		 * @param uri The uri of the new folder.
+		 */
 		createDirectory(uri: Uri): Thenable<void>;
+
+		/**
+		 * Read the entire contents of a file.
+		 *
+		 * @param uri The uri of the file.
+		 * @return An array of bytes or a thenable that resolves to such.
+		 */
 		readFile(uri: Uri): Thenable<Uint8Array>;
+
+		/**
+		 * Write data to a file, replacing its entire contents.
+		 *
+		 * @param uri The uri of the file.
+		 * @param content The new content of the file.
+		 * @param options Defines if missing files should or must be created.
+		 */
 		writeFile(uri: Uri, content: Uint8Array, options?: { create: boolean, overwrite: boolean }): Thenable<void>;
+
+		/**
+		 * Delete a file.
+		 *
+		 * @param uri The resource that is to be deleted.
+		 * @param options Defines if deletion of folders is recursive.
+		 */
 		delete(uri: Uri, options?: { recursive: boolean }): Thenable<void>;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
 		rename(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
+
+		/**
+		 * Copy files or folders. Implementing this function is optional but it will speedup
+		 * the copy operation.
+		 *
+		 * @param source The existing file.
+		 * @param destination The destination location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
 		copy(source: Uri, target: Uri, options?: { overwrite: boolean }): Thenable<void>;
 	}
 
 	export namespace workspace {
 
+		/**
+		 * File system that allows to interact with local and remote files.
+		 */
 		export const fs: FileSystem;
 	}
 
