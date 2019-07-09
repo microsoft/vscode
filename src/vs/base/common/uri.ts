@@ -48,10 +48,8 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 			if (!_singleSlashStart.test(ret.path)) {
 				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
 			}
-		} else {
-			if (_doubleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
-			}
+		} else if (_doubleSlashStart.test(ret.path)) {
+			throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');	
 		}
 	}
 }
