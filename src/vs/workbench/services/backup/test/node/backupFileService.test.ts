@@ -155,6 +155,16 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			assert.ok(service.hasBackupSync(fooFile));
+		});
+
+		test('text file (with version)', async () => {
+			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false), 666);
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.equal(fs.existsSync(fooBackupPath), true);
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			assert.ok(!service.hasBackupSync(fooFile, 555));
+			assert.ok(service.hasBackupSync(fooFile, 666));
 		});
 
 		test('text file (with meta)', async () => {
@@ -162,6 +172,7 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
+			assert.ok(service.hasBackupSync(fooFile));
 		});
 
 		test('untitled file', async () => {
@@ -169,6 +180,7 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.equal(fs.existsSync(untitledBackupPath), true);
 			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+			assert.ok(service.hasBackupSync(untitledFile));
 		});
 
 		test('text file (ITextSnapshot)', async () => {
@@ -178,6 +190,8 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			assert.ok(service.hasBackupSync(fooFile));
+
 			model.dispose();
 		});
 
@@ -188,6 +202,7 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.equal(fs.existsSync(untitledBackupPath), true);
 			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+
 			model.dispose();
 		});
 
@@ -199,6 +214,8 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
+			assert.ok(service.hasBackupSync(fooFile));
+
 			model.dispose();
 		});
 
@@ -210,6 +227,8 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.equal(fs.existsSync(untitledBackupPath), true);
 			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
+			assert.ok(service.hasBackupSync(untitledFile));
+
 			model.dispose();
 		});
 	});
@@ -218,9 +237,12 @@ suite('BackupFileService', () => {
 		test('text file', async () => {
 			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.ok(service.hasBackupSync(fooFile));
+
 			await service.discardResourceBackup(fooFile);
 			assert.equal(fs.existsSync(fooBackupPath), false);
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
+			assert.ok(!service.hasBackupSync(fooFile));
 		});
 
 		test('untitled file', async () => {

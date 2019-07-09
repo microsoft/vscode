@@ -124,6 +124,7 @@ export class BackupFileService implements IBackupFileService {
 
 	protected hashPath(resource: URI): string {
 		const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
+
 		return hash(str).toString(16);
 	}
 
@@ -135,6 +136,10 @@ export class BackupFileService implements IBackupFileService {
 
 	hasBackups(): Promise<boolean> {
 		return this.impl.hasBackups();
+	}
+
+	hasBackupSync(resource: URI, versionId?: number): boolean {
+		return this.impl.hasBackupSync(resource, versionId);
 	}
 
 	loadBackupResource(resource: URI): Promise<URI | undefined> {
@@ -172,13 +177,15 @@ class BackupFileServiceImpl implements IBackupFileService {
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IBackupFileService>;
 
 	private backupWorkspacePath: URI;
 
 	private isShuttingDown: boolean;
-	private ready: Promise<IBackupFilesModel>;
 	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
+
+	private ready: Promise<IBackupFilesModel>;
+	private model: IBackupFilesModel;
 
 	constructor(
 		backupWorkspaceResource: URI,
@@ -198,15 +205,21 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	private init(): Promise<IBackupFilesModel> {
-		const model = new BackupFilesModel(this.fileService);
+		this.model = new BackupFilesModel(this.fileService);
 
-		return model.resolve(this.backupWorkspacePath);
+		return this.model.resolve(this.backupWorkspacePath);
 	}
 
 	async hasBackups(): Promise<boolean> {
 		const model = await this.ready;
 
 		return model.count() > 0;
+	}
+
+	hasBackupSync(resource: URI, versionId?: number): boolean {
+		const backupResource = this.toBackupResource(resource);
+
+		return this.model.has(backupResource, versionId);
 	}
 
 	async loadBackupResource(resource: URI): Promise<URI | undefined> {
@@ -375,6 +388,12 @@ export class InMemoryBackupFileService implements IBackupFileService {
 
 	hasBackups(): Promise<boolean> {
 		return Promise.resolve(this.backups.size > 0);
+	}
+
+	hasBackupSync(resource: URI, versionId?: number): boolean {
+		const backupResource = this.toBackupResource(resource);
+
+		return this.backups.has(backupResource.toString());
 	}
 
 	loadBackupResource(resource: URI): Promise<URI | undefined> {

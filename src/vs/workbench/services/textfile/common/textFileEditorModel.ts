@@ -237,6 +237,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	hasBackup(): boolean {
+		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+	}
+
 	async revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
 			return;

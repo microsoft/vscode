@@ -32,10 +32,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IWorkspaceEditingService>;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
