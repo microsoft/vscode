@@ -162,18 +162,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
-		this._usedSchemes.add(Schemas.file);
-		this._usedSchemes.add(Schemas.untitled);
-		this._usedSchemes.add(Schemas.vscode);
-		this._usedSchemes.add(Schemas.inMemory);
-		this._usedSchemes.add(Schemas.internal);
-		this._usedSchemes.add(Schemas.http);
-		this._usedSchemes.add(Schemas.https);
-		this._usedSchemes.add(Schemas.mailto);
-		this._usedSchemes.add(Schemas.data);
-		this._usedSchemes.add(Schemas.command);
-
 		this.fileSystem = new ConsumerFileSystem(this._proxy);
+
+		// register used schemes
+		Object.keys(Schemas).forEach(scheme => this._usedSchemes.add(scheme));
 	}
 
 	dispose(): void {
