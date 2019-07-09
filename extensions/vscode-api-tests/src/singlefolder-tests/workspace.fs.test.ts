@@ -124,7 +124,7 @@ suite('workspace-fs', () => {
 			assert.ok(false);
 		} catch (e) {
 			assert.ok(e instanceof vscode.FileSystemError);
-			assert.ok(e.message);
+			assert.equal(e.name, vscode.FileSystemError.FileNotFound().name);
 		}
 	});
 
@@ -135,8 +135,7 @@ suite('workspace-fs', () => {
 			assert.ok(false);
 		} catch (e) {
 			assert.ok(e instanceof vscode.FileSystemError);
-			assert.ok(e.message);
-			assert.ok(e.name);
+			assert.equal(e.name, vscode.FileSystemError.Unavailable().name);
 		}
 	});
 });

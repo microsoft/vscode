@@ -132,12 +132,18 @@ class ConsumerFileSystem implements vscode.FileSystem {
 		return this._proxy.$copy(source, destination, options).catch(ConsumerFileSystem._handleError);
 	}
 	private static _handleError(err: any): never {
-		if (err instanceof Error && err.name === 'ENOPRO') {
-			throw FileSystemError.Unavailable(err.message);
-		} else {
-			// generic error
+		// generic error
+		if (!(err instanceof Error)) {
 			throw new FileSystemError(String(err));
 		}
+
+		// no provider (unknown scheme) error
+		if (err.name === 'ENOPRO') {
+			throw FileSystemError.Unavailable(err.message);
+		}
+
+		// file system error
+		throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
 	}
 }
 
