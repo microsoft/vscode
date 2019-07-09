@@ -31,24 +31,15 @@ export class CodeActionWidget extends Disposable {
 		super();
 	}
 
-	public async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
-		let codeActions: CodeActionSet | undefined = await actionsToShow;
+	public async show(codeActions: CodeActionSet, at?: { x: number; y: number } | Position): Promise<void> {
 		if (!codeActions.actions.length) {
-			codeActions.dispose();
 			this._visible = false;
 			return;
 		}
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
 			this._visible = false;
-			codeActions.dispose();
 			return Promise.reject(canceled());
-		}
-
-		if (this._visible) {
-			// TODO: Figure out if we should update the showing menu?
-			codeActions.dispose();
-			return;
 		}
 
 		this._visible = true;

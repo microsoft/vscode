@@ -5,16 +5,37 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CodeActionsState } from './codeActionModel';
+
+namespace LightBulbState {
+
+	export const enum Type {
+		Hidden,
+		Showing,
+	}
+
+	export const Hidden = new class { readonly type = Type.Hidden; };
+
+	export class Showing {
+		readonly type = Type.Showing;
+
+		constructor(
+			public readonly actions: CodeActionSet,
+			public readonly position: IPosition,
+		) { }
+	}
+
+	export type State = typeof Hidden | Showing;
+}
+
 
 export class LightBulbWidget extends Disposable implements IContentWidget {
 
@@ -22,13 +43,11 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private readonly _domNode: HTMLDivElement;
 
-	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>());
+	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet }>());
 	public readonly onClick = this._onClick.event;
 
 	private _position: IContentWidgetPosition | null;
-	private _state: CodeActionsState.State = CodeActionsState.Empty;
-	private _futureFixes = new CancellationTokenSource();
-	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
+	private _state: LightBulbState.State = LightBulbState.Hidden;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -41,17 +60,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		this._editor.addContentWidget(this);
 
-		this._register(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
-		this._register(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
 		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this._state.type !== CodeActionsState.Type.Triggered || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
-				this._futureFixes.cancel();
+			if (this._state.type !== LightBulbState.Type.Showing || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
+				this.hide();
 			}
 		}));
 		this._register(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => {
-			if (this._state.type !== CodeActionsState.Type.Triggered) {
+			if (this._state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
 
@@ -71,7 +88,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this._onClick.fire({
 				x: e.posx,
 				y: top + height + pad,
-				state: this._state
+				actions: this._state.actions
 			});
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
@@ -96,7 +113,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		this._updateLightBulbTitle();
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
-
 	}
 
 	dispose(): void {
@@ -116,51 +132,23 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._position;
 	}
 
-	tryShow(newState: CodeActionsState.Triggered) {
-		if (this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
-			// hide when getting a 'hide'-request or when currently
-			// showing on another line
-			this.hide();
-		} else if (this._futureFixes) {
-			// cancel pending show request in any case
-			this._futureFixes.cancel();
+	public update(actions: CodeActionSet, atPosition: IPosition) {
+		if (actions.actions.length <= 0) {
+			return this.hide();
 		}
-		this._showingActions.clear();
 
-		this._futureFixes = new CancellationTokenSource();
-		const { token } = this._futureFixes;
-		this._state = newState;
-
-		this._state.actions.then(fixes => {
-			this._showingActions.value = fixes;
-			if (!token.isCancellationRequested && fixes.actions.length > 0) {
-				this._show(fixes);
-			} else {
-				this.hide();
-			}
-		}).catch(() => {
-			this.hide();
-		});
-	}
-
-	private set title(value: string) {
-		this._domNode.title = value;
-	}
-
-	private _show(codeActions: CodeActionSet): void {
 		const config = this._editor.getConfiguration();
 		if (!config.contribInfo.lightbulbEnabled) {
-			return;
-		}
-		if (this._state.type !== CodeActionsState.Type.Triggered) {
-			return;
-		}
-		const { lineNumber, column } = this._state.position;
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
+			return this.hide();
 		}
 
+		const { lineNumber, column } = atPosition;
+		const model = this._editor.getModel();
+		if (!model) {
+			return this.hide();
+		}
+
+		this._state = new LightBulbState.Showing(actions, atPosition);
 		const tabSize = model.getOptions().tabSize;
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
@@ -187,14 +175,17 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		};
-		dom.toggleClass(this._domNode, 'autofixable', codeActions.hasAutoFix);
+		dom.toggleClass(this._domNode, 'autofixable', actions.hasAutoFix);
 		this._editor.layoutContentWidget(this);
+	}
+
+	private set title(value: string) {
+		this._domNode.title = value;
 	}
 
 	public hide(): void {
 		this._position = null;
-		this._state = CodeActionsState.Empty;
-		this._futureFixes.cancel();
+		this._state = LightBulbState.Hidden;
 		this._editor.layoutContentWidget(this);
 	}
 
