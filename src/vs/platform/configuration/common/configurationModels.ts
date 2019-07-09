@@ -53,7 +53,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			return this;
 		}
 
-		let contents = {};
+		let contents: any = {};
 		for (const key of arrays.distinct([...Object.keys(this.contents), ...Object.keys(overrideContents)])) {
 
 			let contentsForKey = this.contents[key];
@@ -296,8 +296,8 @@ export class ConfigurationModelParser {
 		return { contents, keys, overrides };
 	}
 
-	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean, scopes: ConfigurationScope[]): {} {
-		const result = {};
+	private filterByScope(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean, scopes: ConfigurationScope[]): {} {
+		const result: any = {};
 		for (let key in properties) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
 				result[key] = this.filterByScope(properties[key], configurationProperties, false, scopes);

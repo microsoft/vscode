@@ -284,7 +284,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private _countById(settingsGroups: ISettingsGroup[]): IStringDictionary<number> {
-		const result = {};
+		const result: IStringDictionary<number> = {};
 
 		for (const group of settingsGroups) {
 			let i = 0;
@@ -680,7 +680,7 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private _updatePreference(key: string, value: any, source: ISetting, fromEditableSettings?: boolean): void {
-		const data = {
+		const data: { [key: string]: any } = {
 			userConfigurationKeys: [key]
 		};
 

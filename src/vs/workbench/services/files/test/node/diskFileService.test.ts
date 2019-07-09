@@ -10,7 +10,7 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join, basename, dirname, posix } from 'vs/base/common/path';
+import { join, basename, dirname } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
@@ -660,6 +660,25 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
 	});
 
+	test('move - same file should throw', async () => {
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+
+		const target = URI.file(join(testDir, 'index.html'));
+
+		let error;
+		try {
+			await service.move(source.resource, target, true);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+
+		source = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(originalSize, source.size);
+	});
+
 	test('move - source parent of target', async () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
@@ -813,8 +832,7 @@ suite('Disk File Service', () => {
 		assert.ok(readdirSync(testDir).some(f => f === 'CONWAY.js'));
 
 		const source_1 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')));
-		const targetParent = URI.file(testDir);
-		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source_1.resource.path)) });
+		const target = URI.file(join(testDir, basename(source_1.resource.path)));
 
 		const res = await service.copy(source_1.resource, target, true);
 		assert.equal(existsSync(res.resource.fsPath), true);
@@ -822,15 +840,22 @@ suite('Disk File Service', () => {
 	});
 
 	test('copy - same file should throw', async () => {
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
-		const targetParent = URI.file(dirname(source.resource.fsPath));
-		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
 
+		const target = URI.file(join(testDir, 'index.html'));
+
+		let error;
 		try {
 			await service.copy(source.resource, target, true);
-		} catch (error) {
-			assert.ok(error);
+		} catch (err) {
+			error = err;
 		}
+
+		assert.ok(error);
+
+		source = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(originalSize, source.size);
 	});
 
 	test('readFile - small file - buffered', () => {
@@ -1189,12 +1214,14 @@ suite('Disk File Service', () => {
 
 		writeFileSync(resource.fsPath, ''); // create file
 
+		let error;
 		try {
 			await service.createFile(resource, VSBuffer.fromString(contents));
+		} catch (err) {
+			error = err;
 		}
-		catch (error) {
-			assert.ok(error);
-		}
+
+		assert.ok(error);
 	});
 
 	test('createFile (allows to overwrite existing)', async () => {

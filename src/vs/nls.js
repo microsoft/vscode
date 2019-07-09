@@ -51,7 +51,7 @@ var NLSLoaderPlugin;
                 if (typeof arg === 'string') {
                     result = arg;
                 }
-                else if (typeof arg === 'number' || typeof arg === 'boolean' || arg === undefined || arg === null) {
+                else if (typeof arg === 'number' || typeof arg === 'boolean' || arg === void 0 || arg === null) {
                     result = String(arg);
                 }
                 return result;
@@ -94,7 +94,7 @@ var NLSLoaderPlugin;
                 for (var _i = 2; _i < arguments.length; _i++) {
                     args[_i - 2] = arguments[_i];
                 }
-                return localize.apply(undefined, [_this._env, data, message].concat(args));
+                return localize.apply(void 0, [_this._env, data, message].concat(args));
             };
         }
         NLSPlugin.prototype.setPseudoTranslation = function (value) {

@@ -67,6 +67,11 @@ export interface IUntitledEditorService {
 	isDirty(resource: URI): boolean;
 
 	/**
+	 * Find out if a backup with the provided resource exists and has a backup on disk.
+	 */
+	hasBackup(resource: URI): boolean;
+
+	/**
 	 * Reverts the untitled resources if found.
 	 */
 	revertAll(resources?: URI[]): URI[];
@@ -170,6 +175,12 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return input ? input.isDirty() : false;
 	}
 
+	hasBackup(resource: URI): boolean {
+		const input = this.get(resource);
+
+		return input ? input.hasBackup() : false;
+	}
+
 	getDirty(resources?: URI[]): URI[] {
 		let inputs: UntitledEditorInput[];
 		if (resources) {
@@ -234,21 +245,10 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, hasAssociatedFilePath, mode, initialValue, encoding);
 
-		const contentListener = input.onDidModelChangeContent(() => {
-			this._onDidChangeContent.fire(untitledResource);
-		});
-
-		const dirtyListener = input.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire(untitledResource);
-		});
-
-		const encodingListener = input.onDidModelChangeEncoding(() => {
-			this._onDidChangeEncoding.fire(untitledResource);
-		});
-
-		const disposeListener = input.onDispose(() => {
-			this._onDidDisposeModel.fire(untitledResource);
-		});
+		const contentListener = input.onDidModelChangeContent(() => this._onDidChangeContent.fire(untitledResource));
+		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(untitledResource));
+		const encodingListener = input.onDidModelChangeEncoding(() => this._onDidChangeEncoding.fire(untitledResource));
+		const disposeListener = input.onDispose(() => this._onDidDisposeModel.fire(untitledResource));
 
 		// Remove from cache on dispose
 		const onceDispose = Event.once(input.onDispose);

@@ -73,7 +73,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFileService protected readonly fileService: IFileService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledEditorService protected readonly untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -152,7 +152,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		// If hot exit is enabled, backup dirty files and allow to exit without confirmation
 		if (this.isHotExitEnabled) {
-			return this.backupBeforeShutdown(dirty, this.models, reason).then(didBackup => {
+			return this.backupBeforeShutdown(dirty, reason).then(didBackup => {
 				if (didBackup) {
 					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
 				}
@@ -171,7 +171,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.confirmBeforeShutdown();
 	}
 
-	private async backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): Promise<boolean> {
+	private async backupBeforeShutdown(dirtyToBackup: URI[], reason: ShutdownReason): Promise<boolean> {
 		const windowCount = await this.windowsService.getWindowCount();
 
 		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
@@ -212,24 +212,24 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			return false;
 		}
 
-		await this.backupAll(dirtyToBackup, textFileEditorModelManager);
+		await this.backupAll(dirtyToBackup);
 
 		return true;
 	}
 
-	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): Promise<void> {
+	private backupAll(dirtyToBackup: URI[]): Promise<void> {
 
 		// split up between files and untitled
 		const filesToBackup: ITextFileEditorModel[] = [];
 		const untitledToBackup: URI[] = [];
-		dirtyToBackup.forEach(s => {
-			if (this.fileService.canHandleResource(s)) {
-				const model = textFileEditorModelManager.get(s);
+		dirtyToBackup.forEach(dirty => {
+			if (this.fileService.canHandleResource(dirty)) {
+				const model = this.models.get(dirty);
 				if (model) {
 					filesToBackup.push(model);
 				}
-			} else if (s.scheme === Schemas.untitled) {
-				untitledToBackup.push(s);
+			} else if (dirty.scheme === Schemas.untitled) {
+				untitledToBackup.push(dirty);
 			}
 		});
 
@@ -593,11 +593,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		// split up between files and untitled
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
-		toSave.forEach(s => {
-			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === Schemas.untitled) {
-				untitledToSave.push(s);
+		toSave.forEach(resourceToSave => {
+			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && resourceToSave.scheme === Schemas.untitled) {
+				untitledToSave.push(resourceToSave);
 			} else {
-				filesToSave.push(s);
+				filesToSave.push(resourceToSave);
 			}
 		});
 

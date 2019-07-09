@@ -1073,6 +1073,10 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve(false);
 	}
 
+	public hasBackupSync(resource: URI, versionId?: number): boolean {
+		return false;
+	}
+
 	public loadBackupResource(resource: URI): Promise<URI | undefined> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {

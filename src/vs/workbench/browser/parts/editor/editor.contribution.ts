@@ -516,8 +516,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dark.svg',
-		iconLight: 'close-light.svg'
+		iconDark: 'close-dark-alt.svg',
+		iconLight: 'close-light-alt.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
@@ -533,8 +533,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dark.svg',
-		iconLight: 'close-light.svg'
+		iconDark: 'close-dirty-dark-alt.svg',
+		iconLight: 'close-dirty-light-alt.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end

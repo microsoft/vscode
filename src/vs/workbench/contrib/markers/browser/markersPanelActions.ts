@@ -275,10 +275,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private reportFilteringUsed(): void {
 		const filterOptions = this.filterController.getFilterOptions();
-		const data = {};
-		data['errors'] = filterOptions.filterErrors;
-		data['warnings'] = filterOptions.filterWarnings;
-		data['infos'] = filterOptions.filterInfos;
+		const data = {
+			errors: filterOptions.filterErrors,
+			warnings: filterOptions.filterWarnings,
+			infos: filterOptions.filterInfos,
+		};
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

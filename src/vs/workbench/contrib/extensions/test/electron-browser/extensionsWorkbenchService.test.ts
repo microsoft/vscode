@@ -129,7 +129,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 				license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 				repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-				coreTranslations: {}
+				coreTranslations: []
 			});
 
 		testObject = await aWorkbenchService();
@@ -279,7 +279,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 				license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 				repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-				coreTranslations: {}
+				coreTranslations: []
 			});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery1));
@@ -968,7 +968,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		manifest: null,
 		readme: null,
 		repository: null,
-		coreTranslations: null!
+		coreTranslations: []
 	};
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {

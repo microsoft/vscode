@@ -380,7 +380,10 @@ export class CustomTreeView extends Disposable implements ITreeView {
 						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
 					}
 				},
-				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command
+				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
+				collapseByDefault: (e: ITreeItem): boolean => {
+					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
+				}
 			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
 
