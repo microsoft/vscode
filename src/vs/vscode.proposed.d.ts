@@ -1400,6 +1400,11 @@ declare module 'vscode' {
 		 * Implement to handle when the terminal shuts down by an act of the user.
 		 */
 		shutdown?(): void;
+
+		/**
+		 * Implement to handle when the terminal is ready.
+		 */
+		start?(): void;
 	}
 
 	//#endregion
@@ -1508,19 +1513,13 @@ declare module 'vscode' {
 		 * @param process The [TerminalVirtualProcess](#TerminalVirtualProcess) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
-		constructor(process: TerminalVirtualProcess, callback: (thisArg?: any) => Thenable<void>);
+		constructor(callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>);
 
 		/**
-		 * The callback used to execute the task. Cancellation should be handled using the [TerminalVirtualProcess](#TerminalVirtualProcess).
+		 * The callback used to execute the task. Cancellation should be handled using the shutdown method of [TerminalVirtualProcess](#TerminalVirtualProcess).
 		 * When the task is complete, onDidExit should be fired on the TerminalVirtualProcess with the exit code with '0' for success and a non-zero value for failure.
 		 */
-		callback: (thisArg?: any) => Thenable<void>;
-
-		/**
-		 * The [TerminalVirtualProcess](#TerminalVirtualProcess) will be attached to a terminal when the task is started.
-		 * At that point it can be used to show output and accept input. process.shutdown() should be implemented to handle interruption of the task
-		 */
-		process: TerminalVirtualProcess;
+		callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>;
 	}
 
 	/**

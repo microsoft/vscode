@@ -1773,30 +1773,20 @@ export class CustomExecution implements vscode.CustomExecution {
 }
 
 export class CustomExecution2 implements vscode.CustomExecution2 {
-	private _callback: () => Thenable<void>;
-	private _process: vscode.TerminalVirtualProcess;
-	constructor(process: vscode.TerminalVirtualProcess, callback: () => Thenable<void>) {
+	private _callback: () => Thenable<vscode.TerminalVirtualProcess>;
+	constructor(callback: () => Thenable<vscode.TerminalVirtualProcess>) {
 		this._callback = callback;
-		this._process = process;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: () => Thenable<void>) {
+	public set callback(value: () => Thenable<vscode.TerminalVirtualProcess>) {
 		this._callback = value;
 	}
 
-	public get callback(): (() => Thenable<void>) {
+	public get callback(): (() => Thenable<vscode.TerminalVirtualProcess>) {
 		return this._callback;
-	}
-
-	public set process(value: vscode.TerminalVirtualProcess) {
-		this._process = value;
-	}
-
-	public get process(): vscode.TerminalVirtualProcess {
-		return this._process;
 	}
 }
 
