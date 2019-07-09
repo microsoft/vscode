@@ -25,7 +25,6 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	'web-user-data-dir'?: string;
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
@@ -78,6 +77,11 @@ export interface ParsedArgs {
 	'js-flags'?: boolean;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
+
+	// Web flags
+	'folder'?: string;
+	'workspace'?: string;
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
