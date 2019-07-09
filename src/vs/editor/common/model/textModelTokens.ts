@@ -441,12 +441,7 @@ export class TokensStore {
 		this._lineTokens[lineIndex] = tokens;
 	}
 
-	public setGoodTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array): void {
-		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
-		this._setTokens(lineIndex, tokens);
-	}
-
-	public setFakeTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array): void {
+	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array): void {
 		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
 		this._setTokens(lineIndex, tokens);
 	}
@@ -584,7 +579,7 @@ export class ModelLinesTokens {
 			const lineStartState = tokenizationStateStore.getBeginState(lineIndex);
 
 			const r = safeTokenize(this._languageIdentifier, this.tokenizationSupport, text, lineStartState!);
-			tokensStore.setGoodTokens(this._languageIdentifier.id, lineIndex, text.length, r.tokens);
+			tokensStore.setTokens(this._languageIdentifier.id, lineIndex, text.length, r.tokens);
 			tokenizationStateStore.setGoodTokens(linesLength, lineIndex, r.endState);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
 			lineIndex = tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
@@ -641,7 +636,7 @@ export class ModelLinesTokens {
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			let text = buffer.getLineContent(lineNumber);
 			let r = safeTokenize(this._languageIdentifier, this.tokenizationSupport, text, state);
-			tokensStore.setFakeTokens(this._languageIdentifier.id, lineNumber - 1, text.length, r.tokens);
+			tokensStore.setTokens(this._languageIdentifier.id, lineNumber - 1, text.length, r.tokens);
 			tokenizationStateStore.setFakeTokens(lineNumber - 1);
 			state = r.endState;
 			eventBuilder.registerChangedTokens(lineNumber);
@@ -660,6 +655,7 @@ export class TextModelTokenization extends Disposable {
 	constructor(textModel: TextModel) {
 		super();
 		this._textModel = textModel;
+		this._revalidateTokensTimeout = -1;
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			const languageIdentifier = this._textModel.getLanguageIdentifier();
 			if (e.changedLanguages.indexOf(languageIdentifier.language) === -1) {
@@ -675,7 +671,6 @@ export class TextModelTokenization extends Disposable {
 				}]
 			});
 		}));
-		this._revalidateTokensTimeout = -1;
 		this._register(this._textModel.onDidChangeRawContentFast((e) => {
 			if (e.containsEvent(RawContentChangedType.Flush)) {
 				this._resetTokenizationState();
