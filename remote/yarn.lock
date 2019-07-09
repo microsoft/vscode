@@ -1522,9 +1522,9 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-"vsda@https://github.com/microsoft/vsda.git#8c5b2d68101930d089fdfbd81f401d9e8b1e93fa":
+"vsda@https://github.com/microsoft/vsda.git#45edd3db96a5e308a5cfc817d1ee42f6d96e1659":
   version "1.4.1"
-  resolved "https://github.com/microsoft/vsda.git#8c5b2d68101930d089fdfbd81f401d9e8b1e93fa"
+  resolved "https://github.com/microsoft/vsda.git#45edd3db96a5e308a5cfc817d1ee42f6d96e1659"
 
 which-pm-runs@^1.0.0:
   version "1.0.0"
