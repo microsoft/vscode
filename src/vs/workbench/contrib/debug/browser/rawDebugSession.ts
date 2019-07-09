@@ -598,7 +598,7 @@ export class RawDebugSession {
 						}
 
 					} else {
-						args[key] = value;
+						(<any>args)[key] = value;
 					}
 
 				} else {
