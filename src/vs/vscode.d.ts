@@ -2903,7 +2903,7 @@ declare module 'vscode' {
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
 	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 

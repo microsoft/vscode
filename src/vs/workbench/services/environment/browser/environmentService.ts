@@ -149,4 +149,8 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	get webviewResourceRoot(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource' : 'vscode-resource:';
 	}
+
+	get webviewCspRule(): string {
+		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
+	}
 }

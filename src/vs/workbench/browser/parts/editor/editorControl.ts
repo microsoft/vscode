@@ -38,7 +38,7 @@ export class EditorControl extends Disposable {
 	private _activeControl: BaseEditor | null;
 	private controls: BaseEditor[] = [];
 
-	private readonly activeControlDisposeables = this._register(new DisposableStore());
+	private readonly activeControlDisposables = this._register(new DisposableStore());
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
@@ -139,12 +139,12 @@ export class EditorControl extends Disposable {
 		this._activeControl = control;
 
 		// Clear out previous active control listeners
-		this.activeControlDisposeables.clear();
+		this.activeControlDisposables.clear();
 
 		// Listen to control changes
 		if (control) {
-			this.activeControlDisposeables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
-			this.activeControlDisposeables.add(control.onDidFocus(() => this._onDidFocus.fire()));
+			this.activeControlDisposables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposables.add(control.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import * as vscode from 'vscode';
-import { MainThreadEditorInsetsShape, ExtHostEditorInsetsShape } from './extHost.protocol';
-import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
+import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
+import * as vscode from 'vscode';
+import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
+import { toWebviewResource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
@@ -19,7 +20,8 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 	constructor(
 		private readonly _proxy: MainThreadEditorInsetsShape,
-		private readonly _editors: ExtHostEditors
+		private readonly _editors: ExtHostEditors,
+		private readonly _initData: WebviewInitData
 	) {
 
 		// dispose editor inset whenever the hosting editor goes away
@@ -61,8 +63,12 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			private _html: string = '';
 			private _options: vscode.WebviewOptions;
 
-			get resourceRoot(): Promise<string> {
-				return that._proxy.$getResourceRoot(handle);
+			toWebviewResource(resource: vscode.Uri): vscode.Uri {
+				return toWebviewResource(that._initData, resource);
+			}
+
+			get cspRule(): string {
+				return that._initData.webviewCspRule;
 			}
 
 			set options(value: vscode.WebviewOptions) {

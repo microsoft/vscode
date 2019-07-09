@@ -118,29 +118,29 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private registerGroupListeners(group: IEditorGroupView): void {
-		const groupDisposeables = new DisposableStore();
+		const groupDisposables = new DisposableStore();
 
-		groupDisposeables.add(group.onDidGroupChange(e => {
+		groupDisposables.add(group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				this.handleActiveEditorChange(group);
 				this._onDidVisibleEditorsChange.fire();
 			}
 		}));
 
-		groupDisposeables.add(group.onDidCloseEditor(event => {
+		groupDisposables.add(group.onDidCloseEditor(event => {
 			this._onDidCloseEditor.fire(event);
 		}));
 
-		groupDisposeables.add(group.onWillOpenEditor(event => {
+		groupDisposables.add(group.onWillOpenEditor(event => {
 			this.onGroupWillOpenEditor(group, event);
 		}));
 
-		groupDisposeables.add(group.onDidOpenEditorFail(editor => {
+		groupDisposables.add(group.onDidOpenEditorFail(editor => {
 			this._onDidOpenEditorFail.fire({ editor, groupId: group.id });
 		}));
 
 		Event.once(group.onWillDispose)(() => {
-			dispose(groupDisposeables);
+			dispose(groupDisposables);
 		});
 	}
 

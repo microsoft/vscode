@@ -11,7 +11,7 @@ import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 const localize = nls.loadMessageBundle();
 
 import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -159,7 +159,7 @@ export function activate(context: ExtensionContext) {
 				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
 					return response.responseText;
 				}, (error: XHRResponse) => {
-					return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
+					return Promise.reject(new ResponseError(error.status, error.responseText || getErrorStatusDescription(error.status) || error.toString()));
 				});
 			}
 		});

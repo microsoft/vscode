@@ -135,7 +135,7 @@ export class NotificationsToasts extends Themable {
 		// Make Visible
 		addClass(this.notificationsToastsContainer, 'visible');
 
-		const itemDisposeables = new DisposableStore();
+		const itemDisposables = new DisposableStore();
 
 		// Container
 		const notificationToastContainer = document.createElement('div');
@@ -158,12 +158,12 @@ export class NotificationsToasts extends Themable {
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
-		itemDisposeables.add(notificationList);
+		itemDisposables.add(notificationList);
 
-		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, toDispose: itemDisposeables };
+		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, toDispose: itemDisposables };
 		this.mapNotificationToToast.set(item, toast);
 
-		itemDisposeables.add(toDisposable(() => {
+		itemDisposables.add(toDisposable(() => {
 			if (this.isVisible(toast)) {
 				this.notificationsToastsContainer.removeChild(toast.container);
 			}
@@ -184,12 +184,12 @@ export class NotificationsToasts extends Themable {
 		this.layoutContainer(maxDimensions.height);
 
 		// Update when item height changes due to expansion
-		itemDisposeables.add(item.onDidExpansionChange(() => {
+		itemDisposables.add(item.onDidExpansionChange(() => {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 
 		// Update when item height potentially changes due to label changes
-		itemDisposeables.add(item.onDidLabelChange(e => {
+		itemDisposables.add(item.onDidLabelChange(e => {
 			if (!item.expanded) {
 				return; // dynamic height only applies to expanded notifications
 			}
@@ -205,7 +205,7 @@ export class NotificationsToasts extends Themable {
 		});
 
 		// Automatically purge non-sticky notifications
-		this.purgeNotification(item, notificationToastContainer, notificationList, itemDisposeables);
+		this.purgeNotification(item, notificationToastContainer, notificationList, itemDisposables);
 
 		// Theming
 		this.updateStyles();
@@ -215,7 +215,7 @@ export class NotificationsToasts extends Themable {
 
 		// Animate in
 		addClass(notificationToast, 'notification-fade-in');
-		itemDisposeables.add(addDisposableListener(notificationToast, 'transitionend', () => {
+		itemDisposables.add(addDisposableListener(notificationToast, 'transitionend', () => {
 			removeClass(notificationToast, 'notification-fade-in');
 			addClass(notificationToast, 'notification-fade-in-done');
 		}));
