@@ -190,6 +190,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 					globalStorageHome: remoteExtensionHostData.globalStorageHome,
 					userHome: remoteExtensionHostData.userHome,
+					webviewResourceRoot: this._environmentService.webviewResourceRoot,
+					webviewCspRule: this._environmentService.webviewCspRule,
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 					configuration: workspace.configuration,

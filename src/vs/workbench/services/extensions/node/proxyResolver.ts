@@ -403,7 +403,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 				if (ext && ext.enableProposedApi) {
-					return modules[(<any>ext).proxySupport] || modules.onRequest;
+					return (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
 				}
 				return modules.default;
 			};
@@ -471,11 +471,9 @@ async function readWindowsCaCertificates() {
 		store.done();
 	}
 
-	const seen = {};
-	const certs = ders.map(derToPem)
-		.filter(pem => !seen[pem] && (seen[pem] = true));
+	const certs = new Set(ders.map(derToPem));
 	return {
-		certs,
+		certs: Array.from(certs),
 		append: true
 	};
 }
@@ -489,11 +487,10 @@ async function readMacCaCertificates() {
 		child.on('error', reject);
 		child.on('exit', code => code ? reject(code) : resolve(stdout.join('')));
 	});
-	const seen = {};
-	const certs = stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
-		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+	const certs = new Set(stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+		.filter(pem => !!pem.length));
 	return {
-		certs,
+		certs: Array.from(certs),
 		append: true
 	};
 }
@@ -507,11 +504,10 @@ async function readLinuxCaCertificates() {
 	for (const certPath of linuxCaCertificatePaths) {
 		try {
 			const content = await promisify(fs.readFile)(certPath, { encoding: 'utf8' });
-			const seen = {};
-			const certs = content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
-				.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+			const certs = new Set(content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+				.filter(pem => !!pem.length));
 			return {
-				certs,
+				certs: Array.from(certs),
 				append: false
 			};
 		} catch (err) {

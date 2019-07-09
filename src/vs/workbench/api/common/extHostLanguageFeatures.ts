@@ -102,7 +102,7 @@ class CodeLensAdapter {
 
 	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
-	private readonly _cache = new Cache<vscode.CodeLens>();
+	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
@@ -315,7 +315,7 @@ export interface CustomCodeAction extends CodeActionDto {
 class CodeActionAdapter {
 	private static readonly _maxCodeActionsPerFile: number = 1000;
 
-	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>();
+	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
@@ -624,7 +624,7 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _provider: vscode.CompletionItemProvider;
 
-	private _cache = new Cache<vscode.CompletionItem>();
+	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
@@ -770,7 +770,7 @@ class SuggestAdapter {
 
 class SignatureHelpAdapter {
 
-	private readonly _cache = new Cache<vscode.SignatureHelp>();
+	private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -813,13 +813,19 @@ class SignatureHelpAdapter {
 }
 
 class Cache<T> {
+	private static readonly enableDebugLogging = false;
 
-	private _data = new Map<number, readonly T[]>();
+	private readonly _data = new Map<number, readonly T[]>();
 	private _idPool = 1;
+
+	constructor(
+		private readonly id: string
+	) { }
 
 	add(item: readonly T[]): number {
 		const id = this._idPool++;
 		this._data.set(id, item);
+		this.logDebugInfo();
 		return id;
 	}
 
@@ -829,12 +835,20 @@ class Cache<T> {
 
 	delete(id: number) {
 		this._data.delete(id);
+		this.logDebugInfo();
+	}
+
+	private logDebugInfo() {
+		if (!Cache.enableDebugLogging) {
+			return;
+		}
+		console.log(`${this.id} cache size — ${this._data.size}`);
 	}
 }
 
 class LinkProviderAdapter {
 
-	private _cache = new Cache<vscode.DocumentLink>();
+	private _cache = new Cache<vscode.DocumentLink>('DocumentLink');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,

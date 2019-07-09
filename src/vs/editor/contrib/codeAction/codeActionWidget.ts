@@ -12,23 +12,26 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeAction) => Promise<any>;
 }
 
-export class CodeActionWidget {
+export class CodeActionWidget extends Disposable {
 
 	private _visible: boolean;
+	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
-		private readonly _delegate: CodeActionWidgetDelegate
-	) { }
+		private readonly _delegate: CodeActionWidgetDelegate,
+	) {
+		super();
+	}
 
-	public async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
-		const codeActions = await actionsToShow;
+	public async show(codeActions: CodeActionSet, at?: { x: number; y: number } | Position): Promise<void> {
 		if (!codeActions.actions.length) {
 			this._visible = false;
 			return;
@@ -41,6 +44,8 @@ export class CodeActionWidget {
 
 		this._visible = true;
 		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
+
+		this._showingActions.value = codeActions;
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {
 				if (Position.isIPosition(at)) {

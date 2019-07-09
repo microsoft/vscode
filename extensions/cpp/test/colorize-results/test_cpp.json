@@ -1529,6 +1529,281 @@
 		}
 	},
 	{
+		"c": "int",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": " t ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.assignment.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp constant.numeric.decimal.cpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "if",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.control.if.cpp",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp punctuation.section.parens.begin.bracket.round.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "t ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp constant.numeric.decimal.cpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp punctuation.section.parens.end.bracket.round.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "puts",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp entity.name.function.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.begin.bracket.round.function.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp punctuation.definition.string.begin.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\\n",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.character.escape.cpp",
+		"r": {
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #FF0000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "constant.character: #569CD6"
+		}
+	},
+	{
+		"c": "*************************************************",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp punctuation.definition.string.end.cpp",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.section.arguments.end.bracket.round.function.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp punctuation.terminator.statement.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
 		"c": "return",
 		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.control.return.cpp",
 		"r": {
