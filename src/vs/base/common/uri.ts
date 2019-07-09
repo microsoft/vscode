@@ -44,10 +44,9 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	// does not contain an authority component, then the path cannot begin
 	// with two slash characters ("//").
 	if (ret.path) {
-		if (ret.authority) {
-			if (!_singleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
-			}
+		if (ret.authority && !_singleSlashStart.test(ret.path)) {
+			throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
+			
 		} else if (_doubleSlashStart.test(ret.path)) {
 			throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');	
 		}
@@ -558,10 +557,10 @@ function encodeURIComponentMinimal(path: string): string {
 				res = path.substr(0, pos);
 			}
 			res += encodeTable[code];
-		} else {
-			if (res !== undefined) {
-				res += path[pos];
-			}
+		} else (res !== undefined) {
+	
+			res += path[pos];
+			
 		}
 	}
 	return res !== undefined ? res : path;
