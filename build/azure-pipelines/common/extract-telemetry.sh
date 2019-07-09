@@ -21,6 +21,7 @@ git clone --depth 1 https://github.com/Microsoft/vscode-html-languageservice.git
 git clone --depth 1 https://github.com/Microsoft/vscode-json-languageservice.git
 git clone --depth 1 https://github.com/Microsoft/vscode-mono-debug.git
 git clone --depth 1 https://github.com/Microsoft/TypeScript.git
+cd ../../
 node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement
 node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
 mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
