@@ -13,12 +13,12 @@ export interface WebviewInitData {
 
 export function toWebviewResource(
 	initData: WebviewInitData,
+	uuid: string,
 	resource: vscode.Uri
 ): vscode.Uri {
-	const rootUri = URI.parse(initData.webviewResourceRoot);
-	return rootUri.with({
-		path: rootUri.path + resource.path,
-		query: resource.query,
-		fragment: resource.fragment,
-	});
+	const uri = initData.webviewResourceRoot
+		.replace('{{resource}}', resource.toString().replace(/^\S+?:/, ''))
+		.replace('{{uuid}}', uuid);
+
+	return URI.parse(uri);
 }

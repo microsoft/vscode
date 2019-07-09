@@ -50,7 +50,10 @@ suite('ExtHostWebview', () => {
 
 	test('toWebviewResource for desktop vscode-resource scheme', () => {
 		const shape = createNoopMainThreadWebviews();
-		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), { webviewCspRule: '', webviewResourceRoot: 'vscode-resource:' });
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspRule: '',
+			webviewResourceRoot: 'vscode-resource:{{resource}}'
+		});
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
@@ -58,6 +61,7 @@ suite('ExtHostWebview', () => {
 			'vscode-resource:/Users/codey/file.html',
 			'Unix basic'
 		);
+
 		assert.strictEqual(
 			webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html#frag')).toString(),
 			'vscode-resource:/Users/codey/file.html#frag',
@@ -70,16 +74,59 @@ suite('ExtHostWebview', () => {
 			'Unix with encoding'
 		);
 
-		// TODO: Fix for #48403
-		// assert.strictEqual(
-		// 	webview.webview.toWebviewResource(URI.parse('file://localhost/Users/codey/file.html')).toString(),
-		// 	'vscode-resource:/Users/codey/file.html',
-		// 	'Unix should preserve authority'
-		// );
+		assert.strictEqual(
+			webview.webview.toWebviewResource(URI.parse('file://localhost/Users/codey/file.html')).toString(),
+			'vscode-resource://localhost/Users/codey/file.html',
+			'Unix should preserve authority'
+		);
 
 		assert.strictEqual(
 			webview.webview.toWebviewResource(URI.parse('file:///c:/codey/file.txt')).toString(),
 			'vscode-resource:/c%3A/codey/file.txt',
+			'Windows C drive'
+		);
+	});
+
+	test('toWebviewResource for web endpoint', () => {
+		const shape = createNoopMainThreadWebviews();
+
+		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
+			webviewCspRule: '',
+			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit{{resource}}`
+		});
+		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
+
+		function stripEndpointUuid(input: string) {
+			return input.replace(/^https:\/\/[^\.]+?\./, '');
+		}
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html')).toString()),
+			'webview.contoso.com/commit///Users/codey/file.html',
+			'Unix basic'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html#frag')).toString()),
+			'webview.contoso.com/commit///Users/codey/file.html#frag',
+			'Unix should preserve fragment'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
+			'webview.contoso.com/commit///Users/codey/f%20ile.html',
+			'Unix with encoding'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file://localhost/Users/codey/file.html')).toString()),
+			'webview.contoso.com/commit//localhost/Users/codey/file.html',
+			'Unix should preserve authority'
+		);
+
+		assert.strictEqual(
+			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///c:/codey/file.txt')).toString()),
+			'webview.contoso.com/commit///c%3A/codey/file.txt',
 			'Windows C drive'
 		);
 	});
