@@ -11,7 +11,6 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -29,7 +28,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
@@ -49,7 +47,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.add(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
-		this._toDispose.add(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request, this._configurationResolverService)));
+		this._toDispose.add(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.add(_terminalService.onInstanceRequestVirtualProcess(proxy => this._onTerminalRequestVirtualProcess(proxy)));
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
@@ -58,7 +56,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 		// ITerminalInstanceService listeners
 		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e, this._configurationResolverService)));
+			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
 		}
 
 		// Set initial ext host state
@@ -240,7 +238,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalMaximumDimensions(instance.id, instance.maxCols, instance.maxRows);
 	}
 
-	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest, configurationResolverService: IConfigurationResolverService): void {
+	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
 		// Only allow processes on remote ext hosts
 		if (!this._remoteAuthority) {
 			return;
@@ -260,7 +258,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			cwd: request.shellLaunchConfig.cwd,
 			env: request.shellLaunchConfig.env
 		};
-		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows, request.isWorkspaceShellAllowed, configurationResolverService);
+		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows, request.isWorkspaceShellAllowed);
 		request.proxy.onInput(data => this._proxy.$acceptProcessInput(request.proxy.terminalId, data));
 		request.proxy.onResize(dimensions => this._proxy.$acceptProcessResize(request.proxy.terminalId, dimensions.cols, dimensions.rows));
 		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));
@@ -343,9 +341,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest, configurationResolverService: IConfigurationResolverService): void {
+	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest): void {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestDefaultShellAndArgs(configurationResolverService).then(e => request(e.shell, e.args));
+			this._proxy.$requestDefaultShellAndArgs().then(e => request(e.shell, e.args));
 		}
 	}
 }

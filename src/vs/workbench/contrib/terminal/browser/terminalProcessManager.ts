@@ -185,7 +185,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
 		if (!shellLaunchConfig.executable) {
-			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs(this._configurationResolverService);
+			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs();
 			shellLaunchConfig.executable = defaultConfig.shell;
 			shellLaunchConfig.args = defaultConfig.args;
 		}

@@ -31,7 +31,7 @@ export interface ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 
-	getDefaultShellAndArgs(configurationResolverService?: IConfigurationResolverService, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
+	getDefaultShellAndArgs(platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 

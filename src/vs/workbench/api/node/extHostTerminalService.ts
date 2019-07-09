@@ -23,7 +23,6 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -359,7 +358,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return renderer;
 	}
 
-	public getDefaultShell(configProvider: ExtHostConfigProvider, configurationResolverService?: IConfigurationResolverService): string {
+	public getDefaultShell(configProvider: ExtHostConfigProvider, configurationResolverService: ExtHostVariableResolverService | undefined): string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -376,7 +375,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider, configurationResolverService: IConfigurationResolverService): string[] {
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider, configurationResolverService: ExtHostVariableResolverService | undefined): string[] {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -532,7 +531,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return env;
 	}
 
-	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean, configurationResolverService: IConfigurationResolverService): Promise<void> {
+	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -544,9 +543,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Merge in shell and args from settings
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(configProvider, configurationResolverService);
-			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, configurationResolverService);
+			shellLaunchConfig.executable = this.getDefaultShell(configProvider, variableResolver);
+			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, variableResolver);
 		}
 
 		// Get the initial cwd
@@ -565,8 +566,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			}
 		} as IWorkspaceFolder : null;
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
-		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
@@ -633,11 +632,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(configurationResolverService: IConfigurationResolverService): Promise<IShellAndArgsDto> {
+	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		return Promise.resolve({
-			shell: this.getDefaultShell(configProvider, configurationResolverService),
-			args: this._getDefaultShellArgs(configProvider, configurationResolverService)
+			shell: this.getDefaultShell(configProvider, variableResolver),
+			args: this._getDefaultShellArgs(configProvider, variableResolver)
 		});
 	}
 

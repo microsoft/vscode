@@ -169,7 +169,7 @@ export function getDefaultShell(
 	defaultShell: string,
 	isWoW64: boolean,
 	windir: string | undefined,
-	configurationResolverService?: IConfigurationResolverService,
+	configurationResolverService: IConfigurationResolverService | undefined,
 	platformOverride: platform.Platform = platform.platform,
 ): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
@@ -201,7 +201,7 @@ export function getDefaultShell(
 export function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
-	configurationResolverService?: IConfigurationResolverService,
+	configurationResolverService: IConfigurationResolverService | undefined,
 	platformOverride: platform.Platform = platform.platform,
 ): string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
