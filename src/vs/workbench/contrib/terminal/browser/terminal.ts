@@ -10,7 +10,6 @@ import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITermina
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
