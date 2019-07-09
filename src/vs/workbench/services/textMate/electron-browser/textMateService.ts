@@ -26,12 +26,44 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 	private readonly _worker: TextMateWorker;
 	private readonly _model: ITextModel;
+	private _isSynced: boolean;
 
 	constructor(worker: TextMateWorker, model: ITextModel) {
 		super();
 		this._worker = worker;
 		this._model = model;
+		this._isSynced = false;
 
+		this._register(this._model.onDidChangeAttached(() => this._onDidChangeAttached()));
+		this._onDidChangeAttached();
+
+		this._register(this._model.onDidChangeContent((e) => {
+			if (this._isSynced) {
+				this._worker.acceptModelChanged(this._model.uri.toString(), e);
+			}
+		}));
+
+		this._register(this._model.onDidChangeLanguage((e) => {
+			if (this._isSynced) {
+				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
+			}
+		}));
+	}
+
+	private _onDidChangeAttached(): void {
+		if (this._model.isAttachedToEditor()) {
+			if (!this._isSynced) {
+				this._beginSync();
+			}
+		} else {
+			if (this._isSynced) {
+				this._endSync();
+			}
+		}
+	}
+
+	private _beginSync(): void {
+		this._isSynced = true;
 		this._worker.acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
@@ -39,19 +71,15 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 			EOL: this._model.getEOL(),
 			languageId: this._model.getLanguageIdentifier().id,
 		});
+	}
 
-		this._register(this._model.onDidChangeContent((e) => {
-			this._worker.acceptModelChanged(this._model.uri.toString(), e);
-		}));
-
-		this._register(this._model.onDidChangeLanguage((e) => {
-			this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
-		}));
+	private _endSync(): void {
+		this._worker.acceptRemovedModel(this._model.uri.toString());
 	}
 
 	public dispose() {
 		super.dispose();
-		this._worker.acceptRemovedModel(this._model.uri.toString());
+		this._endSync();
 	}
 }
 

@@ -233,6 +233,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _onDidChangeOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
 	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
 
+	private readonly _onDidChangeAttached: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
+
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
 		return this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
@@ -555,10 +558,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._attachedEditorCount++;
 		// Warm up tokens for the editor
 		this._warmUpTokens();
+		if (this._attachedEditorCount === 1) {
+			this._onDidChangeAttached.fire(undefined);
+		}
 	}
 
 	public onBeforeDetached(): void {
 		this._attachedEditorCount--;
+		if (this._attachedEditorCount === 0) {
+			this._onDidChangeAttached.fire(undefined);
+		}
 	}
 
 	private _shouldAutoTokenize(): boolean {
