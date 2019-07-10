@@ -2619,7 +2619,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	autoClosingBrackets: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',
 	autoSurround: 'languageDefined',
-	autoIndent: true,
+	autoIndent: false,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
 	copyWithSyntaxHighlighting: true,
