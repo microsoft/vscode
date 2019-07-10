@@ -21,6 +21,39 @@ function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 
 const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
 
+export class MultilineTokensBuilder {
+
+	public readonly tokens: MultilineTokens[];
+
+	constructor() {
+		this.tokens = [];
+	}
+
+	public add(lineNumber: number, lineTokens: Uint32Array): void {
+		if (this.tokens.length > 0) {
+			const last = this.tokens[this.tokens.length - 1];
+			const lastLineNumber = last.startLineNumber + last.tokens.length - 1;
+			if (lastLineNumber + 1 === lineNumber) {
+				// append
+				last.tokens.push(lineTokens);
+				return;
+			}
+		}
+		this.tokens.push(new MultilineTokens(lineNumber, lineTokens));
+	}
+}
+
+export class MultilineTokens {
+
+	public readonly startLineNumber: number;
+	public readonly tokens: Uint32Array[];
+
+	constructor(lineNumber: number, tokens: Uint32Array) {
+		this.startLineNumber = lineNumber;
+		this.tokens = [tokens];
+	}
+}
+
 export class TokensStore {
 	private _lineTokens: (ArrayBuffer | null)[];
 	private _len: number;
@@ -65,7 +98,7 @@ export class TokensStore {
 
 		if (!tokens || tokens.length === 0) {
 			tokens = new Uint32Array(2);
-			tokens[0] = 0;
+			tokens[0] = lineTextLength;
 			tokens[1] = getDefaultMetadata(topLevelLanguageId);
 		}
 
