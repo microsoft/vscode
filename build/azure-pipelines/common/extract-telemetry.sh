@@ -6,6 +6,7 @@ git clone https://github.com/microsoft/vscode-telemetry-extractor.git
 cd vscode-telemetry-extractor
 git checkout 4e64f3de30f8fccb58ebdc0d85c4861a135d46cf
 npm i
+npm run compile
 cd src
 mkdir telemetry-sources
 cd telemetry-sources
