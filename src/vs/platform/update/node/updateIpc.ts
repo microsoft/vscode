@@ -12,8 +12,8 @@ export class UpdateChannel implements IServerChannel {
 	constructor(private service: IUpdateService) { }
 
 	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onStateChange': return this.service.onStateChange;
+		if (event == 'onStateChange') {
+			return this.service.onStateChange;
 		}
 
 		throw new Error(`Event not found: ${event}`);
