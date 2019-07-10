@@ -557,6 +557,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return offset;
 	}
 
+	getWorkbenchContainer(): HTMLElement {
+		return this.parent;
+	}
+
 	getWorkbenchElement(): HTMLElement {
 		return this.container;
 	}
