@@ -64,6 +64,7 @@ export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
 export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
+export const SHELL_CWD_INVALID_EXIT_CODE = -3;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 

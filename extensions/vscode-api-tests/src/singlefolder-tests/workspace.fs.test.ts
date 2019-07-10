@@ -83,7 +83,7 @@ suite('workspace-fs', () => {
 
 		// ensure non empty folder cannot be deleted
 		try {
-			await vscode.workspace.fs.delete(folder, { recursive: false });
+			await vscode.workspace.fs.delete(folder, { recursive: false, useTrash: false });
 			assert.ok(false);
 		} catch {
 			await vscode.workspace.fs.stat(folder);
@@ -100,7 +100,7 @@ suite('workspace-fs', () => {
 		}
 
 		// delete non empty folder with recursive-flag
-		await vscode.workspace.fs.delete(folder, { recursive: true });
+		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 
 		// esnure folder/file are gone
 		try {
@@ -114,6 +114,28 @@ suite('workspace-fs', () => {
 			assert.ok(false);
 		} catch {
 			assert.ok(true);
+		}
+	});
+
+	test('throws FileSystemError', async function () {
+
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.file(`/c468bf16-acfd-4591-825e-2bcebba508a3/71b1f274-91cb-4c19-af00-8495eaab4b73/4b60cb48-a6f2-40ea-9085-0936f4a8f59a.tx6`));
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(e instanceof vscode.FileSystemError);
+			assert.equal(e.name, vscode.FileSystemError.FileNotFound().name);
+		}
+	});
+
+	test('throws FileSystemError', async function () {
+
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.parse('foo:/bar'));
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(e instanceof vscode.FileSystemError);
+			assert.equal(e.name, vscode.FileSystemError.Unavailable().name);
 		}
 	});
 });

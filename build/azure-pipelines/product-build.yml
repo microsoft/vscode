@@ -129,9 +129,9 @@ jobs:
   steps:
   - template: sync-mooncake.yml
 
-# schedules:
-# - cron: "0 6 * * Mon-Fri"
-#   displayName: Mon-Fri at 6:00
-#   branches:
-#     include:
-#     - master
+schedules:
+- cron: "0 6 * * Mon-Fri"
+  displayName: Mon-Fri at 6:00
+  branches:
+    include:
+    - master

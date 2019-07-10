@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
@@ -68,20 +68,36 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			conptyInheritCursor: true
 		};
 
-		stat(shellLaunchConfig.executable!).then(stat => {
-			if (!stat.isFile() && !stat.isSymbolicLink()) {
-				return this._launchFailed(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
+		const cwdVerification = stat(cwd).then(async stat => {
+			if (!stat.isDirectory()) {
+				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
-			this.setupPtyProcess(shellLaunchConfig, options);
+		}, async err => {
+			if (err && err.code === 'ENOENT') {
+				// So we can include in the error message the specified CWD
+				shellLaunchConfig.cwd = cwd;
+				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
+			}
+		});
+
+		const exectuableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
+			if (!stat.isFile() && !stat.isSymbolicLink()) {
+				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
+			}
 		}, async (err) => {
 			if (err && err.code === 'ENOENT') {
 				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
 				const executable = await findExecutable(shellLaunchConfig.executable!, cwd);
 				if (!executable) {
-					return this._launchFailed(SHELL_PATH_INVALID_EXIT_CODE);
+					return Promise.reject(SHELL_PATH_INVALID_EXIT_CODE);
 				}
 			}
+		});
+
+		Promise.all([cwdVerification, exectuableVerification]).then(() => {
 			this.setupPtyProcess(shellLaunchConfig, options);
+		}).catch((exitCode: number) => {
+			return this._launchFailed(exitCode);
 		});
 	}
 

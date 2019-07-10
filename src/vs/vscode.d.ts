@@ -2903,7 +2903,7 @@ declare module 'vscode' {
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
 	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -6078,6 +6078,12 @@ declare module 'vscode' {
 		 * a specific extension runs remote or not.
 		 */
 		export const remoteName: string | undefined;
+
+		/**
+		 * The detected default shell for the extension host, this is overridden by the
+		 * `terminal.integrated.shell` setting for the extension host's platform.
+		 */
+		export const shell: string;
 
 		/**
 		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the

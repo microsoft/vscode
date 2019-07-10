@@ -40,7 +40,7 @@ suite('ExtHostConfiguration', function () {
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
 			folders: Object.create(null),
-			configurationScopes: {}
+			configurationScopes: []
 		};
 	}
 
@@ -138,7 +138,7 @@ suite('ExtHostConfiguration', function () {
 
 		testObject = all.getConfiguration('workbench');
 		actual = testObject.get('colorCustomizations')!;
-		delete actual['statusBar.foreground'];
+		actual['statusBar.foreground'] = undefined;
 		assert.equal(actual['statusBar.foreground'], undefined);
 		testObject = all.getConfiguration('workbench');
 		actual = testObject.get('colorCustomizations')!;
@@ -278,7 +278,7 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace: new ConfigurationModel({}, []),
 				folders: Object.create(null),
-				configurationScopes: {}
+				configurationScopes: []
 			}
 		);
 
@@ -326,7 +326,7 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace,
 				folders,
-				configurationScopes: {}
+				configurationScopes: []
 			}
 		);
 
@@ -402,7 +402,7 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap']),
 				workspace,
 				folders,
-				configurationScopes: {}
+				configurationScopes: []
 			}
 		);
 

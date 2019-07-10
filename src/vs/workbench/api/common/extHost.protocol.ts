@@ -59,6 +59,8 @@ export interface IEnvironment {
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
+	webviewResourceRoot: string;
+	webviewCspSource: string;
 }
 
 export interface IStaticWorkspaceData {
@@ -89,7 +91,7 @@ export interface IInitData {
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
-	configurationScopes: { [key: string]: ConfigurationScope };
+	configurationScopes: [string, ConfigurationScope | undefined][];
 }
 
 export interface IWorkspaceConfigurationChangeEventData {
@@ -533,7 +535,6 @@ export interface MainThreadEditorInsetsShape extends IDisposable {
 	$setHtml(handle: number, value: string): void;
 	$setOptions(handle: number, options: modes.IWebviewOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
-	$getResourceRoot(handle: number): Promise<string>;
 }
 
 export interface ExtHostEditorInsetsShape {
@@ -558,7 +559,6 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
-	$getResourceRoot(handle: WebviewPanelHandle): Promise<string>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
@@ -612,7 +612,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$stat(uri: UriComponents): Promise<files.IStat>;
 	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
 	$readFile(resource: UriComponents): Promise<VSBuffer>;
-	$writeFile(resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
+	$writeFile(resource: UriComponents, content: VSBuffer): Promise<void>;
 	$rename(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$copy(resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$mkdir(resource: UriComponents): Promise<void>;

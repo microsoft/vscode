@@ -7,6 +7,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/common/textFileS
 import { ITextFileService, IResourceEncodings, IResourceEncoding } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 
 export class BrowserTextFileService extends TextFileService {
 
@@ -16,17 +17,40 @@ export class BrowserTextFileService extends TextFileService {
 		}
 	};
 
-	protected beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		const veto = super.beforeShutdown(reason);
+	protected beforeShutdown(reason: ShutdownReason): boolean {
+		// Web: we cannot perform long running in the shutdown phase
+		// As such we need to check sync if there are any dirty files
+		// that have not been backed up yet and then prevent the shutdown
+		// if that is the case.
+		return this.doBeforeShutdownSync(reason);
+	}
 
-		// Web: there is no support for long running unload handlers. As such
-		// we need to return a direct boolean veto when we detect that there
-		// are dirty files around. 
-		if (veto instanceof Promise) {
-			return this.getDirty().length > 0;
+	private doBeforeShutdownSync(reason: ShutdownReason): boolean {
+		const dirtyResources = this.getDirty();
+		if (!dirtyResources.length) {
+			return false; // no dirty: no veto
 		}
 
-		return veto;
+		if (!this.isHotExitEnabled) {
+			return true; // dirty without backup: veto
+		}
+
+		for (const dirtyResource of dirtyResources) {
+			let hasBackup = false;
+
+			if (this.fileService.canHandleResource(dirtyResource)) {
+				const model = this.models.get(dirtyResource);
+				hasBackup = !!(model && model.hasBackup());
+			} else if (dirtyResource.scheme === Schemas.untitled) {
+				hasBackup = this.untitledEditorService.hasBackup(dirtyResource);
+			}
+
+			if (!hasBackup) {
+				return true; // dirty without backup: veto
+			}
+		}
+
+		return false; // dirty with backups: no veto
 	}
 }
 

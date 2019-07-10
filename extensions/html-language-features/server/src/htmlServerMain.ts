@@ -7,7 +7,7 @@ import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
 	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest, TextDocumentSyncKind
+	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest
 } from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
@@ -39,7 +39,7 @@ process.on('uncaughtException', (e: any) => {
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
+const documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);

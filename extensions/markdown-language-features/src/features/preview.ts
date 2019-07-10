@@ -16,6 +16,7 @@ import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { isMarkdownFile } from '../util/file';
 import { resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
+import { WebviewResourceProvider, normalizeResource } from '../util/resources';
 const localize = nls.loadMessageBundle();
 
 interface WebviewMessage {
@@ -388,31 +389,46 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private async doUpdate(): Promise<void> {
-		const resource = this._resource;
+		if (this._disposed) {
+			return;
+		}
+
+		const markdownResource = this._resource;
 
 		clearTimeout(this.throttleTimer);
 		this.throttleTimer = undefined;
 
 		let document: vscode.TextDocument;
 		try {
-			document = await vscode.workspace.openTextDocument(resource);
+			document = await vscode.workspace.openTextDocument(markdownResource);
 		} catch {
 			await this.showFileNotFoundError();
 			return;
 		}
 
-		const pendingVersion = new PreviewDocumentVersion(resource, document.version);
+		if (this._disposed) {
+			return;
+		}
+
+		const pendingVersion = new PreviewDocumentVersion(markdownResource, document.version);
 		if (!this.forceUpdate && this.currentVersion && this.currentVersion.equals(pendingVersion)) {
 			if (this.line) {
-				this.updateForView(resource, this.line);
+				this.updateForView(markdownResource, this.line);
 			}
 			return;
 		}
 		this.forceUpdate = false;
 
 		this.currentVersion = pendingVersion;
-		if (this._resource === resource) {
-			const content = await this._contentProvider.provideTextDocumentContent(document, await this.editor.webview.resourceRoot, this._previewConfigurations, this.line, this.state);
+		if (this._resource === markdownResource) {
+			const self = this;
+			const resourceProvider: WebviewResourceProvider = {
+				toWebviewResource: (resource) => {
+					return this.editor.webview.toWebviewResource(normalizeResource(markdownResource, resource));
+				},
+				get cspSource() { return self.editor.webview.cspSource; }
+			};
+			const content = await this._contentProvider.provideTextDocumentContent(document, resourceProvider, this._previewConfigurations, this.line, this.state);
 			// Another call to `doUpdate` may have happened.
 			// Make sure we are still updating for the correct document
 			if (this.currentVersion && this.currentVersion.equals(pendingVersion)) {
@@ -432,21 +448,19 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private static getLocalResourceRoots(
-		resource: vscode.Uri,
+		base: vscode.Uri,
 		contributions: MarkdownContributions
 	): ReadonlyArray<vscode.Uri> {
-		const baseRoots = contributions.previewResourceRoots;
+		const baseRoots = Array.from(contributions.previewResourceRoots);
 
-		const folder = vscode.workspace.getWorkspaceFolder(resource);
+		const folder = vscode.workspace.getWorkspaceFolder(base);
 		if (folder) {
-			return baseRoots.concat(folder.uri);
+			baseRoots.push(folder.uri);
+		} else if (!base.scheme || base.scheme === 'file') {
+			baseRoots.push(vscode.Uri.file(path.dirname(base.fsPath)));
 		}
 
-		if (!resource.scheme || resource.scheme === 'file') {
-			return baseRoots.concat(vscode.Uri.file(path.dirname(resource.fsPath)));
-		}
-
-		return baseRoots;
+		return baseRoots.map(root => normalizeResource(base, root));
 	}
 
 	private onDidScrollPreview(line: number) {

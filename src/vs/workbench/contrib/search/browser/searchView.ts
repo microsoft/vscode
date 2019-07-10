@@ -169,6 +169,7 @@ export class SearchView extends ViewletPanel {
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 
+		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
@@ -204,7 +205,6 @@ export class SearchView extends ViewletPanel {
 	}
 
 	renderBody(parent: HTMLElement): void {
-		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));

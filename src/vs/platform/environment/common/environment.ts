@@ -77,6 +77,9 @@ export interface ParsedArgs {
 	'js-flags'?: boolean;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
+
+	// Web flags
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -169,4 +172,5 @@ export interface IEnvironmentService {
 
 	webviewEndpoint?: string;
 	readonly webviewResourceRoot: string;
+	readonly webviewCspSource: string;
 }

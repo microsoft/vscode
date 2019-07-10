@@ -98,7 +98,7 @@ export function createApiFactory(
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
-	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol));
+	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment));
 	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
@@ -109,7 +109,7 @@ export function createApiFactory(
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
-	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors));
+	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
@@ -258,7 +258,6 @@ export function createApiFactory(
 				return extHostClipboard;
 			},
 			get shell() {
-				checkProposedApiEnabled(extension);
 				return extHostTerminalService.getDefaultShell(configProvider);
 			},
 			openExternal(uri: URI) {
@@ -850,6 +849,7 @@ export function createApiFactory(
 			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution: extHostTypes.CustomExecution,
+			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,

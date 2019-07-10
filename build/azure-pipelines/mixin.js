@@ -5,7 +5,6 @@
 
 'use strict';
 
-const gulp = require('gulp');
 const json = require('gulp-json-editor');
 const buffer = require('gulp-buffer');
 const filter = require('gulp-filter');
@@ -14,7 +13,7 @@ const vfs = require('vinyl-fs');
 const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 
-gulp.task('mixin', function () {
+function main() {
 	const quality = process.env['VSCODE_QUALITY'];
 
 	if (!quality) {
@@ -28,7 +27,6 @@ gulp.task('mixin', function () {
 	return vfs
 		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
 		.pipe(filter(f => !f.isDirectory()))
-		.pipe(filter(['**', '!**/package.json']))
 		.pipe(productJsonFilter)
 		.pipe(buffer())
 		.pipe(json(o => Object.assign({}, require('../product.json'), o)))
@@ -37,5 +35,7 @@ gulp.task('mixin', function () {
 			fancyLog(ansiColors.blue('[mixin]'), f.relative, ansiColors.green('✔︎'));
 			return f;
 		}))
-		.pipe(gulp.dest('.'));
-});
+		.pipe(vfs.dest('.'));
+}
+
+main();

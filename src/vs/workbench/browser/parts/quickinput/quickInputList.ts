@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';

@@ -546,12 +546,15 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async doMoveCopy(sourceProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<'move' | 'copy'> {
+		if (source.toString() === target.toString()) {
+			return mode; // simulate node.js behaviour here and do a no-op if paths match
+		}
 
 		// validation
-		const { exists, isCaseChange } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, overwrite);
+		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
 
-		// delete as needed
-		if (exists && !isCaseChange && overwrite) {
+		// delete as needed (unless target is same resurce with different path case)
+		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
 			await this.del(target, { recursive: true });
 		}
 
@@ -642,36 +645,45 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, overwrite?: boolean): Promise<{ exists: boolean, isCaseChange: boolean }> {
-		let isCaseChange = false;
-		let isPathCaseSensitive = false;
+	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<{ exists: boolean, isSameResourceWithDifferentPathCase: boolean }> {
+		let isSameResourceWithDifferentPathCase = false;
 
 		// Check if source is equal or parent to target (requires providers to be the same)
 		if (sourceProvider === targetProvider) {
 			const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-			isCaseChange = isPathCaseSensitive ? false : isEqual(source, target, true /* ignore case */);
-			if (!isCaseChange && isEqualOrParent(target, source, !isPathCaseSensitive)) {
-				throw new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal or parent of target path"));
+			if (!isPathCaseSensitive) {
+				isSameResourceWithDifferentPathCase = isEqual(source, target, true /* ignore case */);
+			}
+
+			if (isSameResourceWithDifferentPathCase && mode === 'copy') {
+				throw new Error(localize('unableToMoveCopyError1', "Unable to copy when source is same as target with different path case on a case insensitive file system"));
+			}
+
+			if (!isSameResourceWithDifferentPathCase && isEqualOrParent(target, source, !isPathCaseSensitive)) {
+				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source is parent of target"));
 			}
 		}
 
 		// Extra checks if target exists and this is not a rename
 		const exists = await this.exists(target);
-		if (exists && !isCaseChange) {
+		if (exists && !isSameResourceWithDifferentPathCase) {
 
 			// Bail out if target exists and we are not about to overwrite
 			if (!overwrite) {
-				throw new FileOperationError(localize('unableToMoveCopyError2', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+				throw new FileOperationError(localize('unableToMoveCopyError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
 			}
 
 			// Special case: if the target is a parent of the source, we cannot delete
 			// it as it would delete the source as well. In this case we have to throw
-			if (sourceProvider === targetProvider && isEqualOrParent(source, target, !isPathCaseSensitive)) {
-				throw new Error(localize('unableToMoveCopyError3', "Unable to move/copy. File would replace folder it is contained in."));
+			if (sourceProvider === targetProvider) {
+				const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+				if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
+					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy. File would replace folder it is contained in."));
+				}
 			}
 		}
 
-		return { exists, isCaseChange };
+		return { exists, isSameResourceWithDifferentPathCase };
 	}
 
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {

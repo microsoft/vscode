@@ -596,8 +596,39 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
 		setImmediate(async () => {
+
+			let recommendationsToSuggest: string[] = [];
+			const now = Date.now();
+			forEach(this._availableRecommendations, entry => {
+				let { key: pattern, value: ids } = entry;
+				if (match(pattern, model.uri.path)) {
+					for (let id of ids) {
+						if (caseInsensitiveGet(product.extensionImportantTips, id)) {
+							recommendationsToSuggest.push(id);
+						}
+						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
+						filedBasedRecommendation.recommendedTime = now;
+						if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === model.uri.toString())) {
+							filedBasedRecommendation.sources.push(model.uri);
+						}
+						this._fileBasedRecommendations[id.toLowerCase()] = filedBasedRecommendation;
+					}
+				}
+			});
+
+			this.storageService.store(
+				'extensionsAssistant/recommendations',
+				JSON.stringify(Object.keys(this._fileBasedRecommendations).reduce((result, key) => { result[key] = this._fileBasedRecommendations[key].recommendedTime; return result; }, {} as { [key: string]: any })),
+				StorageScope.GLOBAL
+			);
+
+			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+			if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
+				return;
+			}
+
 			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-			if (await this.promptRecommendedExtensionForFileType(model, installed)) {
+			if (await this.promptRecommendedExtensionForFileType(recommendationsToSuggest, installed)) {
 				return;
 			}
 
@@ -618,37 +649,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private async promptRecommendedExtensionForFileType(model: ITextModel, installed: ILocalExtension[]): Promise<boolean> {
-		let recommendationsToSuggest: string[] = [];
-		const now = Date.now();
-		forEach(this._availableRecommendations, entry => {
-			let { key: pattern, value: ids } = entry;
-			if (match(pattern, model.uri.path)) {
-				for (let id of ids) {
-					if (caseInsensitiveGet(product.extensionImportantTips, id)) {
-						recommendationsToSuggest.push(id);
-					}
-					const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
-					filedBasedRecommendation.recommendedTime = now;
-					if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === model.uri.toString())) {
-						filedBasedRecommendation.sources.push(model.uri);
-					}
-					this._fileBasedRecommendations[id.toLowerCase()] = filedBasedRecommendation;
-				}
-			}
-		});
-
-		this.storageService.store(
-			'extensionsAssistant/recommendations',
-			JSON.stringify(Object.keys(this._fileBasedRecommendations).reduce((result, key) => { result[key] = this._fileBasedRecommendations[key].recommendedTime; return result; }, {})),
-			StorageScope.GLOBAL
-		);
-
-		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-		if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
-			return false;
-		}
-
+	private async promptRecommendedExtensionForFileType(recommendationsToSuggest: string[], installed: ILocalExtension[]): Promise<boolean> {
 		const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
 		recommendationsToSuggest = recommendationsToSuggest.filter(id => {
@@ -934,7 +935,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
-		let storedRecommendationsJson = {};
+		let storedRecommendationsJson: { [key: string]: any } = {};
 		try {
 			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
 		} catch (e) {
@@ -979,7 +980,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (context.res.statusCode !== 200) {
 					return Promise.resolve(undefined);
 				}
-				return asJson(context).then((result) => {
+				return asJson(context).then((result: { [key: string]: any }) => {
 					if (!result) {
 						return;
 					}

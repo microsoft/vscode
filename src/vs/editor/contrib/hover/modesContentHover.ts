@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -204,7 +204,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 
-	private renderDisposable: IDisposable = Disposable.None;
+	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		editor: ICodeEditor,
@@ -247,8 +247,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	}
 
 	dispose(): void {
-		this.renderDisposable.dispose();
-		this.renderDisposable = Disposable.None;
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -316,8 +314,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
-		this.renderDisposable.dispose();
-		this.renderDisposable = Disposable.None;
+		this.renderDisposable.clear();
 		this._colorPicker = null;
 	}
 
@@ -440,7 +437,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable(colorListener, colorChangeListener, widget, ...markdownDisposeables);
+					this.renderDisposable.value = combinedDisposable(colorListener, colorChangeListener, widget, ...markdownDisposeables);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
@@ -558,7 +555,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 		}
-		this.renderDisposable = disposables;
+		this.renderDisposable.value = disposables;
 		return hoverElement;
 	}
 
