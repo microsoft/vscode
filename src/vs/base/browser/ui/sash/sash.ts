@@ -219,7 +219,7 @@ export class Sash extends Disposable {
 		];
 	
 		for (const iframe of iframeTags) {
-			iframe.style.pointerEvents = 'none';
+			iframe.style.pointerEvents = 'none'; // disable mouse events on iframes as long as we drag the sash
 		}
 
 		const mouseDownEvent = new StandardMouseEvent(e);
