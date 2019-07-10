@@ -48,6 +48,7 @@ export interface IView {
 	readonly onDidChange: Event<number | undefined>;
 	readonly priority?: LayoutPriority;
 	layout(size: number, orientation: Orientation): void;
+	setVisible?(visible: boolean): void;
 }
 
 interface ISashEvent {
@@ -87,6 +88,10 @@ abstract class ViewItem {
 		}
 
 		dom.toggleClass(this.container, 'visible', visible);
+
+		if (this.view.setVisible) {
+			this.view.setVisible(visible);
+		}
 	}
 
 	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
