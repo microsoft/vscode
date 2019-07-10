@@ -182,6 +182,12 @@ export interface VSBufferReadableStream {
 	destroy(): void;
 }
 
+export function isVSBufferReadableStream(obj: any): obj is VSBufferReadableStream {
+	const candidate: VSBufferReadableStream = obj;
+
+	return candidate && [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
+}
+
 /**
  * Helper to fully read a VSBuffer readable into a single buffer.
  */
