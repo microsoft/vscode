@@ -11,7 +11,7 @@ import { FileDeleteOptions, FileOverwriteOptions, FileType, IFileChange, IStat, 
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { DiskFileSystemProvider, IWatcherOptions } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider, IWatcherOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { posix } from 'vs/base/common/path';
