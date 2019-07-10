@@ -718,7 +718,7 @@ export class CommentNode extends Disposable {
 			this._reactionsActionBar.clear();
 		}
 
-		if (this.comment.commentReactions && this.comment.commentReactions.length) {
+		if (this.comment.commentReactions && this.comment.commentReactions.some(reaction => !!reaction.count)) {
 			this.createReactionsContainer(this._commentDetailsContainer);
 		}
 
