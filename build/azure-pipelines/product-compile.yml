@@ -82,7 +82,7 @@ steps:
 # inline small SVGs
 - script: |
     set -e
-    yarn gulp mixin
+    node build/azure-pipelines/mixin
   displayName: Mix in quality
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
