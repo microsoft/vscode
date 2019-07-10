@@ -13,20 +13,21 @@ declare var self: ServiceWorkerGlobalScope;
 //#region --- installing/activating
 
 self.addEventListener('install', event => {
-	const work: Promise<any>[] = [];
-	work.push(self.skipWaiting());
-	work.push(caches.delete(_cacheName)); // delete caches with each new version
-	event.waitUntil(Promise.all(work));
+	event.waitUntil((async () => {
+		await caches.delete(_cacheName); // delete caches with each new version
+		await self.skipWaiting();
+	}));
 });
 
 self.addEventListener('activate', event => {
-	const work: Promise<any>[] = [];
-	work.push(self.clients.claim()); // become available to all pages
-	if (self.registration.navigationPreload) {
-		// enable navigation preloads!
-		work.push(self.registration.navigationPreload.enable());
-	}
-	event.waitUntil(Promise.all(work));
+	event.waitUntil((async () => {
+		// (1) enable navigation preloads!
+		// (2) become available to all pages
+		if (self.registration.navigationPreload) {
+			await self.registration.navigationPreload.enable();
+		}
+		await self.clients.claim();
+	})());
 });
 
 //#endregion
@@ -51,11 +52,11 @@ self.addEventListener('fetch', async (event: FetchEvent) => {
 	if (uri.path !== _resourcePrefix) {
 		// not a /vscode-resources/fetch-url and therefore
 		// not (yet?) interesting for us
-		respondWithDefault(event);
+		event.respondWith(respondWithDefault(event));
 		return;
 	}
 
-	respondWithResource(event, uri);
+	event.respondWith(respondWithResource(event, uri));
 });
 
 async function respondWithDefault(event: FetchEvent): Promise<Response> {
