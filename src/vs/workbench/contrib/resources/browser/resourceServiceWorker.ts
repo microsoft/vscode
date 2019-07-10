@@ -13,17 +13,20 @@ declare var self: ServiceWorkerGlobalScope;
 //#region --- installing/activating
 
 self.addEventListener('install', event => {
-	event.waitUntil(self.skipWaiting());
+	const work: Promise<any>[] = [];
+	work.push(self.skipWaiting());
+	work.push(caches.delete(_cacheName)); // delete caches with each new version
+	event.waitUntil(Promise.all(work));
 });
 
 self.addEventListener('activate', event => {
-
-	event.waitUntil((async () => {
-		if (self.registration.navigationPreload) {
-			await self.registration.navigationPreload.enable(); // Enable navigation preloads!
-		}
-		await self.clients.claim(); // Become available to all pages
-	})());
+	const work: Promise<any>[] = [];
+	work.push(self.clients.claim()); // become available to all pages
+	if (self.registration.navigationPreload) {
+		// enable navigation preloads!
+		work.push(self.registration.navigationPreload.enable());
+	}
+	event.waitUntil(Promise.all(work));
 });
 
 //#endregion
