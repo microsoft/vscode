@@ -9,10 +9,9 @@ import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/commo
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
+import { IRequestService, IRequestOptions, IRequestContext, asJson, asText } from 'vs/platform/request/common/request';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
@@ -23,6 +22,8 @@ import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -336,7 +337,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -555,7 +557,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		} : extension.assets.download;
 
 		return this.getAsset(downloadAsset)
-			.then(context => download(zipPath, context))
+			.then(context => this.fileService.writeFile(URI.file(zipPath), context.stream))
 			.then(() => log(new Date().getTime() - startTime))
 			.then(() => zipPath);
 	}

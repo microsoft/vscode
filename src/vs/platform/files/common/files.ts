@@ -105,7 +105,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Moves the file/folder to a new path identified by the resource.

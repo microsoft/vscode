@@ -32,8 +32,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getHashedRemotesFromUri } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { asJson } from 'vs/base/node/request';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { isNumber } from 'vs/base/common/types';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
