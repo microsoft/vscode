@@ -1772,6 +1772,24 @@ export class CustomExecution implements vscode.CustomExecution {
 	}
 }
 
+export class CustomExecution2 implements vscode.CustomExecution2 {
+	private _callback: () => Thenable<vscode.TerminalVirtualProcess>;
+	constructor(callback: () => Thenable<vscode.TerminalVirtualProcess>) {
+		this._callback = callback;
+	}
+	public computeId(): string {
+		return 'customExecution' + generateUuid();
+	}
+
+	public set callback(value: () => Thenable<vscode.TerminalVirtualProcess>) {
+		this._callback = value;
+	}
+
+	public get callback(): (() => Thenable<vscode.TerminalVirtualProcess>) {
+		return this._callback;
+	}
+}
+
 @es5ClassCompat
 export class Task implements vscode.Task2 {
 
@@ -1785,7 +1803,7 @@ export class Task implements vscode.Task2 {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
+	private _execution: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2 | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1794,8 +1812,8 @@ export class Task implements vscode.Task2 {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1907,18 +1925,18 @@ export class Task implements vscode.Task2 {
 	}
 
 	get execution(): ProcessExecution | ShellExecution | undefined {
-		return (this._execution instanceof CustomExecution) ? undefined : this._execution;
+		return ((this._execution instanceof CustomExecution) || (this._execution instanceof CustomExecution2)) ? undefined : this._execution;
 	}
 
 	set execution(value: ProcessExecution | ShellExecution | undefined) {
 		this.execution2 = value;
 	}
 
-	get execution2(): ProcessExecution | ShellExecution | CustomExecution | undefined {
+	get execution2(): ProcessExecution | ShellExecution | CustomExecution | CustomExecution2 | undefined {
 		return this._execution;
 	}
 
-	set execution2(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
+	set execution2(value: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2 | undefined) {
 		if (value === null) {
 			value = undefined;
 		}

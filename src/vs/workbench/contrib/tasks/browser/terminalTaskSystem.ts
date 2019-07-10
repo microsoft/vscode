@@ -471,7 +471,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const resolvedVariables = this.resolveVariablesFromSet(this.currentTask.systemInfo, this.currentTask.workspaceFolder!, task, variables);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			const isCustomExecution = task.command.runtime === RuntimeType.CustomExecution;
+			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution) || (task.command.runtime === RuntimeType.CustomExecution2);
 			if (resolvedVariables && task.command && task.command.runtime && (isCustomExecution || task.command.name)) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(this.currentTask.workspaceFolder!, this.currentTask.systemInfo, resolvedVariables.variables, this.configurationResolverService));
@@ -845,7 +845,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let commandExecutable = task.command.runtime !== RuntimeType.CustomExecution ? CommandString.value(command) : undefined;
+			let commandExecutable = ((task.command.runtime !== RuntimeType.CustomExecution) && (task.command.runtime !== RuntimeType.CustomExecution2)) ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
 				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
@@ -919,6 +919,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this.currentTask.shellLaunchConfig = {
 				isRendererOnly: true,
+				waitOnExit,
+				name: this.createTerminalName(task),
+				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
+			};
+		} else if (task.command.runtime === RuntimeType.CustomExecution2) {
+			this.currentTask.shellLaunchConfig = {
+				isVirtualProcess: true,
 				waitOnExit,
 				name: this.createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
@@ -1138,7 +1145,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
 		// The custom execution should have everything it needs already as it provided
 		// the callback.
-		if (command.runtime === RuntimeType.CustomExecution) {
+		if ((command.runtime === RuntimeType.CustomExecution) || (command.runtime === RuntimeType.CustomExecution2)) {
 			return;
 		}
 

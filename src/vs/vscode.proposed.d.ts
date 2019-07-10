@@ -1394,6 +1394,11 @@ declare module 'vscode' {
 		 * Implement to handle when the terminal shuts down by an act of the user.
 		 */
 		shutdown?(): void;
+
+		/**
+		 * Implement to handle when the terminal is ready to start firing events.
+		 */
+		start?(): void;
 	}
 
 	//#endregion
@@ -1495,6 +1500,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution2 {
+		/**
+		 * @param process The [TerminalVirtualProcess](#TerminalVirtualProcess) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>);
+
+		/**
+		 * The callback used to execute the task. Cancellation should be handled using the shutdown method of [TerminalVirtualProcess](#TerminalVirtualProcess).
+		 * When the task is complete, onDidExit should be fired on the TerminalVirtualProcess with the exit code with '0' for success and a non-zero value for failure.
+		 */
+		callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>;
+	}
+
+	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
@@ -1510,12 +1532,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2;
 	}
 
 	//#region Tasks
