@@ -36,7 +36,7 @@
 			class View {
 				static ID = 0;
 
-				constructor() {
+				constructor(snap) {
 					this.element = document.createElement('div');
 					this.element.className = 'view';
 					this.element.style.backgroundColor = `hsl(${rand(1, 360)}, 50%, 70%)`;
@@ -44,7 +44,7 @@
 					this.minimumSize = 100;
 					this.maximumSize = Number.POSITIVE_INFINITY;
 					this.onDidChange = Event.None;
-					this.snap = true;
+					this.snap = snap;
 				}
 
 				layout(size, orientation) {
@@ -56,9 +56,9 @@
 			const splitview = new SplitView(container, {});
 			splitview.layout(600);
 
-			const view1 = new View();
-			const view2 = new View();
-			const view3 = new View();
+			const view1 = new View(true);
+			const view2 = new View(false);
+			const view3 = new View(true);
 
 			splitview.addView(view1, Sizing.Distribute);
 			splitview.addView(view2, Sizing.Distribute);
