@@ -12,9 +12,9 @@ import { rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 

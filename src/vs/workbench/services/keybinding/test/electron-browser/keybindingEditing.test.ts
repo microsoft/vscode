@@ -41,9 +41,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestTextFileService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { parseArgs } from 'vs/platform/environment/node/argv';

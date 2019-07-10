@@ -8,7 +8,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService, NullFileSystemProvider } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -31,6 +31,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 
 export class TestEditorControl extends BaseEditor {
 
