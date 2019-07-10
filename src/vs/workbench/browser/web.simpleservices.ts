@@ -62,6 +62,10 @@ export class SimpleClipboardService implements IClipboardService {
 		return undefined;
 	}
 
+	readTextSync(): string | undefined {
+		return undefined;
+	}
+
 	readFindText(): string {
 		// @ts-ignore
 		return undefined;
