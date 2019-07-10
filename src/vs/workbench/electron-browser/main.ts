@@ -39,9 +39,9 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-browser/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
