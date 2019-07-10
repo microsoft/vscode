@@ -20,7 +20,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -1540,6 +1540,48 @@ suite('Disk File Service', () => {
 		const newContent = content.toString() + content.toString();
 
 		const fileStat = await service.writeFile(resource, toLineByLineReadable(newContent));
+		assert.equal(fileStat.name, 'lorem.txt');
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (large file - stream) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		const fileStat = await service.writeFile(resource, bufferToStream(VSBuffer.fromString(newContent)));
+		assert.equal(fileStat.name, 'lorem.txt');
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (stream) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+		await service.writeFile(resource, bufferToStream(VSBuffer.fromString(newContent)));
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (large file - stream) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		const fileStat = await service.writeFile(resource, bufferToStream(VSBuffer.fromString(newContent)));
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
