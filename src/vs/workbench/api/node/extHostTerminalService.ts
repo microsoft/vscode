@@ -364,7 +364,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return renderer;
 	}
 
-	public getDefaultShell(configProvider: ExtHostConfigProvider, configurationResolverService: ExtHostVariableResolverService | undefined): string {
+	public getDefaultShell(configProvider: ExtHostConfigProvider): string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -377,11 +377,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
-			configurationResolverService
+			this._variableResolver
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider, configurationResolverService: ExtHostVariableResolverService | undefined): string[] {
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -389,7 +389,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, configurationResolverService);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._variableResolver);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -551,8 +551,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(configProvider, this._variableResolver);
-			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, this._variableResolver);
+			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
+			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
 		}
 
 		// Get the initial cwd
@@ -639,11 +639,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		return Promise.resolve({
-			shell: this.getDefaultShell(configProvider, variableResolver),
-			args: this._getDefaultShellArgs(configProvider, variableResolver)
+			shell: this.getDefaultShell(configProvider),
+			args: this._getDefaultShellArgs(configProvider)
 		});
 	}
 
