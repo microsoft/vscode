@@ -13,13 +13,13 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -36,7 +36,7 @@ import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/no
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
-import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
+import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -217,9 +217,6 @@ export class Workbench extends Layout {
 			this.dispose();
 		}));
 
-		// Storage
-		this._register(storageService.onWillSaveState(() => saveFontInfo(storageService)));
-
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
 	}
@@ -241,6 +238,37 @@ export class Workbench extends Layout {
 		if (fontAliasingValues.some(option => option === aliasing)) {
 			addClass(this.container, `monaco-font-aliasing-${aliasing}`);
 		}
+	}
+
+	private warmUpFontCache(storageService: IStorageService, configurationService: IConfigurationService): void {
+		const key = 'editorFontInfo';
+
+		// Restore (native: use storage service, web: use browser specific local storage)
+		const storedFontInfoRaw = isNative ? storageService.get(key, StorageScope.GLOBAL) : window.localStorage.getItem(key);
+		if (storedFontInfoRaw) {
+			try {
+				const storedFontInfo = JSON.parse(storedFontInfoRaw);
+				if (Array.isArray(storedFontInfo)) {
+					restoreFontInfo(storedFontInfo);
+				}
+			} catch (err) {
+				/* ignore */
+			}
+		}
+
+		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+
+		// Persist on shutdown (native: use storage service, web: use browser specific local storage)
+		this._register(storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				const serializedFontInfo = serializeFontInfo();
+				if (serializedFontInfo) {
+					const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
+
+					isNative ? storageService.store(key, serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem(key, serializedFontInfoRaw);
+				}
+			}
+		}));
 	}
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -268,8 +296,7 @@ export class Workbench extends Layout {
 		this.setFontAliasing(configurationService);
 
 		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+		this.warmUpFontCache(storageService, configurationService);
 
 		// Create Parts
 		[
