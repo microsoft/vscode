@@ -9,7 +9,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { NullTelemetryService, ITelemetryAppender, NullAppender, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
