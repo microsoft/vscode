@@ -28,6 +28,7 @@ import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
 import { ManagementConnection, RemoteExtensionManagementServer } from 'vs/server/remoteExtensionManagement';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Schemas } from 'vs/base/common/network';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
 
@@ -320,7 +321,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		// check for workspace argument
 		if (queryWorkspace || !queryFolder /* queries always have higher priority */) {
-			const workspaceCandidate: string = queryWorkspace || this._environmentService.args['workspace'];
+			let workspaceCandidate: string;
+			if (queryWorkspace) {
+				workspaceCandidate = URI.from({ scheme: Schemas.file, path: queryWorkspace }).fsPath;
+			} else {
+				workspaceCandidate = this._environmentService.args['workspace'];
+			}
+
 			if (workspaceCandidate && workspaceCandidate.length > 0) {
 				const workspace = sanitizeFilePath(workspaceCandidate, cwd);
 				if (await util.promisify(fs.exists)(workspace)) {
@@ -330,7 +337,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		}
 
 		// check for folder argument
-		const folderCandidate: string = queryFolder || this._environmentService.args['folder'];
+		let folderCandidate: string;
+		if (queryFolder) {
+			folderCandidate = URI.from({ scheme: Schemas.file, path: queryFolder }).fsPath;
+		} else {
+			folderCandidate = this._environmentService.args['folder'];
+		}
+
 		if (folderCandidate && folderCandidate.length > 0) {
 			const folder = sanitizeFilePath(folderCandidate, cwd);
 			if (await util.promisify(fs.exists)(folder)) {
