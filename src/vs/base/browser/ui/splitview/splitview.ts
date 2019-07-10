@@ -67,12 +67,35 @@ abstract class ViewItem {
 		return this._size;
 	}
 
-	get minimumSize(): number { return this.view.minimumSize; }
-	get maximumSize(): number { return this.view.maximumSize; }
-	get onDidChange(): Event<number | undefined> { return this.view.onDidChange; }
+	private cachedSize: number | undefined = undefined;
+
+	get visible(): boolean {
+		return typeof this.cachedSize === 'undefined';
+	}
+
+	set visible(visible: boolean) {
+		if (visible === this.visible) {
+			return;
+		}
+
+		if (visible) {
+			this.size = this.cachedSize!;
+			this.cachedSize = undefined;
+		} else {
+			this.cachedSize = this.size;
+			this.size = 0;
+		}
+
+		dom.toggleClass(this.container, 'visible', visible);
+	}
+
+	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
+	get maximumSize(): number { return this.visible ? this.view.maximumSize : 0; }
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
 
-	constructor(protected container: HTMLElement, private view: IView, private _size: number, private disposable: IDisposable) { }
+	constructor(protected container: HTMLElement, private view: IView, private _size: number, private disposable: IDisposable) {
+		dom.addClass(container, 'visible');
+	}
 
 	abstract layout(): void;
 
@@ -358,6 +381,27 @@ export class SplitView extends Disposable {
 		this.addView(fromView, toSize, to);
 	}
 
+	isViewVisible(index: number): boolean {
+		if (index < 0 || index >= this.viewItems.length) {
+			throw new Error('Index out of bounds');
+		}
+
+		const viewItem = this.viewItems[index];
+		return viewItem.visible;
+	}
+
+	setViewVisible(index: number, visible: boolean): void {
+		if (index < 0 || index >= this.viewItems.length) {
+			throw new Error('Index out of bounds');
+		}
+
+		const viewItem = this.viewItems[index];
+		viewItem.visible = visible;
+
+		this.distributeEmptySpace(index);
+		this.layoutViews();
+	}
+
 	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 		const lowPriorityIndexes = typeof lowPriorityIndex === 'number' ? [lowPriorityIndex] : undefined;
@@ -611,12 +655,18 @@ export class SplitView extends Disposable {
 		return delta;
 	}
 
-	private distributeEmptySpace(): void {
-		let contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+	private distributeEmptySpace(lowPriorityIndex?: number): void {
+		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 		let emptyDelta = this.size - contentSize;
 
-		for (let i = this.viewItems.length - 1; emptyDelta !== 0 && i >= 0; i--) {
-			const item = this.viewItems[i];
+		const indexes = range(this.viewItems.length - 1, -1);
+
+		if (typeof lowPriorityIndex === 'number') {
+			pushToEnd(indexes, lowPriorityIndex);
+		}
+
+		for (let i = 0; emptyDelta !== 0 && i < indexes.length; i++) {
+			const item = this.viewItems[indexes[i]];
 			const size = clamp(item.size + emptyDelta, item.minimumSize, item.maximumSize);
 			const viewDelta = size - item.size;
 
