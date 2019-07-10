@@ -340,7 +340,7 @@ class Extensions extends Disposable {
 
 	async queryInstalled(): Promise<IExtension[]> {
 		const installed = await this.server.extensionManagementService.getInstalled();
-		const byId = index(this.installed, e => e.identifier.id);
+		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
 		this.installed = installed.map(local => {
 			const extension = byId[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, this.server, local, undefined, this.telemetryService, this.logService, this.fileService);
 			extension.local = local;
@@ -861,7 +861,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
 		} finally {
 			this.installing = this.installing.filter(e => e !== extension);
-			this._onChange.fire(extension);
+			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
 		}
 	}
 

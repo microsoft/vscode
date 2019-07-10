@@ -69,9 +69,9 @@ suite('SnippetSession', function () {
 
 	});
 
-	test('text edits & selection', async function () {
+	test('text edits & selection', function () {
 		const session = new SnippetSession(editor, 'foo${1:bar}foo$0');
-		await session.insert();
+		session.insert();
 		assert.equal(editor.getModel()!.getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
 
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
@@ -79,19 +79,19 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
-	test('text edit with reversed selection', async function () {
+	test('text edit with reversed selection', function () {
 
 		const session = new SnippetSession(editor, '${1:bar}$0');
 		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 1, 1, 1)]);
 
-		await session.insert();
+		session.insert();
 		assert.equal(model.getValue(), 'barfunction foo() {\n    barconsole.log(a);\n}');
 		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(1, 1, 1, 4));
 	});
 
-	test('snippets, repeated tabstops', async function () {
+	test('snippets, repeated tabstops', function () {
 		const session = new SnippetSession(editor, '${1:abc}foo${1:abc}$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor,
 			new Selection(1, 1, 1, 4), new Selection(1, 7, 1, 10),
 			new Selection(2, 5, 2, 8), new Selection(2, 11, 2, 14),
@@ -103,17 +103,17 @@ suite('SnippetSession', function () {
 		);
 	});
 
-	test('snippets, just text', async function () {
+	test('snippets, just text', function () {
 		const session = new SnippetSession(editor, 'foobar');
-		await session.insert();
+		session.insert();
 		assert.equal(model.getValue(), 'foobarfunction foo() {\n    foobarconsole.log(a);\n}');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 	});
 
-	test('snippets, selections and new text with newlines', async () => {
+	test('snippets, selections and new text with newlines', () => {
 
 		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
-		await session.insert();
+		session.insert();
 
 		assert.equal(editor.getModel()!.getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
 
@@ -123,18 +123,18 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 5, 6, 5));
 	});
 
-	test('snippets, newline NO whitespace adjust', async () => {
+	test('snippets, newline NO whitespace adjust', () => {
 
 		editor.setSelection(new Selection(2, 5, 2, 5));
-		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', 0, 0, false);
-		await session.insert();
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false });
+		session.insert();
 		assert.equal(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
 
-	test('snippets, selections -> next/prev', async () => {
+	test('snippets, selections -> next/prev', () => {
 
 		const session = new SnippetSession(editor, 'f$1oo${2:bar}foo$0');
-		await session.insert();
+		session.insert();
 
 		// @ $2
 		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(2, 6, 2, 6));
@@ -152,9 +152,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
-	test('snippets, selections & typing', async function () {
+	test('snippets, selections & typing', function () {
 		const session = new SnippetSession(editor, 'f${1:oo}_$2_$0');
-		await session.insert();
+		session.insert();
 
 		editor.trigger('test', 'type', { text: 'X' });
 		session.next();
@@ -174,29 +174,29 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
-	test('snippets, insert shorter snippet into non-empty selection', async function () {
+	test('snippets, insert shorter snippet into non-empty selection', function () {
 		model.setValue('foo_bar_foo');
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
-		await (new SnippetSession(editor, 'x$0').insert());
+		new SnippetSession(editor, 'x$0').insert();
 		assert.equal(model.getValue(), 'x_bar_x');
 		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(1, 8, 1, 8));
 	});
 
-	test('snippets, insert longer snippet into non-empty selection', async function () {
+	test('snippets, insert longer snippet into non-empty selection', function () {
 		model.setValue('foo_bar_foo');
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
-		await (new SnippetSession(editor, 'LONGER$0').insert());
+		new SnippetSession(editor, 'LONGER$0').insert();
 		assert.equal(model.getValue(), 'LONGER_bar_LONGER');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(1, 18, 1, 18));
 	});
 
-	test('snippets, don\'t grow final tabstop', async function () {
+	test('snippets, don\'t grow final tabstop', function () {
 		model.setValue('foo_zzz_foo');
 		editor.setSelection(new Selection(1, 5, 1, 8));
 		const session = new SnippetSession(editor, '$1bar$0');
-		await session.insert();
+		session.insert();
 
 		assertSelections(editor, new Selection(1, 5, 1, 5));
 		editor.trigger('test', 'type', { text: 'foo-' });
@@ -213,10 +213,10 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 15, 1, 15));
 	});
 
-	test('snippets, don\'t merge touching tabstops 1/2', async function () {
+	test('snippets, don\'t merge touching tabstops 1/2', function () {
 
 		const session = new SnippetSession(editor, '$1$2$3$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
 		session.next();
@@ -251,10 +251,10 @@ suite('SnippetSession', function () {
 		session.prev();
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 	});
-	test('snippets, don\'t merge touching tabstops 2/2', async function () {
+	test('snippets, don\'t merge touching tabstops 2/2', function () {
 
 		const session = new SnippetSession(editor, '$1$2$3$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
 		editor.trigger('test', 'type', { text: '111' });
@@ -271,9 +271,9 @@ suite('SnippetSession', function () {
 		assert.equal(session.isAtLastPlaceholder, true);
 	});
 
-	test('snippets, gracefully move over final tabstop', async function () {
+	test('snippets, gracefully move over final tabstop', function () {
 		const session = new SnippetSession(editor, '${1}bar$0');
-		await session.insert();
+		session.insert();
 
 		assert.equal(session.isAtLastPlaceholder, false);
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
@@ -287,9 +287,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 	});
 
-	test('snippets, overwriting nested placeholder', async function () {
+	test('snippets, overwriting nested placeholder', function () {
 		const session = new SnippetSession(editor, 'log(${1:"$2"});$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor, new Selection(1, 5, 1, 7), new Selection(2, 9, 2, 11));
 
 		editor.trigger('test', 'type', { text: 'XXX' });
@@ -304,9 +304,9 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
-	test('snippets, selections and snippet ranges', async function () {
+	test('snippets, selections and snippet ranges', function () {
 		const session = new SnippetSession(editor, '${1:foo}farboo${2:bar}$0');
-		await session.insert();
+		session.insert();
 		assert.equal(model.getValue(), 'foofarboobarfunction foo() {\n    foofarboobarconsole.log(a);\n}');
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
 
@@ -336,18 +336,18 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 13, 1, 13), new Selection(2, 17, 2, 17));
 	});
 
-	test('snippets, nested sessions', async function () {
+	test('snippets, nested sessions', function () {
 
 		model.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		const first = new SnippetSession(editor, 'foo${2:bar}foo$0');
-		await first.insert();
+		first.insert();
 		assert.equal(model.getValue(), 'foobarfoo');
 		assertSelections(editor, new Selection(1, 4, 1, 7));
 
 		const second = new SnippetSession(editor, 'ba${1:zzzz}$0');
-		await second.insert();
+		second.insert();
 		assert.equal(model.getValue(), 'foobazzzzfoo');
 		assertSelections(editor, new Selection(1, 6, 1, 10));
 
@@ -360,10 +360,10 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 13, 1, 13));
 	});
 
-	test('snippets, typing at final tabstop', async function () {
+	test('snippets, typing at final tabstop', function () {
 
 		const session = new SnippetSession(editor, 'farboo$0');
-		await session.insert();
+		session.insert();
 		assert.equal(session.isAtLastPlaceholder, true);
 		assert.equal(session.isSelectionWithinPlaceholders(), false);
 
@@ -371,11 +371,11 @@ suite('SnippetSession', function () {
 		assert.equal(session.isSelectionWithinPlaceholders(), false);
 	});
 
-	test('snippets, typing at beginning', async function () {
+	test('snippets, typing at beginning', function () {
 
 		editor.setSelection(new Selection(1, 2, 1, 2));
 		const session = new SnippetSession(editor, 'farboo$0');
-		await session.insert();
+		session.insert();
 
 		editor.setSelection(new Selection(1, 2, 1, 2));
 		assert.equal(session.isSelectionWithinPlaceholders(), false);
@@ -389,11 +389,11 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 11, 1, 11));
 	});
 
-	test('snippets, typing with nested placeholder', async function () {
+	test('snippets, typing with nested placeholder', function () {
 
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor, new Selection(1, 6, 1, 15));
 
 		session.next();
@@ -407,22 +407,22 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 12));
 	});
 
-	test('snippets, snippet with variables', async function () {
+	test('snippets, snippet with variables', function () {
 		const session = new SnippetSession(editor, '@line=$TM_LINE_NUMBER$0');
-		await session.insert();
+		session.insert();
 
 		assert.equal(model.getValue(), '@line=1function foo() {\n    @line=2console.log(a);\n}');
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
-	test('snippets, merge', async function () {
+	test('snippets, merge', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0');
-		await session.insert();
+		session.insert();
 		session.next();
 		assertSelections(editor, new Selection(1, 9, 1, 15));
 
-		await session.merge('really ${1:nested}$0');
+		session.merge('really ${1:nested}$0');
 		assertSelections(editor, new Selection(1, 16, 1, 22));
 
 		session.next();
@@ -445,11 +445,11 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
 
-	test('snippets, transform', async function () {
+	test('snippets, transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1/foo/bar/}$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1));
 
 		editor.trigger('test', 'type', { text: 'foo' });
@@ -460,11 +460,11 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 4, 1, 4));
 	});
 
-	test('snippets, multi placeholder same index one transform', async function () {
+	test('snippets, multi placeholder same index one transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '$1 baz ${1/foo/bar/}$0');
-		await session.insert();
+		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 6, 1, 6));
 
 		editor.trigger('test', 'type', { text: 'foo' });
@@ -475,11 +475,11 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 12, 1, 12));
 	});
 
-	test('snippets, transform example', async function () {
+	test('snippets, transform example', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
-		await session.insert();
+		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
 		editor.trigger('test', 'type', { text: 'clk' });
@@ -497,7 +497,7 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
-	test('snippets, transform with indent', async function () {
+	test('snippets, transform with indent', function () {
 		const snippet = [
 			'private readonly ${1} = new Emitter<$2>();',
 			'readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event;',
@@ -521,7 +521,7 @@ suite('SnippetSession', function () {
 		editor.setSelection(new Selection(2, 2, 2, 2));
 
 		const session = new SnippetSession(editor, snippet);
-		await session.insert();
+		session.insert();
 
 		assertSelections(editor, new Selection(2, 19, 2, 19), new Selection(3, 11, 3, 11), new Selection(3, 28, 3, 28));
 		editor.trigger('test', 'type', { text: '_prop' });
@@ -537,11 +537,11 @@ suite('SnippetSession', function () {
 
 	});
 
-	test('snippets, transform example hit if', async function () {
+	test('snippets, transform example hit if', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
-		await session.insert();
+		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
 		editor.trigger('test', 'type', { text: 'clk' });
@@ -560,36 +560,36 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
-	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', async function () {
+	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, 'test ${1:replaceme}');
-		await session.insert();
+		session.insert();
 
 		editor.trigger('test', 'type', { text: '1' });
 		editor.trigger('test', 'type', { text: '\n' });
 		assert.equal(editor.getModel()!.getValue(), 'test 1\n');
 
-		await session.merge('test ${1:replaceme}');
+		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '2' });
 		editor.trigger('test', 'type', { text: '\n' });
 
 		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\n');
 
-		await session.merge('test ${1:replaceme}');
+		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '3' });
 		editor.trigger('test', 'type', { text: '\n' });
 
 		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\n');
 
-		await session.merge('test ${1:replaceme}');
+		session.merge('test ${1:replaceme}');
 		editor.trigger('test', 'type', { text: '4' });
 		editor.trigger('test', 'type', { text: '\n' });
 
 		assert.equal(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
 	});
 
-	test('Snippet variable text isn\'t whitespace normalised, #31124', async function () {
+	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
 		editor.getModel()!.setValue([
 			'start',
 			'\t\t-one',
@@ -600,7 +600,7 @@ suite('SnippetSession', function () {
 		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
-		await (new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert());
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
 
 		let expected = [
 			'start',
@@ -623,7 +623,7 @@ suite('SnippetSession', function () {
 		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
-		await (new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert());
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
 
 		expected = [
 			'start',
@@ -637,7 +637,7 @@ suite('SnippetSession', function () {
 		assert.equal(editor.getModel()!.getValue(), expected);
 	});
 
-	test('Selecting text from left to right, and choosing item messes up code, #31199', async function () {
+	test('Selecting text from left to right, and choosing item messes up code, #31199', function () {
 		const model = editor.getModel()!;
 		model.setValue('console.log');
 
@@ -648,7 +648,7 @@ suite('SnippetSession', function () {
 		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
-		await (new SnippetSession(editor, 'far', 3, 0).insert());
+		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true }).insert();
 		assert.equal(model.getValue(), 'console.far');
 	});
 });

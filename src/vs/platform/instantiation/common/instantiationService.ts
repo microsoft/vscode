@@ -19,13 +19,20 @@ const _enableTracing = false;
 declare var Proxy: any;
 const _canUseProxy = typeof Proxy === 'function';
 
+class CyclicDependencyError extends Error {
+	constructor(graph: Graph<any>) {
+		super('cyclic dependency between services');
+		this.message = graph.toString();
+	}
+}
+
 export class InstantiationService implements IInstantiationService {
 
 	_serviceBrand: any;
 
-	protected readonly _services: ServiceCollection;
-	protected readonly _strict: boolean;
-	protected readonly _parent?: InstantiationService;
+	private readonly _services: ServiceCollection;
+	private readonly _strict: boolean;
+	private readonly _parent?: InstantiationService;
 
 	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: InstantiationService) {
 		this._services = services;
@@ -143,27 +150,19 @@ export class InstantiationService implements IInstantiationService {
 		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
-		function throwCycleError() {
-			const err = new Error('[createInstance] cyclic dependency between services');
-			err.message = graph.toString();
-			throw err;
-		}
-
-		let count = 0;
+		let cycleCount = 0;
 		const stack = [{ id, desc, _trace }];
 		while (stack.length) {
 			const item = stack.pop()!;
 			graph.lookupOrInsertNode(item);
 
-			// TODO@joh use the graph to find a cycle
-			// a weak heuristic for cycle checks
-			if (count++ > 100) {
-				throwCycleError();
+			// a weak but working heuristic for cycle checks
+			if (cycleCount++ > 100) {
+				throw new CyclicDependencyError(graph);
 			}
 
 			// check all dependencies for existence and if they need to be created first
-			let dependencies = _util.getServiceDependencies(item.desc.ctor);
-			for (let dependency of dependencies) {
+			for (let dependency of _util.getServiceDependencies(item.desc.ctor)) {
 
 				let instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
 				if (!instanceOrDesc && !dependency.optional) {
@@ -179,18 +178,18 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		while (true) {
-			let roots = graph.roots();
+			const roots = graph.roots();
 
 			// if there is no more roots but still
 			// nodes in the graph we have a cycle
 			if (roots.length === 0) {
 				if (!graph.isEmpty()) {
-					throwCycleError();
+					throw new CyclicDependencyError(graph);
 				}
 				break;
 			}
 
-			for (let { data } of roots) {
+			for (const { data } of roots) {
 				// create instance and overwrite the service collections
 				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
 				this._setServiceInstance(data.id, instance);

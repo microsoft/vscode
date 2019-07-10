@@ -37,7 +37,7 @@ export class TypeScriptServerSpawner {
 		configuration: TypeScriptServiceConfiguration,
 		pluginManager: PluginManager
 	): ITypeScriptServer {
-		if (this.shouldUseSeparateSyntaxServer(version)) {
+		if (this.shouldUseSeparateSyntaxServer(version, configuration)) {
 			const syntaxServer = this.spawnTsServer('syntax', version, configuration, pluginManager);
 			const semanticServer = this.spawnTsServer('semantic', version, configuration, pluginManager);
 			return new SyntaxRoutingTsServer(syntaxServer, semanticServer);
@@ -46,12 +46,11 @@ export class TypeScriptServerSpawner {
 		return this.spawnTsServer('main', version, configuration, pluginManager);
 	}
 
-	private shouldUseSeparateSyntaxServer(version: TypeScriptVersion): boolean {
-		if (!version.apiVersion || version.apiVersion.lt(API.v340)) {
-			return false;
-		}
-		return vscode.workspace.getConfiguration('typescript')
-			.get<boolean>('experimental.useSeparateSyntaxServer', false);
+	private shouldUseSeparateSyntaxServer(
+		version: TypeScriptVersion,
+		configuration: TypeScriptServiceConfiguration,
+	): boolean {
+		return configuration.useSeparateSyntaxServer && !!version.apiVersion && version.apiVersion.gte(API.v340);
 	}
 
 	private spawnTsServer(

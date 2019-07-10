@@ -22,6 +22,10 @@ export class ClipboardService implements IClipboardService {
 		return navigator.clipboard.readText();
 	}
 
+	readTextSync(): string | undefined {
+		return undefined;
+	}
+
 	readFindText(): string {
 		// @ts-ignore
 		return undefined;

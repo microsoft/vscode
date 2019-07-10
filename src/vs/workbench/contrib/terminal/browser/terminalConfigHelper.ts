@@ -176,7 +176,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
 		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-		const envConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.env.${platformKey}`);
+		const envConfigValue = this._workspaceConfigurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed: boolean | undefined = false;

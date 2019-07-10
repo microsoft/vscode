@@ -673,7 +673,6 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
-				console.log('WHAT');
 				resource = this.getSCMResource();
 			}
 
@@ -738,6 +737,8 @@ export class CommandCenter {
 		}
 
 		const HEAD = await this.getLeftResource(resource);
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const title = `${basename} (HEAD)`;
 
 		if (!HEAD) {
 			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
@@ -748,7 +749,7 @@ export class CommandCenter {
 			preview
 		};
 
-		return await commands.executeCommand<void>('vscode.open', HEAD, opts);
+		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
 	@command('git.openChange')
@@ -1570,8 +1571,11 @@ export class CommandCenter {
 
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
-		const placeHolder = localize('provide branch name', "Please provide a branch name");
-		const name = await window.showInputBox({ placeHolder });
+		const name = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			value: repository.HEAD && repository.HEAD.name
+		});
 
 		if (!name || name.trim().length === 0) {
 			return;

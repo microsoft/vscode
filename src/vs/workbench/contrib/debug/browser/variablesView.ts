@@ -24,6 +24,7 @@ import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyn
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -39,6 +40,7 @@ export class VariablesView extends ViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
 	private tree: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
+	private savedViewState: IAsyncDataTreeViewState | undefined;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -53,18 +55,28 @@ export class VariablesView extends ViewletPanel {
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+
 			this.needsRefresh = false;
-			this.tree.updateChildren().then(() => {
-				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (stackFrame) {
-					stackFrame.getScopes().then(scopes => {
-						// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-						if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-							this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
-						}
-					});
+			if (stackFrame && this.savedViewState) {
+				this.tree.setInput(this.debugService.getViewModel(), this.savedViewState).then(null, onUnexpectedError);
+				this.savedViewState = undefined;
+			} else {
+				if (!stackFrame) {
+					// We have no stackFrame, save tree state before it is cleared
+					this.savedViewState = this.tree.getViewState();
 				}
-			}, onUnexpectedError);
+				this.tree.updateChildren().then(() => {
+					if (stackFrame) {
+						stackFrame.getScopes().then(scopes => {
+							// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
+							if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
+								this.tree.expand(scopes[0]).then(undefined, onUnexpectedError);
+							}
+						});
+					}
+				}, onUnexpectedError);
+			}
 		}, 400);
 	}
 

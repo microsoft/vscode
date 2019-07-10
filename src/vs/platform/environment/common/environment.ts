@@ -13,6 +13,7 @@ export interface ParsedArgs {
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
+	telemetry?: boolean;
 	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
@@ -70,6 +71,15 @@ export interface ParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'enable-remote-auto-shutdown'?: boolean;
 	'disable-inspect'?: boolean;
+	'force'?: boolean;
+	'gitCredential'?: string;
+	// node flags
+	'js-flags'?: boolean;
+	'disable-gpu'?: boolean;
+	'nolazy'?: boolean;
+
+	// Web flags
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -82,6 +92,8 @@ export interface IDebugParams {
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
+
+export const BACKUPS = 'Backups';
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
@@ -98,9 +110,13 @@ export interface IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
+
+	// user roaming data
+	userRoamingDataHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
+	localeResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
@@ -111,7 +127,7 @@ export interface IEnvironmentService {
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 
-	backupHome: string;
+	backupHome: URI;
 	backupWorkspacesPath: string;
 
 	untitledWorkspacesHome: URI;
@@ -156,4 +172,5 @@ export interface IEnvironmentService {
 
 	webviewEndpoint?: string;
 	readonly webviewResourceRoot: string;
+	readonly webviewCspSource: string;
 }

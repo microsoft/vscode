@@ -90,13 +90,13 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 					return undefined;
 				}
 				const extensionToFetchTranslationsFrom = tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0] || tagResult.firstPage[0];
-				if (!extensionToFetchTranslationsFrom.assets || !extensionToFetchTranslationsFrom.assets.coreTranslations) {
+				if (!extensionToFetchTranslationsFrom.assets || !extensionToFetchTranslationsFrom.assets.coreTranslations.length) {
 					return undefined;
 				}
 
 				return this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale!)
 					.then(translation => {
-						const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
+						const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
 						if (!!translationsFromPack[promptMessageKey] && !!translationsFromPack[yesLabelKey] && !!translationsFromPack[noLabelKey]) {
 							promptMessage = translationsFromPack[promptMessageKey].replace('{0}', this.privacyUrl) + ' (Please help Microsoft improve Visual Studio Code by allowing the collection of usage data.)';
 							yesLabel = translationsFromPack[yesLabelKey] + ' (Yes)';

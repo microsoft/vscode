@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -174,7 +174,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
-	private _dimensionsOverride: ITerminalDimensions;
+	private _dimensionsOverride: ITerminalDimensions | undefined;
 	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<void>;
 	private _titleReadyPromise: Promise<string>;
@@ -363,12 +363,15 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._cols !== newCols || this._rows !== newRows) {
 			this._cols = newCols;
 			this._rows = newRows;
-			if (this.shellLaunchConfig.isRendererOnly) {
-				this._onMaximumDimensionsChanged.fire();
-			}
+			this._fireMaximumDimensionsChanged();
 		}
 
 		return dimension.width;
+	}
+
+	@debounce(50)
+	private _fireMaximumDimensionsChanged(): void {
+		this._onMaximumDimensionsChanged.fire();
 	}
 
 	private _getDimension(width: number, height: number): dom.Dimension | null {
@@ -414,7 +417,6 @@ export class TerminalInstance implements ITerminalInstance {
 		xtermConstructor = new Promise<typeof XTermTerminal>(async (resolve) => {
 			const Terminal = await this._terminalInstanceService.getXtermConstructor();
 			// Localize strings
-			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
 			resolve(Terminal);
@@ -945,6 +947,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
+		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -970,7 +973,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
 		}, 0);
 	}
 
@@ -1003,7 +1006,11 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create exit code message
 		if (exitCode) {
 			if (exitCode === SHELL_PATH_INVALID_EXIT_CODE) {
-				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path does not exist: {0}', this._shellLaunchConfig.executable);
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path "{0}" does not exist', this._shellLaunchConfig.executable);
+			} else if (exitCode === SHELL_PATH_DIRECTORY_EXIT_CODE) {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPathDirectory', 'The terminal shell path "{0}" is a directory', this._shellLaunchConfig.executable);
+			} else if (exitCode === SHELL_CWD_INVALID_EXIT_CODE && this._shellLaunchConfig.cwd) {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidCWD', 'The terminal shell CWD "{0}" does not exist', this._shellLaunchConfig.cwd.toString());
 			} else if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 				let args = '';
 				if (typeof this._shellLaunchConfig.args === 'string') {
@@ -1282,11 +1289,15 @@ export class TerminalInstance implements ITerminalInstance {
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
+			if (isNaN(cols) || isNaN(rows)) {
+				return;
+			}
+
 			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
 			}
-
 			this._xterm.resize(cols, rows);
+
 			if (this._isVisible) {
 				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
 				// This is to fix an issue where dragging the window to the top of the screen to
@@ -1341,7 +1352,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._titleReadyPromise;
 	}
 
-	public setDimensions(dimensions: ITerminalDimensions): void {
+	public setDimensions(dimensions: ITerminalDimensions | undefined): void {
 		this._dimensionsOverride = dimensions;
 		this._resize();
 	}

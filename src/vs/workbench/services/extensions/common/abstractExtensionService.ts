@@ -346,15 +346,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
-			/* __GDPR__
-				"extensionsMessage" : {
-					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-				}
-			*/
-			this._telemetryService.publicLog('extensionsMessage', {
+			type ExtensionsMessageClassification = {
+				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				extensionPointId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+			type ExtensionsMessageEvent = {
+				type: Severity;
+				extensionId: string;
+				extensionPointId: string;
+				message: string;
+			};
+			this._telemetryService.publicLog2<ExtensionsMessageEvent, ExtensionsMessageClassification>('extensionsMessage', {
 				type, extensionId: extensionId.value, extensionPointId, message
 			});
 		}
@@ -373,8 +377,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				};
 			}
 		}
-
+		perf.mark(`willHandleExtensionPoint/${extensionPoint.name}`);
 		extensionPoint.acceptUsers(users);
+		perf.mark(`didHandleExtensionPoint/${extensionPoint.name}`);
 	}
 
 	private _showMessageToUser(severity: Severity, msg: string): void {

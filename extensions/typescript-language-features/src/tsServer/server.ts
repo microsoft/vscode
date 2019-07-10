@@ -311,7 +311,10 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		this._register(syntaxServer.onEvent(e => this._onEvent.fire(e)));
 		this._register(semanticServer.onEvent(e => this._onEvent.fire(e)));
 
-		this._register(semanticServer.onExit(e => this._onExit.fire(e)));
+		this._register(semanticServer.onExit(e => {
+			this._onExit.fire(e);
+			this.syntaxServer.kill();
+		}));
 		this._register(semanticServer.onError(e => this._onError.fire(e)));
 	}
 
@@ -340,6 +343,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		'selectionRange',
 		'format',
 		'formatonkey',
+		'docCommentTemplate',
 	]);
 	private static readonly sharedCommands = new Set<keyof TypeScriptRequests>([
 		'change',
@@ -357,8 +361,34 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 			return this.syntaxServer.executeImpl(command, args, executeInfo);
 		} else if (SyntaxRoutingTsServer.sharedCommands.has(command)) {
 			// Dispatch to both server but only return from syntax one
-			this.semanticServer.executeImpl(command, args, executeInfo);
-			return this.syntaxServer.executeImpl(command, args, executeInfo);
+
+			// Also make sure we never cancel requests to just one server
+			let hasCompletedSyntax = false;
+			let hasCompletedSemantic = false;
+			let token: vscode.CancellationToken | undefined = undefined;
+			if (executeInfo.token) {
+				const source = new vscode.CancellationTokenSource();
+				executeInfo.token.onCancellationRequested(() => {
+					if (hasCompletedSyntax && !hasCompletedSemantic || hasCompletedSemantic && !hasCompletedSyntax) {
+						// Don't cancel.
+						// One of the servers completed this request so we don't want to leave the other
+						// in a different state
+						return;
+					}
+					source.cancel();
+				});
+				token = source.token;
+			}
+
+			const semanticRequest = this.semanticServer.executeImpl(command, args, { ...executeInfo, token });
+			if (semanticRequest) {
+				semanticRequest.finally(() => { hasCompletedSemantic = true; });
+			}
+			const syntaxRequest = this.syntaxServer.executeImpl(command, args, { ...executeInfo, token });
+			if (syntaxRequest) {
+				syntaxRequest.finally(() => { hasCompletedSyntax = true; });
+			}
+			return syntaxRequest;
 		} else {
 			return this.semanticServer.executeImpl(command, args, executeInfo);
 		}

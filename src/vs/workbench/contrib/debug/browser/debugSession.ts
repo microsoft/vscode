@@ -577,7 +577,9 @@ export class DebugSession implements IDebugSession {
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
+		const threadIds: number[] = [];
 		data.threads.forEach(thread => {
+			threadIds.push(thread.id);
 			if (!this.threads.has(thread.id)) {
 				// A new thread came in, initialize it.
 				this.threads.set(thread.id, new Thread(this, thread.name, thread.id));
@@ -587,6 +589,12 @@ export class DebugSession implements IDebugSession {
 				if (oldThread) {
 					oldThread.name = thread.name;
 				}
+			}
+		});
+		this.threads.forEach(t => {
+			// Remove all old threads which are no longer part of the update #75980
+			if (threadIds.indexOf(t.threadId) === -1) {
+				this.threads.delete(t.threadId);
 			}
 		});
 

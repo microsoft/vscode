@@ -71,7 +71,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -534,6 +534,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
+
+	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
 	public toggleZenMode(): void { }
@@ -1073,6 +1075,10 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve(false);
 	}
 
+	public hasBackupSync(resource: URI, versionId?: number): boolean {
+		return false;
+	}
+
 	public loadBackupResource(resource: URI): Promise<URI | undefined> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
@@ -1216,6 +1222,14 @@ export class TestWindowService implements IWindowService {
 			workspaces: [],
 			files: []
 		});
+	}
+
+	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
+		return Promise.resolve();
+	}
+
+	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
+		return Promise.resolve();
 	}
 
 	focusWindow(): Promise<void> {
@@ -1447,7 +1461,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 

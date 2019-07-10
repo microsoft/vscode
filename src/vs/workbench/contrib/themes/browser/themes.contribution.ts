@@ -181,7 +181,7 @@ interface ThemeItem {
 }
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
-	return i['type'] !== 'separatpr';
+	return (<any>i)['type'] !== 'separator';
 }
 
 function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
@@ -212,7 +212,7 @@ class GenerateColorThemeAction extends Action {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors = {};
+		let resultingColors: { [key: string]: string } = {};
 		let inherited: string[] = [];
 		for (let colorId of colorIds) {
 			const color = theme.getColor(colorId, false);

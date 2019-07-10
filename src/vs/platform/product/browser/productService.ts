@@ -25,9 +25,9 @@ export class ProductService implements IProductService {
 
 	get urlProtocol(): string { return ''; }
 
-	get extensionAllowedProposedApi(): string[] { return this.productConfiguration ? this.productConfiguration.extensionAllowedProposedApi : []; }
+	get extensionAllowedProposedApi(): readonly string[] { return this.productConfiguration ? this.productConfiguration.extensionAllowedProposedApi : []; }
 
-	get uiExtensions(): string[] | undefined { return this.productConfiguration ? this.productConfiguration.uiExtensions : undefined; }
+	get uiExtensions(): readonly string[] | undefined { return this.productConfiguration ? this.productConfiguration.uiExtensions : undefined; }
 
 	get enableTelemetry(): boolean { return false; }
 

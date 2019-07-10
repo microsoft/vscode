@@ -8,7 +8,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
@@ -26,6 +26,7 @@ import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -576,11 +577,7 @@ export interface ITerminalLauncher {
 }
 
 export interface ITerminalSettings {
-	external: {
-		windowsExec: string,
-		osxExec: string,
-		linuxExec: string
-	};
+	external: IExternalTerminalSettings;
 	integrated: ITerminalConfiguration;
 }
 
@@ -725,7 +722,7 @@ export interface IDebugService {
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): void;
+	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -845,8 +842,6 @@ export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HE
 
 export interface IDebugHelperService {
 	_serviceBrand: any;
-
-	createTerminalLauncher(instantiationService: IInstantiationService): ITerminalLauncher;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

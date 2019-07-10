@@ -50,7 +50,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IProductService private readonly _productService: IProductService,
@@ -63,7 +63,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		// This reviver's only job is to activate webview extensions
 		// This should trigger the real reviver to be registered from the extension host side.
-		this._register(_webviewService.registerReviver({
+		this._register(_webviewEditorService.registerReviver({
 			canRevive: (webview) => {
 				const viewType = webview.state.viewType;
 				if (viewType) {
@@ -95,7 +95,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewService.createWebview(this.getInternalWebviewId(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
+		const webview = this._webviewEditorService.createWebview(this.getInternalWebviewId(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
 			location: URI.revive(extensionLocation),
 			id: extensionId
 		}, this.createWebviewEventDelegate(handle));
@@ -147,7 +147,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
 		if (targetGroup) {
-			this._webviewService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
+			this._webviewEditorService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 		}
 	}
 
@@ -176,7 +176,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
 
-		this._revivers.set(viewType, this._webviewService.registerReviver({
+		this._revivers.set(viewType, this._webviewEditorService.registerReviver({
 			canRevive: (webview) => {
 				return webview.state && webview.state.viewType === viewType;
 			},

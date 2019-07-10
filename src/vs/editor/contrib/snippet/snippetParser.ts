@@ -432,8 +432,8 @@ export class Variable extends TransformableMarker {
 		super();
 	}
 
-	async resolve(resolver: VariableResolver): Promise<boolean> {
-		let value = await resolver.resolve(this);
+	resolve(resolver: VariableResolver): boolean {
+		let value = resolver.resolve(this);
 		if (this.transform) {
 			value = this.transform.resolve(value || '');
 		}
@@ -467,19 +467,7 @@ export class Variable extends TransformableMarker {
 }
 
 export interface VariableResolver {
-	resolve(variable: Variable): Promise<string | undefined>;
-}
-
-async function walkAsync(marker: Marker[], visitor: (marker: Marker) => Promise<boolean>): Promise<void> {
-	const stack = [...marker];
-	while (stack.length > 0) {
-		const marker = stack.shift()!;
-		const recurse = await visitor(marker);
-		if (!recurse) {
-			break;
-		}
-		stack.unshift(...marker.children);
-	}
+	resolve(variable: Variable): string | undefined;
 }
 
 function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
@@ -559,10 +547,10 @@ export class TextmateSnippet extends Marker {
 		return ret;
 	}
 
-	async resolveVariables(resolver: VariableResolver): Promise<this> {
-		await this.walkAsync(async (candidate) => {
+	resolveVariables(resolver: VariableResolver): this {
+		this.walk((candidate) => {
 			if (candidate instanceof Variable) {
-				if (await candidate.resolve(resolver)) {
+				if (candidate.resolve(resolver)) {
 					this._placeholders = undefined;
 				}
 			}
@@ -589,10 +577,6 @@ export class TextmateSnippet extends Marker {
 		let ret = new TextmateSnippet();
 		this._children = this.children.map(child => child.clone());
 		return ret;
-	}
-
-	async walkAsync(visitor: (marker: Marker) => Promise<boolean>): Promise<void> {
-		await walkAsync(this.children, visitor);
 	}
 
 	walk(visitor: (marker: Marker) => boolean): void {

@@ -672,14 +672,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				async _insertSuggestion(item: ISelectedSuggestion) {
-					await super._insertSuggestion(item, false, true);
+				_insertSuggestion(item: ISelectedSuggestion) {
+					super._insertSuggestion(item, false, true);
 				}
 			}
 			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
 			editor.registerAndInstantiateContribution(SnippetController2);
-
-			let suggestPromise;
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });
@@ -690,12 +688,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.equal(first.completion.label, 'bar');
 
-				suggestPromise = ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
+				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
 			});
-
-			if (suggestPromise) {
-				await suggestPromise;
-			}
 
 			assert.equal(
 				model.getValue(),

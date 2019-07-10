@@ -121,7 +121,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		this._hasSnippets.set(this._activeSnippets.length > 0);
 	}
 
-	async performSnippetCompletions(): Promise<void> {
+	performSnippetCompletions(): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -129,7 +129,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		if (this._activeSnippets.length === 1) {
 			// one -> just insert
 			const [snippet] = this._activeSnippets;
-			await SnippetController2.get(this._editor).insert(snippet.codeSnippet, snippet.prefix.length, 0);
+			SnippetController2.get(this._editor).insert(snippet.codeSnippet, { overwriteBefore: snippet.prefix.length, overwriteAfter: 0 });
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box
@@ -149,7 +149,7 @@ const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionContr
 registerEditorCommand(new TabCompletionCommand({
 	id: 'insertSnippet',
 	precondition: TabCompletionController.ContextKey,
-	handler: async (x) => { await x.performSnippetCompletions(); },
+	handler: x => { x.performSnippetCompletions(); },
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib,
 		kbExpr: ContextKeyExpr.and(

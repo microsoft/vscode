@@ -401,6 +401,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
 						userHome: URI.file(this._environmentService.userHome),
 						webviewResourceRoot: this._environmentService.webviewResourceRoot,
+						webviewCspSource: this._environmentService.webviewCspSource,
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),

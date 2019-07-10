@@ -490,10 +490,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (this.input) {
 			const input: KeybindingsEditorInput = this.input as KeybindingsEditorInput;
 			this.keybindingsEditorModel = await input.resolve();
-			const editorActionsLabels: { [id: string]: string; } = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
-				editorActions[editorAction.id] = editorAction.label;
+			const editorActionsLabels: Map<string, string> = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
+				editorActions.set(editorAction.id, editorAction.label);
 				return editorActions;
-			}, {});
+			}, new Map<string, string>());
 			await this.keybindingsEditorModel.resolve(editorActionsLabels);
 			this.renderKeybindingsEntries(false, preserveFocus);
 			if (input.searchOptions) {

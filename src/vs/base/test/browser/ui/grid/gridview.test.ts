@@ -59,8 +59,8 @@ suite('Gridview', function () {
 		];
 
 		gridview.addView(views[0] as IView, 200, [0]);
-		gridview.addView(views[1][0] as IView, 200, [1]);
-		gridview.addView(views[1][1] as IView, 200, [1, 1]);
+		gridview.addView((views[1] as TestView[])[0] as IView, 200, [1]);
+		gridview.addView((views[1] as TestView[])[1] as IView, 200, [1, 1]);
 
 		assert.deepEqual(nodesToArrays(gridview.getViews()), views);
 

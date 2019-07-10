@@ -63,6 +63,8 @@ export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
 export const SHELL_PATH_INVALID_EXIT_CODE = -1;
+export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
+export const SHELL_CWD_INVALID_EXIT_CODE = -3;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -183,10 +185,14 @@ export interface IShellLaunchConfig {
 	initialText?: string;
 
 	/**
-	 * When true the terminal will be created with no process. This is primarily used to give
-	 * extensions full control over the terminal.
+	 * @deprecated use `isVirtualProcess`
 	 */
 	isRendererOnly?: boolean;
+
+	/**
+	 * When true an extension is acting as the terminal's process.
+	 */
+	isVirtualProcess?: boolean;
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -204,7 +210,7 @@ export interface IShellLaunchConfig {
 	 * interaction is needed. Note that the terminals will still be exposed to all extensions
 	 * as normal.
 	 */
-	runInBackground?: boolean;
+	hideFromUser?: boolean;
 }
 
 export interface ITerminalService {
@@ -223,10 +229,11 @@ export interface ITerminalService {
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
+	onInstanceRequestVirtualProcess: Event<ITerminalProcessExtHostProxy>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	onRequestAvailableShells: Event<(shells: IShellDefinition[]) => void>;
+	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 
 	/**
 	 * Creates a terminal.
@@ -290,6 +297,7 @@ export interface ITerminalService {
 
 	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void;
 }
 
 /**
@@ -699,9 +707,10 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
+	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
 
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<void>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
@@ -736,6 +745,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
+	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
@@ -757,6 +767,14 @@ export interface ITerminalProcessExtHostRequest {
 	isWorkspaceShellAllowed: boolean;
 }
 
+export interface IAvailableShellsRequest {
+	(shells: IShellDefinition[]): void;
+}
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
+}
+
 export enum LinuxDistro {
 	Fedora,
 	Ubuntu,
@@ -776,6 +794,7 @@ export interface ITerminalChildProcess {
 	onProcessExit: Event<number>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
+	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
 
 	/**
 	 * Shutdown the terminal process.
@@ -790,8 +809,4 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-}
-
-export interface IDefaultShellAndArgsRequest {
-	(shell: string, args: string[] | string | undefined): void;
 }

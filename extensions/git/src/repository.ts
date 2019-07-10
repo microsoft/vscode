@@ -488,7 +488,10 @@ class DotGitWatcher implements IFileWatcher {
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
-	constructor(private repository: Repository) {
+	constructor(
+		private repository: Repository,
+		private outputChannel: OutputChannel
+	) {
 		const rootWatcher = watch(repository.dotGit);
 		this.disposables.push(rootWatcher);
 
@@ -511,9 +514,15 @@ class DotGitWatcher implements IFileWatcher {
 		const { name, remote } = this.repository.HEAD.upstream;
 		const upstreamPath = path.join(this.repository.dotGit, 'refs', 'remotes', remote, name);
 
-		const upstreamWatcher = watch(upstreamPath);
-		this.transientDisposables.push(upstreamWatcher);
-		upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
+		try {
+			const upstreamWatcher = watch(upstreamPath);
+			this.transientDisposables.push(upstreamWatcher);
+			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
+		} catch (err) {
+			if (env.logLevel <= LogLevel.Info) {
+				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}'. Ref is most likely packed.`);
+			}
+		}
 	}
 
 	dispose() {
@@ -642,7 +651,7 @@ export class Repository implements Disposable {
 		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
 		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
-		const dotGitFileWatcher = new DotGitWatcher(this);
+		const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
 		this.disposables.push(dotGitFileWatcher);
 
 		// FS changes should trigger `git status`:
@@ -664,9 +673,9 @@ export class Repository implements Disposable {
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
 
-		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
+		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "MERGE CHANGES"));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "STAGED CHANGES"));
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "CHANGES"));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);

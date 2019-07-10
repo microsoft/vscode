@@ -205,7 +205,7 @@
 	opacity: 0.7;
 }
 
-.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item.disabled > .action-label {
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
 	opacity: 1;
 	text-decoration: underline;
 }

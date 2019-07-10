@@ -181,7 +181,8 @@ class SvgBlocker extends Disposable {
 		});
 
 		session.onHeadersReceived((details) => {
-			const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
+			const headers: any = details.responseHeaders;
+			const contentType: string[] = headers['content-type'] || headers['Content-Type'];
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				const uri = URI.parse(details.url);
 				if (uri && !this.isAllowedSvg(uri)) {
@@ -390,6 +391,18 @@ export class WebviewElement extends Disposable implements Webview {
 					let [uri] = event.args;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
+
+				case 'synthetic-mouse-event':
+					{
+						const rawEvent = event.args[0];
+						const bounds = this._webview.getBoundingClientRect();
+						window.dispatchEvent(new MouseEvent(rawEvent.type, {
+							...rawEvent,
+							clientX: rawEvent.clientX + bounds.left,
+							clientY: rawEvent.clientY + bounds.top,
+						}));
+						return;
+					}
 
 				case 'did-set-content':
 					this._webview.style.flex = '';

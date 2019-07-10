@@ -18,6 +18,7 @@
 		"number-literal-format": true,
 		"curly": true,
 		"class-name": true,
+		"await-promise": true,
 		"label-position": true,
 		"semicolon": [
 			true,
@@ -430,7 +431,8 @@
 					"**/vs/editor/common/**",
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/**/common/**",
-					"**/vs/workbench/api/**/common/**"
+					"**/vs/workbench/api/**/common/**",
+					"vscode-textmate"
 				]
 			},
 			{

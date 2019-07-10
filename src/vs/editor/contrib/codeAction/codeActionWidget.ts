@@ -7,28 +7,32 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 
 interface CodeActionWidgetDelegate {
 	onSelectCodeAction: (action: CodeAction) => Promise<any>;
 }
 
-export class CodeActionWidget {
+export class CodeActionWidget extends Disposable {
 
 	private _visible: boolean;
+	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
-		private readonly _delegate: CodeActionWidgetDelegate
-	) { }
+		private readonly _delegate: CodeActionWidgetDelegate,
+	) {
+		super();
+	}
 
-	public async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
-		const codeActions = await actionsToShow;
+	public async show(codeActions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
 		if (!codeActions.actions.length) {
 			this._visible = false;
 			return;
@@ -41,6 +45,8 @@ export class CodeActionWidget {
 
 		this._visible = true;
 		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
+
+		this._showingActions.value = codeActions;
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {
 				if (Position.isIPosition(at)) {
@@ -67,7 +73,7 @@ export class CodeActionWidget {
 		return this._visible;
 	}
 
-	private _toCoords(position: Position): { x: number, y: number } {
+	private _toCoords(position: IPosition): { x: number, y: number } {
 		if (!this._editor.hasModel()) {
 			return { x: 0, y: 0 };
 		}

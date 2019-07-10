@@ -14,11 +14,12 @@ import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MN
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = DOM.$;
 
@@ -116,9 +117,9 @@ export class MenuBar extends Disposable {
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
-			if (event.equals(KeyCode.LeftArrow)) {
+			if (event.equals(KeyCode.LeftArrow) || (isMacintosh && event.equals(KeyCode.Tab | KeyMod.Shift))) {
 				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow)) {
+			} else if (event.equals(KeyCode.RightArrow) || (isMacintosh && event.equals(KeyCode.Tab))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
@@ -127,6 +128,11 @@ export class MenuBar extends Disposable {
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
+			}
+
+			// Never allow default tab behavior
+			if (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab)) {
+				event.preventDefault();
 			}
 
 			if (eventHandled) {

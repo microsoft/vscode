@@ -67,6 +67,7 @@ import { values } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
+import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -97,7 +98,7 @@ export function createApiFactory(
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
-	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol));
+	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment));
 	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
@@ -108,7 +109,7 @@ export function createApiFactory(
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
-	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors));
+	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
@@ -125,6 +126,7 @@ export function createApiFactory(
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(LogOutputChannelFactory, initData.logsLocation, rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
+	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
 
 	if (initData.remote.isRemote && initData.remote.authority) {
 		extHostTask.registerTaskSystem(Schemas.vscodeRemote, {
@@ -256,15 +258,10 @@ export function createApiFactory(
 				return extHostClipboard;
 			},
 			get shell() {
-				checkProposedApiEnabled(extension);
 				return extHostTerminalService.getDefaultShell(configProvider);
 			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
-			},
-			get webviewResourceRoot() {
-				checkProposedApiEnabled(extension);
-				return initData.environment.webviewResourceRoot;
 			},
 			get remoteName() {
 				if (!initData.remote.authority) {
@@ -526,9 +523,14 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.TerminalVirtualProcessOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
-					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
+					if ('virtualProcess' in nameOrOptions) {
+						return extHostTerminalService.createVirtualProcessTerminal(nameOrOptions);
+					} else {
+						nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
+						return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
+					}
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
@@ -672,13 +674,12 @@ export function createApiFactory(
 				return extHostDocumentContentProviders.registerTextDocumentContentProvider(scheme, provider);
 			},
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
-				return extHostTask.registerTaskProvider(extension, provider);
+				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
 			get fs() {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystem.fileSystem;
 			},
 			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
@@ -687,17 +688,11 @@ export function createApiFactory(
 			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),
-			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
-				return extHostComment.registerDocumentCommentProvider(extension.identifier, provider);
-			}),
-			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
-				return extHostComment.registerWorkspaceCommentProvider(extension.identifier, provider);
-			}),
 			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
 			}),
 			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
-				return extHostFileSystem.registerResourceLabelFormatter(formatter);
+				return extHostLabelService.$registerResourceLabelFormatter(formatter);
 			}),
 			onDidRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
@@ -717,7 +712,7 @@ export function createApiFactory(
 			}
 		};
 
-		const comment: typeof vscode.comment = {
+		const comment: typeof vscode.comments = {
 			createCommentController(id: string, label: string) {
 				return extHostComment.createCommentController(extension, id, label);
 			}
@@ -773,7 +768,7 @@ export function createApiFactory(
 
 		const tasks: typeof vscode.tasks = {
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
-				return extHostTask.registerTaskProvider(extension, provider);
+				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
 			fetchTasks: (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
 				return extHostTask.fetchTasks(filter);
@@ -847,6 +842,7 @@ export function createApiFactory(
 			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution: extHostTypes.CustomExecution,
+			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,

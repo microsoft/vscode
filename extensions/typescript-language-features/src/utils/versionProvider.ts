@@ -88,7 +88,6 @@ export class TypeScriptVersion {
 }
 
 export class TypeScriptVersionProvider {
-	private readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();
 
 	public constructor(
 		private configuration: TypeScriptServiceConfiguration
@@ -179,7 +178,7 @@ export class TypeScriptVersionProvider {
 			return [new TypeScriptVersion(tsdkPathSetting)];
 		}
 
-		const workspacePath = this.relativePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
+		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
 		if (workspacePath !== undefined) {
 			return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
 		}

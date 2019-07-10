@@ -40,7 +40,7 @@ export class SuggestAlternatives {
 		this._ignore = false;
 	}
 
-	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => Promise<any>): void {
+	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => any): void {
 
 		// no suggestions -> nothing to do
 		if (model.items.length === 0) {

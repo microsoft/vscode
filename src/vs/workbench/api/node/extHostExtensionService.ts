@@ -15,7 +15,7 @@ import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/node/ex
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -36,7 +36,13 @@ import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/work
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
+	/** Old test runner API, as exported from `vscode/lib/testrunner` */
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
+}
+
+interface INewTestRunner {
+	/** New test runner API, as explained in the extension test doc */
+	run(): Promise<void>;
 }
 
 export interface IHostUtils {
@@ -44,6 +50,16 @@ export interface IHostUtils {
 	exists(path: string): Promise<boolean>;
 	realpath(path: string): Promise<string>;
 }
+
+type TelemetryActivationEventFragment = {
+	id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	extensionVersion: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	activationEvents: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
@@ -307,23 +323,32 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this._mainThreadTelemetryProxy.$publicLog('extensionActivationTimes', {
+		type ExtensionActivationTimesClassification = {
+			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
+
+		type ExtensionActivationTimesEvent = {
+			outcome: string
+		} & ActivationTimesEvent & TelemetryActivationEvent;
+
+		type ActivationTimesEvent = {
+			startup?: boolean;
+			codeLoadingTime?: number;
+			activateCallTime?: number;
+			activateResolvedTime?: number;
+		};
+
+		this._mainThreadTelemetryProxy.$publicLog2<ExtensionActivationTimesEvent, ExtensionActivationTimesClassification>('extensionActivationTimes', {
 			...event,
 			...(activationTimes || {}),
-			outcome,
+			outcome
 		});
 	}
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"activatePlugin" : {
-				"${include}": [
-					"${TelemetryActivationEvent}"
-				]
-			}
-		*/
-		this._mainThreadTelemetryProxy.$publicLog('activatePlugin', event);
+		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
+		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
@@ -525,7 +550,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner | undefined;
+		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
 			testRunner = <any>require.__$__nodeRequire(extensionTestsPath);
@@ -533,10 +558,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			requireError = error;
 		}
 
-		// Execute the runner if it follows our spec
+		// Execute the runner if it follows the old `run` spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner!.run(extensionTestsPath, (error, failures) => {
+				const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -545,7 +570,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 					// after tests have run, we shutdown the host
 					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
-				});
+				};
+
+				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
+
+				// Using the new API `run(): Promise<void>`
+				if (runResult && runResult.then) {
+					runResult
+						.then(() => {
+							c();
+							this._gracefulExit(0);
+						})
+						.catch((err: Error) => {
+							e(err.toString());
+							this._gracefulExit(1);
+						});
+				}
 			});
 		}
 
@@ -715,22 +755,20 @@ function loadCommonJSModule<T>(logService: ILogService, modulePath: string, acti
 	return Promise.resolve(r);
 }
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
+type TelemetryActivationEvent = {
+	id: string;
+	name: string;
+	extensionVersion: string;
+	publisherDisplayName: string;
+	activationEvents: string | null;
+	isBuiltin: boolean;
+	reason: string;
+};
+
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TelemetryActivationEvent {
 	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
 		reason instanceof ExtensionActivatedByAPI ? 'api' :
 			'';
-
-	/* __GDPR__FRAGMENT__
-		"TelemetryActivationEvent" : {
-			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"extensionVersion": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	*/
 	const event = {
 		id: extensionDescription.identifier.value,
 		name: extensionDescription.name,

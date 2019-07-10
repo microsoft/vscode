@@ -377,6 +377,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
+		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
@@ -740,7 +741,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
-		const countNumberOfLines = (str: string) => Math.max(1, (str.match(/\r\n|\n/g) || []).length);
+		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
 
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');

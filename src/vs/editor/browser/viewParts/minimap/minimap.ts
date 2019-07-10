@@ -451,7 +451,7 @@ export class Minimap extends ViewPart {
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
-	private _decorationsChanged: boolean = false;
+	private _renderDecorations: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
 	constructor(context: ViewContext) {
@@ -498,7 +498,7 @@ export class Minimap extends ViewPart {
 
 		this._applyLayout();
 
-		this._mouseDownListener = dom.addStandardDisposableListener(this._canvas.domNode, 'mousedown', (e) => {
+		this._mouseDownListener = dom.addStandardDisposableListener(this._domNode.domNode, 'mousedown', (e) => {
 			e.preventDefault();
 
 			const renderMinimap = this._options.renderMinimap;
@@ -527,6 +527,7 @@ export class Minimap extends ViewPart {
 
 		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
 			e.preventDefault();
+			e.stopPropagation();
 			if (e.leftButton && this._lastRenderData) {
 
 				const initialMousePosition = e.posy;
@@ -650,6 +651,7 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._renderDecorations = true;
 		return true;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
@@ -669,7 +671,7 @@ export class Minimap extends ViewPart {
 	}
 
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		this._decorationsChanged = true;
+		this._renderDecorations = true;
 		return true;
 	}
 
@@ -720,9 +722,8 @@ export class Minimap extends ViewPart {
 	}
 
 	private renderDecorations(layout: MinimapLayout) {
-		const scrollHasChanged = this._lastRenderData && !this._lastRenderData.scrollEquals(layout);
-		if (scrollHasChanged || this._decorationsChanged) {
-			this._decorationsChanged = false;
+		if (this._renderDecorations) {
+			this._renderDecorations = false;
 			const decorations = this._context.model.getDecorationsInViewport(new Range(layout.startLineNumber, 1, layout.endLineNumber, this._context.model.getLineMaxColumn(layout.endLineNumber)));
 
 			const { renderMinimap, canvasInnerWidth, canvasInnerHeight } = this._options;
@@ -737,64 +738,67 @@ export class Minimap extends ViewPart {
 			const lineHeightRatio = renderMinimap === RenderMinimap.LargeBlocks || renderMinimap === RenderMinimap.SmallBlocks ? 0.5 : 1;
 			const height = lineHeight * lineHeightRatio;
 
-			// Loop over decorations, ignoring those that don't have the minimap property set and rendering those on the same line together
-			let i = 0;
-			for (; i < decorations.length; i++) {
-				if (!decorations[i].options.minimap) {
+			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
+			const lineOffsetMap = new Map<number, number[]>();
+			for (let i = 0; i < decorations.length; i++) {
+				const decoration = decorations[i];
+
+				if (!decoration.options.minimap) {
 					continue;
 				}
 
-				let decorationsForLine = [decorations[i]];
-				let currentLine = decorations[i].range.startLineNumber;
-				let j = i + 1;
-				while (j < decorations.length && decorations[j].range.startLineNumber === currentLine) {
-					if (decorations[j].options.minimap) {
-						decorationsForLine.push(decorations[j]);
-					}
-
-					j += 1;
+				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
+					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration, layout, line, height, lineHeight, tabSize, characterWidth);
 				}
-
-				i = j - 1;
-				this.renderDecorationsForLine(canvasContext, decorationsForLine, layout, currentLine, height, lineHeight, tabSize, characterWidth);
 			}
 		}
 	}
 
-	private renderDecorationsForLine(canvasContext: CanvasRenderingContext2D,
-		decorations: ViewModelDecoration[],
+	private renderDecorationOnLine(canvasContext: CanvasRenderingContext2D,
+		lineOffsetMap: Map<number, number[]>,
+		decoration: ViewModelDecoration,
 		layout: MinimapLayout,
-		startLineNumber: number,
+		lineNumber: number,
 		height: number,
 		lineHeight: number,
 		tabSize: number,
-		charWidth: number) {
-		const y = (startLineNumber - layout.startLineNumber) * lineHeight;
+		charWidth: number): void {
+		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
-		const lineData = this._context.model.getLineContent(startLineNumber);
-		const lineIndexToXOffset = [0];
-		for (let i = 1; i < lineData.length + 1; i++) {
-			const charCode = lineData.charCodeAt(i - 1);
-			const dx = charCode === CharCode.Tab
-				? tabSize * charWidth
-				: strings.isFullWidthCharacter(charCode)
-					? 2 * charWidth
-					: charWidth;
+		// Cache line offset data so that it is only read once per line
+		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
+		if (!lineIndexToXOffset) {
+			const lineData = this._context.model.getLineContent(lineNumber);
+			lineIndexToXOffset = [0];
+			for (let i = 1; i < lineData.length + 1; i++) {
+				const charCode = lineData.charCodeAt(i - 1);
+				const dx = charCode === CharCode.Tab
+					? tabSize * charWidth
+					: strings.isFullWidthCharacter(charCode)
+						? 2 * charWidth
+						: charWidth;
 
-			lineIndexToXOffset[i] = lineIndexToXOffset[i - 1] + dx;
+				lineIndexToXOffset[i] = lineIndexToXOffset[i - 1] + dx;
+			}
+
+			lineOffsetMap.set(lineNumber, lineIndexToXOffset);
 		}
 
-		for (let i = 0; i < decorations.length; i++) {
-			const currentDecoration = decorations[i];
-			const { startColumn, endColumn } = currentDecoration.range;
-			const x = lineIndexToXOffset[startColumn - 1];
-			const width = lineIndexToXOffset[endColumn - 1] - x;
+		const { startColumn, endColumn, startLineNumber, endLineNumber } = decoration.range;
+		const x = startLineNumber === lineNumber ? lineIndexToXOffset[startColumn - 1] : 0;
 
-			this.renderADecoration(canvasContext, <ModelDecorationMinimapOptions>currentDecoration.options.minimap, x, y, width, height);
+		const endColumnForLine = endLineNumber > lineNumber ? lineIndexToXOffset.length - 1 : endColumn - 1;
+
+		if (endColumnForLine > 0) {
+			// If the decoration starts at the last character of the column and spans over it, ensure it has a width
+			const width = lineIndexToXOffset[endColumnForLine] - x || 2;
+
+			this.renderDecoration(canvasContext, <ModelDecorationMinimapOptions>decoration.options.minimap, x, y, width, height);
 		}
+
 	}
 
-	private renderADecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {
+	private renderDecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {
 		const decorationColor = minimapOptions.getColor(this._context.theme);
 
 		canvasContext.fillStyle = decorationColor;

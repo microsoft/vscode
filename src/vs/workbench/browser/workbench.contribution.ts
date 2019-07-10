@@ -107,11 +107,11 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'description': nls.localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
-			'workbench.editor.swipeToNavigate': {
+			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
-				'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
-				'default': false,
-				'included': isMacintosh
+				'description': nls.localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
+				'default': true,
+				'included': !isMacintosh
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -291,14 +291,14 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'type': 'boolean',
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
+				'description': nls.localize('enableMenuBarMnemonics', "Controls whether the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
 				'included': isWindows || isLinux
 			},
-			'window.disableCustomMenuBarAltFocus': {
+			'window.customMenuBarAltFocus': {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': nls.localize('disableCustomMenuBarAltFocus', "If enabled, disables the ability to focus the menu bar with the Alt-key when not set to toggle."),
+				'markdownDescription': nls.localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
 				'included': isWindows || isLinux || isWeb
 			},
 			'window.openFoldersInNewWindow': {

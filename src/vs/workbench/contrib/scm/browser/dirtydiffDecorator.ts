@@ -258,7 +258,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
+		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
 		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 
