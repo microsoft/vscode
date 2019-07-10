@@ -77,21 +77,25 @@ export const virtualMachineHint: { value(): number } = new class {
 };
 
 let machineId: Promise<string>;
-export function getMachineId(): Promise<string> {
-	return machineId || (machineId = getMacMachineId()
-		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
+export async function getMachineId(): Promise<string> {
+	if (!machineId) {
+		machineId = (async () => {
+			const id = await getMacMachineId();
+
+			return id || uuid.generateUuid(); // fallback, generate a UUID
+		})();
+	}
+
+	return machineId;
 }
 
-function getMacMachineId(): Promise<string | undefined> {
-	return import('crypto').then(crypto => {
-		return getMac().then((macAddress: string) => {
-			return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
-		}).catch((err: any) => {
-			errors.onUnexpectedError(err);
-			return undefined;
-		});
-	}).catch(err => {
+async function getMacMachineId(): Promise<string | undefined> {
+	try {
+		const crypto = await import('crypto');
+		const macAddress = await getMac();
+		return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
+	} catch (err) {
 		errors.onUnexpectedError(err);
 		return undefined;
-	});
+	}
 }
