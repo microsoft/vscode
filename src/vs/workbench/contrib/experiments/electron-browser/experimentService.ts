@@ -179,7 +179,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			if (context.res.statusCode !== 200) {
 				return Promise.resolve(null);
 			}
-			return asJson(context).then(result => {
+			return asJson(context).then((result: any) => {
 				return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
 			});
 		}, () => Promise.resolve(null));
