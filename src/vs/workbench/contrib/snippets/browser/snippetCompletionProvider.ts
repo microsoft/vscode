@@ -14,6 +14,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { isPatternInWord } from 'vs/base/common/filters';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -47,16 +48,6 @@ export class SnippetCompletion implements CompletionItem {
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
 		return compare(a.label, b.label);
 	}
-}
-
-export function matches(pattern: string, patternStart: number, word: string, wordStart: number): boolean {
-	while (patternStart < pattern.length && wordStart < word.length) {
-		if (pattern[patternStart] === word[wordStart]) {
-			patternStart += 1;
-		}
-		wordStart += 1;
-	}
-	return patternStart === pattern.length;
 }
 
 export class SnippetCompletionProvider implements CompletionItemProvider {
@@ -120,7 +111,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			suggestions = [];
 			for (let start of lineOffsets) {
 				availableSnippets.forEach(snippet => {
-					if (matches(linePrefixLow, start, snippet.prefixLow, 0)) {
+					if (isPatternInWord(linePrefixLow, start, linePrefixLow.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 						suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
 						availableSnippets.delete(snippet);
 					}
