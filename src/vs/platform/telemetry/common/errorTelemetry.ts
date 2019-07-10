@@ -34,7 +34,9 @@ export namespace ErrorEvent {
 	export function compare(a: ErrorEvent, b: ErrorEvent) {
 		if (a.callstack < b.callstack) {
 			return -1;
-		} else if (a.callstack > b.callstack) {
+		}
+
+		if (a.callstack > b.callstack) {
 			return 1;
 		}
 		return 0;
@@ -89,11 +91,10 @@ export default abstract class BaseErrorTelemetry {
 		let msg = err.message ? err.message : safeStringify(err);
 
 		// errors without a stack are not useful telemetry
-		if (!callstack) {
-			return;
+		if (callstack) {
+			this._enqueue({ msg, callstack });
 		}
 
-		this._enqueue({ msg, callstack });
 	}
 
 	protected _enqueue(e: ErrorEvent): void {

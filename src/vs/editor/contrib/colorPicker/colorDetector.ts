@@ -180,7 +180,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 			let key = 'colorBox-' + subKey;
 
-			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
+			if (!(this._decorationsTypes.has(key) || newDecorationsTypes[key])) {
 				this._codeEditorService.registerDecorationType(key, {
 					before: {
 						contentText: ' ',

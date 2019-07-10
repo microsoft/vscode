@@ -44,14 +44,10 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	// does not contain an authority component, then the path cannot begin
 	// with two slash characters ("//").
 	if (ret.path) {
-		if (ret.authority) {
-			if (!_singleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
-			}
-		} else {
-			if (_doubleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
-			}
+		if (ret.authority && !_singleSlashStart.test(ret.path)) {
+			throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
+		} else if (_doubleSlashStart.test(ret.path)) {
+			throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
 		}
 	}
 }
@@ -119,6 +115,7 @@ export class URI implements UriComponents {
 		if (!thing) {
 			return false;
 		}
+
 		return typeof (<URI>thing).authority === 'string'
 			&& typeof (<URI>thing).fragment === 'string'
 			&& typeof (<URI>thing).path === 'string'
