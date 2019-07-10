@@ -530,15 +530,21 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}));
 		}
 
+		const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
+		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
+		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
+
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 		codeActionsPromise.then(actions => {
 			if (!actions.actions.length) {
 				actions.dispose();
+				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
 				return;
 			}
-			let showing = false;
+			quickfixPlaceholderElement.remove();
 
+			let showing = false;
 			disposables.add(toDisposable(() => {
 				if (!showing) {
 					actions.dispose();
