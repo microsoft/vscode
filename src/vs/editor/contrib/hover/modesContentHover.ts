@@ -531,12 +531,19 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 
 		const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
+		quickfixPlaceholderElement.style.opacity = '0';
+		quickfixPlaceholderElement.style.transition = 'opacity 0.2s';
+		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
 		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
 		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
+
 
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 		codeActionsPromise.then(actions => {
+			quickfixPlaceholderElement.style.transition = '';
+			quickfixPlaceholderElement.style.opacity = '1';
+
 			if (!actions.actions.length) {
 				actions.dispose();
 				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
