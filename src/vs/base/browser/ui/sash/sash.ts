@@ -212,9 +212,14 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		const iframes = getElementsByTagName('iframe');
-		for (const iframe of iframes) {
-			iframe.style.pointerEvents = 'none'; // disable mouse events on iframes as long as we drag the sash
+		// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
+		const iframeTags = [
+			...getElementsByTagName('webview'),
+			...getElementsByTagName('iframe'),
+		];
+	
+		for (const iframe of iframeTags) {
+			iframe.style.pointerEvents = 'none';
 		}
 
 		const mouseDownEvent = new StandardMouseEvent(e);
