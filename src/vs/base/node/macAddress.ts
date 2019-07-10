@@ -49,6 +49,8 @@ export function getMac(): Promise<string> {
 					reject('Unable to retrieve mac address.');
 				}
 			});
+
+			setTimeout(() => reject('Unable to retrieve mac address'), 10000);
 		} catch (err) {
 			reject(err);
 		}
