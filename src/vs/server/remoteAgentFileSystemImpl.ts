@@ -45,7 +45,7 @@ class SessionFileWatcher extends Disposable {
 	}
 
 	private getWatcherOptions(): IWatcherOptions | undefined {
-		const pollingInterval = this._environmentService.args['fileWatcherPolling'];
+		const pollingInterval = (this._environmentService.args as any)['fileWatcherPolling'];
 		if (typeof pollingInterval === 'number' && pollingInterval > 0) {
 			return { usePolling: true, pollingInterval };
 		}

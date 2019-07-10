@@ -82,9 +82,9 @@ export function main(desc: ProductDescription, args: string[]): void {
 	}
 	// warn about unsupported arguments
 	for (let key in parsedArgs) {
-		if (key !== '_' && !isSupported(key) && parsedArgs[key] !== false) {
+		if (key !== '_' && !isSupported(key) && parsedArgs[key as keyof typeof parsedArgs] !== false) {
 			console.error(`Ignoring option ${key}: not supported for ${desc.executableName}.`);
-			delete parsedArgs[key];
+			delete parsedArgs[key as keyof typeof parsedArgs];
 		}
 	}
 
@@ -120,7 +120,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	if (cliCommand) {
 		let newCommandline: string[] = [];
 		for (let key in parsedArgs) {
-			let val = parsedArgs[key];
+			let val = parsedArgs[key as keyof typeof parsedArgs];
 			if (typeof val === 'boolean') {
 				if (val) {
 					newCommandline.push('--' + key);
@@ -205,7 +205,7 @@ async function waitForFileDeleted(path: string) {
 }
 
 function getCredential(cmd: string) {
-	const command = { get: 'fill', store: 'approve', erase: 'reject' }[cmd];
+	const command = ({ get: 'fill', store: 'approve', erase: 'reject' } as { [cmd: string]: 'fill' | 'approve' | 'reject' | undefined })[cmd];
 	if (command === undefined) {
 		console.log('Expected get, store or erase.');
 		return;
