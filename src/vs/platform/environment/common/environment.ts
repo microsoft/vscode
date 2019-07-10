@@ -172,5 +172,5 @@ export interface IEnvironmentService {
 
 	webviewEndpoint?: string;
 	readonly webviewResourceRoot: string;
-	readonly webviewCspRule: string;
+	readonly webviewCspSource: string;
 }

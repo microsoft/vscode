@@ -80,7 +80,7 @@ steps:
 
 - script: |
     set -e
-    yarn gulp mixin
+    node build/azure-pipelines/mixin
   displayName: Mix in quality
 
 - script: |

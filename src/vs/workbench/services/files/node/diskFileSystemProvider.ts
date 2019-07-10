@@ -279,10 +279,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
+		if (fromFilePath === toFilePath) {
+			return; // simulate node.js behaviour here and do a no-op if paths match
+		}
+
 		try {
 
 			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, opts && opts.overwrite);
+			await this.validateTargetDeleted(from, to, 'move', opts && opts.overwrite);
 
 			// Move
 			await move(fromFilePath, toFilePath);
@@ -302,10 +306,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
+		if (fromFilePath === toFilePath) {
+			return; // simulate node.js behaviour here and do a no-op if paths match
+		}
+
 		try {
 
 			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, opts && opts.overwrite);
+			await this.validateTargetDeleted(from, to, 'copy', opts && opts.overwrite);
 
 			// Copy
 			await copy(fromFilePath, toFilePath);
@@ -321,19 +329,28 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	private async validateTargetDeleted(from: URI, to: URI, overwrite?: boolean): Promise<void> {
+	private async validateTargetDeleted(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
+		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
-		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-		const isCaseChange = isPathCaseSensitive ? false : isEqual(fromFilePath, toFilePath, true /* ignore case */);
+		let isSameResourceWithDifferentPathCase = false;
+		if (!isPathCaseSensitive) {
+			isSameResourceWithDifferentPathCase = isEqual(fromFilePath, toFilePath, true /* ignore case */);
+		}
+
+		if (isSameResourceWithDifferentPathCase && mode === 'copy') {
+			throw createFileSystemProviderError(new Error('File cannot be copied to same path with different path case'), FileSystemProviderErrorCode.FileExists);
+		}
 
 		// handle existing target (unless this is a case change)
-		if (!isCaseChange && await exists(toFilePath)) {
+		if (!isSameResourceWithDifferentPathCase && await exists(toFilePath)) {
 			if (!overwrite) {
 				throw createFileSystemProviderError(new Error('File at target already exists'), FileSystemProviderErrorCode.FileExists);
 			}
 
+			// Delete target
 			await this.delete(to, { recursive: true, useTrash: false });
 		}
 	}

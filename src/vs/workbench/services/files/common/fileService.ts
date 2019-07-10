@@ -546,9 +546,12 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async doMoveCopy(sourceProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<'move' | 'copy'> {
+		if (source.toString() === target.toString()) {
+			return mode; // simulate node.js behaviour here and do a no-op if paths match
+		}
 
 		// validation
-		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, overwrite);
+		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
 
 		// delete as needed (unless target is same resurce with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
@@ -642,22 +645,22 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, overwrite?: boolean): Promise<{ exists: boolean, isSameResourceWithDifferentPathCase: boolean }> {
+	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<{ exists: boolean, isSameResourceWithDifferentPathCase: boolean }> {
 		let isSameResourceWithDifferentPathCase = false;
 
 		// Check if source is equal or parent to target (requires providers to be the same)
 		if (sourceProvider === targetProvider) {
-			if (isEqual(source, target, false /* do not ignore case */)) {
-				throw new Error(localize('unableToMoveCopyError1', "Unable to move/copy when source path is equal to target path"));
-			}
-
 			const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 			if (!isPathCaseSensitive) {
 				isSameResourceWithDifferentPathCase = isEqual(source, target, true /* ignore case */);
 			}
 
+			if (isSameResourceWithDifferentPathCase && mode === 'copy') {
+				throw new Error(localize('unableToMoveCopyError1', "Unable to copy when source is same as target with different path case on a case insensitive file system"));
+			}
+
 			if (!isSameResourceWithDifferentPathCase && isEqualOrParent(target, source, !isPathCaseSensitive)) {
-				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source path is parent of target path"));
+				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source is parent of target"));
 			}
 		}
 

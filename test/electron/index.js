@@ -122,7 +122,7 @@ app.on('ready', () => {
 	win.webContents.on('did-finish-load', () => {
 		if (argv.debug) {
 			win.show();
-			win.webContents.openDevTools({ mode: 'right' });
+			win.webContents.openDevTools();
 		}
 		win.webContents.send('run', argv);
 	});

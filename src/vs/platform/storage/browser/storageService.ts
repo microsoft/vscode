@@ -125,4 +125,10 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		return logStorage(result[0], result[1], this.globalStorageFile.toString(), this.workspaceStorageFile.toString());
 	}
+
+	close(): void {
+
+		// Signal as event so that clients can still store data
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+	}
 }

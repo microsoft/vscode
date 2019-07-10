@@ -200,7 +200,7 @@ export class MarkdownContentProvider {
 		resource: vscode.Uri,
 		nonce: string
 	): string {
-		const rule = provider.cspRule;
+		const rule = provider.cspSource;
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
 				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} http: https: data:; media-src 'self' ${rule} http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' http: https: data:; font-src 'self' ${rule} http: https: data:;">`;

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as paths from 'vs/base/common/path';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -21,32 +21,39 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	handler: (accessor, resource: uri) => {
+	handler: (accessor, resource: URI) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
+		const terminalService: IExternalTerminalService | undefined = accessor.get(IExternalTerminalService, optional);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
-		const terminalService = accessor.get(IExternalTerminalService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const remoteAgentService = accessor.get(IRemoteAgentService);
 
-		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(stats => {
-			const directoriesToOpen = distinct(stats.filter(data => data.success).map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath)));
-			return directoriesToOpen.map(dir => {
-				if (configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated') {
-					const instance = integratedTerminalService.createTerminal({ cwd: dir });
-					if (instance && (resources.length === 1 || !resource || dir === resource.fsPath || dir === paths.dirname(resource.fsPath))) {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
+			const targets = distinct(stats.filter(data => data.success));
+			// Always use integrated terminal when using a remote
+			const useIntegratedTerminal = remoteAgentService.getConnection() || configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated';
+			if (useIntegratedTerminal) {
+				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.path : paths.dirname(stat!.resource.path))).map(cwd => {
+					const instance = integratedTerminalService.createTerminal({ cwd });
+					if (instance && (resources.length === 1 || !resource || cwd === resource.path || cwd === paths.dirname(resource.path))) {
 						integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);
 					}
-				} else {
-					terminalService.openTerminal(dir);
-				}
-			});
+				});
+			} else {
+				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath))).map(cwd => {
+					terminalService.openTerminal(cwd);
+				});
+			}
 		});
 	}
 });
@@ -58,7 +65,31 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor) => {
+		const remoteAgentService = accessor.get(IRemoteAgentService);
 		const historyService = accessor.get(IHistoryService);
+
+		// Open integrated terminal in remote workspaces
+		if (remoteAgentService.getConnection()) {
+			const integratedTerminalService = accessor.get(IIntegratedTerminalService);
+			const root = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
+			let cwd: string | undefined;
+			if (root) {
+				cwd = root.path;
+			} else {
+				const activeFile = historyService.getLastActiveFile(Schemas.vscodeRemote);
+				if (activeFile) {
+					cwd = paths.dirname(activeFile.path);
+				}
+			}
+			if (cwd) {
+				const instance = integratedTerminalService.createTerminal({ cwd });
+				integratedTerminalService.setActiveInstance(instance);
+				integratedTerminalService.showPanel(true);
+			}
+			return;
+		}
+
+		// Open external terminal in local workspaces
 		const terminalService = accessor.get(IExternalTerminalService);
 		const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		if (root) {
@@ -90,10 +121,22 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
 });
-
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: 'navigation',
+	order: 30,
+	command: openConsoleCommand,
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+});
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
 });
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: 'navigation',
+	order: 30,
+	command: openConsoleCommand,
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+});
+

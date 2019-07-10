@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -26,7 +26,7 @@ export interface IWillSaveStateEvent {
 
 export interface IStorageService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -41,6 +41,10 @@ export interface IStorageService {
 	 * The will save state event allows to optionally ask for the reason of
 	 * saving the state, e.g. to find out if the state is saved due to a
 	 * shutdown.
+	 *
+	 * Note: this event may be fired many times, not only on shutdown to prevent
+	 * loss of state in situations where the shutdown is not sufficient to
+	 * persist the data properly.
 	 */
 	readonly onWillSaveState: Event<IWillSaveStateEvent>;
 
@@ -119,7 +123,7 @@ export interface IWorkspaceStorageChangeEvent {
 
 export class InMemoryStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand = undefined;
+	_serviceBrand = null as any;
 
 	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }

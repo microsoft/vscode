@@ -29,7 +29,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, CustomExecution2DTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO
 } from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -131,7 +131,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO): value is ProcessExecutionDTO {
 		const candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -199,7 +199,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO): value is ShellExecutionDTO {
 		const candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -231,7 +231,7 @@ namespace ShellExecutionDTO {
 }
 
 namespace CustomExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO): value is CustomExecutionDTO {
 		const candidate = value as CustomExecutionDTO;
 		return candidate && candidate.customExecution === 'customExecution';
 	}
@@ -245,6 +245,26 @@ namespace CustomExecutionDTO {
 	export function to(value: CustomExecutionDTO): CommandConfiguration {
 		return {
 			runtime: RuntimeType.CustomExecution,
+			presentation: undefined
+		};
+	}
+}
+
+namespace CustomExecution2DTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO): value is CustomExecution2DTO {
+		const candidate = value as CustomExecution2DTO;
+		return candidate && candidate.customExecution === 'customExecution2';
+	}
+
+	export function from(value: CommandConfiguration): CustomExecution2DTO {
+		return {
+			customExecution: 'customExecution2'
+		};
+	}
+
+	export function to(value: CustomExecution2DTO): CommandConfiguration {
+		return {
+			runtime: RuntimeType.CustomExecution2,
 			presentation: undefined
 		};
 	}
@@ -353,6 +373,8 @@ namespace TaskDTO {
 				command = ProcessExecutionDTO.to(task.execution);
 			} else if (CustomExecutionDTO.is(task.execution)) {
 				command = CustomExecutionDTO.to(task.execution);
+			} else if (CustomExecution2DTO.is(task.execution)) {
+				command = CustomExecution2DTO.to(task.execution);
 			}
 		}
 
