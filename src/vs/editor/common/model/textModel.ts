@@ -33,6 +33,7 @@ import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens } from 'vs/editor/common/model/tokensStore';
+import { Color } from 'vs/base/common/color';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -2635,12 +2636,22 @@ function cleanClassName(className: string): string {
 class DecorationOptions implements model.IDecorationOptions {
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
-	private _resolvedColor: string | null;
 
 	constructor(options: model.IDecorationOptions) {
 		this.color = options.color || strings.empty;
 		this.darkColor = options.darkColor || strings.empty;
+
+	}
+}
+
+export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
+	readonly position: model.OverviewRulerLane;
+	private _resolvedColor: string | null;
+
+	constructor(options: model.IModelDecorationOverviewRulerOptions) {
+		super(options);
 		this._resolvedColor = null;
+		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 	}
 
 	public getColor(theme: ITheme): string {
@@ -2670,21 +2681,33 @@ class DecorationOptions implements model.IDecorationOptions {
 	}
 }
 
-export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
-	readonly position: model.OverviewRulerLane;
-
-	constructor(options: model.IModelDecorationOverviewRulerOptions) {
-		super(options);
-		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
-	}
-}
-
 export class ModelDecorationMinimapOptions extends DecorationOptions {
 	readonly position: model.MinimapPosition;
+	private _resolvedColor: Color | undefined;
+
 
 	constructor(options: model.IModelDecorationMinimapOptions) {
 		super(options);
 		this.position = options.position;
+	}
+
+	public getColor(theme: ITheme): Color | undefined {
+		if (!this._resolvedColor) {
+			if (theme.type !== 'light' && this.darkColor) {
+				this._resolvedColor = this._resolveColor(this.darkColor, theme);
+			} else {
+				this._resolvedColor = this._resolveColor(this.color, theme);
+			}
+		}
+
+		return this._resolvedColor;
+	}
+
+	private _resolveColor(color: string | ThemeColor, theme: ITheme): Color | undefined {
+		if (typeof color === 'string') {
+			return Color.fromHex(color);
+		}
+		return theme.getColor(color.id);
 	}
 }
 
