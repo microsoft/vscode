@@ -15,6 +15,7 @@ import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/bro
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -199,7 +200,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			}
 		}
 
-		this.debugService.updateBreakpoints(modelUri, data, true);
+		this.debugService.updateBreakpoints(modelUri, data, true).then(undefined, onUnexpectedError);
 	}
 
 	private onBreakpointsChange(): void {

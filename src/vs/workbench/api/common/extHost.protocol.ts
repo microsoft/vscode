@@ -60,7 +60,7 @@ export interface IEnvironment {
 	globalStorageHome: URI;
 	userHome: URI;
 	webviewResourceRoot: string;
-	webviewCspRule: string;
+	webviewCspSource: string;
 }
 
 export interface IStaticWorkspaceData {

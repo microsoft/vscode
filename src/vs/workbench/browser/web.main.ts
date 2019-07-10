@@ -69,12 +69,13 @@ class CodeRendererMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(this.workbench.onShutdown(() => this.dispose()));
+		this._register(this.workbench.onWillShutdown(() => services.storageService.close()));
 
 		// Startup
 		this.workbench.startup();
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -137,7 +138,7 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.userData, userDataProvider);
 		}
 
-		await Promise.all([
+		const services = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -158,10 +159,10 @@ class CodeRendererMain extends Disposable {
 			})
 		]);
 
-		return { serviceCollection, logService };
+		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<IStorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
 		const storageService = new BrowserStorageService(environmentService, fileService);
 
 		try {

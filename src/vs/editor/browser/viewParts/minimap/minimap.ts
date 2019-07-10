@@ -789,10 +789,13 @@ export class Minimap extends ViewPart {
 
 		const endColumnForLine = endLineNumber > lineNumber ? lineIndexToXOffset.length - 1 : endColumn - 1;
 
-		// If the decoration starts at the last character of the column and spans over it, ensure it has a width
-		const width = lineIndexToXOffset[endColumnForLine] - x || 2;
+		if (endColumnForLine > 0) {
+			// If the decoration starts at the last character of the column and spans over it, ensure it has a width
+			const width = lineIndexToXOffset[endColumnForLine] - x || 2;
 
-		this.renderDecoration(canvasContext, <ModelDecorationMinimapOptions>decoration.options.minimap, x, y, width, height);
+			this.renderDecoration(canvasContext, <ModelDecorationMinimapOptions>decoration.options.minimap, x, y, width, height);
+		}
+
 	}
 
 	private renderDecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {

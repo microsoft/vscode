@@ -680,7 +680,6 @@ export function createApiFactory(
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
 			get fs() {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystem.fileSystem;
 			},
 			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
@@ -849,6 +848,7 @@ export function createApiFactory(
 			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution: extHostTypes.CustomExecution,
+			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,

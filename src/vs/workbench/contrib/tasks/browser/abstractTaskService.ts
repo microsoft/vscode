@@ -272,7 +272,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
-		this._register(storageService.onWillSaveState(() => this.saveState()));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 	}
@@ -569,7 +568,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasks;
 	}
 
-	private saveState(): void {
+	private setRecentlyUsedTask(key: string): void {
+		this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+		this.saveRecentlyUsedTasks();
+	}
+
+	private saveRecentlyUsedTasks(): void {
 		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}
@@ -1035,7 +1039,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let key = executeResult.task.getRecentlyUsedKey();
 		if (key) {
-			this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+			this.setRecentlyUsedTask(key);
 		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			let active = executeResult.active;

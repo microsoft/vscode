@@ -1394,6 +1394,11 @@ declare module 'vscode' {
 		 * Implement to handle when the terminal shuts down by an act of the user.
 		 */
 		shutdown?(): void;
+
+		/**
+		 * Implement to handle when the terminal is ready to start firing events.
+		 */
+		start?(): void;
 	}
 
 	//#endregion
@@ -1495,6 +1500,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution2 {
+		/**
+		 * @param process The [TerminalVirtualProcess](#TerminalVirtualProcess) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>);
+
+		/**
+		 * The callback used to execute the task. Cancellation should be handled using the shutdown method of [TerminalVirtualProcess](#TerminalVirtualProcess).
+		 * When the task is complete, onDidExit should be fired on the TerminalVirtualProcess with the exit code with '0' for success and a non-zero value for failure.
+		 */
+		callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>;
+	}
+
+	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
@@ -1510,12 +1532,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2;
 	}
 
 	//#region Tasks
@@ -1586,95 +1608,7 @@ declare module 'vscode' {
 		/**
 		 * Content security policy rule for webview resources.
 		 */
-		readonly cspRule: string;
-	}
-
-	//#endregion
-
-
-	//#region Joh - read/write files of any scheme
-
-	/**
-	 * The file system interface exposes the editor's built-in and contributed
-	 * [file system providers](#FileSystemProvider). It allows extensions to work
-	 * with files from the local disk as well as files from remote places, like the
-	 * remote extension host or ftp-servers.
-	 */
-	export interface FileSystem {
-
-		/**
-		 * Retrieve metadata about a file.
-		 *
-		 * @param uri The uri of the file to retrieve metadata about.
-		 * @return The file metadata about the file.
-		 */
-		stat(uri: Uri): Thenable<FileStat>;
-
-		/**
-		 * Retrieve all entries of a [directory](#FileType.Directory).
-		 *
-		 * @param uri The uri of the folder.
-		 * @return An array of name/type-tuples or a thenable that resolves to such.
-		 */
-		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
-
-		/**
-		 * Create a new directory (Note, that new files are created via `write`-calls).
-		 *
-		 * @param uri The uri of the new folder.
-		 */
-		createDirectory(uri: Uri): Thenable<void>;
-
-		/**
-		 * Read the entire contents of a file.
-		 *
-		 * @param uri The uri of the file.
-		 * @return An array of bytes or a thenable that resolves to such.
-		 */
-		readFile(uri: Uri): Thenable<Uint8Array>;
-
-		/**
-		 * Write data to a file, replacing its entire contents.
-		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
-		 */
-		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
-
-		/**
-		 * Delete a file.
-		 *
-		 * @param uri The resource that is to be deleted.
-		 * @param options Defines if trash can should be used and if deletion of folders is recursive
-		 */
-		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
-
-		/**
-		 * Copy files or folders. Implementing this function is optional but it will speedup
-		 * the copy operation.
-		 *
-		 * @param source The existing file.
-		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
-	}
-
-	export namespace workspace {
-
-		/**
-		 * File system that allows to interact with local and remote files.
-		 */
-		export const fs: FileSystem;
+		readonly cspSource: string;
 	}
 
 	//#endregion

@@ -22,6 +22,10 @@ export class ClipboardService implements IClipboardService {
 		return clipboard.readText(type);
 	}
 
+	readTextSync(): string {
+		return clipboard.readText();
+	}
+
 	readFindText(): string {
 		if (isMacintosh) {
 			return clipboard.readFindText();

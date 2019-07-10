@@ -22,6 +22,8 @@ export interface IClipboardService {
 	 */
 	readText(type?: string): string;
 
+	readTextSync(): string | undefined;
+
 	/**
 	 * Reads text from the system find pasteboard.
 	 */

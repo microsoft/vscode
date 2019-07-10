@@ -13,40 +13,36 @@ import { Disposable } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as modes from 'vs/editor/common/modes';
 import { WebviewInitData, toWebviewResource } from 'vs/workbench/api/common/shared/webview';
+import { generateUuid } from 'vs/base/common/uuid';
 
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private readonly _handle: WebviewPanelHandle;
-	private readonly _proxy: MainThreadWebviewsShape;
+	private readonly _uuid: string = generateUuid();
+
 	private _html: string;
-	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 
 	public readonly _onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	constructor(
-		handle: WebviewPanelHandle,
-		proxy: MainThreadWebviewsShape,
-		options: vscode.WebviewOptions,
-		private readonly initData: WebviewInitData
-	) {
-		this._handle = handle;
-		this._proxy = proxy;
-		this._options = options;
-	}
+		private readonly _handle: WebviewPanelHandle,
+		private readonly _proxy: MainThreadWebviewsShape,
+		private _options: vscode.WebviewOptions,
+		private readonly _initData: WebviewInitData
+	) { }
 
 	public dispose() {
 		this._onMessageEmitter.dispose();
 	}
 
 	public toWebviewResource(resource: vscode.Uri): vscode.Uri {
-		return toWebviewResource(this.initData, resource);
+		return toWebviewResource(this._initData, this._uuid, resource);
 	}
 
-	public get cspRule(): string {
-		return this.initData.webviewCspRule;
+	public get cspSource(): string {
+		return this._initData.webviewCspSource;
 	}
 
 	public get html(): string {

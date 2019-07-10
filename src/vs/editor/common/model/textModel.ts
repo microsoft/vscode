@@ -32,6 +32,7 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
+import { TokensStore, MultilineTokens } from 'vs/editor/common/model/tokensStore';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -288,7 +289,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 	//#region Tokenization
 	private _languageIdentifier: LanguageIdentifier;
 	private readonly _languageRegistryListener: IDisposable;
-	_tokenization: TextModelTokenization;
+	private readonly _tokens: TokensStore;
+	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
 	constructor(source: string | model.ITextBufferFactory, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier | null, associatedResource: URI | null = null) {
@@ -348,6 +350,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._isRedoing = false;
 		this._trimAutoWhitespaceLines = null;
 
+		this._tokens = new TokensStore();
 		this._tokenization = new TextModelTokenization(this);
 	}
 
@@ -420,6 +423,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._buffer = textBuffer;
 		this._increaseVersionId();
+
+		// Flush all tokens
+		this._tokens.flush();
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
@@ -1271,7 +1277,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount] = countEOL(change.text);
+				const [eolCount, firstLineLength] = countEOL(change.text);
+				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1696,12 +1703,60 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 
+	public setLineTokens(lineNumber: number, tokens: Uint32Array): void {
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value for lineNumber');
+		}
+
+		this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens);
+	}
+
+	public setTokens(tokens: MultilineTokens[]): void {
+		if (tokens.length === 0) {
+			return;
+		}
+
+		let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const element = tokens[i];
+			ranges.push({ fromLineNumber: element.startLineNumber, toLineNumber: element.startLineNumber + element.tokens.length - 1 });
+			for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
+				this.setLineTokens(element.startLineNumber + j, element.tokens[j]);
+			}
+		}
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: ranges
+		});
+	}
+
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
+		startLineNumber = Math.max(1, startLineNumber);
+		endLineNumber = Math.min(this._buffer.getLineCount(), endLineNumber);
 		this._tokenization.tokenizeViewport(startLineNumber, endLineNumber);
 	}
 
-	public flushTokens(): void {
-		this._tokenization.flushTokens();
+	public clearTokens(): void {
+		this._tokens.flush();
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: true,
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this._buffer.getLineCount()
+			}]
+		});
+	}
+
+	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
+		if (!this._isDisposing) {
+			this._onDidChangeTokens.fire(e);
+		}
+	}
+
+	public resetTokenization(): void {
+		this._tokenization.reset();
 	}
 
 	public forceTokenization(lineNumber: number): void {
@@ -1731,7 +1786,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	private _getLineTokens(lineNumber: number): LineTokens {
-		return this._tokenization.getLineTokens(lineNumber);
+		const lineText = this.getLineContent(lineNumber);
+		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {
@@ -1761,13 +1817,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId {
 		const position = this.validatePosition(new Position(lineNumber, column));
-		return this._tokenization.getLanguageIdAtPosition(position);
-	}
-
-	emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
-		if (!this._isDisposing) {
-			this._onDidChangeTokens.fire(e);
-		}
+		const lineTokens = this.getLineTokens(position.lineNumber);
+		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
 	}
 
 	// Having tokens allows implementing additional helper methods

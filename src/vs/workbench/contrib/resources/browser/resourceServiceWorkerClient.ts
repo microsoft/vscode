@@ -42,16 +42,17 @@ class ResourceServiceWorker {
 
 	private _initFetchHandler(): void {
 
-		const fetchListener: (this: ServiceWorkerContainer, ev: MessageEvent) => void = event => {
-			const uri = URI.parse(event.data.uri);
+		const fetchListener: (this: ServiceWorkerContainer, ev: ExtendableMessageEvent) => void = event => {
+			const uri = URI.revive(event.data.uri);
 
 			Promise.all([
 				this._fileService.readFile(uri),
 				this._isExtensionResource(uri)
 			]).then(([file, isExtensionResource]) => {
-
-				// todo@joh typings
-				(<any>event.source).postMessage({
+				if (!event.source) {
+					return;
+				}
+				event.source.postMessage({
 					token: event.data.token,
 					data: file.value.buffer.buffer,
 					isExtensionResource
