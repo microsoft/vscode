@@ -22,7 +22,7 @@ import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd }
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { TextModelTokenization, countEOL, TokensStore } from 'vs/editor/common/model/textModelTokens';
+import { TextModelTokenization, countEOL } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -32,6 +32,7 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
+import { TokensStore } from 'vs/editor/common/model/tokensStore';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
