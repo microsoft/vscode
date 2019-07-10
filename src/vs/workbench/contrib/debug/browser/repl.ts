@@ -862,9 +862,8 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion().then(() => {
-			accessor.get(IPrivateReplService).acceptReplInput();
-		});
+		SuggestController.get(editor).acceptSelectedSuggestion();
+		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
 
@@ -885,9 +884,8 @@ class FilterReplAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion().then(() => {
-			accessor.get(IPrivateReplService).focusRepl();
-		});
+		SuggestController.get(editor).acceptSelectedSuggestion();
+		accessor.get(IPrivateReplService).focusRepl();
 	}
 }
 
