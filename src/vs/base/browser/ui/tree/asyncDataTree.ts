@@ -778,7 +778,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const hasChildren = !!this.dataSource.hasChildren(element);
 
 			if (!this.identityProvider) {
-				return createAsyncDataTreeNode({ element, parent: node, hasChildren });
+				const asyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, hasChildren });
+
+				if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
+					asyncDataTreeNode.collapsedByDefault = false;
+					childrenToRefresh.push(asyncDataTreeNode);
+				}
+
+				return asyncDataTreeNode;
 			}
 
 			const id = this.identityProvider.getId(element).toString();
