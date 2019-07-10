@@ -284,8 +284,6 @@ export class ConfigurationManager implements IConfigurationManager {
 				this.setCompoundSchemaValues();
 			}
 		}));
-
-		this.toDispose.push(this.storageService.onWillSaveState(this.saveState, this));
 	}
 
 	private initLaunches(): void {
@@ -296,7 +294,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.launches.push(this.instantiationService.createInstance(UserLaunch));
 
 		if (this.selectedLaunch && this.launches.indexOf(this.selectedLaunch) === -1) {
-			this.selectedLaunch = undefined;
+			this.setSelectedLaunch(undefined);
 		}
 	}
 
@@ -348,13 +346,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousLaunch = this.selectedLaunch;
 		const previousName = this.selectedName;
 
-		this.selectedLaunch = launch;
+		this.setSelectedLaunch(launch);
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
-			this.selectedName = name;
+			this.setSelectedLaunchName(name);
 		}
 		if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
-			this.selectedName = names.length ? names[0] : undefined;
+			this.setSelectedLaunchName(names.length ? names[0] : undefined);
 		}
 
 		const configuration = this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined;
@@ -439,12 +437,23 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 	}
 
-	private saveState(): void {
+	private setSelectedLaunchName(selectedName: string | undefined): void {
+		this.selectedName = selectedName;
+
 		if (this.selectedName) {
 			this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		}
+	}
+
+	private setSelectedLaunch(selectedLaunch: ILaunch | undefined): void {
+		this.selectedLaunch = selectedLaunch;
+
 		if (this.selectedLaunch) {
 			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
 	}
 

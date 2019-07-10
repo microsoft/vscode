@@ -60,7 +60,7 @@ suite('Multicursor selection', () => {
 	let queryState: { [key: string]: any; } = {};
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
+		_serviceBrand: undefined as any,
 		onDidChangeStorage: Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
