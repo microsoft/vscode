@@ -41,7 +41,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeEvent } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
@@ -369,6 +369,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
+				identityProvider: new CustomViewIdentityProvider(),
 				accessibilityProvider: {
 					getAriaLabel(element: ITreeItem): string {
 						return element.label ? element.label.label : '';
@@ -611,6 +612,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				}
 			}
 		}
+	}
+}
+
+class CustomViewIdentityProvider implements IIdentityProvider<ITreeItem> {
+	getId(element: ITreeItem): { toString(): string; } {
+		return element.handle;
 	}
 }
 
