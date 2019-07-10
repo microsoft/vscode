@@ -17,7 +17,7 @@ export class SuggestAlternatives {
 
 	private _index: number;
 	private _model: CompletionModel | undefined;
-	private _acceptNext: ((selected: ISelectedSuggestion) => Promise<any>) | undefined;
+	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
 	private _listener: IDisposable | undefined;
 	private _ignore: boolean | undefined;
 
@@ -80,15 +80,15 @@ export class SuggestAlternatives {
 		return newIndex;
 	}
 
-	async next(): Promise<void> {
-		await this._move(true);
+	next(): void {
+		this._move(true);
 	}
 
-	async prev(): Promise<void> {
-		await this._move(false);
+	prev(): void {
+		this._move(false);
 	}
 
-	private async _move(fwd: boolean): Promise<void> {
+	private _move(fwd: boolean): void {
 		if (!this._model) {
 			// nothing to reason about
 			return;
@@ -96,7 +96,7 @@ export class SuggestAlternatives {
 		try {
 			this._ignore = true;
 			this._index = SuggestAlternatives._moveIndex(fwd, this._model, this._index);
-			await this._acceptNext!({ index: this._index, item: this._model.items[this._index], model: this._model });
+			this._acceptNext!({ index: this._index, item: this._model.items[this._index], model: this._model });
 		} finally {
 			this._ignore = false;
 		}

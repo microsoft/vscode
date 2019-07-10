@@ -110,9 +110,9 @@ suite('SnippetController', () => {
 	});
 
 	// test('Stops when deleting lines above', () => {
-	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
+	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
-	// 		await snippetController.insert(codeSnippet, 0, 0);
+	// 		snippetController.insert(codeSnippet, 0, 0);
 
 	// 		editor.getModel()!.applyEdits([{
 	// 			forceMoveMarkers: false,
@@ -127,7 +127,7 @@ suite('SnippetController', () => {
 	// });
 
 	// test('Stops when deleting lines below', () => {
-	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
+	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
@@ -144,7 +144,7 @@ suite('SnippetController', () => {
 	// });
 
 	// test('Stops when inserting lines above', () => {
-	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
+	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 
@@ -161,7 +161,7 @@ suite('SnippetController', () => {
 	// });
 
 	// test('Stops when inserting lines below', () => {
-	// 	await snippetTest(async (editor, cursor, codeSnippet, snippetController) => {
+	// 	snippetTest((editor, cursor, codeSnippet, snippetController) => {
 	// 		editor.setPosition({ lineNumber: 4, column: 2 });
 	// 		snippetController.run(codeSnippet, 0, 0);
 

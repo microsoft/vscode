@@ -18,7 +18,6 @@
 		"number-literal-format": true,
 		"curly": true,
 		"class-name": true,
-		"await-promise": true,
 		"label-position": true,
 		"semicolon": [
 			true,

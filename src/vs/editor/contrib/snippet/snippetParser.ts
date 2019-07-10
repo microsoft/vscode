@@ -548,7 +548,7 @@ export class TextmateSnippet extends Marker {
 	}
 
 	resolveVariables(resolver: VariableResolver): this {
-		this.walk((candidate) => {
+		this.walk(candidate => {
 			if (candidate instanceof Variable) {
 				if (candidate.resolve(resolver)) {
 					this._placeholders = undefined;

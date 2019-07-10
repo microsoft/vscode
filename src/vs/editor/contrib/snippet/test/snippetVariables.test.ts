@@ -164,8 +164,8 @@ suite('Snippet Variables Resolver', function () {
 
 
 	function assertVariableResolve2(input: string, expected: string, varValue?: string) {
-		const snippet = (new SnippetParser().parse(input)
-			.resolveVariables({ resolve(variable) { return varValue || variable.name; } }));
+		const snippet = new SnippetParser().parse(input)
+			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
 
 		const actual = snippet.toString();
 		assert.equal(actual, expected);
@@ -187,7 +187,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/}', 'FARbarfoobar'); // first match
 		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match, no else
-		// await assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', ''); // no match
+		// assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', ''); // no match
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
 	});

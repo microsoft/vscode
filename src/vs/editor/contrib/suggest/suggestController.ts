@@ -223,7 +223,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		if (keepAlternativeSuggestions) {
-			this._alternatives.getValue().set(event, (next) => {
+			this._alternatives.getValue().set(event, next => {
 				// this is not so pretty. when inserting the 'next'
 				// suggestion we undo until we are at the state at
 				// which we were before inserting the previous suggestion...
@@ -328,12 +328,12 @@ export class SuggestController implements IEditorContribution {
 		this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
 	}
 
-	async acceptNextSuggestion() {
-		await this._alternatives.getValue().next();
+	acceptNextSuggestion() {
+		this._alternatives.getValue().next();
 	}
 
-	async acceptPrevSuggestion() {
-		await this._alternatives.getValue().prev();
+	acceptPrevSuggestion() {
+		this._alternatives.getValue().prev();
 	}
 
 	cancelSuggestWidget(): void {
@@ -416,7 +416,7 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	handler: x => { x.acceptSelectedSuggestion(true); },
+	handler: x => x.acceptSelectedSuggestion(true),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -427,7 +427,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
-	handler: x => { x.acceptSelectedSuggestion(false); },
+	handler: x => x.acceptSelectedSuggestion(false),
 	kbOpts: {
 		weight: weight,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
@@ -562,7 +562,7 @@ registerEditorCommand(new SuggestCommand({
 		SuggestContext.Visible.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
-	handler: async (x) => { await x.acceptNextSuggestion(); },
+	handler: x => x.acceptNextSuggestion(),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -578,7 +578,7 @@ registerEditorCommand(new SuggestCommand({
 		SuggestContext.Visible.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
-	handler: async (x) => { await x.acceptPrevSuggestion(); },
+	handler: x => x.acceptPrevSuggestion(),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,

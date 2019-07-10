@@ -149,7 +149,7 @@ const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionContr
 registerEditorCommand(new TabCompletionCommand({
 	id: 'insertSnippet',
 	precondition: TabCompletionController.ContextKey,
-	handler: x => { x.performSnippetCompletions(); },
+	handler: x => x.performSnippetCompletions(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib,
 		kbExpr: ContextKeyExpr.and(
