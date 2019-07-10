@@ -32,7 +32,7 @@ export class SnippetCompletion implements CompletionItem {
 	) {
 		this.label = snippet.prefix;
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
-		this.insertText = snippet.body;
+		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
@@ -41,7 +41,6 @@ export class SnippetCompletion implements CompletionItem {
 
 	resolve(): this {
 		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
-		this.insertText = this.snippet.codeSnippet;
 		return this;
 	}
 
