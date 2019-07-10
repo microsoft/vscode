@@ -19,7 +19,7 @@ import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -219,6 +219,9 @@ export class Workbench extends Layout {
 
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+
+		// Storage
+		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
@@ -240,11 +243,10 @@ export class Workbench extends Layout {
 		}
 	}
 
-	private warmUpFontCache(storageService: IStorageService, configurationService: IConfigurationService): void {
-		const key = 'editorFontInfo';
+	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// Restore (native: use storage service, web: use browser specific local storage)
-		const storedFontInfoRaw = isNative ? storageService.get(key, StorageScope.GLOBAL) : window.localStorage.getItem(key);
+		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('editorFontInfo');
 		if (storedFontInfoRaw) {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
@@ -257,18 +259,17 @@ export class Workbench extends Layout {
 		}
 
 		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+	}
 
-		// Persist on shutdown (native: use storage service, web: use browser specific local storage)
-		this._register(storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const serializedFontInfo = serializeFontInfo();
-				if (serializedFontInfo) {
-					const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
+	private storeFontInfo(e: IWillSaveStateEvent, storageService: IStorageService): void {
+		if (e.reason === WillSaveStateReason.SHUTDOWN) {
+			const serializedFontInfo = serializeFontInfo();
+			if (serializedFontInfo) {
+				const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
 
-					isNative ? storageService.store(key, serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem(key, serializedFontInfoRaw);
-				}
+				isNative ? storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
 			}
-		}));
+		}
 	}
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -296,7 +297,7 @@ export class Workbench extends Layout {
 		this.setFontAliasing(configurationService);
 
 		// Warm up font cache information before building up too many dom elements
-		this.warmUpFontCache(storageService, configurationService);
+		this.restoreFontInfo(storageService, configurationService);
 
 		// Create Parts
 		[
