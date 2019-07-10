@@ -222,10 +222,10 @@ export class InstantiationService implements IInstantiationService {
 			const idle = new IdleValue(() => this._createInstance<T>(ctor, args, _trace));
 			return <T>new Proxy(Object.create(null), {
 				get(_target: T, prop: PropertyKey): any {
-					return idle.getValue()[prop];
+					return (idle.getValue() as any)[prop];
 				},
 				set(_target: T, p: PropertyKey, value: any): boolean {
-					idle.getValue()[p] = value;
+					(idle.getValue() as any)[p] = value;
 					return true;
 				}
 			});

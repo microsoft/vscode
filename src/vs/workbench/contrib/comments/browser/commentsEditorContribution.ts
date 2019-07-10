@@ -163,7 +163,7 @@ export class ReviewController implements IEditorContribution {
 	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
-	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
+	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -396,7 +396,7 @@ export class ReviewController implements IEditorContribution {
 					return;
 				}
 
-				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId];
+				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
 				this.displayCommentThread(e.owner, thread, pendingCommentText);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
@@ -624,7 +624,7 @@ export class ReviewController implements IEditorContribution {
 			info.threads.forEach(thread => {
 				let pendingComment: string | null = null;
 				if (providerCacheStore) {
-					pendingComment = providerCacheStore[thread.threadId];
+					pendingComment = providerCacheStore[thread.threadId!];
 				}
 
 				if (pendingComment) {
@@ -658,10 +658,10 @@ export class ReviewController implements IEditorContribution {
 						this._pendingCommentCache[zone.owner] = {};
 					}
 
-					this._pendingCommentCache[zone.owner][zone.commentThread.threadId] = pendingComment;
+					this._pendingCommentCache[zone.owner][zone.commentThread.threadId!] = pendingComment;
 				} else {
 					if (providerCacheStore) {
-						delete providerCacheStore[zone.commentThread.threadId];
+						delete providerCacheStore[zone.commentThread.threadId!];
 					}
 				}
 

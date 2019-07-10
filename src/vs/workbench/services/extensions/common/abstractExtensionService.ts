@@ -231,14 +231,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
 		return this._installedExtensionsReady.wait().then(() => {
-			let availableExtensions = this._registry.getAllExtensionDescriptions();
+			const availableExtensions = this._registry.getAllExtensionDescriptions();
 
-			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
-			for (let i = 0, len = availableExtensions.length; i < len; i++) {
-				let desc = availableExtensions[i];
-
+			const result: ExtensionPointContribution<T>[] = [];
+			for (const desc of availableExtensions) {
 				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
-					result[resultLen++] = new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name]);
+					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes]));
 				}
 			}
 
@@ -320,9 +318,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
-		for (let i = 0, len = extensionPoints.length; i < len; i++) {
-			if (affectedExtensionPoints[extensionPoints[i].name]) {
-				AbstractExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+		for (const extensionPoint of extensionPoints) {
+			if (affectedExtensionPoints[extensionPoint.name]) {
+				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
 			}
 		}
 	}
@@ -365,16 +363,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
-		let users: IExtensionPointUser<T>[] = [], usersLen = 0;
-		for (let i = 0, len = availableExtensions.length; i < len; i++) {
-			let desc = availableExtensions[i];
-
+		const users: IExtensionPointUser<T>[] = [];
+		for (const desc of availableExtensions) {
 			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
-				users[usersLen++] = {
+				users.push({
 					description: desc,
-					value: desc.contributes[extensionPoint.name],
+					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes],
 					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
-				};
+				});
 			}
 		}
 		perf.mark(`willHandleExtensionPoint/${extensionPoint.name}`);
