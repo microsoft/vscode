@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as paths from 'vs/base/common/path';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -28,7 +28,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	handler: (accessor, resource: uri) => {
+	handler: (accessor, resource: URI) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
