@@ -26,7 +26,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';

@@ -66,8 +66,8 @@ import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/ac
 // import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 // import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-// import { IRequestService } from 'vs/platform/request/node/request';
-// import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/browser/requestService';
 import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -156,7 +156,7 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-// registerSingleton(IRequestService, RequestService, true);
+registerSingleton(IRequestService, RequestService, true);
 registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
