@@ -286,6 +286,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	private _variableResolver: ExtHostVariableResolverService | undefined;
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -310,6 +311,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		private _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
+		this._extHostConfiguration.getConfigProvider().then((configProvider) => {
+			this._extHostWorkspace.getWorkspaceFolders2().then((workspaceFolders) => {
+				this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
+			});
+		});
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
@@ -544,11 +550,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Merge in shell and args from settings
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(configProvider, variableResolver);
-			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, variableResolver);
+			shellLaunchConfig.executable = this.getDefaultShell(configProvider, this._variableResolver);
+			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider, this._variableResolver);
 		}
 
 		// Get the initial cwd
@@ -572,7 +576,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			shellLaunchConfig,
 			lastActiveWorkspace,
 			envFromConfig,
-			variableResolver,
+			this._variableResolver,
 			isWorkspaceShellAllowed,
 			pkg.version,
 			terminalConfig.get<boolean>('setLocaleVariables', false),
