@@ -38,12 +38,7 @@ const _tag = '586d4b79-f5c4-4aff-9a14-2139ddfbb486';
 				return value;
 			}
 			// try the network (prefetch or fetch)
-			const res = await event.preloadResponse;
-			if (res) {
-				return res;
-			} else {
-				return fetch(event.request);
-			}
+			return await event.preloadResponse || await fetch(event.request);
 		}));
 	});
 	self.addEventListener('install', (event: any) => {
