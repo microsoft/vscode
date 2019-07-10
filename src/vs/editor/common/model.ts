@@ -783,7 +783,7 @@ export interface ITextModel {
 	 * Flush all tokenization state.
 	 * @internal
 	 */
-	flushTokens(): void;
+	resetTokenization(): void;
 
 	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
