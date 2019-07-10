@@ -5759,7 +5759,7 @@ declare module 'vscode' {
 	 * with files from the local disk as well as files from remote places, like the
 	 * remote extension host or ftp-servers.
 	 *
-	 * An instance of this interface is provided by [`workspace.fs`](#workspace.fs).
+	 * *Note* that an instance of this interface is avaiable as [`workspace.fs`](#workspace.fs).
 	 */
 	export interface FileSystem {
 
@@ -5820,8 +5820,7 @@ declare module 'vscode' {
 		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
 
 		/**
-		 * Copy files or folders. Implementing this function is optional but it will speedup
-		 * the copy operation.
+		 * Copy files or folders.
 		 *
 		 * @param source The existing file.
 		 * @param destination The destination location.
