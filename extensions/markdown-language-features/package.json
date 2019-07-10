@@ -24,6 +24,7 @@
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector",
+		"onCommand:markdown.render",
 		"onWebviewPanel:markdown.preview"
 	],
 	"contributes": {
