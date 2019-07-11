@@ -68,6 +68,14 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDa
 		});
 }
 
+function getListDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
+	return element.value.map((key: string) => {
+		return {
+			pattern: key
+		};
+	});
+}
+
 export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
@@ -229,6 +237,7 @@ const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
+const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
 const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
@@ -656,6 +665,75 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
+export class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
+	templateId = SETTINGS_ARRAY_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'exclude');
+
+		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
+		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.push(excludeWidget);
+
+		const template: ISettingExcludeItemTemplate = {
+			...common,
+			excludeWidget
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		common.toDispose.push(excludeWidget.onDidChangeExclude(e => this.onDidChangeExclude(template, e)));
+
+		return template;
+	}
+
+	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IExcludeChangeEvent): void {
+		if (template.context) {
+			const newValue = [...template.context.scopeValue];
+
+			// Add pattern
+			if (e.pattern && !e.originalPattern) {
+				newValue.push(e.pattern);
+			}
+			// Delete pattern
+			else if (!e.pattern && e.originalPattern) {
+				const patternIndex = newValue.indexOf(e.originalPattern);
+				if (patternIndex > -1) {
+					newValue.splice(patternIndex, 1);
+				}
+			}
+			// Update pattern
+			else if (e.pattern && e.originalPattern) {
+				const patternIndex = newValue.indexOf(e.originalPattern);
+				if (patternIndex > -1) {
+					newValue[patternIndex] = e.pattern;
+				}
+				// For some reason, we are updating and cannot find original pattern
+				// Just append the value in this case
+				else {
+					newValue.push(e.pattern);
+				}
+			}
+
+			this._onDidChangeSetting.fire({
+				key: template.context.setting.key,
+				value: newValue,
+				type: template.context.valueType
+			});
+		}
+	}
+
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingExcludeItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate, onChange: (value: string) => void): void {
+		const value = getListDisplayValue(dataElement);
+		template.excludeWidget.setValue(value);
+		template.context = dataElement;
+	}
+}
+
 export class SettingExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
 	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
 
@@ -1056,6 +1134,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions),
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions),
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions),
+			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions),
 			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions),
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions),
@@ -1254,23 +1333,27 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
-			if (element.valueType === 'boolean') {
+			if (element.valueType === SettingValueType.Boolean) {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'integer' || element.valueType === 'number' || element.valueType === 'nullable-integer' || element.valueType === 'nullable-number') {
+			if (element.valueType === SettingValueType.Integer || element.valueType === SettingValueType.Number || element.valueType === SettingValueType.NullableInteger || element.valueType === SettingValueType.NullableNumber) {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'string') {
+			if (element.valueType === SettingValueType.String) {
 				return SETTINGS_TEXT_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'enum') {
+			if (element.valueType === SettingValueType.Enum) {
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'exclude') {
+			if (element.valueType === SettingValueType.Array) {
+				return SETTINGS_ARRAY_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.Exclude) {
 				return SETTINGS_EXCLUDE_TEMPLATE_ID;
 			}
 
