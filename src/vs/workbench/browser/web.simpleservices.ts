@@ -260,17 +260,17 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve([]);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve([]);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve(local);
 	}
 }
 

@@ -14,7 +14,6 @@ import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -24,6 +23,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -38,7 +38,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
@@ -72,7 +72,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 			};
 		} else {
 			return {
-				urlBase: this.environmentService.settingsSearchUrl
+				urlBase: this.productService.settingsSearchUrl
 			};
 		}
 	}
@@ -168,7 +168,7 @@ class RemoteSearchProvider implements ISearchProvider {
 	private _remoteSearchP: Promise<IFilterMetadata | null>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -363,7 +363,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const extensions = await this.installedExtensions;
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			this.getVersionFilters(extensions, this.environmentService.settingsSearchBuildId);
+			this.getVersionFilters(extensions, this.productService.settingsSearchBuildId);
 
 		const filterStr = filters
 			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)

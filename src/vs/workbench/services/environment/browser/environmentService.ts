@@ -111,8 +111,6 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	localeResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 	backupHome: URI;

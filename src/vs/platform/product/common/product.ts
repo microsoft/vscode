@@ -30,6 +30,9 @@ export interface IProductService {
 		readonly reportIssueUrl: string;
 		readonly requestFeatureUrl: string;
 	};
+
+	readonly settingsSearchBuildId?: number;
+	readonly settingsSearchUrl?: string;
 }
 
 export interface IProductConfiguration {
