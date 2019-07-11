@@ -9,7 +9,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent } from 'vs/base/common/actions';
+import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -31,6 +31,7 @@ import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/pla
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -54,6 +55,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
+	private disposeOnUpdate: IDisposable;
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
@@ -105,12 +107,17 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				return this.hide();
 			}
 
-			const actions = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
 				this.activeActions = actions;
 			}
+			if (this.disposeOnUpdate) {
+				dispose(this.disposeOnUpdate);
+			}
+			this.disposeOnUpdate = disposable;
+
 			this.show();
 		}, 20));
 
@@ -134,13 +141,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 			// log in telemetry
 			if (this.telemetryService) {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
@@ -263,14 +264,17 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		dom.hide(this.$el);
 	}
 
-	public static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): IAction[] {
+	public static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): { actions: IAction[], disposable: IDisposable } {
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, undefined, actions, () => false);
+		const disposable = createAndFillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {
 			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 		}
 
-		return actions.filter(a => !(a instanceof Separator)); // do not render separators for now
+		return {
+			actions: actions.filter(a => !(a instanceof Separator)), // do not render separators for now
+			disposable
+		};
 	}
 
 	public dispose(): void {
@@ -279,6 +283,9 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		if (this.$el) {
 			this.$el.remove();
 			delete this.$el;
+		}
+		if (this.disposeOnUpdate) {
+			dispose(this.disposeOnUpdate);
 		}
 	}
 }

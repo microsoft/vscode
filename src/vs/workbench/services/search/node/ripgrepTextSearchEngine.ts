@@ -121,9 +121,10 @@ export class RipgrepTextSearchEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
-	const firstLine = msg.split('\n')[0].trim();
+	const lines = msg.split('\n');
+	const firstLine = lines[0].trim();
 
-	if (startsWith(firstLine, 'regex parse error')) {
+	if (lines.some(l => startsWith(l, 'regex parse error'))) {
 		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
@@ -209,7 +210,7 @@ export class RipgrepParser extends EventEmitter {
 			newlineIdx = dataStr.indexOf('\n', prevIdx);
 		}
 
-		this.remainder = dataStr.substring(prevIdx).trim();
+		this.remainder = dataStr.substring(prevIdx);
 	}
 
 	private handleLine(outputLine: string): void {
@@ -409,11 +410,14 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
 		args.push('--pcre2');
-
-		if (query.isRegExp) {
-			pattern = unicodeEscapesToPCRE2(pattern);
-		}
 	}
+
+	if (query.isRegExp) {
+		pattern = unicodeEscapesToPCRE2(pattern);
+	}
+
+	// Allow $ to match /r/n
+	args.push('--crlf');
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
@@ -421,12 +425,10 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
-		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
+		let fixedRegexpQuery = fixRegexNewline(query.pattern);
 		fixedRegexpQuery = fixNewline(fixedRegexpQuery);
-		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
-		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
 		args.push('--regexp', fixedRegexpQuery);
+		args.push('--auto-hybrid-regex');
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
@@ -508,30 +510,10 @@ export interface IRgSubmatch {
 
 export type IRgBytesOrText = { bytes: string } | { text: string };
 
-export function fixRegexEndingPattern(pattern: string): string {
-	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceeded by none or even number of literal \
-	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
-		pattern.replace(/\$$/, '\\r?$') :
-		pattern;
-}
-
 export function fixRegexNewline(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
 	// Match $ preceeded by none or even number of literal \
 	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
-}
-
-export function fixRegexCRMatchingWhitespaceClass(pattern: string, isMultiline: boolean): string {
-	return isMultiline ?
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2(\\r?\\n|[^\\S\\r])') :
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2[ \\t\\f]');
-}
-
-export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boolean): string {
-	return isMultiline ?
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2(\\r?\\n|[^\\w\\r])') :
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2[^\\w\\r]');
 }
 
 export function fixNewline(pattern: string): string {

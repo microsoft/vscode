@@ -25,6 +25,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -300,6 +302,7 @@ export interface IStackFrame extends ITreeElement {
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	getSpecificSourceName(): string;
+	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;
@@ -437,6 +440,7 @@ export interface IDebugConfiguration {
 		fontSize: number;
 		fontFamily: string;
 		lineHeight: number;
+		wordWrap: boolean;
 	};
 }
 
@@ -573,11 +577,7 @@ export interface ITerminalLauncher {
 }
 
 export interface ITerminalSettings {
-	external: {
-		windowsExec: string,
-		osxExec: string,
-		linuxExec: string
-	};
+	external: IExternalTerminalSettings;
 	integrated: ITerminalConfiguration;
 }
 
@@ -722,7 +722,7 @@ export interface IDebugService {
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): void;
+	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -833,4 +833,15 @@ export interface IDebugEditorContribution extends IEditorContribution {
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): Promise<any>;
+}
+
+// temporary debug helper service
+
+export const DEBUG_HELPER_SERVICE_ID = 'debugHelperService';
+export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HELPER_SERVICE_ID);
+
+export interface IDebugHelperService {
+	_serviceBrand: any;
+
+	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

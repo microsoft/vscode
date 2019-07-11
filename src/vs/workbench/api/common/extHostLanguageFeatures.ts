@@ -102,7 +102,7 @@ class CodeLensAdapter {
 
 	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
-	private readonly _cache = new Cache<vscode.CodeLens>();
+	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
@@ -133,7 +133,7 @@ class CodeLensAdapter {
 				result.lenses.push({
 					cacheId: [cacheId, i],
 					range: typeConvert.Range.from(lenses[i].range),
-					command: this._commands.toInternal2(lenses[i].command, disposables)
+					command: this._commands.toInternal(lenses[i].command, disposables)
 				});
 			}
 
@@ -167,7 +167,7 @@ class CodeLensAdapter {
 			}
 
 			newLens = newLens || lens;
-			symbol.command = this._commands.toInternal2(newLens.command || CodeLensAdapter._badCmd, disposables);
+			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd, disposables);
 			return symbol;
 		});
 	}
@@ -315,7 +315,7 @@ export interface CustomCodeAction extends CodeActionDto {
 class CodeActionAdapter {
 	private static readonly _maxCodeActionsPerFile: number = 1000;
 
-	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>();
+	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
@@ -368,7 +368,7 @@ class CodeActionAdapter {
 					actions.push({
 						_isSynthetic: true,
 						title: candidate.title,
-						command: this._commands.toInternal2(candidate, disposables),
+						command: this._commands.toInternal(candidate, disposables),
 					});
 				} else {
 					if (codeActionContext.only) {
@@ -382,7 +382,7 @@ class CodeActionAdapter {
 					// new school: convert code action
 					actions.push({
 						title: candidate.title,
-						command: candidate.command && this._commands.toInternal2(candidate.command, disposables),
+						command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
@@ -624,7 +624,7 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _provider: vscode.CompletionItemProvider;
 
-	private _cache = new Cache<vscode.CompletionItem>();
+	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
@@ -735,7 +735,7 @@ class SuggestAdapter {
 			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			k: item.commitCharacters,
 			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			m: this._commands.toInternal2(item.command, disposables),
+			m: this._commands.toInternal(item.command, disposables),
 		};
 
 		// 'insertText'-logic
@@ -770,7 +770,7 @@ class SuggestAdapter {
 
 class SignatureHelpAdapter {
 
-	private readonly _cache = new Cache<vscode.SignatureHelp>();
+	private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -813,13 +813,19 @@ class SignatureHelpAdapter {
 }
 
 class Cache<T> {
+	private static readonly enableDebugLogging = false;
 
-	private _data = new Map<number, readonly T[]>();
+	private readonly _data = new Map<number, readonly T[]>();
 	private _idPool = 1;
+
+	constructor(
+		private readonly id: string
+	) { }
 
 	add(item: readonly T[]): number {
 		const id = this._idPool++;
 		this._data.set(id, item);
+		this.logDebugInfo();
 		return id;
 	}
 
@@ -829,12 +835,20 @@ class Cache<T> {
 
 	delete(id: number) {
 		this._data.delete(id);
+		this.logDebugInfo();
+	}
+
+	private logDebugInfo() {
+		if (!Cache.enableDebugLogging) {
+			return;
+		}
+		console.log(`${this.id} cache size — ${this._data.size}`);
 	}
 }
 
 class LinkProviderAdapter {
 
-	private _cache = new Cache<vscode.DocumentLink>();
+	private _cache = new Cache<vscode.DocumentLink>('DocumentLink');
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1380,7 +1394,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider), extension);
-		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider));
+		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
 

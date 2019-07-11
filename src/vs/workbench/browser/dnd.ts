@@ -7,7 +7,7 @@ import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/plat
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -20,7 +20,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
@@ -31,6 +31,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IRecentFile } from 'vs/platform/history/common/history';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -159,7 +160,6 @@ export class ResourcesDropHandler {
 	constructor(
 		private options: IResourcesDropHandlerOptions,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -189,7 +189,7 @@ export class ResourcesDropHandler {
 		// Add external ones to recently open list unless dropped resource is a workspace
 		const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
 		if (recents.length) {
-			this.windowsService.addRecentlyOpened(recents);
+			this.windowService.addRecentlyOpened(recents);
 		}
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -327,8 +327,12 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-	event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
+	const envService = accessor.get(IWorkbenchEnvironmentService);
+	if (!(isLinux && envService.configuration.remoteAuthority)) {
+		// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+		// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
+		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
+	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
 	const files = sources.filter(s => !s.isDirectory);

@@ -105,11 +105,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
 			const channels = this.getChannelDescriptors();
-			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined;
+			this.setActiveChannel(channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined);
 		}
 
 		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	provideTextContent(resource: URI): Promise<ITextModel> | null {
@@ -129,13 +128,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			return Promise.resolve(undefined);
 		}
 
-		this.activeChannel = channel;
+		this.setActiveChannel(channel);
 		let promise: Promise<void>;
 		if (this.isPanelShown()) {
 			promise = this.doShowChannel(channel, !!preserveFocus);
 		} else {
 			this.panelService.openPanel(OUTPUT_PANEL_ID);
-			promise = this.doShowChannel(this.activeChannel, !!preserveFocus);
+			promise = this.doShowChannel(channel, !!preserveFocus);
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -156,7 +155,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		const channel = this.createChannel(channelId);
 		this.channels.set(channelId, channel);
 		if (!this.activeChannel || this.activeChannelIdInStorage === channelId) {
-			this.activeChannel = channel;
+			this.setActiveChannel(channel);
 			this.onDidPanelOpen(this.panelService.getActivePanel(), true)
 				.then(() => this._onActiveOutputChannel.fire(channelId));
 		}
@@ -198,7 +197,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				if (channel && this.isPanelShown()) {
 					this.showChannel(channel.id, true);
 				} else {
-					this.activeChannel = channel;
+					this.setActiveChannel(channel);
 					if (this.activeChannel) {
 						this._onActiveOutputChannel.fire(this.activeChannel.id);
 					}
@@ -247,9 +246,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource, undefined);
 	}
 
-	private saveState(): void {
+	private setActiveChannel(channel: OutputChannel | undefined): void {
+		this.activeChannel = channel;
+
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE);
 		}
 	}
 }

@@ -68,7 +68,8 @@ function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 		isBuiltin: local.type === ExtensionType.System,
 		isUnderDevelopment: false,
 		extensionLocation: local.location,
-		...local.manifest
+		...local.manifest,
+		uuid: local.identifier.uuid
 	};
 }
 
@@ -217,7 +218,7 @@ export class InstallAction extends ExtensionAction {
 
 		alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 
-		if (extension.local) {
+		if (extension && extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
 			if (runningExtension) {
 				const colorThemes = await this.workbenchThemeService.getColorThemes();
@@ -237,7 +238,7 @@ export class InstallAction extends ExtensionAction {
 
 	}
 
-	private install(extension: IExtension): Promise<IExtension> {
+	private install(extension: IExtension): Promise<IExtension | void> {
 		return this.extensionsWorkbenchService.install(extension)
 			.then(null, err => {
 				if (!extension.gallery) {
@@ -856,8 +857,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
-		this.clipboardService.writeText(clipboardStr);
-		return Promise.resolve();
+		return this.clipboardService.writeText(clipboardStr);
 	}
 }
 
@@ -948,7 +948,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
+		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && !!this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
@@ -973,7 +973,7 @@ export class DisableGloballyAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))) {
+		if (this.extension && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier))) {
 			this.enabled = this.extension.state === ExtensionState.Installed && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && !!this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
@@ -1241,7 +1241,7 @@ export class ReloadAction extends ExtensionAction {
 			return;
 		}
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
-		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier))[0];
 		const isSameExtensionRunning = runningExtension && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 
 		if (isUninstalled) {
@@ -2492,7 +2492,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 		const runningExtensions = await this.extensionService.getExtensions();
 		const canAddExtension = () => {
-			const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+			const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier))[0];
 			if (this.extension.local) {
 				if (runningExtension && this.extension.version === runningExtension.version) {
 					return true;
@@ -2503,7 +2503,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 		};
 		const canRemoveExtension = () => {
 			if (this.extension.local) {
-				if (runningExtensions.every(e => !(areSameExtensions({ id: e.identifier.value }, this.extension.identifier) && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation)))) {
+				if (runningExtensions.every(e => !(areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier) && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation)))) {
 					return true;
 				}
 				return this.extensionService.canRemoveExtension(toExtensionDescription(this.extension.local));
@@ -2601,7 +2601,7 @@ export class DisabledLabelAction extends ExtensionAction {
 		}
 		if (this.extension && this.extension.local && this._runningExtensions) {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
-			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
+			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier));
 			if (!isExtensionRunning && !isEnabled && this.extensionEnablementService.canChangeEnablement(this.extension.local)) {
 				this.class = DisabledLabelAction.Class;
 				this.label = localize('disabled by user', "This extension is disabled by the user.");
@@ -2667,7 +2667,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			}
 			return;
 		}
-		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier))[0];
 		const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
 		const localExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
 		const localExtensionServer = localExtension ? localExtension.server : null;

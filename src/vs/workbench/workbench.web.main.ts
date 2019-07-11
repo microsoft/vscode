@@ -9,7 +9,6 @@ import 'vs/editor/editor.all';
 
 import 'vs/workbench/api/browser/extensionHost.contribution';
 
-// import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
 import 'vs/workbench/browser/web.main';
@@ -20,6 +19,8 @@ import 'vs/workbench/browser/web.main';
 //#region --- workbench actions
 
 import 'vs/workbench/browser/actions/layoutActions';
+import 'vs/workbench/browser/actions/windowActions';
+import 'vs/workbench/browser/actions/developerActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
@@ -52,8 +53,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 // import { IDownloadService } from 'vs/platform/download/common/download';
 // import { DownloadService } from 'vs/platform/download/node/downloadService';
-// import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-// import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -62,14 +63,15 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+// import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 // import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 // import { IRequestService } from 'vs/platform/request/node/request';
 // import { RequestService } from 'vs/platform/request/electron-browser/requestService';
-// import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-// import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService } from 'vs/platform/dialogs/browser/dialogService';
 // import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 // import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 // import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
@@ -89,11 +91,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 // import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { RemoteSearchService } from 'vs/workbench/services/search/common/searchService';
-import 'vs/platform/dialogs/browser/dialogService';
+// import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+// import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -101,7 +100,7 @@ import 'vs/workbench/services/textMate/browser/textMateService';
 // import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
-// import 'vs/workbench/services/search/node/searchService';
+import 'vs/workbench/services/search/common/searchService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 // import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
@@ -112,12 +111,11 @@ import 'vs/workbench/services/textmodelResolver/common/textModelResolverService'
 import 'vs/workbench/services/textfile/browser/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 // import 'vs/workbench/services/dialogs/electron-browser/dialogService';
-// import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
+import 'vs/workbench/services/keybinding/browser/keymapService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
 import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
@@ -134,9 +132,16 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/notification/common/notificationService';
 // import 'vs/workbench/services/window/electron-browser/windowService';
 // import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
+import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 
 import 'vs/workbench/browser/web.simpleservices';
 
+registerSingleton(IBackupFileService, BackupFileService);
+registerSingleton(IDialogService, DialogService, true);
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
 registerSingleton(IOpenerService, OpenerService, true);
@@ -144,7 +149,7 @@ registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 // registerSingleton(IDownloadService, DownloadService, true);
-// registerSingleton(IClipboardService, ClipboardService, true);
+registerSingleton(IClipboardService, BrowserClipboardService, true);
 registerSingleton(IContextKeyService, ContextKeyService);
 registerSingleton(IModelService, ModelServiceImpl, true);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
@@ -152,19 +157,18 @@ registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 // registerSingleton(IRequestService, RequestService, true);
-// registerSingleton(ILifecycleService, LifecycleService);
+registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
-// registerSingleton(IProductService, ProductService, true);
 // registerSingleton(IWindowsService, WindowsService);
 // registerSingleton(IUpdateService, UpdateService);
 // registerSingleton(IIssueService, IssueService);
 // registerSingleton(IWorkspacesService, WorkspacesService);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
-registerSingleton(ISearchService, RemoteSearchService, true);
+// registerSingleton(ITunnelService, TunnelService, true);
+// registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 
 //#endregion
 
@@ -185,6 +189,9 @@ import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 //#region --- workbench contributions
 
+// Resource Service Worker
+import 'vs/workbench/contrib/resources/browser/resourceServiceWorkerClient';
+
 // Workspace File Watching
 import 'vs/workbench/services/files/common/workspaceWatcher';
 
@@ -194,12 +201,10 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // Localizations
 // import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
-// Labels
-import 'vs/workbench/contrib/label/common/label.contribution';
-
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
@@ -219,7 +224,7 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // Stats
-// import 'vs/workbench/contrib/stats/node/stats.contribution';
+// import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 // import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
@@ -234,17 +239,18 @@ import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
-// import 'vs/workbench/contrib/debug/electron-browser/debug.contribution';
-// import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
-// import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-// import 'vs/workbench/contrib/debug/browser/repl';
-// import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/browser/debug.contribution';
+import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
+import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
+import 'vs/workbench/contrib/debug/browser/repl';
+import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import 'vs/workbench/contrib/debug/browser/debugHelperService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-// import 'vs/workbench/contrib/comments/browser/comments.contribution';
+import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';
@@ -289,8 +295,8 @@ import { TaskService } from 'vs/workbench/contrib/tasks/browser/taskService';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 registerSingleton(ITaskService, TaskService, true);
 
-
 // Remote
+import 'vs/workbench/contrib/remote/common/remote.contribution';
 // import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 
 // Emmet
@@ -300,8 +306,8 @@ import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 // import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
-// Execution
-// import 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal.contribution';
+// External terminal
+import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';

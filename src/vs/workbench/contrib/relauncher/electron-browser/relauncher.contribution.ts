@@ -25,6 +25,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
+	debug: { console: { wordWrap: boolean } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,6 +39,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private useGridLayout: boolean;
+	private debugConsoleWordWrap: boolean;
 
 	constructor(
 		@IWindowsService private readonly windowsService: IWindowsService,
@@ -106,6 +108,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Workbench Grid Layout
 		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
 			this.useGridLayout = config.workbench.useExperimentalGridLayout;
+			changed = true;
+		}
+
+		// Debug console word wrap
+		if (config.debug && typeof config.debug.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
+			this.debugConsoleWordWrap = config.debug.console.wordWrap;
 			changed = true;
 		}
 

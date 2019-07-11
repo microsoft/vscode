@@ -57,7 +57,7 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget > .body {
@@ -70,30 +70,23 @@
 
 .monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
 .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
-	background: url('chevron-up-inverse.svg') center center no-repeat;
+	background: url('chevron-previous-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
-	background: url('chevron-up.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up,
 .hc-black .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
-	background: url('chevron-up-inverse-hc.svg') center center no-repeat;
+	background: url('chevron-previous-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
-	background: url('chevron-down-inverse.svg') center center no-repeat;
+	background: url('chevron-next-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
-	background: url('chevron-down.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down,
 .hc-black .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
-	background: url('chevron-down-hc.svg') center center no-repeat;
+	background: url('chevron-next-dark.svg') center center no-repeat;
 }
-

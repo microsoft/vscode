@@ -9,7 +9,8 @@ import * as path from 'vs/base/common/path';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace } from 'vs/platform/history/common/history';
-import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/electron-main/historyStorage';
+import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 function toWorkspace(uri: URI): IWorkspaceIdentifier {
 	return {
@@ -51,7 +52,7 @@ function assertEqualRecentlyOpened(actual: IRecentlyOpened, expected: IRecentlyO
 
 function assertRestoring(state: IRecentlyOpened, message?: string) {
 	const stored = toStoreData(state);
-	const restored = restoreRecentlyOpened(stored);
+	const restored = restoreRecentlyOpened(stored, new NullLogService());
 	assertEqualRecentlyOpened(state, restored, message);
 }
 
@@ -118,7 +119,7 @@ suite('History Storage', () => {
 			]
 		}`;
 
-		let actual = restoreRecentlyOpened(JSON.parse(v1_25_win));
+		let actual = restoreRecentlyOpened(JSON.parse(v1_25_win), new NullLogService());
 		let expected: IRecentlyOpened = {
 			files: [{ fileUri: URI.file('C:\\workspaces\\test.code-workspace') }, { fileUri: URI.file('C:\\workspaces\\testing\\test-ext\\.gitignore') }],
 			workspaces: [
@@ -146,7 +147,7 @@ suite('History Storage', () => {
 			]
 		}`;
 
-		let actual = restoreRecentlyOpened(JSON.parse(v1_31_win));
+		let actual = restoreRecentlyOpened(JSON.parse(v1_31_win), new NullLogService());
 		let expected: IRecentlyOpened = {
 			files: [{ fileUri: URI.parse('file:///c%3A/workspaces/vscode/.yarnrc') }],
 			workspaces: [
@@ -173,7 +174,7 @@ suite('History Storage', () => {
 			]
 		}`;
 
-		let windowsState = restoreRecentlyOpened(JSON.parse(v1_32));
+		let windowsState = restoreRecentlyOpened(JSON.parse(v1_32), new NullLogService());
 		let expected: IRecentlyOpened = {
 			files: [{ fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
 			workspaces: [
@@ -206,7 +207,7 @@ suite('History Storage', () => {
 			]
 		}`;
 
-		let windowsState = restoreRecentlyOpened(JSON.parse(v1_33));
+		let windowsState = restoreRecentlyOpened(JSON.parse(v1_33), new NullLogService());
 		let expected: IRecentlyOpened = {
 			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
 			workspaces: [

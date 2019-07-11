@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { OS, OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -35,16 +36,17 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 // tslint:disable-next-line: import-patterns
 import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
-import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
+import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
+import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
+import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -190,12 +192,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
-			/* __GDPR__
-				"customKeybindingsChanged" : {
-					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this._telemetryService.publicLog('customKeybindingsChanged', {
+			type CustomKeybindingsChangedClassification = {
+				keyCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true }
+			};
+
+			this._telemetryService.publicLog2<{ keyCount: number }, CustomKeybindingsChangedClassification>('customKeybindingsChanged', {
 				keyCount: this.userKeybindings.keybindings.length
 			});
 			this.updateResolver({
@@ -236,6 +237,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
 		});
+
+		this._register(browser.onDidChangeFullscreen(() => {
+			const keyboard = (<INavigatorWithKeyboard>navigator).keyboard;
+
+			if (!keyboard) {
+				return;
+			}
+
+			if (browser.isFullscreen()) {
+				keyboard.lock(['Escape']);
+			} else {
+				keyboard.unlock();
+			}
+
+			// update resolver which will bring back all unbound keyboard shortcuts
+			this._cachedResolver = null;
+			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
+		}));
 	}
 
 	public _dumpDebugInfo(): string {
@@ -243,6 +262,14 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		const mapperInfo = this._keyboardMapper.dumpDebugInfo();
 		const rawMapping = JSON.stringify(this.keymapService.getRawKeyboardMapping(), null, '\t');
 		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
+	}
+
+	public _dumpDebugInfoJSON(): string {
+		const info = {
+			layout: this.keymapService.getCurrentKeyboardLayout(),
+			rawMapping: this.keymapService.getRawKeyboardMapping()
+		};
+		return JSON.stringify(info, null, '\t');
 	}
 
 	public customKeybindingsCount(): number {
@@ -279,6 +306,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
+				if (this._assertBrowserConflicts(keybinding, item.command)) {
+					continue;
+				}
+
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
@@ -306,6 +337,77 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		return result;
+	}
+
+	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
+		if (!isWeb) {
+			return false;
+		}
+
+		if (browser.isStandalone) {
+			return false;
+		}
+
+		if (browser.isFullscreen() && (<any>navigator).keyboard) {
+			return false;
+		}
+
+		for (let part of kb.parts) {
+			if (!part.metaKey && !part.altKey && !part.ctrlKey && !part.shiftKey) {
+				continue;
+			}
+
+			const modifiersMask = KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift;
+
+			let partModifiersMask = 0;
+			if (part.metaKey) {
+				partModifiersMask |= KeyMod.CtrlCmd;
+			}
+
+			if (part.shiftKey) {
+				partModifiersMask |= KeyMod.Shift;
+			}
+
+			if (part.altKey) {
+				partModifiersMask |= KeyMod.Alt;
+			}
+
+			if (part.ctrlKey && OS === OperatingSystem.Macintosh) {
+				partModifiersMask |= KeyMod.WinCtrl;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_W) {
+				// console.warn('Ctrl/Cmd+W keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_N) {
+				// console.warn('Ctrl/Cmd+N keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_T) {
+				// console.warn('Ctrl/Cmd+T keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === (KeyMod.CtrlCmd | KeyMod.Alt) && (part.keyCode === KeyCode.LeftArrow || part.keyCode === KeyCode.RightArrow)) {
+				// console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+
+			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode >= KeyCode.KEY_0 && part.keyCode <= KeyCode.KEY_9) {
+				// console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
@@ -428,8 +530,14 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			// ignore ctrl/cmd/alt-combination but not shift-combinatios
+			return false;
+		}
+		const code = ScanCodeUtils.toEnum(event.code);
+		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		if (keycode !== -1) {
+			// https://github.com/microsoft/vscode/issues/74934
 			return false;
 		}
 		// consult the KeyboardMapperFactory to check the given event for
@@ -453,12 +561,11 @@ class UserKeybindings extends Disposable {
 
 	private _keybindings: IUserFriendlyKeybinding[] = [];
 	get keybindings(): IUserFriendlyKeybinding[] { return this._keybindings; }
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private readonly keybindingsResource: URI,
@@ -466,40 +573,15 @@ class UserKeybindings extends Disposable {
 	) {
 		super();
 
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(toDisposable(() => {
-			this.stopWatchingResource();
-			this.stopWatchingDirectory();
-		}));
-	}
-
-	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.keybindingsResource);
-	}
-
-	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
-	}
-
-	private watchDirectory(): void {
-		const directory = dirname(this.keybindingsResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
-	}
-
-	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
-		const exists = await this.fileService.exists(this.keybindingsResource);
-		this.onResourceExists(exists);
 		await this.reload();
 	}
 
@@ -513,39 +595,6 @@ class UserKeybindings extends Disposable {
 			this._keybindings = [];
 		}
 		return existing ? !objects.equals(existing, this._keybindings) : true;
-	}
-
-	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
-		const events = event.changes;
-
-		let affectedByChanges = false;
-
-		// Find changes that affect the resource
-		for (const event of events) {
-			affectedByChanges = isEqual(this.keybindingsResource, event.resource);
-			if (affectedByChanges) {
-				if (event.type === FileChangeType.ADDED) {
-					this.onResourceExists(true);
-				} else if (event.type === FileChangeType.DELETED) {
-					this.onResourceExists(false);
-				}
-				break;
-			}
-		}
-
-		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
-		}
-	}
-
-	private onResourceExists(exists: boolean): void {
-		if (exists) {
-			this.stopWatchingDirectory();
-			this.watchResource();
-		} else {
-			this.stopWatchingResource();
-			this.watchDirectory();
-		}
 	}
 }
 
@@ -627,8 +676,8 @@ function updateSchema() {
 	};
 
 	const allCommands = CommandsRegistry.getCommands();
-	for (let commandId in allCommands) {
-		const commandDescription = allCommands[commandId].description;
+	for (const [commandId, command] of allCommands) {
+		const commandDescription = command.description;
 
 		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
 
@@ -656,7 +705,7 @@ function updateSchema() {
 	}
 
 	const menuCommands = MenuRegistry.getCommands();
-	for (let commandId in menuCommands) {
+	for (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
 }

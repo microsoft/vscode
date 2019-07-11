@@ -319,10 +319,10 @@ export async function startExtensionHostProcess(): Promise<void> {
 
 	// Attempt to load uri transformer
 	let uriTransformer: IURITransformer | null = null;
-	if (initData.remoteAuthority && args.uriTransformerPath) {
+	if (initData.remote.authority && args.uriTransformerPath) {
 		try {
 			const rawURITransformerFactory = <any>require.__$__nodeRequire(args.uriTransformerPath);
-			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remoteAuthority);
+			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remote.authority);
 			uriTransformer = new URITransformer(rawURITransformer);
 		} catch (e) {
 			console.error(e);

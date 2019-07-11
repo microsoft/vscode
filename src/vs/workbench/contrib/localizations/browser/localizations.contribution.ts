@@ -28,7 +28,6 @@ import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/bro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { joinPath } from 'vs/base/common/resources';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -81,8 +80,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					[{
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
-							const file = joinPath(this.environmentService.appSettingsHome, 'locale.json');
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.localeResource, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
 					}, {
@@ -134,11 +132,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/contrib/localizations/browser/minimalTranslations'] : {};
+							const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/localizations/browser/minimalTranslations'] : {};
 							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
 							const useEnglish = !translationsFromPack[promptMessageKey];
 
-							const translations = {};
+							const translations: any = {};
 							Object.keys(minimumTranslatedStrings).forEach(key => {
 								if (!translationsFromPack[key] || useEnglish) {
 									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);

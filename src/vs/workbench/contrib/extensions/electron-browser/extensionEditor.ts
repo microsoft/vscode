@@ -127,7 +127,7 @@ class NavBar extends Disposable {
 	_update(id: string | null = this.currentId, focus?: boolean): Promise<void> {
 		this.currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
-		this.actions.forEach(a => a.enabled = a.id !== id);
+		this.actions.forEach(a => a.checked = a.id === id);
 		return Promise.resolve(undefined);
 	}
 }
@@ -224,19 +224,21 @@ export class ExtensionEditor extends BaseEditor {
 		this.builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
+		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 
-		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
+		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 
-		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
+		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 
 		this.repository = append(subtitle, $('span.repository.clickable'));
 		this.repository.textContent = localize('repository', 'Repository');
 		this.repository.style.display = 'none';
+		this.repository.tabIndex = 0;
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
 		this.license.style.display = 'none';
+		this.license.tabIndex = 0;
 
 		this.description = append(details, $('.description'));
 
@@ -672,7 +674,7 @@ export class ExtensionEditor extends BaseEditor {
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
-		let properties = {};
+		let properties: any = {};
 		if (Array.isArray(configuration)) {
 			configuration.forEach(config => {
 				properties = { ...properties, ...config.properties };
@@ -1115,7 +1117,7 @@ class ShowExtensionEditorFindCommand extends Command {
 }
 const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
-	precondition: ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus')),
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 		weight: KeybindingWeight.EditorContrib

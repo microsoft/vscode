@@ -337,8 +337,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -350,8 +350,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -363,8 +363,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -376,8 +376,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-light.svg`)),
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},

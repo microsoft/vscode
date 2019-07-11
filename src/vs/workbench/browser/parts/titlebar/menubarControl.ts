@@ -34,13 +34,15 @@ import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { isFullscreen } from 'vs/base/browser/browser';
 
 export abstract class MenubarControl extends Disposable {
 
 	protected keys = [
 		'window.menuBarVisibility',
 		'window.enableMenuBarMnemonics',
-		'window.disableCustomMenuBarAltFocus',
+		'window.customMenuBarAltFocus',
 		'window.nativeTabs'
 	];
 
@@ -57,7 +59,7 @@ export abstract class MenubarControl extends Disposable {
 		[index: string]: IMenu | undefined;
 	};
 
-	protected topLevelTitles = {
+	protected topLevelTitles: { [menu: string]: string } = {
 		'File': nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
 		'Edit': nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit"),
 		'Selection': nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
@@ -106,8 +108,6 @@ export abstract class MenubarControl extends Disposable {
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 
 		this.notifyUserOfCustomMenubarAccessibility();
-
-		this.registerListeners();
 	}
 
 	protected abstract doUpdateMenubar(firstTime: boolean): void;
@@ -300,6 +300,8 @@ export class NativeMenubarControl extends MenubarControl {
 
 			this.doUpdateMenubar(true);
 		});
+
+		this.registerListeners();
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
@@ -405,9 +407,12 @@ export class NativeMenubarControl extends MenubarControl {
 	}
 
 	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
-		const keybindings = {};
+		const keybindings: { [id: string]: IMenubarKeybinding } = {};
 		if (isMacintosh) {
-			keybindings['workbench.action.quit'] = (this.getMenubarKeybinding('workbench.action.quit'));
+			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
+			if (keybinding) {
+				keybindings['workbench.action.quit'] = keybinding;
+			}
 		}
 
 		return keybindings;
@@ -457,7 +462,8 @@ export class CustomMenubarControl extends MenubarControl {
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 
 		super(
@@ -481,6 +487,8 @@ export class CustomMenubarControl extends MenubarControl {
 		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
 		});
+
+		this.registerListeners();
 
 		registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
@@ -605,9 +613,11 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
-		let disableMenuBarAltBehavior = this.configurationService.getValue<boolean>('window.disableCustomMenuBarAltFocus');
-		if (typeof disableMenuBarAltBehavior !== 'boolean') {
-			disableMenuBarAltBehavior = false;
+		let settingValue = this.configurationService.getValue<boolean>('window.customMenuBarAltFocus');
+
+		let disableMenuBarAltBehavior = false;
+		if (typeof settingValue === 'boolean') {
+			disableMenuBarAltBehavior = !settingValue;
 		}
 
 		return disableMenuBarAltBehavior;
@@ -642,7 +652,7 @@ export class CustomMenubarControl extends MenubarControl {
 			enableMenuBarMnemonics = true;
 		}
 
-		return enableMenuBarMnemonics;
+		return enableMenuBarMnemonics && (!isWeb || isFullscreen());
 	}
 
 	private setupCustomMenubar(firstTime: boolean): void {
@@ -750,6 +760,11 @@ export class CustomMenubarControl extends MenubarControl {
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
 			this.menubar.blur();
 		}));
+
+		// Mnemonics require fullscreen in web
+		if (isWeb) {
+			this._register(this.layoutService.onFullscreenChange(e => this.updateMenubar()));
+		}
 	}
 
 	get onVisibilityChange(): Event<boolean> {

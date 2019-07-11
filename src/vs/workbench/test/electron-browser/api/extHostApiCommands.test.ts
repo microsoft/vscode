@@ -68,10 +68,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
-					if (!CommandsRegistry.getCommands()[id]) {
+					const command = CommandsRegistry.getCommands().get(id);
+					if (!command) {
 						return Promise.reject(new Error(id + ' NOT known'));
 					}
-					let { handler } = CommandsRegistry.getCommands()[id];
+					const { handler } = command;
 					return Promise.resolve(instantiationService.invokeFunction(handler, args));
 				}
 			});
@@ -796,9 +797,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[][]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.equal(value.length, 1);
-		assert.ok(value[0].length >= 2);
+		assert.ok(value[0].parent);
 	});
 
 });

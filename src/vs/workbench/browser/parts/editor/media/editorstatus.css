@@ -51,10 +51,13 @@
 }
 
 .vs .monaco-workbench .screen-reader-detected-explanation .cancel {
-	background: url('close-statusview.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .screen-reader-detected-explanation .cancel,
+.vs-dark .monaco-workbench .screen-reader-detected-explanation .cancel {
+	background: url('close-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .screen-reader-detected-explanation .cancel {
-	background: url('close-statusview-inverse.svg') center center no-repeat;
+	background: url('close-hc.svg') center center no-repeat;
 }

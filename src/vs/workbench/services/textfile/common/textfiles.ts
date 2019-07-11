@@ -428,6 +428,7 @@ export interface ISaveOptions {
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
+	availableFileSystems?: string[];
 }
 
 export interface ILoadOptions {
@@ -466,6 +467,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	revert(soft?: boolean): Promise<void>;
 
 	backup(target?: URI): Promise<void>;
+
+	hasBackup(): boolean;
 
 	isDirty(): boolean;
 

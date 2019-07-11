@@ -54,6 +54,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly checkJs: boolean;
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
+	public readonly useSeparateSyntaxServer: boolean;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -71,6 +72,7 @@ export class TypeScriptServiceConfiguration {
 		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
 		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
+		this.useSeparateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -82,7 +84,8 @@ export class TypeScriptServiceConfiguration {
 			&& this.checkJs === other.checkJs
 			&& this.experimentalDecorators === other.experimentalDecorators
 			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
-			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths);
+			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
+			&& this.useSeparateSyntaxServer === other.useSeparateSyntaxServer;
 	}
 
 	private static fixPathPrefixes(inspectValue: string): string {
@@ -138,5 +141,9 @@ export class TypeScriptServiceConfiguration {
 
 	private static extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
 		return configuration.get<string | null>('typescript.locale', null);
+	}
+
+	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.useSeparateSyntaxServer', true);
 	}
 }

@@ -35,7 +35,7 @@ export interface IGalleryExtensionAssets {
 	repository: IGalleryExtensionAsset | null;
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
-	coreTranslations: { [languageId: string]: IGalleryExtensionAsset };
+	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
@@ -196,8 +196,8 @@ export interface IExtensionManagementService {
 
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier>;
-	install(vsix: URI): Promise<IExtensionIdentifier>;
-	installFromGallery(extension: IGalleryExtension): Promise<void>;
+	install(vsix: URI): Promise<ILocalExtension>;
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;

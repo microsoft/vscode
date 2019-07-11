@@ -161,6 +161,7 @@ body.web {
 /* START Keyboard Focus Indication Styles */
 
 .monaco-workbench [tabindex="0"]:focus,
+.monaco-workbench [tabindex="-1"]:focus,
 .monaco-workbench .synthetic-focus,
 .monaco-workbench select:focus,
 .monaco-workbench input[type="button"]:focus,
@@ -174,6 +175,7 @@ body.web {
 }
 
 .monaco-workbench [tabindex="0"]:active,
+.monaco-workbench [tabindex="-1"]:active,
 .monaco-workbench select:active,
 .monaco-workbench input[type="button"]:active,
 .monaco-workbench input[type="checkbox"]:active,

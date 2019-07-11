@@ -72,6 +72,7 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -181,6 +182,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _ignoredWorkspaceFolders: IWorkspaceFolder[];
 	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
+	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
@@ -220,6 +222,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -228,6 +231,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._taskSystemListener = undefined;
 		this._outputChannel = this.outputService.getChannel(AbstractTaskService.OutputChannelId)!;
 		this._providers = new Map<number, ITaskProvider>();
+		this._providerTypes = new Map<number, string>();
 		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
@@ -268,7 +272,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
-		this._register(storageService.onWillSaveState(() => this.saveState()));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 	}
@@ -424,7 +427,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
-		if (runSource === TaskRunSource.User) {
+		if ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange)) {
 			this.notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
 				[{
 					label: nls.localize('showOutput', "Show output"),
@@ -441,7 +444,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public registerTaskProvider(provider: ITaskProvider): IDisposable {
+	public registerTaskProvider(provider: ITaskProvider, type: string): IDisposable {
 		if (!provider) {
 			return {
 				dispose: () => { }
@@ -449,9 +452,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		let handle = AbstractTaskService.nextHandle++;
 		this._providers.set(handle, provider);
+		this._providerTypes.set(handle, type);
 		return {
 			dispose: () => {
 				this._providers.delete(handle);
+				this._providerTypes.delete(handle);
 			}
 		};
 	}
@@ -467,7 +472,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
+	private isBadTsConfig(taskId: string | TaskIdentifier | undefined): taskId is string {
+		const badTsconfig = '\\tsconfig.json';
+		const tsc = 'tsc';
+		return typeof taskId === 'string' && (taskId.length > badTsconfig.length) && strings.equalsIgnoreCase(taskId.substring(taskId.length - badTsconfig.length, taskId.length), badTsconfig) && (taskId.substring(0, tsc.length) === tsc);
+	}
+
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+		if (this.isBadTsConfig(identifier)) {
+			return Promise.reject(new Error(nls.localize('badTsConfig', "Task '{0}' contains \"\\\\\". Typescript tasks must use \"/\"", identifier)));
+		}
+
 		const name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -563,7 +578,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._recentlyUsedTasks;
 	}
 
-	private saveState(): void {
+	private setRecentlyUsedTask(key: string): void {
+		this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+		this.saveRecentlyUsedTasks();
+	}
+
+	private saveRecentlyUsedTasks(): void {
 		if (!this._taskSystem || !this._recentlyUsedTasks) {
 			return;
 		}
@@ -784,7 +804,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			let identifier: TaskConfig.TaskIdentifier = Objects.assign(Object.create(null), task.defines);
 			delete identifier['_key'];
-			Object.keys(identifier).forEach(key => toCustomize![key] = identifier[key]);
+			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
 			}
@@ -794,9 +814,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (properties) {
 			for (let property of Object.getOwnPropertyNames(properties)) {
-				let value = properties[property];
+				let value = (<any>properties)[property];
 				if (value !== undefined && value !== null) {
-					toCustomize[property] = value;
+					(<any>toCustomize)[property] = value;
 				}
 			}
 		} else {
@@ -1029,7 +1049,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let key = executeResult.task.getRecentlyUsedKey();
 		if (key) {
-			this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
+			this.setRecentlyUsedTask(key);
 		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			let active = executeResult.active;
@@ -1094,6 +1114,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
+			this.remoteAgentService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;
@@ -1151,6 +1172,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}).then((contributedTaskSets) => {
 			let result: TaskMap = new TaskMap();
 			let contributedTasks: TaskMap = new TaskMap();
+
 			for (let set of contributedTaskSets) {
 				for (let task of set.tasks) {
 					let workspaceFolder = task.getWorkspaceFolder();
@@ -1159,8 +1181,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				}
 			}
-			return this.getWorkspaceTasks().then((customTasks) => {
-				customTasks.forEach((folderTasks, key) => {
+
+			return this.getWorkspaceTasks().then(async (customTasks) => {
+				const customTasksKeyValuePairs = Array.from(customTasks);
+				const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
 					let contributed = contributedTasks.get(key);
 					if (!folderTasks.set) {
 						if (contributed) {
@@ -1218,8 +1242,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							} else {
 								result.add(key, ...folderTasks.set.tasks);
 							}
-							unUsedConfigurations.forEach((value) => {
+
+							const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
+
+							const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
 								let configuringTask = configurations!.byIdentifier[value];
+
+								for (const [handle, provider] of this._providers) {
+									if (configuringTask.type === this._providerTypes.get(handle)) {
+										try {
+											const resolvedTask = await provider.resolveTask(configuringTask);
+											if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
+												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
+												return;
+											}
+										} catch (error) {
+											// Ignore errors. The task could not be provided by any of the providers.
+										}
+									}
+								}
+
 								this._outputChannel.append(nls.localize(
 									'TaskService.noConfiguration',
 									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
@@ -1228,12 +1270,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								));
 								this.showOutput();
 							});
+
+							await Promise.all(unUsedConfigurationPromises);
 						} else {
 							result.add(key, ...folderTasks.set.tasks);
 							result.add(key, ...contributed);
 						}
 					}
 				});
+
+				await Promise.all(customTasksPromises);
+
 				return result;
 			}, () => {
 				// If we can't read the tasks.json file provide at least the contributed tasks

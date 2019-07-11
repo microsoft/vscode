@@ -8,11 +8,15 @@ import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
+	}
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 	setEnabled() { }
 	isOptedIn: true;
@@ -50,7 +54,7 @@ export class LogAppender implements ITelemetryAppender {
 	}
 
 	log(eventName: string, data: any): void {
-		const strippedData = {};
+		const strippedData: { [key: string]: any } = {};
 		Object.keys(data).forEach(key => {
 			if (!this.commonPropertiesRegex.test(key)) {
 				strippedData[key] = data[key];
@@ -175,12 +179,12 @@ const configurationValueWhitelist = [
 	'terminal.integrated.fontFamily',
 	'window.openFilesInNewWindow',
 	'window.restoreWindows',
+	'window.nativeFullScreen',
 	'window.zoomLevel',
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
 	'workbench.editor.highlightModifiedTabs',
-	'workbench.editor.swipeToNavigate',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',
 	'workbench.statusBar.visible',
@@ -190,23 +194,27 @@ const configurationValueWhitelist = [
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
-			/* __GDPR__
-				"updateConfiguration" : {
-					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"configurationKeys": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateConfiguration', {
+			type UpdateConfigurationClassification = {
+				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			type UpdateConfigurationEvent = {
+				configurationSource: string;
+				configurationKeys: string[];
+			};
+			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
-			/* __GDPR__
-				"updateConfigurationValues" : {
-					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"configurationValues": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateConfigurationValues', {
+			type UpdateConfigurationValuesClassification = {
+				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationValues: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+			};
+			type UpdateConfigurationValuesEvent = {
+				configurationSource: string;
+				configurationValues: { [key: string]: any }[];
+			};
+			telemetryService.publicLog2<UpdateConfigurationValuesEvent, UpdateConfigurationValuesClassification>('updateConfigurationValues', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
@@ -217,12 +225,13 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
 	return keybindingService.onDidUpdateKeybindings(event => {
 		if (event.source === KeybindingSource.User && event.keybindings) {
-			/* __GDPR__
-				"updateKeybindings" : {
-					"bindings": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateKeybindings', {
+			type UpdateKeybindingsClassification = {
+				bindings: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+			};
+			type UpdateKeybindingsEvents = {
+				bindings: { key: string, command: string, when: string | undefined, args: boolean | undefined }[];
+			};
+			telemetryService.publicLog2<UpdateKeybindingsEvents, UpdateKeybindingsClassification>('updateKeybindings', {
 				bindings: event.keybindings.map(binding => ({
 					key: binding.key,
 					command: binding.command,
@@ -234,7 +243,7 @@ export function keybindingsTelemetry(telemetryService: ITelemetryService, keybin
 	});
 }
 
-function flattenKeys(value: Object): string[] {
+function flattenKeys(value: Object | undefined): string[] {
 	if (!value) {
 		return [];
 	}
@@ -243,7 +252,7 @@ function flattenKeys(value: Object): string[] {
 	return result;
 }
 
-function flatKeys(result: string[], prefix: string, value: Object): void {
+function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
 	if (value && typeof value === 'object' && !Array.isArray(value)) {
 		Object.keys(value)
 			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
@@ -252,7 +261,7 @@ function flatKeys(result: string[], prefix: string, value: Object): void {
 	}
 }
 
-function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] {
+function flattenValues(value: { [key: string]: any } | undefined, keys: string[]): { [key: string]: any }[] {
 	if (!value) {
 		return [];
 	}

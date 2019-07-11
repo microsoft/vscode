@@ -6,26 +6,49 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
 
 export interface IWorkbenchConstructionOptions {
+
+	/**
+	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
+	 * from. It is for example being used for the websocket connections as address.
+	 */
 	remoteAuthority: string;
 
-	userDataUri: UriComponents;
-
+	/**
+	 * Experimental: An endpoint to serve iframe content ("webview") from. This is required
+	 * to provide full security isolation from the workbench host.
+	 */
 	webviewEndpoint?: string;
 
+	/**
+	 * Experimental: An optional folder that is set as workspace context for the workbench.
+	 */
 	folderUri?: UriComponents;
+
+	/**
+	 * Experimental: An optional workspace that is set as workspace context for the workbench.
+	 */
 	workspaceUri?: UriComponents;
+
+	/**
+	 * Experimental: The userDataProvider is used to handle user specific application
+	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
+	 */
+	userDataProvider?: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability;
 }
 
+/**
+ * Experimental: Creates the workbench with the provided options in the provided container.
+ *
+ * @param domElement the container to create the workbench in
+ * @param options for setting up the workbench
+ */
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
 	return main(domElement, options);
 }
 
-const api: any = self;
-
-api.monaco = {
-	workbench: {
-		create
-	}
+export {
+	create
 };

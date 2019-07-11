@@ -129,7 +129,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		if (this._activeSnippets.length === 1) {
 			// one -> just insert
 			const [snippet] = this._activeSnippets;
-			SnippetController2.get(this._editor).insert(snippet.codeSnippet, snippet.prefix.length, 0);
+			SnippetController2.get(this._editor).insert(snippet.codeSnippet, { overwriteBefore: snippet.prefix.length, overwriteAfter: 0 });
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutProvider, KeyboardLayoutInfo } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
+import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 
-KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
-	{ id: 'com.google.inputmethod.Japanese.Roman', lang: 'en' },
-	[],
-	{
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { id: 'com.google.inputmethod.Japanese.Roman', lang: 'en', localizedName: 'Alphanumeric (Google)' },
+	secondaryLayouts: [],
+	mapping: {
 		KeyA: ['a', 'A', '¯', '̄', 4],
 		KeyB: ['b', 'B', '˘', '̆', 4],
 		KeyC: ['c', 'C', '¸', '̧', 4],
@@ -128,4 +129,4 @@ KeyboardLayoutProvider.INSTANCE.registerKeyboardLayout(new KeyboardLayoutInfo(
 		AltRight: [],
 		MetaRight: []
 	}
-));
+});

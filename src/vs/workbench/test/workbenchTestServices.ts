@@ -38,7 +38,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -64,14 +64,14 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -82,7 +82,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -177,7 +177,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export class TestTextFileService extends BrowserTextFileService {
+export class TestTextFileService extends NodeTextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
 	private promptPath: URI;
@@ -311,7 +311,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IThemeService, new TestThemeService());
-	instantiationService.stub(ILogService, new TestLogService());
+	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = new TestEditorService();
@@ -320,19 +320,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IViewletService, new TestViewletService());
 
 	return instantiationService;
-}
-
-export class TestLogService implements ILogService {
-	_serviceBrand: any; onDidChangeLogLevel: Event<LogLevel>;
-	getLevel(): LogLevel { return LogLevel.Info; }
-	setLevel(_level: LogLevel): void { }
-	trace(_message: string, ..._args: any[]): void { }
-	debug(_message: string, ..._args: any[]): void { }
-	info(_message: string, ..._args: any[]): void { }
-	warn(_message: string, ..._args: any[]): void { }
-	error(_message: string | Error, ..._args: any[]): void { }
-	critical(_message: string | Error, ..._args: any[]): void { }
-	dispose(): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -439,6 +426,9 @@ export class TestFileDialogService implements IFileDialogService {
 	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
+	public pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+		return Promise.resolve(undefined);
+	}
 	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -544,6 +534,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
+
+	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
 	public toggleZenMode(): void { }
@@ -1083,6 +1075,10 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve(false);
 	}
 
+	public hasBackupSync(resource: URI, versionId?: number): boolean {
+		return false;
+	}
+
 	public loadBackupResource(resource: URI): Promise<URI | undefined> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
@@ -1226,6 +1222,14 @@ export class TestWindowService implements IWindowService {
 			workspaces: [],
 			files: []
 		});
+	}
+
+	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
+		return Promise.resolve();
+	}
+
+	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
+		return Promise.resolve();
 	}
 
 	focusWindow(): Promise<void> {
@@ -1457,6 +1461,10 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		return Promise.resolve();
+	}
+
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		throw new Error('not implemented');
 	}
@@ -1585,30 +1593,6 @@ export class TestSharedProcessService implements ISharedProcessService {
 	}
 
 	registerChannel(channelName: string, channel: any): void { }
-}
-
-export class NullFileSystemProvider implements IFileSystemProvider {
-
-	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
-
-	onDidChangeCapabilities: Event<void> = Event.None;
-	onDidChangeFile: Event<IFileChange[]> = Event.None;
-
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
-
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
-	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
-	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	readFile?(resource: URI): Promise<Uint8Array> { return Promise.resolve(undefined!); }
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	open?(resource: URI, opts: FileOpenOptions): Promise<number> { return Promise.resolve(undefined!); }
-	close?(fd: number): Promise<void> { return Promise.resolve(undefined!); }
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
 }
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {

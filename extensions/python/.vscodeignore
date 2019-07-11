@@ -1,4 +1,5 @@
 test/**
 src/**
 tsconfig.json
+extension.webpack.config.js
 cgmanifest.json

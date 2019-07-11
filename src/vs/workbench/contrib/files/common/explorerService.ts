@@ -102,6 +102,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
 				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+				this.model.roots.forEach(r => r.forgetChildren());
 				this._onDidChangeItem.fire({ recursive: true });
 			} else {
 				this.fileSystemProviderSchemes.add(e.scheme);

@@ -210,7 +210,7 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal2(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
 
 		if (!command) {
 			return undefined;
@@ -235,40 +235,6 @@ export class CommandsConverter {
 			result.id = this._delegatingCommandId;
 			result.arguments = [id];
 
-		}
-
-		return result;
-	}
-
-	toInternal(command: vscode.Command): CommandDto;
-	toInternal(command: undefined): undefined;
-	toInternal(command: vscode.Command | undefined): CommandDto | undefined;
-	toInternal(command: vscode.Command | undefined): CommandDto | undefined {
-
-		if (!command) {
-			return undefined;
-		}
-
-		const result: CommandDto = {
-			$ident: undefined,
-			id: command.command,
-			title: command.title,
-		};
-
-		if (command.command && isNonEmptyArray(command.arguments)) {
-			// we have a contributed command with arguments. that
-			// means we don't want to send the arguments around
-
-			const id = ++this._cachIdPool;
-			this._cache.set(id, command);
-			result.$ident = id;
-
-			result.id = this._delegatingCommandId;
-			result.arguments = [id];
-		}
-
-		if (command.tooltip) {
-			result.tooltip = command.tooltip;
 		}
 
 		return result;

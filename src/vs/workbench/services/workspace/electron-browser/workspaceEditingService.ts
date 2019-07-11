@@ -16,8 +16,8 @@ import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
+import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -32,10 +32,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IWorkspaceEditingService>;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
@@ -57,14 +58,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@ILifecycleService readonly lifecycleService: ILifecycleService,
 		@ILabelService readonly labelService: ILabelService
 	) {
+		this.registerListeners();
+	}
 
-		lifecycleService.onBeforeShutdown(async e => {
+	private registerListeners(): void {
+		this.lifecycleService.onBeforeShutdown(async e => {
 			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
 			if (saveOperation) {
 				e.veto(saveOperation);
 			}
 		});
-
 	}
 
 	private async saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
@@ -132,7 +135,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 					const newWorkspaceIdentifier = await this.workspaceService.getWorkspaceIdentifier(newWorkspacePath);
 
 					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+					this.windowService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
 
 					this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
@@ -395,7 +398,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			await this.migrateStorage(result.workspace);
 			// Reinitialize backup service
 			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.initialize(result.backupPath!);
+				this.backupFileService.initialize(toBackupWorkspaceResource(result.backupPath!, this.environmentService));
 			}
 		}
 
@@ -422,7 +425,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const targetWorkspaceConfiguration = {};
+		const targetWorkspaceConfiguration: any = {};
 		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class StatusUpdater implements IWorkbenchContribution {
 
-	private badgeDisposable: IDisposable = Disposable.None;
+	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -51,7 +51,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 	}
 
 	private render(): void {
-		this.badgeDisposable.dispose();
+		this.badgeDisposable.clear();
 
 		const count = this.scmService.repositories.reduce((r, repository) => {
 			if (typeof repository.provider.count === 'number') {
@@ -66,9 +66,9 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable.value = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
 		} else {
-			this.badgeDisposable = Disposable.None;
+			this.badgeDisposable.clear();
 		}
 	}
 
@@ -189,20 +189,12 @@ export class StatusBarController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const c of commands) {
-			const statusId = `status.scm.${repository.provider.id}.${c.tooltip}`; // needs to be unique, but c.id is too random
-			let statusLabel: string;
-			if (c.tooltip) {
-				statusLabel = localize('status.scm', "Source Control ({0}): {1}", repository.provider.label, c.tooltip.replace('...', ''));
-			} else {
-				statusLabel = localize('status.scm.short', "Source Control ({0})", repository.provider.label);
-			}
-
 			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
 				tooltip: `${label} - ${c.tooltip}`,
 				command: c.id,
 				arguments: c.arguments
-			}, statusId, statusLabel, MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;

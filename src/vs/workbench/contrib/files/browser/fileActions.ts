@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
-import { extname, basename, join } from 'vs/base/common/path';
+import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -36,7 +36,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -45,7 +45,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -797,10 +796,10 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 		@IModelService private readonly modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
+	async provideTextContent(resource: URI): Promise<ITextModel> {
+		const model = this.modelService.createModel(await this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
 
-		return Promise.resolve(model);
+		return model;
 	}
 }
 
@@ -836,6 +835,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 	const viewletService = accessor.get(IViewletService);
+	const notificationService = accessor.get(INotificationService);
 
 	await viewletService.openViewlet(VIEWLET_ID, true);
 
@@ -864,8 +864,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 				refreshIfSeparator(value, explorerService);
 				return isFolder ? explorerService.select(created.resource, true)
 					: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
-			}, (error) => {
-				onErrorWithRetry(accessor.get(INotificationService), error, () => onSuccess(value));
+			}, error => {
+				onErrorWithRetry(notificationService, error, () => onSuccess(value));
 			});
 		};
 
@@ -917,7 +917,9 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
-				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				if (stat.resource.toString() !== targetResource.toString()) {
+					textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				}
 			}
 			explorerService.setEditable(stat, null);
 		}
@@ -983,18 +985,11 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 	}
 	const explorerContext = getContext(listService.lastFocusedList);
 	const textFileService = accessor.get(ITextFileService);
-	const fileDialogService = accessor.get(IFileDialogService);
-	const environmentService = accessor.get(IEnvironmentService);
 
 	if (explorerContext.stat) {
 		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 		stats.forEach(async s => {
-			const resource = await fileDialogService.showSaveDialog({
-				defaultUri: URI.file(join(environmentService.userHome, basename(s.resource.path)))
-			});
-			if (resource) {
-				await textFileService.saveAs(s.resource, resource);
-			}
+			await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
 		});
 	}
 };
@@ -1003,7 +998,7 @@ CommandsRegistry.registerCommand({
 	handler: downloadFileHandler
 });
 
-export const pasteFileHandler = (accessor: ServicesAccessor) => {
+export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1018,13 +1013,14 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 		const element = explorerContext.stat || explorerService.roots[0];
 
 		// Check if target is ancestor of pasted folder
-		Promise.all(toPaste.map(fileToPaste => {
+		const stats = await Promise.all(toPaste.map(async fileToPaste => {
 
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
 
-			return fileService.resolve(fileToPaste).then(fileToPasteStat => {
+			try {
+				const fileToPasteStat = await fileService.resolve(fileToPaste);
 
 				// Find target
 				let target: ExplorerItem;
@@ -1037,18 +1033,29 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 				// Move/Copy File
-				return pasteShouldMove ? textFileService.move(fileToPaste, targetFile) : fileService.copy(fileToPaste, targetFile);
-			}, error => {
+				if (pasteShouldMove) {
+					return await textFileService.move(fileToPaste, targetFile);
+				} else {
+					return await fileService.copy(fileToPaste, targetFile);
+				}
+			} catch (e) {
 				onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
-			});
-		})).then((stat) => {
-			if (pasteShouldMove) {
-				// Cut is done. Make sure to clear cut state.
-				explorerService.setToCopy([], false);
+				return undefined;
 			}
-			if (stat.length === 1 && !stat[0].isDirectory) {
-				editorService.openEditor({ resource: stat[0].resource, options: { pinned: true, preserveFocus: true } }).then(undefined, onUnexpectedError);
+		}));
+
+		if (pasteShouldMove) {
+			// Cut is done. Make sure to clear cut state.
+			explorerService.setToCopy([], false);
+		}
+		if (stats.length >= 1) {
+			const stat = stats[0];
+			if (stat && !stat.isDirectory && stats.length === 1) {
+				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 			}
-		});
+			if (stat) {
+				await explorerService.select(stat.resource);
+			}
+		}
 	}
 };

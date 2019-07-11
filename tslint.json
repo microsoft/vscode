@@ -430,7 +430,8 @@
 					"**/vs/editor/common/**",
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/**/common/**",
-					"**/vs/workbench/api/**/common/**"
+					"**/vs/workbench/api/**/common/**",
+					"vscode-textmate"
 				]
 			},
 			{
@@ -441,6 +442,7 @@
 					"**/vs/base/**/{common,browser}/**",
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
+					"**/vs/workbench/workbench.web.api",
 					"**/vs/workbench/{common,browser}/**",
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",

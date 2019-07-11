@@ -6,7 +6,7 @@
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { getAllPropertyNames } from 'vs/base/common/types';
+import * as types from 'vs/base/common/types';
 
 const INITIALIZE = '$initialize';
 
@@ -173,17 +173,22 @@ class SimpleWorkerProtocol {
 	}
 }
 
+export interface IWorkerClient<W> {
+	getProxyObject(): Promise<W>;
+	dispose(): void;
+}
+
 /**
  * Main thread side
  */
-export class SimpleWorkerClient<T> extends Disposable {
+export class SimpleWorkerClient<W extends object, H extends object> extends Disposable implements IWorkerClient<W> {
 
-	private _worker: IWorker;
-	private _onModuleLoaded: Promise<string[]>;
-	private _protocol: SimpleWorkerProtocol;
-	private _lazyProxy: Promise<T>;
+	private readonly _worker: IWorker;
+	private readonly _onModuleLoaded: Promise<string[]>;
+	private readonly _protocol: SimpleWorkerProtocol;
+	private readonly _lazyProxy: Promise<W>;
 
-	constructor(workerFactory: IWorkerFactory, moduleId: string) {
+	constructor(workerFactory: IWorkerFactory, moduleId: string, host: H) {
 		super();
 
 		let lazyProxyReject: ((err: any) => void) | null = null;
@@ -207,8 +212,15 @@ export class SimpleWorkerClient<T> extends Disposable {
 				this._worker.postMessage(msg);
 			},
 			handleMessage: (method: string, args: any[]): Promise<any> => {
-				// Intentionally not supporting worker -> main requests
-				return Promise.resolve(null);
+				if (typeof (host as any)[method] !== 'function') {
+					return Promise.reject(new Error('Missing method ' + method + ' on main thread host.'));
+				}
+
+				try {
+					return Promise.resolve((host as any)[method].apply(host, args));
+				} catch (e) {
+					return Promise.reject(e);
+				}
 			}
 		});
 		this._protocol.setWorkerId(this._worker.getId());
@@ -223,41 +235,33 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
+		const hostMethods = types.getAllMethodNames(host);
+
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
 			this._worker.getId(),
+			loaderConfiguration,
 			moduleId,
-			loaderConfiguration
+			hostMethods,
 		]);
-
-		this._lazyProxy = new Promise<T>((resolve, reject) => {
-			lazyProxyReject = reject;
-			this._onModuleLoaded.then((availableMethods: string[]) => {
-				let proxy = <T>{};
-				for (const methodName of availableMethods) {
-					(proxy as any)[methodName] = createProxyMethod(methodName, proxyMethodRequest);
-				}
-				resolve(proxy);
-			}, (e) => {
-				reject(e);
-				this._onError('Worker failed to load ' + moduleId, e);
-			});
-		});
 
 		// Create proxy to loaded code
 		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
 			return this._request(method, args);
 		};
 
-		const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {
-			return function () {
-				let args = Array.prototype.slice.call(arguments, 0);
-				return proxyMethodRequest(method, args);
-			};
-		};
+		this._lazyProxy = new Promise<W>((resolve, reject) => {
+			lazyProxyReject = reject;
+			this._onModuleLoaded.then((availableMethods: string[]) => {
+				resolve(types.createProxyObject<W>(availableMethods, proxyMethodRequest));
+			}, (e) => {
+				reject(e);
+				this._onError('Worker failed to load ' + moduleId, e);
+			});
+		});
 	}
 
-	public getProxyObject(): Promise<T> {
+	public getProxyObject(): Promise<W> {
 		return this._lazyProxy;
 	}
 
@@ -280,16 +284,22 @@ export interface IRequestHandler {
 	[prop: string]: any;
 }
 
+export interface IRequestHandlerFactory<H> {
+	(host: H): IRequestHandler;
+}
+
 /**
  * Worker side
  */
-export class SimpleWorkerServer {
+export class SimpleWorkerServer<H extends object> {
 
+	private _requestHandlerFactory: IRequestHandlerFactory<H> | null;
 	private _requestHandler: IRequestHandler | null;
 	private _protocol: SimpleWorkerProtocol;
 
-	constructor(postSerializedMessage: (msg: string) => void, requestHandler: IRequestHandler | null) {
-		this._requestHandler = requestHandler;
+	constructor(postSerializedMessage: (msg: string) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
+		this._requestHandlerFactory = requestHandlerFactory;
+		this._requestHandler = null;
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: string): void => {
 				postSerializedMessage(msg);
@@ -304,7 +314,7 @@ export class SimpleWorkerServer {
 
 	private _handleMessage(method: string, args: any[]): Promise<any> {
 		if (method === INITIALIZE) {
-			return this.initialize(<number>args[0], <string>args[1], <any>args[2]);
+			return this.initialize(<number>args[0], <any>args[1], <string>args[2], <string[]>args[3]);
 		}
 
 		if (!this._requestHandler || typeof this._requestHandler[method] !== 'function') {
@@ -318,18 +328,19 @@ export class SimpleWorkerServer {
 		}
 	}
 
-	private initialize(workerId: number, moduleId: string, loaderConfig: any): Promise<string[]> {
+	private initialize(workerId: number, loaderConfig: any, moduleId: string, hostMethods: string[]): Promise<string[]> {
 		this._protocol.setWorkerId(workerId);
 
-		if (this._requestHandler) {
+		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
+			return this._protocol.sendMessage(method, args);
+		};
+
+		const hostProxy = types.createProxyObject<H>(hostMethods, proxyMethodRequest);
+
+		if (this._requestHandlerFactory) {
 			// static request handler
-			let methods: string[] = [];
-			for (const prop of getAllPropertyNames(this._requestHandler)) {
-				if (typeof this._requestHandler[prop] === 'function') {
-					methods.push(prop);
-				}
-			}
-			return Promise.resolve(methods);
+			this._requestHandler = this._requestHandlerFactory(hostProxy);
+			return Promise.resolve(types.getAllMethodNames(this._requestHandler));
 		}
 
 		if (loaderConfig) {
@@ -350,23 +361,15 @@ export class SimpleWorkerServer {
 
 		return new Promise<string[]>((resolve, reject) => {
 			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (...result: any[]) => {
-				let handlerModule = result[0];
-				this._requestHandler = handlerModule.create();
+			(<any>self).require([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
+				this._requestHandler = module.create(hostProxy);
 
 				if (!this._requestHandler) {
 					reject(new Error(`No RequestHandler!`));
 					return;
 				}
 
-				let methods: string[] = [];
-				for (const prop of getAllPropertyNames(this._requestHandler)) {
-					if (typeof this._requestHandler[prop] === 'function') {
-						methods.push(prop);
-					}
-				}
-
-				resolve(methods);
+				resolve(types.getAllMethodNames(this._requestHandler));
 			}, reject);
 		});
 	}
@@ -375,6 +378,6 @@ export class SimpleWorkerServer {
 /**
  * Called on the worker side
  */
-export function create(postMessage: (msg: string) => void): SimpleWorkerServer {
+export function create(postMessage: (msg: string) => void): SimpleWorkerServer<any> {
 	return new SimpleWorkerServer(postMessage, null);
 }

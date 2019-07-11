@@ -305,7 +305,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const identityProvider = {
 			getId(element: TreeElement) {
-				return element.hash;
+				return element.id;
 			}
 		};
 

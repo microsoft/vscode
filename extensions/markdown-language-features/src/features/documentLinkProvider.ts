@@ -39,7 +39,7 @@ function parseLink(
 
 	return {
 		uri: OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment),
-		tooltip: localize('documentLink.tooltip', 'follow link')
+		tooltip: localize('documentLink.tooltip', 'Follow link')
 	};
 }
 
