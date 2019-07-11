@@ -96,7 +96,9 @@ abstract class ViewItem {
 	}
 
 	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
+	get viewMinimumSize(): number { return this.view.minimumSize; }
 	get maximumSize(): number { return this.visible ? this.view.maximumSize : 0; }
+	get viewMaximumSize(): number { return this.view.maximumSize; }
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
 	get snap(): boolean { return !!this.view.snap; }
 
@@ -501,18 +503,24 @@ export class SplitView extends Disposable {
 				const snapAfter = this.viewItems[index + 1].snap;
 
 				if (snapBefore && snapAfter) {
-					snapIndex = index + 1 < (this.viewItems.length - index - 1)
-						? index
-						: index + 1;
+					snapIndex = index + 1 < (this.viewItems.length - index - 1) ? index : index + 1;
 				} else if (snapBefore) {
 					snapIndex = index;
 				} else if (snapAfter) {
 					snapIndex = index + 1;
 				}
 
-				snapLimitDelta = snapIndex === index
-					? minDelta - (this.viewItems[index].minimumSize / 2)
-					: maxDelta + (this.viewItems[index + 1].minimumSize / 2);
+				if (typeof snapIndex === 'number') {
+					if (this.viewItems[snapIndex].visible) {
+						snapLimitDelta = snapIndex === index
+							? minDelta - (this.viewItems[index].viewMinimumSize / 2)
+							: maxDelta + (this.viewItems[index + 1].viewMinimumSize / 2);
+					} else {
+						snapLimitDelta = snapIndex === index
+							? minDelta + (this.viewItems[index].viewMinimumSize / 2)
+							: maxDelta - (this.viewItems[index + 1].viewMinimumSize / 2);
+					}
+				}
 			}
 
 			this.sashDragState = { start, current: start, index, sizes, minDelta, maxDelta, alt, snapIndex, snapLimitDelta, disposable };
@@ -756,7 +764,16 @@ export class SplitView extends Disposable {
 			const max = !(expandsDown[i] && collapsesUp[i + 1]);
 
 			if (min && max) {
-				s.sash.state = SashState.Disabled;
+				const before = !range(0, i + 1).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
+				const after = !range(i + 1, this.viewItems.length).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
+
+				if (before) {
+					s.sash.state = SashState.Minimum;
+				} else if (after) {
+					s.sash.state = SashState.Maximum;
+				} else {
+					s.sash.state = SashState.Disabled;
+				}
 			} else if (min && !max) {
 				s.sash.state = SashState.Minimum;
 			} else if (!min && max) {
