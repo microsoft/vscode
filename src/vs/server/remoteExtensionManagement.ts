@@ -157,6 +157,12 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, this._logService);
+
+		// Files
+		const fileService = this._register(new FileService(this._logService));
+		services.set(IFileService, fileService);
+		fileService.registerProvider(Schemas.file, this._register(new DiskFileSystemProvider(this._logService)));
+
 		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsResource]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
