@@ -32,10 +32,8 @@ export class TextMateService extends AbstractTextMateService {
 		return import('vscode-textmate');
 	}
 
-	protected _getRegistryOptions(parseRawGrammar: (content: string, filePath: string) => vscodeTextmate.IRawGrammar): vscodeTextmate.RegistryOptions {
-		const result = super._getRegistryOptions(parseRawGrammar);
-		result.getOnigLib = () => loadOnigasm();
-		return result;
+	protected _loadOnigLib(): Promise<vscodeTextmate.IOnigLib> | undefined {
+		return loadOnigasm();
 	}
 }
 

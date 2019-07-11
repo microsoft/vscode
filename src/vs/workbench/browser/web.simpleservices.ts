@@ -32,12 +32,6 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
-// tslint:disable-next-line: import-patterns
-import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
-// tslint:disable-next-line: import-patterns
-import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { CommentingRanges } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -59,6 +53,10 @@ export class SimpleClipboardService implements IClipboardService {
 
 	readText(type?: string): string {
 		// @ts-ignore
+		return undefined;
+	}
+
+	readTextSync(): string | undefined {
 		return undefined;
 	}
 
@@ -188,51 +186,6 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 	allowedBadgeProviders: string[];
 }
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregion
-
-//#region ICommentService
-export class SimpleCommentService implements ICommentService {
-	_serviceBrand: any;
-	onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = Event.None;
-	onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = Event.None;
-	onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = Event.None;
-	onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges; }> = Event.None;
-	onDidChangeActiveCommentThread: Event<any> = Event.None;
-	onDidSetDataProvider: Event<void> = Event.None;
-	onDidDeleteDataProvider: Event<string> = Event.None;
-	setDocumentComments: any;
-	setWorkspaceComments: any;
-	removeWorkspaceComments: any;
-	registerCommentController: any;
-	unregisterCommentController: any;
-	getCommentController: any;
-	createCommentThreadTemplate: any;
-	updateCommentThreadTemplate: any;
-	getCommentMenus: any;
-	registerDataProvider: any;
-	unregisterDataProvider: any;
-	updateComments: any;
-	disposeCommentThread: any;
-	createNewCommentThread: any;
-	replyToCommentThread: any;
-	editComment: any;
-	deleteComment: any;
-	getComments() { return Promise.resolve([]); }
-	getCommentingRanges: any;
-	startDraft: any;
-	deleteDraft: any;
-	finishDraft: any;
-	getStartDraftLabel: any;
-	getDeleteDraftLabel: any;
-	getFinishDraftLabel: any;
-	addReaction: any;
-	deleteReaction: any;
-	getReactionGroup: any;
-	hasReactionHandler: any;
-	toggleReaction: any;
-	setActiveCommentThread: any;
-}
-registerSingleton(ICommentService, SimpleCommentService, true);
 //#endregion
 
 //#region Extension Management

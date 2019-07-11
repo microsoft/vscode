@@ -7,68 +7,93 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getMediaMime } from 'vs/base/common/mime';
 
-const cacheName = 'vscode-resources';
+//https://stackoverflow.com/questions/56356655/structuring-a-typescript-project-with-workers/56374158#56374158
+declare var self: ServiceWorkerGlobalScope;
 
-declare const clients: { get(s: string): Promise<any> };
+//#region --- installing/activating
 
+self.addEventListener('install', event => {
+	event.waitUntil((async () => {
+		await caches.delete(_cacheName); // delete caches with each new version
+		await self.skipWaiting();
+	}));
+});
 
-const _pending = new Map<string, Function>();
+self.addEventListener('activate', event => {
+	event.waitUntil((async () => {
+		// (1) enable navigation preloads!
+		// (2) become available to all pages
+		if (self.registration.navigationPreload) {
+			await self.registration.navigationPreload.enable();
+		}
+		await self.clients.claim();
+	})());
+});
 
-export function handleMessageEvent(event: MessageEvent): void {
-	const fn = _pending.get(event.data.token);
+//#endregion
+
+//#region --- fetching/caching
+
+const _cacheName = 'vscode-resources';
+const _resourcePrefix = '/vscode-resources/fetch';
+const _pendingFetch = new Map<string, Function>();
+
+self.addEventListener('message', event => {
+	const fn = _pendingFetch.get(event.data.token);
 	if (fn) {
-		fn(event.data.data);
-		_pending.delete(event.data.token);
+		fn(event.data.data, event.data.isExtensionResource);
+		_pendingFetch.delete(event.data.token);
 	}
+});
+
+self.addEventListener('fetch', async (event: FetchEvent) => {
+
+	const uri = URI.parse(event.request.url);
+	if (uri.path !== _resourcePrefix) {
+		// not a /vscode-resources/fetch-url and therefore
+		// not (yet?) interesting for us
+		event.respondWith(respondWithDefault(event));
+		return;
+	}
+
+	event.respondWith(respondWithResource(event, uri));
+});
+
+async function respondWithDefault(event: FetchEvent): Promise<Response> {
+	return await event.preloadResponse || await fetch(event.request);
 }
 
-export async function handleFetchEvent(event: any): Promise<Response | undefined> {
-
-	const url = URI.parse(event.request.url);
-
-	if (url.path !== '/vscode-resources/fetch') {
-		return undefined;
-	}
-
-	if (!event.clientId) {
-		return undefined;
-	}
-
-	const cachedValue = await caches.open(cacheName).then(cache => cache.match(event.request));
+async function respondWithResource(event: FetchEvent, uri: URI): Promise<Response> {
+	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(event.request));
 	if (cachedValue) {
 		return cachedValue;
 	}
 
-	// console.log('fetch', url.query);
-	try {
+	return new Promise<Response>(resolve => {
+
 		const token = generateUuid();
-		return new Promise<Response>(async resolve => {
+		const resourceUri = URI.parse(uri.query);
 
-			const handle = setTimeout(() => {
-				resolve(new Response(undefined, { status: 500, statusText: 'timeout' }));
-				_pending.delete(token);
-			}, 5000);
+		_pendingFetch.set(token, async (data: ArrayBuffer, isExtensionResource: boolean) => {
 
-			_pending.set(token, (data: ArrayBuffer) => {
-				clearTimeout(handle);
-				const res = new Response(data, {
-					status: 200,
-					headers: { 'Content-Type': getMediaMime(URI.parse(url.query).path) || 'text/plain' }
-				});
-				caches.open(cacheName).then(cache => {
-					cache.put(event.request, res.clone());
-					resolve(res);
-				});
+			const res = new Response(data, {
+				status: 200,
+				headers: { 'Content-Type': getMediaMime(resourceUri.path) || 'text/plain' }
 			});
 
-			const client = await clients.get(event.clientId);
-			client.postMessage({ uri: url.query, token });
+			if (isExtensionResource) {
+				// only cache extension resources but not other
+				// resources, esp not workspace resources
+				await caches.open(_cacheName).then(cache => cache.put(event.request, res.clone()));
+			}
+
+			return resolve(res);
 		});
 
-
-	} catch (err) {
-		console.error(err);
-		return new Response(err, { status: 500 });
-	}
+		self.clients.get(event.clientId).then(client => {
+			client.postMessage({ uri: resourceUri, token });
+		});
+	});
 }
 
+//#endregion

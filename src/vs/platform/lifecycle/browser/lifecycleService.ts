@@ -26,7 +26,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private beforeUnload(): string | null {
-		let veto: boolean = false;
+		let veto = false;
 
 		// Before Shutdown
 		this._onBeforeShutdown.fire({
@@ -35,6 +35,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 					veto = true;
 				} else if (value instanceof Promise && !veto) {
 					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
+					veto = true;
 				}
 			},
 			reason: ShutdownReason.QUIT

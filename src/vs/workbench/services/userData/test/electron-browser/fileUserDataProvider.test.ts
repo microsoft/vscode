@@ -266,7 +266,7 @@ suite('FileUserDataProvider', () => {
 	});
 
 	test('resolve backups folder', async () => {
-		pfs.writeFile(path.join(backupsPath, 'backup.json'), '{}');
+		await pfs.writeFile(path.join(backupsPath, 'backup.json'), '{}');
 		const result = await testObject.resolve(joinPath(userDataResource, BACKUPS));
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);

@@ -79,6 +79,7 @@ export interface WebviewEvents {
 	onMessage?(message: any): void;
 	onDispose?(): void;
 	onDidClickLink?(link: URI, options: IWebviewOptions): void;
+	onDidUpdateWebviewState?(newState: any): void;
 }
 
 export interface WebviewInputOptions extends IWebviewOptions, IWebviewPanelOptions {

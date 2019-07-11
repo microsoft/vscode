@@ -534,6 +534,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
+
+	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
 	public toggleZenMode(): void { }
@@ -1071,6 +1073,10 @@ export class TestBackupFileService implements IBackupFileService {
 
 	public hasBackup(_resource: URI): Promise<boolean> {
 		return Promise.resolve(false);
+	}
+
+	public hasBackupSync(resource: URI, versionId?: number): boolean {
+		return false;
 	}
 
 	public loadBackupResource(resource: URI): Promise<URI | undefined> {

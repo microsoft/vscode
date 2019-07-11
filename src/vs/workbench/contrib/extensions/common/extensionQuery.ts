@@ -29,8 +29,8 @@ export class Query {
 				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
 					return [];
 				}
-				if (subcommands[command]) {
-					return subcommands[command].map((subcommand: string) => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
+				if ((subcommands as any)[command]) {
+					return (subcommands as any)[command].map((subcommand: string) => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
 				}
 				else {
 					return [`@${command} `];

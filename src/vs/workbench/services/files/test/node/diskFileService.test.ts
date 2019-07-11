@@ -14,13 +14,13 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat } from 'vs/platform/files/common/files';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream, ReadStream } from 'fs';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, writeableBufferStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -56,6 +56,16 @@ function toLineByLineReadable(content: string): VSBufferReadable {
 			return null;
 		}
 	};
+}
+
+function nodeStreamToVSBufferStream(stream: ReadStream): VSBufferReadableStream {
+	const vsbufferStream = writeableBufferStream();
+
+	stream.on('data', data => vsbufferStream.write(VSBuffer.wrap(data)));
+	stream.on('end', () => vsbufferStream.end());
+	stream.on('error', error => vsbufferStream.error(error));
+
+	return vsbufferStream;
 }
 
 export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
@@ -442,13 +452,15 @@ suite('Disk File Service', () => {
 	test('deleteFolder (non recursive)', async () => {
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
+
+		let error;
 		try {
 			await service.del(source.resource);
-
-			return Promise.reject(new Error('Unexpected'));
-		} catch (error) {
-			return Promise.resolve(true);
+		} catch (e) {
+			error = e;
 		}
+
+		assert.ok(error);
 	});
 
 	test('move', async () => {
@@ -647,43 +659,108 @@ suite('Disk File Service', () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
-		const source = URI.file(join(testDir, 'index.html'));
-		await service.resolve(source);
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source.size > 0);
 
-		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), 'INDEX.html')));
+		const renamedResource = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
+		let renamed = await service.move(source.resource, renamedResource);
+
+		assert.equal(existsSync(renamedResource.fsPath), true);
+		assert.equal(basename(renamedResource.fsPath), 'INDEX.html');
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, source.resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamedResource.fsPath);
+
+		renamed = await service.resolve(renamedResource, { resolveMetadata: true });
+		assert.equal(source.size, renamed.size);
+	});
+
+	test('move - same file', async () => {
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source.size > 0);
+
+		let renamed = await service.move(source.resource, URI.file(source.resource.fsPath));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
-		assert.equal(basename(renamed.resource.fsPath), 'INDEX.html');
+		assert.equal(basename(renamed.resource.fsPath), 'index.html');
 		assert.ok(event!);
-		assert.equal(event!.resource.fsPath, source.fsPath);
+		assert.equal(event!.resource.fsPath, source.resource.fsPath);
 		assert.equal(event!.operation, FileOperation.MOVE);
 		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		renamed = await service.resolve(renamed.resource, { resolveMetadata: true });
+		assert.equal(source.size, renamed.size);
+	});
+
+	test('move - same file #2', async () => {
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source.size > 0);
+
+		const targetParent = URI.file(testDir);
+		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
+
+		let renamed = await service.move(source.resource, target);
+
+		assert.equal(existsSync(renamed.resource.fsPath), true);
+		assert.equal(basename(renamed.resource.fsPath), 'index.html');
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, source.resource.fsPath);
+		assert.equal(event!.operation, FileOperation.MOVE);
+		assert.equal(event!.target!.resource.fsPath, renamed.resource.fsPath);
+
+		renamed = await service.resolve(renamed.resource, { resolveMetadata: true });
+		assert.equal(source.size, renamed.size);
 	});
 
 	test('move - source parent of target', async () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
-		await service.resolve(URI.file(join(testDir, 'index.html')));
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+		assert.ok(originalSize > 0);
+
+		let error;
 		try {
 			await service.move(URI.file(testDir), URI.file(join(testDir, 'binary.txt')));
 		} catch (e) {
-			assert.ok(e);
-			assert.ok(!event!);
+			error = e;
 		}
+
+		assert.ok(error);
+		assert.ok(!event!);
+
+		source = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(originalSize, source.size);
 	});
 
 	test('move - FILE_MOVE_CONFLICT', async () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+		assert.ok(originalSize > 0);
+
+		let error;
 		try {
 			await service.move(source.resource, URI.file(join(testDir, 'binary.txt')));
 		} catch (e) {
-			assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
-			assert.ok(!event!);
+			error = e;
 		}
+
+		assert.equal(error.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
+		assert.ok(!event!);
+
+		source = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(originalSize, source.size);
 	});
 
 	test('move - overwrite folder with file', async () => {
@@ -806,31 +883,123 @@ suite('Disk File Service', () => {
 		assert.equal(deleteEvent!.resource.fsPath, folderResource.fsPath);
 	});
 
-	test('copy - MIX CASE', async () => {
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
+	test('copy - MIX CASE same target - no overwrite', async () => {
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+		assert.ok(originalSize > 0);
+
+		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
+
+		let error;
+		let copied: IFileStatWithMetadata;
+		try {
+			copied = await service.copy(source.resource, target);
+		} catch (e) {
+			error = e;
+		}
+
+		if (isLinux) {
+			assert.ok(!error);
+
+			assert.equal(existsSync(copied!.resource.fsPath), true);
+			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
+			assert.equal(source.size, copied!.size);
+		} else {
+			assert.ok(error);
+
+			source = await service.resolve(source.resource, { resolveMetadata: true });
+			assert.equal(originalSize, source.size);
+		}
+	});
+
+	test('copy - MIX CASE same target - overwrite', async () => {
+		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		const originalSize = source.size;
+		assert.ok(originalSize > 0);
+
+		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
+
+		let error;
+		let copied: IFileStatWithMetadata;
+		try {
+			copied = await service.copy(source.resource, target, true);
+		} catch (e) {
+			error = e;
+		}
+
+		if (isLinux) {
+			assert.ok(!error);
+
+			assert.equal(existsSync(copied!.resource.fsPath), true);
+			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
+			assert.equal(source.size, copied!.size);
+		} else {
+			assert.ok(error);
+
+			source = await service.resolve(source.resource, { resolveMetadata: true });
+			assert.equal(originalSize, source.size);
+		}
+	});
+
+	test('copy - MIX CASE different taget - overwrite', async () => {
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source.size > 0);
+
 		const renamed = await service.move(source.resource, URI.file(join(dirname(source.resource.fsPath), 'CONWAY.js')));
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.ok(readdirSync(testDir).some(f => f === 'CONWAY.js'));
+		assert.equal(source.size, renamed.size);
 
-		const source_1 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')));
-		const targetParent = URI.file(testDir);
-		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source_1.resource.path)) });
+		const source_1 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')), { resolveMetadata: true });
+		const target = URI.file(join(testDir, basename(source_1.resource.path)));
 
 		const res = await service.copy(source_1.resource, target, true);
 		assert.equal(existsSync(res.resource.fsPath), true);
 		assert.ok(readdirSync(testDir).some(f => f === 'conway.js'));
+		assert.equal(source_1.size, res.size);
 	});
 
-	test('copy - same file should throw', async () => {
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
-		const targetParent = URI.file(dirname(source.resource.fsPath));
+	test('copy - same file', async () => {
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source.size > 0);
+
+		let copied = await service.copy(source.resource, URI.file(source.resource.fsPath));
+
+		assert.equal(existsSync(copied.resource.fsPath), true);
+		assert.equal(basename(copied.resource.fsPath), 'index.html');
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, source.resource.fsPath);
+		assert.equal(event!.operation, FileOperation.COPY);
+		assert.equal(event!.target!.resource.fsPath, copied.resource.fsPath);
+
+		copied = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(source.size, copied.size);
+	});
+
+	test('copy - same file #2', async () => {
+		let event: FileOperationEvent;
+		disposables.add(service.onAfterOperation(e => event = e));
+
+		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source.size > 0);
+
+		const targetParent = URI.file(testDir);
 		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
 
-		try {
-			await service.copy(source.resource, target, true);
-		} catch (error) {
-			assert.ok(error);
-		}
+		let copied = await service.copy(source.resource, URI.file(target.fsPath));
+
+		assert.equal(existsSync(copied.resource.fsPath), true);
+		assert.equal(basename(copied.resource.fsPath), 'index.html');
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, source.resource.fsPath);
+		assert.equal(event!.operation, FileOperation.COPY);
+		assert.equal(event!.target!.resource.fsPath, copied.resource.fsPath);
+
+		copied = await service.resolve(source.resource, { resolveMetadata: true });
+		assert.equal(source.size, copied.size);
 	});
 
 	test('readFile - small file - buffered', () => {
@@ -1167,12 +1336,24 @@ suite('Disk File Service', () => {
 	});
 
 	test('createFile', async () => {
+		assertCreateFile(contents => VSBuffer.fromString(contents));
+	});
+
+	test('createFile (readable)', async () => {
+		assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+	});
+
+	test('createFile (stream)', async () => {
+		assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+	});
+
+	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
-		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents));
+		const fileStat = await service.createFile(resource, converter(contents));
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
 		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
@@ -1181,7 +1362,7 @@ suite('Disk File Service', () => {
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.CREATE);
 		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
-	});
+	}
 
 	test('createFile (does not overwrite by default)', async () => {
 		const contents = 'Hello World';
@@ -1189,12 +1370,14 @@ suite('Disk File Service', () => {
 
 		writeFileSync(resource.fsPath, ''); // create file
 
+		let error;
 		try {
 			await service.createFile(resource, VSBuffer.fromString(contents));
+		} catch (err) {
+			error = err;
 		}
-		catch (error) {
-			assert.ok(error);
-		}
+
+		assert.ok(error);
 	});
 
 	test('createFile (allows to overwrite existing)', async () => {
@@ -1382,6 +1565,54 @@ suite('Disk File Service', () => {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (stream) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'small.txt'));
+		const target = URI.file(join(testDir, 'small-copy.txt'));
+
+		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'small-copy.txt');
+
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+	});
+
+	test('writeFile (large file - stream) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'lorem-copy.txt'));
+
+		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'lorem-copy.txt');
+
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+	});
+
+	test('writeFile (stream) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const source = URI.file(join(testDir, 'small.txt'));
+		const target = URI.file(join(testDir, 'small-copy.txt'));
+
+		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'small-copy.txt');
+
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+	});
+
+	test('writeFile (large file - stream) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'lorem-copy.txt'));
+
+		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'lorem-copy.txt');
+
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
 	});
 
 	test('writeFile (file is created including parents)', async () => {

@@ -8,12 +8,12 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor, CodeAction } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -31,13 +31,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { Action } from 'vs/base/common/actions';
+import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
@@ -187,10 +183,6 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 }
 
-interface ActionSet extends IDisposable {
-	readonly actions: Action[];
-}
-
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
@@ -204,16 +196,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 
-	private renderDisposable: IDisposable = Disposable.None;
+	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		editor: ICodeEditor,
 		markerDecorationsService: IMarkerDecorationsService,
 		private readonly _themeService: IThemeService,
 		private readonly _keybindingService: IKeybindingService,
-		private readonly _contextMenuService: IContextMenuService,
-		private readonly _bulkEditService: IBulkEditService,
-		private readonly _commandService: ICommandService,
 		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
@@ -247,8 +236,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	}
 
 	dispose(): void {
-		this.renderDisposable.dispose();
-		this.renderDisposable = Disposable.None;
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -316,8 +303,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
-		this.renderDisposable.dispose();
-		this.renderDisposable = Disposable.None;
+		this.renderDisposable.clear();
 		this._colorPicker = null;
 	}
 
@@ -349,7 +335,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
-		let markdownDisposeables: IDisposable[] = [];
+		const markdownDisposeables = new DisposableStore();
 		const markerMessages: MarkerHover[] = [];
 		messages.forEach((msg) => {
 			if (!msg.range) {
@@ -440,7 +426,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable(colorListener, colorChangeListener, widget, ...markdownDisposeables);
+					this.renderDisposable.value = combinedDisposable(colorListener, colorChangeListener, widget, markdownDisposeables);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
@@ -452,15 +438,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						.forEach(contents => {
 							const markdownHoverElement = $('div.hover-row.markdown-hover');
 							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-							const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-							markdownDisposeables.push(renderer.onDidRenderCodeBlock(() => {
+							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
+							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
 								this.onContentsChange();
 							}));
-							const renderedContents = renderer.render(contents);
+							const renderedContents = markdownDisposeables.add(renderer.render(contents));
 							hoverContentsElement.appendChild(renderedContents.element);
 							fragment.appendChild(markdownHoverElement);
-							markdownDisposeables.push(renderedContents);
 							isEmptyHoverContent = false;
 						});
 				}
@@ -538,12 +523,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			run: async (target) => {
 				const codeActionsPromise = this.getCodeActions(markerHover.marker);
 				disposables.add(toDisposable(() => codeActionsPromise.cancel()));
-				const actions = await codeActionsPromise;
-				disposables.add(actions);
+
+				const controller = QuickFixController.get(this._editor);
 				const elementPosition = dom.getDomNodePagePosition(target);
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
-					getActions: () => actions.actions
+				controller.showCodeActions(codeActionsPromise, {
+					x: elementPosition.left + 6,
+					y: elementPosition.top + elementPosition.height + 6
 				});
 			}
 		}));
@@ -558,34 +543,26 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 		}
-		this.renderDisposable = disposables;
+		this.renderDisposable.value = disposables;
 		return hoverElement;
 	}
 
-	private getCodeActions(marker: IMarker): CancelablePromise<ActionSet> {
-		return createCancelablePromise(async cancellationToken => {
-			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
-			if (codeActions.actions.length) {
-				const actions: Action[] = [];
-				for (const codeAction of codeActions.actions) {
-					actions.push(new Action(
-						codeAction.command ? codeAction.command.id : codeAction.title,
-						codeAction.title,
-						undefined,
-						true,
-						() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
-				}
-				return {
-					actions: actions,
-					dispose: () => codeActions.dispose()
-				};
-			}
+	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
+		const noAction: CodeAction = {
+			title: nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
+			kind: CodeActionKind.QuickFix.value,
+		};
+		return createCancelablePromise(async (cancellationToken): Promise<CodeActionSet> => {
+			const result = await getCodeActions(
+				this._editor.getModel()!,
+				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
+				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
+				cancellationToken);
 
 			return {
-				actions: [
-					new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
-				],
-				dispose() { }
+				actions: result.actions.length ? result.actions : [noAction],
+				hasAutoFix: result.hasAutoFix,
+				dispose: () => result.dispose(),
 			};
 		});
 	}

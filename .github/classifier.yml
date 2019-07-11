@@ -63,7 +63,7 @@
             assignLabel: false
         },
         file-explorer: {
-            assignees: [ isidorn ],
+            assignees: [ ],
             assignLabel: false
         },
         file-glob: [],

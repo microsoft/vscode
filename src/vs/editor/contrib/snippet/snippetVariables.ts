@@ -167,7 +167,7 @@ export class ModelBasedVariableResolver implements VariableResolver {
 export class ClipboardBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _clipboardService: IClipboardService,
+		private readonly _clipboardService: IClipboardService | undefined,
 		private readonly _selectionIdx: number,
 		private readonly _selectionCount: number
 	) {
@@ -179,7 +179,7 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		const text = this._clipboardService.readText();
+		const text = this._clipboardService.readTextSync();
 		if (!text) {
 			return undefined;
 		}
