@@ -24,6 +24,7 @@
 </head>
 
 <body>
+	<div id="buttons"></div>
 	<div id="container"></div>
 
 	<script src="/static/vs/loader.js"></script>
@@ -31,23 +32,34 @@
 		require.config({ baseUrl: '/static' });
 
 		require(['vs/base/browser/ui/splitview/splitview', 'vs/base/common/event'], ({ SplitView, Sizing }, { Event }) => {
+			const buttons = document.getElementById('buttons');
+
 			class View {
 				static ID = 0;
 
 				constructor() {
-					const id = View.ID++;
+					this.id = View.ID++;
 					this.element = document.createElement('div');
 					this.element.className = 'view';
-					this.element.style.backgroundColor = `hsl(${(id * 41) % 360}, 50%, 70%)`;
-					this.element.textContent = `${id}`;
+					this.element.style.backgroundColor = `hsl(${(this.id * 41) % 360}, 50%, 70%)`;
+					this.element.textContent = `${this.id}`;
 					this.minimumSize = 100;
 					this.maximumSize = Number.POSITIVE_INFINITY;
 					this.onDidChange = Event.None;
 					this.snap = true;
+
+					this.button = document.createElement('button');
+					this.button.onclick = () => splitview.setViewVisible(this.id, !splitview.isViewVisible(this.id));
+					buttons.appendChild(this.button);
+					this.setVisible(true);
 				}
 
 				layout(size, orientation) {
 					this.element.style.lineHeight = `${size}px`;
+				}
+
+				setVisible(visible) {
+					this.button.textContent = visible ? `hide ${this.id}` : `show ${this.id}`;
 				}
 			}
 
@@ -55,16 +67,11 @@
 			const splitview = new SplitView(container, {});
 			splitview.layout(600);
 
-			const view1 = new View();
-			const view2 = new View();
-			const view3 = new View();
-			const view4 = new View();
-
-			splitview.addView(view1, Sizing.Distribute);
-			splitview.addView(view2, Sizing.Distribute);
-			splitview.addView(view3, Sizing.Distribute);
-			splitview.addView(view4, Sizing.Distribute);
-			// splitview.addView(view5, Sizing.Distribute);
+			splitview.addView(new View(), Sizing.Distribute);
+			splitview.addView(new View(), Sizing.Distribute);
+			splitview.addView(new View(), Sizing.Distribute);
+			splitview.addView(new View(), Sizing.Distribute);
+			splitview.addView(new View(), Sizing.Distribute);
 
 			// const index = 2;
 			// setInterval(() => splitview.setViewVisible(index, !splitview.isViewVisible(index)), 1000);
