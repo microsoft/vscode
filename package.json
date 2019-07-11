@@ -40,7 +40,7 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
-    "node-pty": "0.9.0-beta17",
+    "node-pty": "0.9.0-beta19",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
