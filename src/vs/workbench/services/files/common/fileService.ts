@@ -885,6 +885,8 @@ export class FileService extends Disposable implements IFileService {
 			let posInFile = 0;
 
 			stream.on('data', async chunk => {
+
+				// pause stream to perform async write operation
 				stream.pause();
 
 				try {
@@ -895,7 +897,11 @@ export class FileService extends Disposable implements IFileService {
 
 				posInFile += chunk.byteLength;
 
-				stream.resume();
+				// resume stream now that we have successfully written
+				// run this on the next tick to prevent increasing the
+				// execution stack because resume() may call the event
+				// handler again before finishing.
+				setTimeout(() => stream.resume());
 			});
 
 			stream.on('error', error => reject(error));
