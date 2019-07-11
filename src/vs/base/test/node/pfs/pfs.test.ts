@@ -16,6 +16,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { join } from 'path';
 
 const chunkSize = 64 * 1024;
 const readError = 'Error while reading';
@@ -381,6 +382,31 @@ suite('PFS', () => {
 
 			const children = await pfs.readdir(path.join(parentDir, 'pfs', id));
 			assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
+
+			await pfs.rimraf(parentDir);
+		}
+	});
+
+	test('readdirWithFileTypes', async () => {
+		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const testDir = join(parentDir, 'pfs', id);
+
+			const newDir = path.join(testDir, 'öäü');
+			await pfs.mkdirp(newDir, 493);
+
+			await pfs.writeFile(join(testDir, 'somefile.txt'), 'contents');
+
+			assert.ok(fs.existsSync(newDir));
+
+			const children = await pfs.readdirWithFileTypes(testDir);
+
+			assert.equal(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+			assert.equal(children.some(n => n.isDirectory()), true);
+
+			assert.equal(children.some(n => n.name === 'somefile.txt'), true);
+			assert.equal(children.some(n => n.isFile()), true);
 
 			await pfs.rimraf(parentDir);
 		}

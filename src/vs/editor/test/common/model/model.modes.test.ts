@@ -29,7 +29,7 @@ suite('Editor Model - Model Modes 1', () => {
 		tokenize: undefined!,
 		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line.charAt(0));
-			return new TokenizationResult2(null!, state);
+			return new TokenizationResult2(new Uint32Array(0), state);
 		}
 	};
 
@@ -183,7 +183,7 @@ suite('Editor Model - Model Modes 2', () => {
 		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
-			return new TokenizationResult2(null!, state);
+			return new TokenizationResult2(new Uint32Array(0), state);
 		}
 	};
 

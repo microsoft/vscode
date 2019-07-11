@@ -16,7 +16,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 export class WorkspaceWatcher extends Disposable {
 

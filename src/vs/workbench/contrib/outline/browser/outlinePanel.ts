@@ -11,7 +11,7 @@ import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import 'vs/css!./outlinePanel';
@@ -71,7 +71,7 @@ class RequestState {
 class RequestOracle {
 
 	private readonly _disposables = new DisposableStore();
-	private _sessionDisposable: IDisposable;
+	private _sessionDisposable = new MutableDisposable();
 	private _lastState?: RequestState;
 
 	constructor(
@@ -85,8 +85,8 @@ class RequestOracle {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._sessionDisposable);
+		this._disposables.dispose();
+		this._sessionDisposable.dispose();
 	}
 
 	private _update(): void {
@@ -116,7 +116,6 @@ class RequestOracle {
 			// prevent unnecessary changes...
 			return;
 		}
-		dispose(this._sessionDisposable);
 		this._lastState = thisState;
 		this._callback(codeEditor, undefined);
 
@@ -131,7 +130,7 @@ class RequestOracle {
 		let disposeListener = codeEditor.onDidDispose(() => {
 			this._callback(undefined, undefined);
 		});
-		this._sessionDisposable = {
+		this._sessionDisposable.value = {
 			dispose() {
 				contentListener.dispose();
 				clearTimeout(handle);
@@ -236,7 +235,7 @@ export class OutlinePanel extends ViewletPanel {
 
 	private _disposables = new Array<IDisposable>();
 
-	private _editorDisposables = new Array<IDisposable>();
+	private _editorDisposables = new DisposableStore();
 	private _outlineViewState = new OutlineViewState();
 	private _requestOracle?: RequestOracle;
 	private _domNode: HTMLElement;
@@ -368,7 +367,7 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && !this._requestOracle) {
-				this._requestOracle = this._instantiationService.createInstance(RequestOracle, (editor: ICodeEditor | undefined, event: IModelContentChangedEvent | undefined) => this._doUpdate(editor, event), DocumentSymbolProviderRegistry);
+				this._requestOracle = this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event), DocumentSymbolProviderRegistry);
 			} else if (!visible) {
 				dispose(this._requestOracle);
 				this._requestOracle = undefined;
@@ -431,9 +430,9 @@ export class OutlinePanel extends ViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
-	private static _createOutlineModel(model: ITextModel, disposables: IDisposable[]): Promise<OutlineModel | undefined> {
+	private static _createOutlineModel(model: ITextModel, disposables: DisposableStore): Promise<OutlineModel | undefined> {
 		let promise = createCancelablePromise(token => OutlineModel.create(model, token));
-		disposables.push({ dispose() { promise.cancel(); } });
+		disposables.add({ dispose() { promise.cancel(); } });
 		return promise.catch(err => {
 			if (!isPromiseCanceledError(err)) {
 				throw err;
@@ -443,17 +442,15 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private async _doUpdate(editor: ICodeEditor | undefined, event: IModelContentChangedEvent | undefined): Promise<void> {
-		dispose(this._editorDisposables);
+		this._editorDisposables.clear();
 
-		this._editorDisposables = new Array();
 		this._progressBar.infinite().show(150);
 
-		let oldModel = this._tree.getInput();
+		const oldModel = this._tree.getInput();
 
 		// persist state
 		if (oldModel) {
-			let state = this._tree.getViewState();
-			this._treeStates.set(oldModel.textModel.uri.toString(), state);
+			this._treeStates.set(oldModel.textModel.uri.toString(), this._tree.getViewState());
 		}
 
 		if (!editor || !editor.hasModel() || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
@@ -527,11 +524,11 @@ export class OutlinePanel extends ViewletPanel {
 			this._tree.domFocus();
 		}
 
-		this._editorDisposables.push(toDisposable(() => this._contextKeyFiltered.reset()));
+		this._editorDisposables.add(toDisposable(() => this._contextKeyFiltered.reset()));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
+		this._editorDisposables.add(this._tree.onDidChangeSelection(e => {
 			if (e.browserEvent === this._treeFakeUIEvent /* || e.payload && e.payload.didClickOnTwistie */) {
 				return;
 			}
@@ -559,7 +556,7 @@ export class OutlinePanel extends ViewletPanel {
 		// feature: reveal editor selection in outline
 		this._revealEditorSelection(newModel, editor.getSelection());
 		const versionIdThen = newModel.textModel.getVersionId();
-		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => {
+		this._editorDisposables.add(editor.onDidChangeCursorSelection(e => {
 			// first check if the document has changed and stop revealing the
 			// cursor position iff it has -> we will update/recompute the
 			// outline view then anyways
@@ -588,9 +585,9 @@ export class OutlinePanel extends ViewletPanel {
 			}
 		};
 		updateMarker(textModel, true);
-		this._editorDisposables.push(this._markerDecorationService.onDidChangeMarker(updateMarker));
+		this._editorDisposables.add(this._markerDecorationService.onDidChangeMarker(updateMarker));
 
-		this._editorDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+		this._editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
 				this._tree.updateChildren();
 				return;

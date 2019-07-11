@@ -248,7 +248,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				});
 	}
 
-	copyKeybinding(keybinding: IKeybindingItemEntry): void {
+	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
@@ -258,13 +258,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (keybinding.keybindingItem.when) {
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
-		this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
+		await this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
 	}
 
-	copyKeybindingCommand(keybinding: IKeybindingItemEntry): void {
+	async copyKeybindingCommand(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
-		this.clipboardService.writeText(keybinding.keybindingItem.command);
+		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
 	focusSearch(): void {

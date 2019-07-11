@@ -81,7 +81,13 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 }
 
 export function toDisposable(fn: () => void): IDisposable {
-	return trackDisposable({ dispose: fn });
+	const self = trackDisposable({
+		dispose: () => {
+			markTracked(self);
+			fn();
+		}
+	});
+	return self;
 }
 
 export class DisposableStore implements IDisposable {

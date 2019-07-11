@@ -15,13 +15,18 @@ import { Color } from 'vs/base/common/color';
 export { Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
+export interface IViewSize {
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface IView {
 	readonly element: HTMLElement;
 	readonly minimumWidth: number;
 	readonly maximumWidth: number;
 	readonly minimumHeight: number;
 	readonly maximumHeight: number;
-	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
+	readonly onDidChange: Event<IViewSize | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snapSize?: number;
 	layout(width: number, height: number, orientation: Orientation): void;
@@ -573,7 +578,7 @@ export class GridView implements IDisposable {
 	get maximumWidth(): number { return this.root.maximumHeight; }
 	get maximumHeight(): number { return this.root.maximumHeight; }
 
-	private _onDidChange = new Relay<{ width: number; height: number; } | undefined>();
+	private _onDidChange = new Relay<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(options: IGridViewOptions = {}) {
@@ -747,18 +752,33 @@ export class GridView implements IDisposable {
 		}
 	}
 
-	resizeView(location: number[], size: number): void {
+	resizeView(location: number[], { width, height }: Partial<IViewSize>): void {
 		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
+		const [pathToParent, parent] = this.getNode(rest);
 
 		if (!(parent instanceof BranchNode)) {
 			throw new Error('Invalid location');
 		}
 
-		parent.resizeChild(index, size);
+		if (!width && !height) {
+			return;
+		}
+
+		const [parentSize, grandParentSize] = parent.orientation === Orientation.HORIZONTAL ? [width, height] : [height, width];
+
+		if (typeof grandParentSize === 'number' && pathToParent.length > 0) {
+			const [, grandParent] = tail(pathToParent);
+			const [, parentIndex] = tail(rest);
+
+			grandParent.resizeChild(parentIndex, grandParentSize);
+		}
+
+		if (typeof parentSize === 'number') {
+			parent.resizeChild(index, parentSize);
+		}
 	}
 
-	getViewSize(location: number[]): { width: number; height: number; } {
+	getViewSize(location: number[]): IViewSize {
 		const [, node] = this.getNode(location);
 		return { width: node.width, height: node.height };
 	}

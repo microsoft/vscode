@@ -203,7 +203,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
-		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -222,7 +222,7 @@ export class TerminalPanel extends Panel {
 						return;
 					}
 					if (terminal.hasSelection()) {
-						terminal.copySelection();
+						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
 						terminal.paste();
@@ -240,7 +240,7 @@ export class TerminalPanel extends Panel {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, 'mouseup', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'mouseup', async (event: MouseEvent) => {
 			if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
 				if (this._terminalService.terminalInstances.length === 0) {
 					return;
@@ -249,7 +249,7 @@ export class TerminalPanel extends Panel {
 				if (event.which === 1) {
 					const terminal = this._terminalService.getActiveInstance();
 					if (terminal && terminal.hasSelection()) {
-						terminal.copySelection();
+						await terminal.copySelection();
 					}
 				}
 			}

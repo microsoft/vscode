@@ -19,6 +19,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PreferencesSearchService as LocalPreferencesSearchService, SettingMatches } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -252,7 +253,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		}
 
 		const requestType = details.body ? 'post' : 'get';
-		const headers = {
+		const headers: IStringDictionary<string> = {
 			'User-Agent': 'request',
 			'Content-Type': 'application/json; charset=utf-8',
 		};

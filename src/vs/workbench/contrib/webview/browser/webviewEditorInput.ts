@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
 import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
-export class WebviewEditorInput extends EditorInput {
+export class WebviewEditorInput<State = any> extends EditorInput {
 	private static handlePool = 0;
 
 	private static _styleElement?: HTMLStyleElement;
@@ -62,7 +62,7 @@ export class WebviewEditorInput extends EditorInput {
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
-	private _state: any;
+	private _state: State;
 
 	public readonly extension?: {
 		readonly location: URI;
@@ -74,7 +74,7 @@ export class WebviewEditorInput extends EditorInput {
 		public readonly viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: any,
+		state: State,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;
@@ -175,16 +175,12 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public get state(): any {
+	public get state(): State {
 		return this._state;
 	}
 
-	public set state(value: any) {
+	public set state(value: State) {
 		this._state = value;
-	}
-
-	public get webviewState() {
-		return this._state.state;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -253,7 +249,9 @@ export class WebviewEditorInput extends EditorInput {
 		}, null, this._webviewDisposables);
 
 		this._webview.onDidUpdateState(newState => {
-			this._state.state = newState;
+			if (this._events && this._events.onDidUpdateWebviewState) {
+				this._events.onDidUpdateWebviewState(newState);
+			}
 		}, null, this._webviewDisposables);
 	}
 
@@ -262,7 +260,6 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public claimWebview(owner: any) {
-
 		this._webviewOwner = owner;
 	}
 

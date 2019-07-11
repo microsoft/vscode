@@ -326,6 +326,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	get filterOnType(): boolean { return this.tree.filterOnType; }
 	get openOnSingleClick(): boolean { return this.tree.openOnSingleClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) {
+		if (typeof this.tree.expandOnlyOnTwistieClick === 'boolean') {
+			return this.tree.expandOnlyOnTwistieClick;
+		}
+
+		const fn = this.tree.expandOnlyOnTwistieClick;
+		return element => fn(this.nodes.get((element === this.root.element ? null : element) as T) || null);
+	}
 
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
