@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -55,7 +55,7 @@ export interface SelectEvent {
 
 export abstract class BreadcrumbsPicker {
 
-	protected readonly _disposables = new Array<IDisposable>();
+	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
 	protected _arrow: HTMLDivElement;
 	protected _treeContainer: HTMLDivElement;
@@ -81,7 +81,7 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
 	}
@@ -105,7 +105,7 @@ export abstract class BreadcrumbsPicker {
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 		this._tree = this._createTree(this._treeContainer);
 
-		this._disposables.push(this._tree.onDidChangeSelection(e => {
+		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			if (e.browserEvent !== this._fakeEvent) {
 				const target = this._getTargetFromEvent(e.elements[0]);
 				if (target) {
@@ -115,13 +115,13 @@ export abstract class BreadcrumbsPicker {
 				}
 			}
 		}));
-		this._disposables.push(this._tree.onDidChangeFocus(e => {
+		this._disposables.add(this._tree.onDidChangeFocus(e => {
 			const target = this._getTargetFromEvent(e.elements[0]);
 			if (target) {
 				this._onDidFocusElement.fire({ target, browserEvent: e.browserEvent || new UIEvent('fake') });
 			}
 		}));
-		this._disposables.push(this._tree.onDidChangeContentHeight(() => {
+		this._disposables.add(this._tree.onDidChangeContentHeight(() => {
 			this._layout();
 		}));
 
@@ -276,7 +276,7 @@ class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IW
 class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
@@ -306,15 +306,13 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 			});
 		};
 		update();
-		this._disposables.push(
-			config,
-			config.onDidChange(update),
-			_workspaceService.onDidChangeWorkspaceFolders(update)
-		);
+		this._disposables.add(config);
+		this._disposables.add(config.onDidChange(update));
+		this._disposables.add(_workspaceService.onDidChangeWorkspaceFolders(update));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	filter(element: IWorkspaceFolder | IFileStat, _parentVisibility: TreeVisibility): boolean {
@@ -371,11 +369,11 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			dom.toggleClass(this._treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
 			dom.toggleClass(this._treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
 		};
-		this._disposables.push(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		this._disposables.add(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		onFileIconThemeChange(this._themeService.getFileIconTheme());
 
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
-		this._disposables.push(labels);
+		this._disposables.add(labels);
 
 		return this._instantiationService.createInstance(WorkbenchAsyncDataTree, container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
 			multipleSelectionSupport: false,

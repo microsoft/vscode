@@ -53,8 +53,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 // import { IDownloadService } from 'vs/platform/download/common/download';
 // import { DownloadService } from 'vs/platform/download/node/downloadService';
-// import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-// import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -149,7 +149,7 @@ registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 // registerSingleton(IDownloadService, DownloadService, true);
-// registerSingleton(IClipboardService, ClipboardService, true);
+registerSingleton(IClipboardService, BrowserClipboardService, true);
 registerSingleton(IContextKeyService, ContextKeyService);
 registerSingleton(IModelService, ModelServiceImpl, true);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
@@ -250,7 +250,7 @@ import 'vs/workbench/contrib/debug/browser/debugHelperService';
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-// import 'vs/workbench/contrib/comments/browser/comments.contribution';
+import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';

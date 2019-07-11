@@ -335,7 +335,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
-		let markdownDisposeables: IDisposable[] = [];
+		const markdownDisposeables = new DisposableStore();
 		const markerMessages: MarkerHover[] = [];
 		messages.forEach((msg) => {
 			if (!msg.range) {
@@ -426,7 +426,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable.value = combinedDisposable(colorListener, colorChangeListener, widget, ...markdownDisposeables);
+					this.renderDisposable.value = combinedDisposable(colorListener, colorChangeListener, widget, markdownDisposeables);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
@@ -438,15 +438,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						.forEach(contents => {
 							const markdownHoverElement = $('div.hover-row.markdown-hover');
 							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-							const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-							markdownDisposeables.push(renderer.onDidRenderCodeBlock(() => {
+							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
+							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
 								this.onContentsChange();
 							}));
-							const renderedContents = renderer.render(contents);
+							const renderedContents = markdownDisposeables.add(renderer.render(contents));
 							hoverContentsElement.appendChild(renderedContents.element);
 							fragment.appendChild(markdownHoverElement);
-							markdownDisposeables.push(renderedContents);
 							isEmptyHoverContent = false;
 						});
 				}

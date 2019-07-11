@@ -584,9 +584,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
-		for (let key in config) {
-			if (config[key] === undefined || config[key] === null || config[key] === '' || config[key] === false) {
-				delete config[key]; // only send over properties that have a true value
+		for (const key in config) {
+			const configValue = (config as any)[key];
+			if (configValue === undefined || configValue === null || configValue === '' || configValue === false) {
+				delete (config as any)[key]; // only send over properties that have a true value
 			}
 		}
 

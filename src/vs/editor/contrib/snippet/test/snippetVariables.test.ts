@@ -274,7 +274,7 @@ suite('Snippet Variables Resolver', function () {
 		let resolver: VariableResolver;
 		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
-			readText(): string { return readTextResult; }
+			async readText(): Promise<string> { return readTextResult; }
 			readTextSync(): any { return readTextResult; }
 			_throw = () => { throw new Error(); };
 			writeText = this._throw;

@@ -475,6 +475,8 @@ const apiToken = process.env.TRANSIFEX_API_TOKEN;
 gulp.task(task.define(
 	'vscode-translations-push',
 	task.series(
+		compileBuildTask,
+		compileExtensionsBuildTask,
 		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
@@ -494,6 +496,8 @@ gulp.task(task.define(
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
+		compileBuildTask,
+		compileExtensionsBuildTask,
 		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
