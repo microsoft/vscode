@@ -11,6 +11,8 @@ import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -96,7 +98,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService private readonly configurationService: ConfigurationService
 	) {
 		super(id, label);
 	}
@@ -169,9 +172,13 @@ export class ToggleScreencastModeAction extends Action {
 			const label = keybinding.getLabel();
 
 			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
+				if (!this.configurationService.getValue<boolean>('screencastMode.onlyModifierKeys')) {
+					keyboardMarker.textContent += ' ' + label;
+					keyboardMarker.style.display = 'block';
+				}
 			} else {
 				keyboardMarker.textContent = label;
+				keyboardMarker.style.display = 'block';
 			}
 
 			keyboardMarker.style.display = 'block';
