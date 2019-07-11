@@ -254,6 +254,7 @@ export async function run(argv: ParsedArgs, environmentService: EnvironmentServi
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	disposables.add(configurationService);
 	await configurationService.initialize();
+	services.set(IConfigurationService, configurationService);
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
