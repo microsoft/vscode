@@ -9,13 +9,8 @@ import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/f
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/path';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
-
-	constructor(logService: ILogService) {
-		super(logService);
-	}
 
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {

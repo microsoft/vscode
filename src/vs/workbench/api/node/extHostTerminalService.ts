@@ -788,7 +788,10 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		// Attach the real listeners
 		this._virtualProcess.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._virtualProcess.onDidExit) {
-			this._virtualProcess.onDidExit(e => this._onProcessExit.fire(e));
+			this._virtualProcess.onDidExit(e => {
+				// Ensure only positive exit codes are returned
+				this._onProcessExit.fire(e >= 0 ? e : 1);
+			});
 		}
 		if (this._virtualProcess.onDidOverrideDimensions) {
 			this._virtualProcess.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));

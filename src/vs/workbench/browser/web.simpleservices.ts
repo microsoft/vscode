@@ -364,27 +364,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 
 //#endregion
 
-//#region Request
-
-export const IRequestService = createDecorator<IRequestService>('requestService');
-
-export interface IRequestService {
-	_serviceBrand: any;
-
-	request(options: any, token: CancellationToken): Promise<object>;
-}
-
-export class SimpleRequestService implements IRequestService {
-
-	_serviceBrand: any;
-
-	request(options: any, token: CancellationToken): Promise<object> {
-		return Promise.resolve(Object.create(null));
-	}
-}
-
-//#endregion
-
 //#region Telemetry
 
 export class SimpleTelemetryService implements ITelemetryService {
