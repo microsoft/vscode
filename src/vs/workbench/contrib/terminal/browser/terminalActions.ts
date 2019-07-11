@@ -159,10 +159,10 @@ export class CopyTerminalSelectionAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.copySelection();
+			await terminalInstance.copySelection();
 		}
 		return Promise.resolve(undefined);
 	}
