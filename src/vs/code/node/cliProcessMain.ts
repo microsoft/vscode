@@ -313,7 +313,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
-	return instantiationService.invokeFunction(accessor => {
+	return instantiationService.invokeFunction(async accessor => {
 		const envService = accessor.get(IEnvironmentService);
 		const stateService = accessor.get(IStateService);
 
@@ -350,8 +350,10 @@ export async function main(argv: ParsedArgs): Promise<void> {
 		const instantiationService2 = instantiationService.createChild(services);
 		const main = instantiationService2.createInstance(Main);
 
-		return main.run(argv).then(() => {
+		try {
+			await main.run(argv);
+		} finally {
 			disposables.dispose();
-		});
+		}
 	});
 }
