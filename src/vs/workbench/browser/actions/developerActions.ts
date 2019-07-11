@@ -163,18 +163,24 @@ export class ToggleScreencastModeAction extends Action {
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
 
+		let enterChord = false;
+
 		const keyboardListener = onKeyDown(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = this.keybindingService.softDispatch(event, event.target);
-			console.log(event.target);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
 			if (shortcut) {
-				keyboardMarker.textContent = label;
+				if (enterChord) {
+					keyboardMarker.textContent += ' ' + label;
+				} else {
+					keyboardMarker.textContent = label;
+				}
 				keyboardMarker.style.display = 'block';
+				enterChord = shortcut.enterChord;
 			} else if (!this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
 				if (this.keybindingService.mightProducePrintableCharacter(event) && label) {
 					keyboardMarker.textContent += ' ' + label;
@@ -183,6 +189,7 @@ export class ToggleScreencastModeAction extends Action {
 					keyboardMarker.textContent = label;
 					keyboardMarker.style.display = 'block';
 				}
+				enterChord = false;
 			}
 
 			const promise = timeout(800);
