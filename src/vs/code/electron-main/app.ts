@@ -361,14 +361,8 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await this.resolveMachineId();
-		this.logService.trace(`Resolved machine identifier: ${machineId}`);
-
-		let trueMachineId;
-		// Check if machineId is hashed iBridge Device
-		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
-			trueMachineId = await this.resolveTrueMachineId();
-		}
+		const { machineId, trueMachineId } = await this.resolveMachineId();
+		this.logService.trace(`Resolved machine identifier: ${machineId} (trueMachineId: ${trueMachineId})`);
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
@@ -408,7 +402,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async resolveMachineId(): Promise<string> {
+	private async resolveMachineId(): Promise<{ machineId: string, trueMachineId?: string }> {
 
 		// We cache the machineId for faster lookups on startup
 		// and resolve it only once initially if not cached
@@ -419,20 +413,18 @@ export class CodeApplication extends Disposable {
 			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
 		}
 
-		return machineId;
-	}
+		// Check if machineId is hashed iBridge Device
+		let trueMachineId: string | undefined;
+		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
+			trueMachineId = this.stateService.getItem<string>(CodeApplication.TRUE_MACHINE_ID_KEY);
+			if (!trueMachineId) {
+				trueMachineId = await getMachineId();
 
-	private async resolveTrueMachineId(): Promise<string> {
-		// We cache the machineId for faster lookups on startup
-		// and resolve it only once initially if not cached
-		let machineId = this.stateService.getItem<string>(CodeApplication.TRUE_MACHINE_ID_KEY);
-		if (!machineId) {
-			machineId = await getMachineId();
-
-			this.stateService.setItem(CodeApplication.TRUE_MACHINE_ID_KEY, machineId);
+				this.stateService.setItem(CodeApplication.TRUE_MACHINE_ID_KEY, trueMachineId);
+			}
 		}
 
-		return machineId;
+		return { machineId, trueMachineId };
 	}
 
 	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
