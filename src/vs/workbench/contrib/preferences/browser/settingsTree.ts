@@ -46,6 +46,7 @@ import { ExcludeSettingWidget, IExcludeChangeEvent, IExcludeDataItem, settingsHe
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isArray } from 'vs/base/common/types';
 
 const $ = DOM.$;
 
@@ -689,7 +690,9 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IExcludeChangeEvent): void {
 		if (template.context) {
-			const newValue = [...template.context.scopeValue];
+			const newValue = isArray(template.context.scopeValue)
+				? [...template.context.scopeValue]
+				: [...template.context.value];
 
 			// Add pattern
 			if (e.pattern && !e.originalPattern) {

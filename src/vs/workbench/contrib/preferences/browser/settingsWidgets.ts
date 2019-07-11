@@ -20,6 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header or active title."));
@@ -213,7 +214,8 @@ export class ExcludeSettingWidget extends Disposable {
 	constructor(
 		private container: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextViewService private readonly contextViewService: IContextViewService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IPreferencesService private readonly preferenceService: IPreferencesService
 	) {
 		super();
 
@@ -339,6 +341,18 @@ export class ExcludeSettingWidget extends Disposable {
 		};
 	}
 
+	private createComplexEditAction(key: string): IAction {
+		return <IAction>{
+			class: 'setting-excludeAction-edit',
+			enabled: true,
+			id: 'workbench.action.editExcludeItemSettingsJson',
+			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
+			run: () => {
+				this.preferenceService.openSettings(true, undefined);
+			}
+		};
+	}
+
 	private editSetting(key: string): void {
 		this.model.setEditKey(key);
 		this.renderList();
@@ -361,13 +375,20 @@ export class ExcludeSettingWidget extends Disposable {
 
 		const patternElement = DOM.append(rowElement, $('.setting-exclude-pattern'));
 		const siblingElement = DOM.append(rowElement, $('.setting-exclude-sibling'));
-		patternElement.textContent = item.pattern;
 		siblingElement.textContent = item.sibling ? ('when: ' + item.sibling) : null;
 
-		actionBar.push([
-			this.createEditAction(item.pattern),
-			this.createDeleteAction(item.pattern)
-		], { icon: true, label: false });
+		if (typeof item.pattern === 'string') {
+			patternElement.textContent = item.pattern;
+			actionBar.push([
+				this.createEditAction(item.pattern),
+				this.createDeleteAction(item.pattern)
+			], { icon: true, label: false });
+		} else {
+			patternElement.textContent = '(Complex Object)';
+			actionBar.push([
+				this.createComplexEditAction(item.pattern)
+			], { icon: true, label: false });
+		}
 
 		rowElement.title = item.sibling ?
 			localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", item.pattern, item.sibling) :
