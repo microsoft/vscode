@@ -56,8 +56,7 @@ export class RequestService {
 				xhr.timeout = options.timeout;
 			}
 
-			// TODO: remove any
-			xhr.send(options.data as any);
+			xhr.send(options.data);
 
 			// cancel
 			token.onCancellationRequested(() => {

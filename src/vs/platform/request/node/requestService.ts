@@ -37,9 +37,9 @@ export class RequestService extends Disposable implements IRequestService {
 
 	_serviceBrand: any;
 
-	protected proxyUrl?: string;
-	protected strictSSL: boolean;
-	protected authorization?: string;
+	private proxyUrl?: string;
+	private strictSSL: boolean;
+	private authorization?: string;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
