@@ -320,6 +320,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (e.searchString || e.matchesCount || e.matchesPosition) {
 			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
 			dom.toggleClass(this._domNode, 'no-results', showRedOutline);
+
 			this._updateMatchesCount();
 			this._updateButtons();
 		}
@@ -346,7 +347,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _updateMatchesCount(): void {
 		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
-
 		if (this._state.matchesCount >= MATCHES_LIMIT) {
 			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
 		} else {
@@ -372,7 +372,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		} else {
 			label = NLS_NO_RESULTS;
 		}
-		let myAlert = document.createElement('div');
+		const myAlert = document.createElement('div');
 		myAlert.appendChild(document.createTextNode(label));
 		this._matchesCount.appendChild(myAlert);
 
@@ -810,7 +810,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
 
-		this._matchesCount.setAttribute('role', 'alert');
 		this._matchesCount.setAttribute('aria-live', 'assertive');
 
 		this._updateMatchesCount();
