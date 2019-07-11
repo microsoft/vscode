@@ -16,7 +16,7 @@ export class RenderDocument implements Command {
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public async execute(document?: SkinnyTextDocument): Promise<string | undefined> {
+	public async execute(document?: SkinnyTextDocument | string): Promise<string | undefined> {
 		if (!document) {
 			if (!vscode.window.activeTextEditor) {
 				return;
