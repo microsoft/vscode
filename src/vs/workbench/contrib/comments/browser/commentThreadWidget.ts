@@ -9,7 +9,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -70,7 +70,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _collapseAction: Action;
 	private _commentGlyph?: CommentGlyphWidget;
 	private _submitActionsDisposables: IDisposable[];
-	private _globalToDispose: IDisposable[];
+	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
@@ -119,7 +119,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._resizeObserver = null;
 		this._isExpanded = _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded;
-		this._globalToDispose = [];
 		this._commentThreadDisposables = [];
 		this._submitActionsDisposables = [];
 		this._formActions = null;
@@ -127,15 +126,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
-		this._globalToDispose.push(this.themeService.onThemeChange(this._applyTheme, this));
-		this._globalToDispose.push(this.editor.onDidChangeConfiguration(e => {
+		this._globalToDispose.add(this.themeService.onThemeChange(this._applyTheme, this));
+		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.fontInfo) {
 				this._applyTheme(this.themeService.getTheme());
 			}
 		}));
 		this._applyTheme(this.themeService.getTheme());
 
-		this._markdownRenderer = new MarkdownRenderer(editor, this.modeService, this.openerService);
+		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer(editor, this.modeService, this.openerService));
 		this._parentEditor = editor;
 	}
 
@@ -889,7 +888,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentGlyph = undefined;
 		}
 
-		this._globalToDispose.forEach(global => global.dispose());
+		this._globalToDispose.dispose();
 		this._commentThreadDisposables.forEach(global => global.dispose());
 		this._submitActionsDisposables.forEach(local => local.dispose());
 		this._onDidClose.fire(undefined);

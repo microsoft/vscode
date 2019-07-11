@@ -60,6 +60,12 @@ self.addEventListener('fetch', async (event: FetchEvent) => {
 });
 
 async function respondWithDefault(event: FetchEvent): Promise<Response> {
+	if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') {
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=823392
+		// https://stackoverflow.com/questions/48463483/what-causes-a-failed-to-execute-fetch-on-serviceworkerglobalscope-only-if#49719964
+		// https://developer.mozilla.org/en-US/docs/Web/API/Request/cache
+		return new Response(undefined, { status: 504, statusText: 'Gateway Timeout (dev tools: https://bugs.chromium.org/p/chromium/issues/detail?id=823392)' });
+	}
 	return await event.preloadResponse || await fetch(event.request);
 }
 
