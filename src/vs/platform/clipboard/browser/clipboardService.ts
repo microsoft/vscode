@@ -8,7 +8,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { URI } from 'vs/base/common/uri';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export class ClipboardService implements IClipboardService {
+export class BrowserClipboardService implements IClipboardService {
 
 	_serviceBrand: ServiceIdentifier<IClipboardService>;
 
@@ -46,4 +46,4 @@ export class ClipboardService implements IClipboardService {
 	}
 }
 
-registerSingleton(IClipboardService, ClipboardService, true);
+registerSingleton(IClipboardService, BrowserClipboardService, true);
