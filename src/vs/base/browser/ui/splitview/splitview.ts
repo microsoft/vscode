@@ -497,13 +497,22 @@ export class SplitView extends Disposable {
 				const minDelta = Math.max(minDeltaUp, minDeltaDown);
 				const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
 
-				if (this.viewItems[index].snap) {
+				const snapBefore = this.viewItems[index].snap;
+				const snapAfter = this.viewItems[index + 1].snap;
+
+				if (snapBefore && snapAfter) {
+					snapIndex = index + 1 < (this.viewItems.length - index - 1)
+						? index
+						: index + 1;
+				} else if (snapBefore) {
 					snapIndex = index;
-					snapLimitDelta = minDelta - (this.viewItems[index].minimumSize / 2);
-				} else if (this.viewItems[index + 1].snap) {
+				} else if (snapAfter) {
 					snapIndex = index + 1;
-					snapLimitDelta = maxDelta + (this.viewItems[index + 1].minimumSize / 2);
 				}
+
+				snapLimitDelta = snapIndex === index
+					? minDelta - (this.viewItems[index].minimumSize / 2)
+					: maxDelta + (this.viewItems[index + 1].minimumSize / 2);
 			}
 
 			this.sashDragState = { start, current: start, index, sizes, minDelta, maxDelta, alt, snapIndex, snapLimitDelta, disposable };
@@ -668,15 +677,9 @@ export class SplitView extends Disposable {
 		if (typeof snapIndex === 'number' && typeof snapLimitDelta === 'number') {
 			const snapView = this.viewItems[snapIndex];
 
-			if (snapIndex === index) { // up
-				if (delta >= snapLimitDelta) {
-					snapView.visible = true;
-				} else {
-					snapView.visible = false;
-				}
-			} else { // down
-				snapView.visible = delta < snapLimitDelta;
-			}
+			snapView.visible = snapIndex === index
+				? delta >= snapLimitDelta // up
+				: delta < snapLimitDelta; // down
 
 			return this.resize(index, delta, sizes, lowPriorityIndexes, highPriorityIndexes, overloadMinDelta, overloadMaxDelta);
 		}

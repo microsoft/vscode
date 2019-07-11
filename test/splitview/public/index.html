@@ -34,16 +34,16 @@
 			class View {
 				static ID = 0;
 
-				constructor(snap) {
+				constructor() {
 					const id = View.ID++;
 					this.element = document.createElement('div');
 					this.element.className = 'view';
-					this.element.style.backgroundColor = `hsl(${id * 20}, 50%, 70%)`;
-					this.element.textContent = `${View.ID++}`;
+					this.element.style.backgroundColor = `hsl(${(id * 41) % 360}, 50%, 70%)`;
+					this.element.textContent = `${id}`;
 					this.minimumSize = 100;
 					this.maximumSize = Number.POSITIVE_INFINITY;
 					this.onDidChange = Event.None;
-					this.snap = snap;
+					this.snap = true;
 				}
 
 				layout(size, orientation) {
@@ -55,13 +55,16 @@
 			const splitview = new SplitView(container, {});
 			splitview.layout(600);
 
-			const view1 = new View(true);
-			const view2 = new View(false);
-			const view3 = new View(true);
+			const view1 = new View();
+			const view2 = new View();
+			const view3 = new View();
+			const view4 = new View();
 
 			splitview.addView(view1, Sizing.Distribute);
 			splitview.addView(view2, Sizing.Distribute);
 			splitview.addView(view3, Sizing.Distribute);
+			splitview.addView(view4, Sizing.Distribute);
+			// splitview.addView(view5, Sizing.Distribute);
 
 			// const index = 2;
 			// setInterval(() => splitview.setViewVisible(index, !splitview.isViewVisible(index)), 1000);
