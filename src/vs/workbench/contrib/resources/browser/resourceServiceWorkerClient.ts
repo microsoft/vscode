@@ -26,9 +26,12 @@ const _serviceWorker = new class ServiceWorkerStarter {
 	constructor() {
 		navigator.serviceWorker.register(ServiceWorkerStarter._url, { scope: '/' }).then(reg => {
 			// console.debug('SW#reg', reg);
-			return navigator.serviceWorker.ready;
+			return reg.update();
+			// }).then(() => {
+			// 	// console.debug('SW#updated', reg);
+			// 	return navigator.serviceWorker.ready;
 		}).then(() => {
-			// console.debug('SW#init');
+			console.info('SW#ready');
 		}).catch(err => {
 			console.error('SW#init', err);
 		});

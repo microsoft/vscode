@@ -12,20 +12,21 @@ declare var self: ServiceWorkerGlobalScope;
 
 //#region --- installing/activating
 
-self.addEventListener('install', event => {
-	event.waitUntil((async () => {
-		await caches.delete(_cacheName); // delete caches with each new version
-		await self.skipWaiting();
-	}));
+self.addEventListener('install', _event => {
+	console.log('SW#install');
+	self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
+	console.log('SW#activate');
 	event.waitUntil((async () => {
 		// (1) enable navigation preloads!
-		// (2) become available to all pages
+		// (2) delete caches with each new version
+		// (3) become available to all pages
 		if (self.registration.navigationPreload) {
 			await self.registration.navigationPreload.enable();
 		}
+		await caches.delete(_cacheName);
 		await self.clients.claim();
 	})());
 });
