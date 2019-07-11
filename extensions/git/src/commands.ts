@@ -2095,8 +2095,8 @@ export class CommandCenter {
 		await repository.applyStash();
 	}
 
-	@command('git.dropStash', { repository: true })
-	async dropStash(repository: Repository): Promise<void> {
+	@command('git.stashDrop', { repository: true })
+	async stashDrop(repository: Repository): Promise<void> {
 		const placeHolder = localize('pick stash to drop', "Pick a stash to drop");
 		const stash = await this.pickStash(repository, placeHolder);
 

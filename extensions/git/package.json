@@ -393,8 +393,8 @@
         "category": "Git"
       },
       {
-        "command": "git.dropStash",
-        "title": "%command.dropStash%",
+        "command": "git.stashDrop",
+        "title": "%command.stashDrop%",
         "category": "Git"
       }
     ],
@@ -649,7 +649,7 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.dropStash",
+          "command": "git.stashDrop",
           "when": "config.get.enabled && gitOpenRepositoryCount != 0"
         }
       ],
@@ -805,7 +805,7 @@
           "when": "scmProvider == git"
         },
         {
-          "command": "git.dropStash",
+          "command": "git.stashDrop",
           "group": "6_stash",
           "when": "scmProvider == git"
         },
