@@ -130,7 +130,7 @@ jobs:
   - template: sync-mooncake.yml
 
 schedules:
-- cron: "0 6 * * Mon-Fri"
+- cron: "0 5 * * Mon-Fri"
   displayName: Mon-Fri at 6:00
   branches:
     include:
