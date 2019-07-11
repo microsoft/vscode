@@ -71,14 +71,14 @@ export class ExtHostConfigProvider {
 	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configurationScopes: { [key: string]: ConfigurationScope };
+	private _configurationScopes: Map<string, ConfigurationScope | undefined>;
 	private _configuration: Configuration;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = ExtHostConfigProvider.parse(data);
-		this._configurationScopes = data.configurationScopes;
+		this._configurationScopes = this._toMap(data.configurationScopes);
 	}
 
 	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
@@ -87,7 +87,7 @@ export class ExtHostConfigProvider {
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData) {
 		this._configuration = ExtHostConfigProvider.parse(data);
-		this._configurationScopes = data.configurationScopes;
+		this._configurationScopes = this._toMap(data.configurationScopes);
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(eventData));
 	}
 
@@ -225,7 +225,7 @@ export class ExtHostConfigProvider {
 	}
 
 	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId?: ExtensionIdentifier): void {
-		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
+		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === undefined) {
@@ -253,6 +253,10 @@ export class ExtHostConfigProvider {
 		return Object.freeze({
 			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource)
 		});
+	}
+
+	private _toMap(scopes: [string, ConfigurationScope | undefined][]): Map<string, ConfigurationScope | undefined> {
+		return scopes.reduce((result, scope) => { result.set(scope[0], scope[1]); return result; }, new Map<string, ConfigurationScope | undefined>());
 	}
 
 	private static parse(data: IConfigurationData): Configuration {

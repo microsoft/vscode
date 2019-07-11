@@ -986,6 +986,10 @@ declare namespace monaco.editor {
 		 * A label to be used to identify the web worker for debugging purposes.
 		 */
 		label?: string;
+		/**
+		 * An object that can be used by the web worker to make calls back to the main thread.
+		 */
+		host?: any;
 	}
 
 	/**
@@ -5643,7 +5647,11 @@ declare namespace monaco.worker {
 		getValue(): string;
 	}
 
-	export interface IWorkerContext {
+	export interface IWorkerContext<H = undefined> {
+		/**
+		 * A proxy to the main thread host object.
+		 */
+		host: H;
 		/**
 		 * Get all available mirror models in this worker.
 		 */

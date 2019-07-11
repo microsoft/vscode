@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export class FindDecorations implements IDisposable {
@@ -271,7 +271,7 @@ export class FindDecorations implements IDisposable {
 			position: OverviewRulerLane.Center
 		},
 		minimap: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
+			color: themeColorFromId(minimapFindMatch),
 			position: MinimapPosition.Inline
 		}
 	});
@@ -285,7 +285,7 @@ export class FindDecorations implements IDisposable {
 			position: OverviewRulerLane.Center
 		},
 		minimap: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
+			color: themeColorFromId(minimapFindMatch),
 			position: MinimapPosition.Inline
 		}
 	});

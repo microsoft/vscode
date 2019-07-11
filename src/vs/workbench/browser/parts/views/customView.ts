@@ -28,7 +28,7 @@ import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
@@ -41,8 +41,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeEvent } from 'vs/base/browser/ui/tree/tree';
+import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 
@@ -369,6 +369,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
+				identityProvider: new CustomViewIdentityProvider(),
 				accessibilityProvider: {
 					getAriaLabel(element: ITreeItem): string {
 						return element.label ? element.label.label : '';
@@ -380,12 +381,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
 					}
 				},
-				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command
+				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
+				collapseByDefault: (e: ITreeItem): boolean => {
+					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
+				}
 			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
-		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e)));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
 		this._register(this.tree.onDidChangeCollapseState(e => {
@@ -397,6 +400,18 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			}
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
+
+		const customTreeNavigator = new TreeResourceNavigator2(this.tree);
+		this._register(customTreeNavigator);
+		this._register(customTreeNavigator.onDidOpenResource(e => {
+			if (!e.browserEvent) {
+				return;
+			}
+			const selection = this.tree.getSelection();
+			if ((selection.length === 1) && selection[0].command) {
+				this.commandService.executeCommand(selection[0].command.id, ...(selection[0].command.arguments || []));
+			}
+		}));
 	}
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>): void {
@@ -595,19 +610,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.domNode.removeAttribute('tabindex');
 		}
 	}
+}
 
-	private onSelection(e: ITreeEvent<ITreeItem>): void {
-		if (!e.browserEvent) {
-			return;
-		}
-		const selection: ITreeItem = this.tree.getSelection()[0];
-		if (selection) {
-			if (selection.command) {
-				if (this.tree.openOnSingleClick) {
-					this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
-				}
-			}
-		}
+class CustomViewIdentityProvider implements IIdentityProvider<ITreeItem> {
+	getId(element: ITreeItem): { toString(): string; } {
+		return element.handle;
 	}
 }
 
@@ -704,7 +711,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
 		const resourceLabel = this.labels.create(container, { supportHighlights: true, donotSupportOcticons: true });
-		const actionsContainer = DOM.append(container, DOM.$('.actions'));
+		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider
 		});

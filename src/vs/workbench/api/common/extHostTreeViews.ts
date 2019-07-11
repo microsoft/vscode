@@ -502,14 +502,14 @@ class ExtHostTreeView<T> extends Disposable {
 				|| extensionTreeItem.iconPath instanceof URI) {
 				return this.getIconPath(extensionTreeItem.iconPath);
 			}
-			return this.getIconPath(extensionTreeItem.iconPath['light']);
+			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).light);
 		}
 		return undefined;
 	}
 
 	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
-			return this.getIconPath(extensionTreeItem.iconPath['dark']);
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
+			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark);
 		}
 		return undefined;
 	}

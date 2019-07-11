@@ -713,9 +713,9 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._xterm && this._xterm.hasSelection();
 	}
 
-	public copySelection(): void {
+	public async copySelection(): Promise<void> {
 		if (this.hasSelection()) {
-			this._clipboardService.writeText(this._xterm.getSelection());
+			await this._clipboardService.writeText(this._xterm.getSelection());
 		} else {
 			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}

@@ -139,6 +139,14 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
+	hasBackup(): boolean {
+		if (this.cachedModel) {
+			return this.cachedModel.hasBackup();
+		}
+
+		return false;
+	}
+
 	confirmSave(): Promise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}

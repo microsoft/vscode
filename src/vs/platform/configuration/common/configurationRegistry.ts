@@ -470,13 +470,13 @@ export function validateProperty(property: string): string | null {
 	return null;
 }
 
-export function getScopes(): { [key: string]: ConfigurationScope } {
-	const scopes = {};
+export function getScopes(): [string, ConfigurationScope | undefined][] {
+	const scopes: [string, ConfigurationScope | undefined][] = [];
 	const configurationProperties = configurationRegistry.getConfigurationProperties();
 	for (const key of Object.keys(configurationProperties)) {
-		scopes[key] = configurationProperties[key].scope;
+		scopes.push([key, configurationProperties[key].scope]);
 	}
-	scopes['launch'] = ConfigurationScope.RESOURCE;
-	scopes['task'] = ConfigurationScope.RESOURCE;
+	scopes.push(['launch', ConfigurationScope.RESOURCE]);
+	scopes.push(['task', ConfigurationScope.RESOURCE]);
 	return scopes;
 }

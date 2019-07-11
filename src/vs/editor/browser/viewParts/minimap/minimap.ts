@@ -767,6 +767,7 @@ export class Minimap extends ViewPart {
 
 		// Cache line offset data so that it is only read once per line
 		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
+		const isFirstDecorationForLine = !lineIndexToXOffset;
 		if (!lineIndexToXOffset) {
 			const lineData = this._context.model.getLineContent(lineNumber);
 			lineIndexToXOffset = [0];
@@ -789,16 +790,29 @@ export class Minimap extends ViewPart {
 
 		const endColumnForLine = endLineNumber > lineNumber ? lineIndexToXOffset.length - 1 : endColumn - 1;
 
-		// If the decoration starts at the last character of the column and spans over it, ensure it has a width
-		const width = lineIndexToXOffset[endColumnForLine] - x || 2;
+		if (endColumnForLine > 0) {
+			// If the decoration starts at the last character of the column and spans over it, ensure it has a width
+			const width = lineIndexToXOffset[endColumnForLine] - x || 2;
 
-		this.renderDecoration(canvasContext, <ModelDecorationMinimapOptions>decoration.options.minimap, x, y, width, height);
+			this.renderDecoration(canvasContext, <ModelDecorationMinimapOptions>decoration.options.minimap, x, y, width, height);
+		}
+
+		if (isFirstDecorationForLine) {
+			this.renderLineHighlight(canvasContext, <ModelDecorationMinimapOptions>decoration.options.minimap, y, height);
+		}
+
+	}
+
+	private renderLineHighlight(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, y: number, height: number): void {
+		const decorationColor = minimapOptions.getColor(this._context.theme);
+		canvasContext.fillStyle = decorationColor && decorationColor.transparent(0.5).toString() || '';
+		canvasContext.fillRect(0, y, canvasContext.canvas.width, height);
 	}
 
 	private renderDecoration(canvasContext: CanvasRenderingContext2D, minimapOptions: ModelDecorationMinimapOptions, x: number, y: number, width: number, height: number) {
 		const decorationColor = minimapOptions.getColor(this._context.theme);
 
-		canvasContext.fillStyle = decorationColor;
+		canvasContext.fillStyle = decorationColor && decorationColor.toString() || '';
 		canvasContext.fillRect(x, y, width, height);
 	}
 

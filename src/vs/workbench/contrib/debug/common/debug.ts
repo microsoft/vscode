@@ -722,7 +722,7 @@ export interface IDebugService {
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): void;
+	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.

@@ -47,7 +47,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
-		@IFileService private readonly _fileService: IFileService,
+		@IFileService protected readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService

@@ -19,6 +19,7 @@ import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/T
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { UriComponents, URI } from 'vs/base/common/uri';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -26,12 +27,44 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 	private readonly _worker: TextMateWorker;
 	private readonly _model: ITextModel;
+	private _isSynced: boolean;
 
 	constructor(worker: TextMateWorker, model: ITextModel) {
 		super();
 		this._worker = worker;
 		this._model = model;
+		this._isSynced = false;
 
+		this._register(this._model.onDidChangeAttached(() => this._onDidChangeAttached()));
+		this._onDidChangeAttached();
+
+		this._register(this._model.onDidChangeContent((e) => {
+			if (this._isSynced) {
+				this._worker.acceptModelChanged(this._model.uri.toString(), e);
+			}
+		}));
+
+		this._register(this._model.onDidChangeLanguage((e) => {
+			if (this._isSynced) {
+				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
+			}
+		}));
+	}
+
+	private _onDidChangeAttached(): void {
+		if (this._model.isAttachedToEditor()) {
+			if (!this._isSynced) {
+				this._beginSync();
+			}
+		} else {
+			if (this._isSynced) {
+				this._endSync();
+			}
+		}
+	}
+
+	private _beginSync(): void {
+		this._isSynced = true;
 		this._worker.acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
@@ -39,19 +72,28 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 			EOL: this._model.getEOL(),
 			languageId: this._model.getLanguageIdentifier().id,
 		});
+	}
 
-		this._register(this._model.onDidChangeContent((e) => {
-			this._worker.acceptModelChanged(this._model.uri.toString(), e);
-		}));
-
-		this._register(this._model.onDidChangeLanguage((e) => {
-			this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
-		}));
+	private _endSync(): void {
+		this._isSynced = false;
+		this._worker.acceptRemovedModel(this._model.uri.toString());
 	}
 
 	public dispose() {
 		super.dispose();
-		this._worker.acceptRemovedModel(this._model.uri.toString());
+		this._endSync();
+	}
+}
+
+export class TextMateWorkerHost {
+
+	constructor(@IFileService private readonly _fileService: IFileService) {
+	}
+
+	async readFile(_resource: UriComponents): Promise<string> {
+		const resource = URI.revive(_resource);
+		const content = await this._fileService.readFile(resource);
+		return content.value.toString();
 	}
 }
 
@@ -111,12 +153,14 @@ export class TextMateService extends AbstractTextMateService {
 		this._killWorker();
 
 		if (RUN_TEXTMATE_IN_WORKER) {
+			const workerHost = new TextMateWorkerHost(this._fileService);
 			const worker = createWebWorker<TextMateWorker>(this._modelService, {
 				createData: {
 					grammarDefinitions
 				},
 				label: 'textMateWorker',
 				moduleId: 'vs/workbench/services/textMate/electron-browser/textMateWorker',
+				host: workerHost
 			});
 
 			this._worker = worker;

@@ -35,7 +35,7 @@ export interface IGalleryExtensionAssets {
 	repository: IGalleryExtensionAsset | null;
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
-	coreTranslations: { [languageId: string]: IGalleryExtensionAsset };
+	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {

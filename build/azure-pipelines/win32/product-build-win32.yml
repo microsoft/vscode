@@ -95,7 +95,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn gulp mixin }
+    exec { node build/azure-pipelines/mixin }
   displayName: Mix in quality
 
 - powershell: |
