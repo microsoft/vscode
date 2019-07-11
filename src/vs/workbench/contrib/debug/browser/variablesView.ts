@@ -164,8 +164,7 @@ export class VariablesView extends ViewletPanel {
 			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables'));
 			if (variable.evaluateName) {
 				actions.push(new Action('debug.copyEvaluatePath', nls.localize('copyAsExpression', "Copy as Expression"), undefined, true, () => {
-					this.clipboardService.writeText(variable.evaluateName!);
-					return Promise.resolve();
+					return this.clipboardService.writeText(variable.evaluateName!);
 				}));
 				actions.push(new Separator());
 				actions.push(new Action('debug.addToWatchExpressions', nls.localize('addToWatchExpressions', "Add to Watch"), undefined, true, () => {

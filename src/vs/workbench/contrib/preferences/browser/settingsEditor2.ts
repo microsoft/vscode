@@ -1117,11 +1117,12 @@ export class SettingsEditor2 extends BaseEditor {
 		const nlpResult = results[SearchResultIdx.Remote];
 		const nlpMetadata = nlpResult && nlpResult.metadata;
 
-		const durations = {};
-		durations['nlpResult'] = nlpMetadata && nlpMetadata.duration;
+		const durations = {
+			nlpResult: nlpMetadata && nlpMetadata.duration
+		};
 
 		// Count unique results
-		const counts = {};
+		const counts: { nlpResult?: number, filterResult?: number } = {};
 		const filterResult = results[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;

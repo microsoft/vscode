@@ -688,12 +688,6 @@ export function createApiFactory(
 			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),
-			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
-				return extHostComment.registerDocumentCommentProvider(extension.identifier, provider);
-			}),
-			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
-				return extHostComment.registerWorkspaceCommentProvider(extension.identifier, provider);
-			}),
 			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
 			}),
@@ -718,7 +712,7 @@ export function createApiFactory(
 			}
 		};
 
-		const comment: typeof vscode.comment = {
+		const comment: typeof vscode.comments = {
 			createCommentController(id: string, label: string) {
 				return extHostComment.createCommentController(extension, id, label);
 			}

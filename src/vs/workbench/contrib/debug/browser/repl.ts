@@ -472,16 +472,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, () => {
+		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, async () => {
 			const nativeSelection = window.getSelection();
 			if (nativeSelection) {
-				this.clipboardService.writeText(nativeSelection.toString());
+				await this.clipboardService.writeText(nativeSelection.toString());
 			}
 			return Promise.resolve();
 		}));
-		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
-			this.clipboardService.writeText(this.getVisibleContent());
-			return Promise.resolve(undefined);
+		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, async () => {
+			await this.clipboardService.writeText(this.getVisibleContent());
+			return Promise.resolve();
 		}));
 		actions.push(new Action('debug.collapseRepl', nls.localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();
@@ -902,7 +902,7 @@ class ReplCopyAllAction extends EditorAction {
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+		return clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
 
