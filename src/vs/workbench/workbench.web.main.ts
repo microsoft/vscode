@@ -250,7 +250,7 @@ import 'vs/workbench/contrib/debug/browser/debugHelperService';
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-// import 'vs/workbench/contrib/comments/browser/comments.contribution';
+import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';
