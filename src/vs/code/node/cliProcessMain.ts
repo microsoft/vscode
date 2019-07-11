@@ -42,6 +42,10 @@ import { LocalizationsService } from 'vs/platform/localizations/node/localizatio
 import { Schemas } from 'vs/base/common/network';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -280,6 +284,7 @@ const eventPrefix = 'monacoworkbench';
 
 export async function main(argv: ParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
+	const disposables = new DisposableStore();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
 	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
@@ -289,12 +294,22 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(p => mkdirp(p)));
 
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
+	disposables.add(configurationService);
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
+
+	// Files
+	const fileService = new FileService(logService);
+	disposables.add(fileService);
+	services.set(IFileService, fileService);
+
+	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+	disposables.add(diskFileSystemProvider);
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
@@ -305,6 +320,8 @@ export async function main(argv: ParsedArgs): Promise<void> {
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
 
 		const services = new ServiceCollection();
+
+
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
@@ -323,6 +340,9 @@ export async function main(argv: ParsedArgs): Promise<void> {
 			};
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+
+			// Dispose the AI adapter so that remaining data gets flushed.
+			disposables.add(combinedAppender(...appenders));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
@@ -331,8 +351,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 		const main = instantiationService2.createInstance(Main);
 
 		return main.run(argv).then(() => {
-			// Dispose the AI adapter so that remaining data gets flushed.
-			return combinedAppender(...appenders).dispose();
+			disposables.dispose();
 		});
 	});
 }
