@@ -127,7 +127,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _labelService: ILabelService,
+		private readonly _labelService: ILabelService | undefined,
 		private readonly _model: ITextModel
 	) {
 		//
@@ -149,13 +149,13 @@ export class ModelBasedVariableResolver implements VariableResolver {
 				return name.slice(0, idx);
 			}
 
-		} else if (name === 'TM_DIRECTORY') {
+		} else if (name === 'TM_DIRECTORY' && this._labelService) {
 			if (path.dirname(this._model.uri.fsPath) === '.') {
 				return '';
 			}
 			return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_FILEPATH') {
+		} else if (name === 'TM_FILEPATH' && this._labelService) {
 			return this._labelService.getUriLabel(this._model.uri);
 		}
 
@@ -253,7 +253,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 
 export class WorkspaceBasedVariableResolver implements VariableResolver {
 	constructor(
-		private readonly _workspaceService: IWorkspaceContextService,
+		private readonly _workspaceService: IWorkspaceContextService | undefined,
 	) {
 		//
 	}

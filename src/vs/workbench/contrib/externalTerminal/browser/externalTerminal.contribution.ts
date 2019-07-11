@@ -51,7 +51,7 @@ CommandsRegistry.registerCommand({
 				});
 			} else {
 				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath))).map(cwd => {
-					terminalService.openTerminal(cwd);
+					terminalService!.openTerminal(cwd);
 				});
 			}
 		});
