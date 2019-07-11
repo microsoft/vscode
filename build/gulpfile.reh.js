@@ -75,8 +75,8 @@ const vscodeResources = [
 	'out-build/vs/server/main.js',
 
 	// Watcher
-	'out-build/vs/workbench/services/files/**/*.exe',
-	'out-build/vs/workbench/services/files/**/*.md',
+	'out-build/vs/platform/files/**/*.exe',
+	'out-build/vs/platform/files/**/*.md',
 
 	// Uri transformer
 	'out-build/vs/server/uriTransformer.js',
@@ -105,11 +105,11 @@ const entryPoints = [
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
+		name: 'vs/platform/files/node/watcher/unix/watcherApp',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
+		name: 'vs/platform/files/node/watcher/nsfw/watcherApp',
 		exclude: ['vs/css', 'vs/nls']
 	}
 ];
