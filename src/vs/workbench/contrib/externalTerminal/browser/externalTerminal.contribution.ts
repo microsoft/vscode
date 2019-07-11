@@ -42,16 +42,38 @@ CommandsRegistry.registerCommand({
 			// Always use integrated terminal when using a remote
 			const useIntegratedTerminal = remoteAgentService.getConnection() || configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated';
 			if (useIntegratedTerminal) {
-				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.path : paths.dirname(stat!.resource.path))).map(cwd => {
+
+
+				// TODO: Use uri for cwd in createterminal
+
+
+				const opened: { [path: string]: boolean } = {};
+				targets.map(({ stat }) => {
+					const resource = stat!.resource;
+					if (stat!.isDirectory) {
+						return resource;
+					}
+					return URI.from({
+						scheme: resource.scheme,
+						authority: resource.authority,
+						fragment: resource.fragment,
+						query: resource.query,
+						path: paths.dirname(resource.path)
+					});
+				}).forEach(cwd => {
+					if (opened[cwd.path]) {
+						return;
+					}
+					opened[cwd.path] = true;
 					const instance = integratedTerminalService.createTerminal({ cwd });
-					if (instance && (resources.length === 1 || !resource || cwd === resource.path || cwd === paths.dirname(resource.path))) {
+					if (instance && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === paths.dirname(resource.path))) {
 						integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);
 					}
 				});
 			} else {
-				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath))).map(cwd => {
-					terminalService.openTerminal(cwd);
+				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath))).forEach(cwd => {
+					terminalService!.openTerminal(cwd);
 				});
 			}
 		});

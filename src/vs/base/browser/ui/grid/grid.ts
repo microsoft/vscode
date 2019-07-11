@@ -7,7 +7,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles } from './gridview';
+import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
 import { Event, Emitter } from 'vs/base/common/event';
 import { $ } from 'vs/base/browser/dom';
 import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
@@ -117,10 +117,6 @@ function getDirectionOrientation(direction: Direction): Orientation {
 	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 }
 
-function getSize(dimensions: { width: number; height: number; }, orientation: Orientation) {
-	return orientation === Orientation.HORIZONTAL ? dimensions.width : dimensions.height;
-}
-
 export function getRelativeLocation(rootOrientation: Orientation, location: number[], direction: Direction): number[] {
 	const orientation = getLocationOrientation(rootOrientation, location);
 	const directionOrientation = getDirectionOrientation(direction);
@@ -209,8 +205,6 @@ export class Grid<T extends IView> extends Disposable {
 
 	get element(): HTMLElement { return this.gridview.element; }
 
-	sashResetSizing: Sizing = Sizing.Distribute;
-
 	constructor(view: T, options: IGridOptions = {}) {
 		super();
 		this.gridview = new GridView(options);
@@ -298,15 +292,14 @@ export class Grid<T extends IView> extends Disposable {
 		return this.gridview.swapViews(fromLocation, toLocation);
 	}
 
-	resizeView(view: T, size: number): void {
+	resizeView(view: T, size: IViewSize): void {
 		const location = this.getViewLocation(view);
 		return this.gridview.resizeView(location, size);
 	}
 
-	getViewSize(view: T): number {
+	getViewSize(view: T): IViewSize {
 		const location = this.getViewLocation(view);
-		const viewSize = this.gridview.getViewSize(location);
-		return getLocationOrientation(this.orientation, location) === Orientation.HORIZONTAL ? viewSize.width : viewSize.height;
+		return this.gridview.getViewSize(location);
 	}
 
 	// TODO@joao cleanup
@@ -361,18 +354,8 @@ export class Grid<T extends IView> extends Disposable {
 	}
 
 	private doResetViewSize(location: number[]): void {
-		if (this.sashResetSizing === Sizing.Split) {
-			const orientation = getLocationOrientation(this.orientation, location);
-			const firstViewSize = getSize(this.gridview.getViewSize(location), orientation);
-			const [parentLocation, index] = tail(location);
-			const secondViewSize = getSize(this.gridview.getViewSize([...parentLocation, index + 1]), orientation);
-			const totalSize = firstViewSize + secondViewSize;
-			this.gridview.resizeView(location, Math.floor(totalSize / 2));
-
-		} else {
-			const [parentLocation,] = tail(location);
-			this.gridview.distributeViewSizes(parentLocation);
-		}
+		const [parentLocation,] = tail(location);
+		this.gridview.distributeViewSizes(parentLocation);
 	}
 }
 
@@ -563,8 +546,11 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			const childLocation = [...location, i];
 
 			if (i < node.children.length - 1) {
-				const size = orientation === Orientation.VERTICAL ? child.box.height : child.box.width;
-				this.gridview.resizeView(childLocation, Math.floor(size * scale));
+				const size = orientation === Orientation.VERTICAL
+					? { height: Math.floor(child.box.height * scale) }
+					: { width: Math.floor(child.box.width * scale) };
+
+				this.gridview.resizeView(childLocation, size);
 			}
 
 			this.restoreViewsSize(childLocation, child, orthogonal(orientation), widthScale, heightScale);

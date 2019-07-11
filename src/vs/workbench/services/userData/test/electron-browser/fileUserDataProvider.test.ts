@@ -230,7 +230,7 @@ suite('FileUserDataProvider', () => {
 
 	test('delete existing file under folder', async () => {
 		await pfs.mkdirp(path.join(userDataPath, 'snippets'));
-		pfs.writeFile(path.join(userDataPath, 'snippets', 'settings.json'), '{}');
+		await pfs.writeFile(path.join(userDataPath, 'snippets', 'settings.json'), '{}');
 		await testObject.del(joinPath(userDataResource, 'snippets/settings.json'));
 		const exists = await pfs.exists(path.join(userDataPath, 'snippets', 'settings.json'));
 		assert.equal(exists, false);
@@ -238,7 +238,7 @@ suite('FileUserDataProvider', () => {
 
 	test('resolve folder', async () => {
 		await pfs.mkdirp(path.join(userDataPath, 'snippets'));
-		pfs.writeFile(path.join(userDataPath, 'snippets', 'settings.json'), '{}');
+		await pfs.writeFile(path.join(userDataPath, 'snippets', 'settings.json'), '{}');
 		const result = await testObject.resolve(joinPath(userDataResource, 'snippets'));
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
