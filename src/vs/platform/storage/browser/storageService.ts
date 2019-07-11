@@ -70,13 +70,17 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 
+		// Ensure state folder exists
+		const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
+		await this.fileService.createFolder(stateRoot);
+
 		// Workspace Storage
-		this.workspaceStorageFile = joinPath(this.environmentService.userRoamingDataHome, 'state', `${payload.id}.json`);
+		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
 		this.workspaceStorage = new Storage(this._register(new FileStorageDatabase(this.workspaceStorageFile, this.fileService)));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
 
 		// Global Storage
-		this.globalStorageFile = joinPath(this.environmentService.userRoamingDataHome, 'state', 'global.json');
+		this.globalStorageFile = joinPath(stateRoot, 'global.json');
 		this.globalStorage = new Storage(this._register(new FileStorageDatabase(this.globalStorageFile, this.fileService)));
 		this._register(this.globalStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL })));
 
