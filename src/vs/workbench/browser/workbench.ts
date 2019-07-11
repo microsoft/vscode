@@ -17,7 +17,7 @@ import { isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
-import { getServices } from 'vs/platform/instantiation/common/extensions';
+import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -172,9 +172,9 @@ export class Workbench extends Layout {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
-		const contributedServices = getServices();
-		for (let contributedService of contributedServices) {
-			serviceCollection.set(contributedService.id, contributedService.descriptor);
+		const contributedServices = getSingletonServiceDescriptors();
+		for (let [id, descriptor] of contributedServices) {
+			serviceCollection.set(id, descriptor);
 		}
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
