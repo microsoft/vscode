@@ -30,16 +30,15 @@
 	<script>
 		require.config({ baseUrl: '/static' });
 
-		const rand = (min, max) => min + Math.random() * (max - min);
-
 		require(['vs/base/browser/ui/splitview/splitview', 'vs/base/common/event'], ({ SplitView, Sizing }, { Event }) => {
 			class View {
 				static ID = 0;
 
 				constructor(snap) {
+					const id = View.ID++;
 					this.element = document.createElement('div');
 					this.element.className = 'view';
-					this.element.style.backgroundColor = `hsl(${rand(1, 360)}, 50%, 70%)`;
+					this.element.style.backgroundColor = `hsl(${id * 20}, 50%, 70%)`;
 					this.element.textContent = `${View.ID++}`;
 					this.minimumSize = 100;
 					this.maximumSize = Number.POSITIVE_INFINITY;
