@@ -12,7 +12,6 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -99,7 +98,7 @@ export class ToggleScreencastModeAction extends Action {
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: ConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -168,20 +167,23 @@ export class ToggleScreencastModeAction extends Action {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
+			const shortcut = this.keybindingService.softDispatch(event, event.target);
+			console.log(event.target);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				if (!this.configurationService.getValue<boolean>('screencastMode.onlyModifierKeys')) {
-					keyboardMarker.textContent += ' ' + label;
-					keyboardMarker.style.display = 'block';
-				}
-			} else {
+			if (shortcut) {
 				keyboardMarker.textContent = label;
 				keyboardMarker.style.display = 'block';
+			} else if (!this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+				if (this.keybindingService.mightProducePrintableCharacter(event) && label) {
+					keyboardMarker.textContent += ' ' + label;
+					keyboardMarker.style.display = 'block';
+				} else if (!event.shiftKey) {
+					keyboardMarker.textContent = label;
+					keyboardMarker.style.display = 'block';
+				}
 			}
-
-			keyboardMarker.style.display = 'block';
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());

@@ -540,9 +540,9 @@ import product from 'vs/platform/product/node/product';
 		'title': nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
 		'type': 'object',
 		'properties': {
-			'screencastMode.onlyModifierKeys': {
+			'screencastMode.onlyKeyboardShortcuts': {
 				'type': 'boolean',
-				'description': nls.localize('screencastMode.onlyModifierKeys', "Only show character sequences with modifier keys in Screencast Mode."),
+				'description': nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
 				'default': false
 			}
 		}
