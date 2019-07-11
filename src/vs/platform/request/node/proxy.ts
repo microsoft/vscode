@@ -5,7 +5,8 @@
 
 import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
-import { Agent } from './request';
+
+export type Agent = any;
 
 function getSystemProxyURI(requestURL: Url): string | null {
 	if (requestURL.protocol === 'http:') {

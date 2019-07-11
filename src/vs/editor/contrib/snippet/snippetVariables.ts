@@ -11,7 +11,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -128,7 +127,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _labelService: ILabelService,
+		private readonly _labelService: ILabelService | undefined,
 		private readonly _model: ITextModel
 	) {
 		//
@@ -150,13 +149,13 @@ export class ModelBasedVariableResolver implements VariableResolver {
 				return name.slice(0, idx);
 			}
 
-		} else if (name === 'TM_DIRECTORY') {
+		} else if (name === 'TM_DIRECTORY' && this._labelService) {
 			if (path.dirname(this._model.uri.fsPath) === '.') {
 				return '';
 			}
 			return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_FILEPATH') {
+		} else if (name === 'TM_FILEPATH' && this._labelService) {
 			return this._labelService.getUriLabel(this._model.uri);
 		}
 
@@ -167,7 +166,7 @@ export class ModelBasedVariableResolver implements VariableResolver {
 export class ClipboardBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _clipboardService: IClipboardService | undefined,
+		private readonly _clipboardText: string | undefined,
 		private readonly _selectionIdx: number,
 		private readonly _selectionCount: number
 	) {
@@ -175,20 +174,19 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 	}
 
 	resolve(variable: Variable): string | undefined {
-		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
+		if (variable.name !== 'CLIPBOARD') {
 			return undefined;
 		}
 
-		const text = this._clipboardService.readTextSync();
-		if (!text) {
+		if (!this._clipboardText) {
 			return undefined;
 		}
 
-		const lines = text.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
+		const lines = this._clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
 		if (lines.length === this._selectionCount) {
 			return lines[this._selectionIdx];
 		} else {
-			return text;
+			return this._clipboardText;
 		}
 	}
 }
@@ -255,7 +253,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 
 export class WorkspaceBasedVariableResolver implements VariableResolver {
 	constructor(
-		private readonly _workspaceService: IWorkspaceContextService,
+		private readonly _workspaceService: IWorkspaceContextService | undefined,
 	) {
 		//
 	}

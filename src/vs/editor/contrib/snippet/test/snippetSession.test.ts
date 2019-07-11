@@ -126,7 +126,7 @@ suite('SnippetSession', function () {
 	test('snippets, newline NO whitespace adjust', () => {
 
 		editor.setSelection(new Selection(2, 5, 2, 5));
-		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false });
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined });
 		session.insert();
 		assert.equal(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
@@ -648,7 +648,7 @@ suite('SnippetSession', function () {
 		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
-		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true }).insert();
+		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined }).insert();
 		assert.equal(model.getValue(), 'console.far');
 	});
 });

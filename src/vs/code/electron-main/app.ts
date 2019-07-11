@@ -83,6 +83,9 @@ import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 
 export class CodeApplication extends Disposable {
 
@@ -417,6 +420,13 @@ export class CodeApplication extends Disposable {
 
 	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
+
+		// Files
+		const fileService = this._register(new FileService(this.logService));
+		services.set(IFileService, fileService);
+
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(this.logService));
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		switch (process.platform) {
 			case 'win32':
