@@ -11,8 +11,16 @@ import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/sni
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
 
 suite('Snippet Variables Resolver', function () {
+
+	const labelService = new class extends mock<ILabelService>() {
+		getUriLabel(uri: URI) {
+			return uri.fsPath;
+		}
+	};
 
 	let model: TextModel;
 	let resolver: VariableResolver;
@@ -25,7 +33,7 @@ suite('Snippet Variables Resolver', function () {
 		].join('\n'), undefined, undefined, URI.parse('file:///foo/files/text.txt'));
 
 		resolver = new CompositeSnippetVariableResolver([
-			new ModelBasedVariableResolver(model),
+			new ModelBasedVariableResolver(labelService, model),
 			new SelectionBasedVariableResolver(model, new Selection(1, 1, 1, 1)),
 		]);
 	});
@@ -59,6 +67,7 @@ suite('Snippet Variables Resolver', function () {
 		}
 
 		resolver = new ModelBasedVariableResolver(
+			labelService,
 			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
@@ -68,11 +77,27 @@ suite('Snippet Variables Resolver', function () {
 		}
 
 		resolver = new ModelBasedVariableResolver(
+			labelService,
 			TextModel.createFromString('', undefined, undefined, URI.parse('mem:fff.ts'))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
 
+	});
+
+	test('Path delimiters in code snippet variables aren\'t specific to remote OS #76840', function () {
+
+		const labelService = new class extends mock<ILabelService>() {
+			getUriLabel(uri: URI) {
+				return uri.fsPath.replace(/\/|\\/g, '|');
+			}
+		};
+
+		const model = TextModel.createFromString([].join('\n'), undefined, undefined, URI.parse('foo:///foo/files/text.txt'));
+
+		const resolver = new CompositeSnippetVariableResolver([new ModelBasedVariableResolver(labelService, model)]);
+
+		assertVariableResolve(resolver, 'TM_FILEPATH', '|foo|files|text.txt');
 	});
 
 	test('editor variables, selection', function () {
@@ -119,16 +144,19 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'text');
 
 		resolver = new ModelBasedVariableResolver(
+			labelService,
 			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
 		resolver = new ModelBasedVariableResolver(
+			labelService,
 			TextModel.createFromString('', undefined, undefined, URI.parse('mem:.git'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
 		resolver = new ModelBasedVariableResolver(
+			labelService,
 			TextModel.createFromString('', undefined, undefined, URI.parse('mem:foo.'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
@@ -213,6 +241,7 @@ suite('Snippet Variables Resolver', function () {
 		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
 			readText(): any { return readTextResult; }
+			readTextSync(): any { return readTextResult; }
 			_throw = () => { throw new Error(); };
 			writeText = this._throw;
 			readFindText = this._throw;
@@ -246,6 +275,7 @@ suite('Snippet Variables Resolver', function () {
 		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
 			readText(): string { return readTextResult; }
+			readTextSync(): any { return readTextResult; }
 			_throw = () => { throw new Error(); };
 			writeText = this._throw;
 			readFindText = this._throw;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -11,7 +11,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } fr
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -38,7 +38,7 @@ export class EditorControl extends Disposable {
 	private _activeControl: BaseEditor | null;
 	private controls: BaseEditor[] = [];
 
-	private activeControlDisposeables: IDisposable[] = [];
+	private readonly activeControlDisposables = this._register(new DisposableStore());
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
@@ -47,11 +47,11 @@ export class EditorControl extends Disposable {
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILocalProgressService localProgressService: ILocalProgressService
+		@IEditorProgressService editorProgressService: IEditorProgressService
 	) {
 		super();
 
-		this.editorOperation = this._register(new LongRunningOperation(localProgressService));
+		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 	}
 
 	get activeControl(): IVisibleEditor | null {
@@ -139,12 +139,12 @@ export class EditorControl extends Disposable {
 		this._activeControl = control;
 
 		// Clear out previous active control listeners
-		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
+		this.activeControlDisposables.clear();
 
 		// Listen to control changes
 		if (control) {
-			this.activeControlDisposeables.push(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
-			this.activeControlDisposeables.push(control.onDidFocus(() => this._onDidFocus.fire()));
+			this.activeControlDisposables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposables.add(control.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor
@@ -227,11 +227,5 @@ export class EditorControl extends Disposable {
 		if (this._activeControl && this.dimension) {
 			this._activeControl.layout(this.dimension);
 		}
-	}
-
-	dispose(): void {
-		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
-
-		super.dispose();
 	}
 }

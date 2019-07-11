@@ -27,10 +27,10 @@ export class TypeScriptVersion {
 	}
 
 	public get isValid(): boolean {
-		return this.version !== undefined;
+		return this.apiVersion !== undefined;
 	}
 
-	public get version(): API | undefined {
+	public get apiVersion(): API | undefined {
 		const version = this.getTypeScriptVersion(this.tsServerPath);
 		if (version) {
 			return version;
@@ -46,7 +46,7 @@ export class TypeScriptVersion {
 	}
 
 	public get versionString(): string {
-		const version = this.version;
+		const version = this.apiVersion;
 		return version ? version.versionString : localize(
 			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}
@@ -88,7 +88,6 @@ export class TypeScriptVersion {
 }
 
 export class TypeScriptVersionProvider {
-	private readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();
 
 	public constructor(
 		private configuration: TypeScriptServiceConfiguration
@@ -155,11 +154,13 @@ export class TypeScriptVersionProvider {
 
 	private getContributedVersion(extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
 		try {
-			const { extensionPath } = vscode.extensions.getExtension(extensionId)!;
-			const typescriptPath = path.join(extensionPath, ...pathToTs, 'typescript', 'lib');
-			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
-			if (bundledVersion.isValid) {
-				return bundledVersion;
+			const extension = vscode.extensions.getExtension(extensionId);
+			if (extension) {
+				const typescriptPath = path.join(extension.extensionPath, ...pathToTs, 'typescript', 'lib');
+				const bundledVersion = new TypeScriptVersion(typescriptPath, '');
+				if (bundledVersion.isValid) {
+					return bundledVersion;
+				}
 			}
 		} catch {
 			// noop
@@ -177,7 +178,7 @@ export class TypeScriptVersionProvider {
 			return [new TypeScriptVersion(tsdkPathSetting)];
 		}
 
-		const workspacePath = this.relativePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
+		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
 		if (workspacePath !== undefined) {
 			return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
 		}

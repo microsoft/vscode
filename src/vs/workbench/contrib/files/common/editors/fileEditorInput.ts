@@ -150,17 +150,14 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.decorateLabel(this.name);
 	}
 
-	@memoize
 	private get shortDescription(): string {
 		return basename(this.labelService.getUriLabel(dirname(this.resource)));
 	}
 
-	@memoize
 	private get mediumDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
-	@memoize
 	private get longDescription(): string {
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}

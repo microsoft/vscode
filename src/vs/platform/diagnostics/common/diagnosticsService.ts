@@ -5,6 +5,10 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IMachineInfo {
 	os: string;
@@ -15,7 +19,7 @@ export interface IMachineInfo {
 
 export interface IDiagnosticInfo {
 	machineInfo: IMachineInfo;
-	workspaceMetadata?: { [key: string]: WorkspaceStats };
+	workspaceMetadata?: IStringDictionary<WorkspaceStats>;
 	processes?: ProcessItem;
 }
 export interface SystemInfo extends IMachineInfo {
@@ -51,6 +55,24 @@ export interface WorkspaceStats {
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
+	launchConfigFiles: WorkspaceStatItem[];
+}
+
+export interface PerformanceInfo {
+	processInfo?: string;
+	workspaceInfo?: string;
+}
+
+export const ID = 'diagnosticsService';
+export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
+
+export interface IDiagnosticsService {
+	_serviceBrand: any;
+
+	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
+	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
+	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
+	reportWorkspaceStats(workspace: IWorkspace): Promise<void>;
 }
 
 export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {

@@ -90,12 +90,12 @@
 }
 
 .vs .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close-big.svg');
+	background-image: url('close-light.svg');
 }
 
 .vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close-big-inverse.svg');
+	background-image: url('close-dark.svg');
 }
 
 /* Editor */

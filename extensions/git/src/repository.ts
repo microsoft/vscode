@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, watch, IFileWatcher } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -447,6 +447,91 @@ class ProgressManager {
 	}
 }
 
+class FileEventLogger {
+
+	private eventDisposable: IDisposable = EmptyDisposable;
+	private logLevelDisposable: IDisposable = EmptyDisposable;
+
+	constructor(
+		private onWorkspaceWorkingTreeFileChange: Event<Uri>,
+		private onDotGitFileChange: Event<Uri>,
+		private outputChannel: OutputChannel
+	) {
+		this.logLevelDisposable = env.onDidChangeLogLevel(this.onDidChangeLogLevel, this);
+		this.onDidChangeLogLevel(env.logLevel);
+	}
+
+	private onDidChangeLogLevel(level: LogLevel): void {
+		this.eventDisposable.dispose();
+
+		if (level > LogLevel.Debug) {
+			return;
+		}
+
+		this.eventDisposable = combinedDisposable([
+			this.onWorkspaceWorkingTreeFileChange(uri => this.outputChannel.appendLine(`[debug] [wt] Change: ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.outputChannel.appendLine(`[debug] [.git] Change: ${uri.fsPath}`))
+		]);
+	}
+
+	dispose(): void {
+		this.eventDisposable.dispose();
+		this.logLevelDisposable.dispose();
+	}
+}
+
+class DotGitWatcher implements IFileWatcher {
+
+	readonly event: Event<Uri>;
+
+	private emitter = new EventEmitter<Uri>();
+	private transientDisposables: IDisposable[] = [];
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private repository: Repository,
+		private outputChannel: OutputChannel
+	) {
+		const rootWatcher = watch(repository.dotGit);
+		this.disposables.push(rootWatcher);
+
+		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
+		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
+
+		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
+		this.updateTransientWatchers();
+	}
+
+	private updateTransientWatchers() {
+		this.transientDisposables = dispose(this.transientDisposables);
+
+		if (!this.repository.HEAD || !this.repository.HEAD.upstream) {
+			return;
+		}
+
+		this.transientDisposables = dispose(this.transientDisposables);
+
+		const { name, remote } = this.repository.HEAD.upstream;
+		const upstreamPath = path.join(this.repository.dotGit, 'refs', 'remotes', remote, name);
+
+		try {
+			const upstreamWatcher = watch(upstreamPath);
+			this.transientDisposables.push(upstreamWatcher);
+			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
+		} catch (err) {
+			if (env.logLevel <= LogLevel.Info) {
+				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}'. Ref is most likely packed.`);
+			}
+		}
+	}
+
+	dispose() {
+		this.emitter.dispose();
+		this.transientDisposables = dispose(this.transientDisposables);
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -544,36 +629,41 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get dotGit(): string {
+		return this.repository.dotGit;
+	}
+
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
 	private isFreshRepository: boolean | undefined = undefined;
+
 	private disposables: Disposable[] = [];
 
 	constructor(
 		private readonly repository: BaseRepository,
-		globalState: Memento
+		globalState: Memento,
+		outputChannel: OutputChannel
 	) {
-		const fsWatcher = workspace.createFileSystemWatcher('**');
-		this.disposables.push(fsWatcher);
+		const workspaceWatcher = workspace.createFileSystemWatcher('**');
+		this.disposables.push(workspaceWatcher);
 
-		const workspaceFilter = (uri: Uri) => isDescendant(repository.root, uri.fsPath);
-		const onWorkspaceDelete = filterEvent(fsWatcher.onDidDelete, workspaceFilter);
-		const onWorkspaceChange = filterEvent(anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate), workspaceFilter);
-		const onRepositoryDotGitDelete = filterEvent(onWorkspaceDelete, uri => /\/\.git$/.test(uri.path));
-		const onRepositoryChange = anyEvent(onWorkspaceDelete, onWorkspaceChange);
+		const onWorkspaceFileChange = anyEvent(workspaceWatcher.onDidChange, workspaceWatcher.onDidCreate, workspaceWatcher.onDidDelete);
+		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
+		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
-		// relevant repository changes are:
-		//  - DELETE .git folder
-		//  - ANY CHANGE within .git folder except .git itself and .git/index.lock
-		const onRelevantRepositoryChange = anyEvent(
-			onRepositoryDotGitDelete,
-			filterEvent(onRepositoryChange, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path))
-		);
+		const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
+		this.disposables.push(dotGitFileWatcher);
 
-		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
+		// FS changes should trigger `git status`:
+		// 	- any change inside the repository working tree
+		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
+		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event);
+		onFileChange(this.onFileChange, this, this.disposables);
 
-		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
-		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+		// Relevate repository changes should trigger virtual document change events
+		dotGitFileWatcher.event(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+
+		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event, outputChannel));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
@@ -583,9 +673,9 @@ export class Repository implements Disposable {
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
 
-		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
+		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "MERGE CHANGES"));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "STAGED CHANGES"));
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "CHANGES"));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1012,7 +1102,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
-	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
+	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
 	}
 
@@ -1453,7 +1543,7 @@ export class Repository implements Disposable {
 		return result;
 	}
 
-	private onFSChange(_uri: Uri): void {
+	private onFileChange(_uri: Uri): void {
 		const config = workspace.getConfiguration('git');
 		const autorefresh = config.get<boolean>('autorefresh');
 

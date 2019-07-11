@@ -713,7 +713,7 @@ export namespace Config {
 		/**
 		* If set to true the watcher is in active mode when the task
 		* starts. This is equals of issuing a line that matches the
-		* beginPattern.
+		* beginsPattern.
 		*/
 		activeOnStart?: boolean;
 
@@ -1616,7 +1616,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
 					},
 					beginsPattern: {
 						oneOf: [

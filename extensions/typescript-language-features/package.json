@@ -591,6 +591,12 @@
           "default": true,
           "description": "%configuration.surveys.enabled%",
           "scope": "window"
+        },
+        "typescript.tsserver.useSeparateSyntaxServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.tsserver.useSeparateSyntaxServer%",
+          "scope": "window"
         }
       }
     },

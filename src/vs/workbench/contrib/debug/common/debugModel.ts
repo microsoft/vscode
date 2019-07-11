@@ -124,7 +124,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		return this.children;
 	}
 
-	private doGetChildren(): Promise<IExpression[]> {
+	private async doGetChildren(): Promise<IExpression[]> {
 		if (!this.hasChildren) {
 			return Promise.resolve([]);
 		}
@@ -134,29 +134,28 @@ export class ExpressionContainer implements IExpressionContainer {
 		}
 
 		// Check if object has named variables, fetch them independent from indexed variables #9670
-		const childrenThenable = !!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : Promise.resolve([]);
-		return childrenThenable.then(childrenArray => {
-			// Use a dynamic chunk size based on the number of elements #9774
-			let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
-			while (!!this.indexedVariables && this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
-				chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+		const children = this.namedVariables ? await this.fetchVariables(undefined, undefined, 'named') : [];
+
+		// Use a dynamic chunk size based on the number of elements #9774
+		let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
+		while (!!this.indexedVariables && this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
+			chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+		}
+
+		if (!!this.indexedVariables && this.indexedVariables > chunkSize) {
+			// There are a lot of children, create fake intermediate values that represent chunks #9537
+			const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
+			for (let i = 0; i < numberOfChunks; i++) {
+				const start = (this.startOfVariables || 0) + i * chunkSize;
+				const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
+				children.push(new Variable(this.session, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
 			}
 
-			if (!!this.indexedVariables && this.indexedVariables > chunkSize) {
-				// There are a lot of children, create fake intermediate values that represent chunks #9537
-				const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
-				for (let i = 0; i < numberOfChunks; i++) {
-					const start = (this.startOfVariables || 0) + i * chunkSize;
-					const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-					childrenArray.push(new Variable(this.session, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
-				}
+			return children;
+		}
 
-				return childrenArray;
-			}
-
-			return this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed')
-				.then(variables => childrenArray.concat(variables));
-		});
+		const variables = await this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed');
+		return children.concat(variables);
 	}
 
 	getId(): string {
@@ -214,7 +213,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
 			this.available = false;
@@ -224,7 +223,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 
 		this.session = session;
-		return session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context).then(response => {
+		try {
+			const response = await session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context);
 			this.available = !!(response && response.body);
 			if (response && response.body) {
 				this.value = response.body.result;
@@ -233,11 +233,11 @@ export class Expression extends ExpressionContainer implements IExpression {
 				this.indexedVariables = response.body.indexedVariables;
 				this.type = response.body.type || this.type;
 			}
-		}, err => {
-			this.value = err.message;
+		} catch (e) {
+			this.value = e.message;
 			this.available = false;
 			this.reference = 0;
-		});
+		}
 	}
 
 	toString(): string {
@@ -268,12 +268,13 @@ export class Variable extends ExpressionContainer implements IExpression {
 		this.value = value;
 	}
 
-	setVariable(value: string): Promise<any> {
+	async setVariable(value: string): Promise<any> {
 		if (!this.session) {
 			return Promise.resolve(undefined);
 		}
 
-		return this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value).then(response => {
+		try {
+			const response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
@@ -281,9 +282,9 @@ export class Variable extends ExpressionContainer implements IExpression {
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 			}
-		}, err => {
+		} catch (err) {
 			this.errorMessage = err.message;
-		});
+		}
 	}
 
 	toString(): string {
@@ -313,7 +314,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 export class StackFrame implements IStackFrame {
 
-	private scopes: Promise<Scope[]> | null;
+	private scopes: Promise<Scope[]> | undefined;
 
 	constructor(
 		public thread: IThread,
@@ -323,9 +324,7 @@ export class StackFrame implements IStackFrame {
 		public presentationHint: string | undefined,
 		public range: IRange,
 		private index: number
-	) {
-		this.scopes = null;
-	}
+	) { }
 
 	getId(): string {
 		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
@@ -379,6 +378,10 @@ export class StackFrame implements IStackFrame {
 
 	restart(): Promise<void> {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
+	}
+
+	forgetScopes(): void {
+		this.scopes = undefined;
 	}
 
 	toString(): string {

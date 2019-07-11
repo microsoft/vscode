@@ -50,7 +50,7 @@ import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateServ
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
-import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -81,6 +81,8 @@ import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFacto
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 
 export class CodeApplication extends Disposable {
 
@@ -133,8 +135,38 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Security related measures (https://electronjs.org/docs/tutorial/security)
-		// DO NOT CHANGE without consulting the documentation
-		app.on('web-contents-created', (event: Electron.Event, contents) => {
+		//
+		// !!! DO NOT CHANGE without consulting the documentation !!!
+		//
+		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Ben TODO@Matt revisit this need for <webview>
+		app.on('remote-require', (event, sender, module) => {
+			this.logService.trace('App#on(remote-require): prevented');
+
+			event.preventDefault();
+		});
+		app.on('remote-get-global', (event, sender, module) => {
+			this.logService.trace(`App#on(remote-get-global): prevented on ${module}`);
+
+			event.preventDefault();
+		});
+		app.on('remote-get-builtin', (event, sender, module) => {
+			this.logService.trace(`App#on(remote-get-builtin): prevented on ${module}`);
+
+			if (module !== 'clipboard') {
+				event.preventDefault();
+			}
+		});
+		app.on('remote-get-current-window', event => {
+			this.logService.trace(`App#on(remote-get-current-window): prevented`);
+
+			event.preventDefault();
+		});
+		app.on('remote-get-current-web-contents', event => {
+			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+
+			event.preventDefault();
+		});
+		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string): boolean => {
@@ -254,21 +286,18 @@ export class CodeApplication extends Disposable {
 
 		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
 
-		// After waking up from sleep  (after window opened)
+		// Some listeners after window opened
 		(async () => {
 			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
 
+			// After waking up from sleep  (after window opened)
 			powerMonitor.on('resume', () => {
 				if (this.windowsMainService) {
 					this.windowsMainService.sendToAll('vscode:osResume', undefined);
 				}
 			});
-		})();
 
-		// Keyboard layout changes (after window opened)
-		(async () => {
-			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
-
+			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
 				if (this.windowsMainService) {
@@ -350,12 +379,10 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			(async () => {
-				const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
+			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
 
-				this.logService.info('Driver started at:', this.environmentService.driverHandle);
-				this._register(server);
-			})();
+			this.logService.info('Driver started at:', this.environmentService.driverHandle);
+			this._register(server);
 		}
 
 		// Setup Auth Handler
@@ -412,6 +439,10 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+
+		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
+
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
@@ -528,7 +559,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);

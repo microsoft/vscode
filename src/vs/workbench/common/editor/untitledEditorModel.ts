@@ -133,6 +133,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return Promise.resolve();
 	}
 
+	hasBackup(): boolean {
+		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+	}
+
 	async load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first

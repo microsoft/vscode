@@ -32,7 +32,6 @@ import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';
 import './mainThreadFileSystemEventService';
-import './mainThreadHeapService';
 import './mainThreadKeytar';
 import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
@@ -55,6 +54,7 @@ import './mainThreadWebview';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadTask';
+import './mainThreadLabelService';
 import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {

@@ -44,7 +44,7 @@ import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/ele
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';
+import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
@@ -301,6 +301,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_keybindings',
+	command: {
+		id: ShowRecommendedKeymapExtensionsAction.ID,
+		title: localize('miOpenKeymapExtensions2', "Keymaps")
+	},
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '1_settings',
 	command: {
@@ -328,8 +337,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -341,8 +350,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -354,8 +363,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -367,8 +376,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-light.svg`)),
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},
@@ -439,4 +448,13 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 		}
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: VIEWLET_ID,
+		title: localize('showExtensions', "Extensions")
+	},
+	order: 3
 });

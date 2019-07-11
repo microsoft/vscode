@@ -5,7 +5,7 @@
 
 
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
@@ -221,7 +221,11 @@ export class SuggestMemoryService extends Disposable implements ISuggestMemorySe
 		};
 
 		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(), 500));
-		this._register(_storageService.onWillSaveState(() => this._saveState()));
+		this._register(_storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				this._saveState();
+			}
+		}));
 
 		this._register(this._configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.suggestSelection') || e.affectsConfiguration('editor.suggest.shareSuggestSelections')) {

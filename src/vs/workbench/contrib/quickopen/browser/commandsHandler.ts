@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import { Language } from 'vs/base/common/platform';
-import { Action } from 'vs/base/common/actions';
+import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -30,7 +30,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 
 export const ALL_COMMANDS_PREFIX = '>';
@@ -78,14 +78,15 @@ class CommandsHistory extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	private updateConfiguration(): void {
 		this.commandHistoryLength = resolveCommandHistory(this.configurationService);
 
-		if (commandHistory) {
+		if (commandHistory && commandHistory.limit !== this.commandHistoryLength) {
 			commandHistory.limit = this.commandHistoryLength;
+
+			CommandsHistory.saveState(this.storageService);
 		}
 	}
 
@@ -116,18 +117,20 @@ class CommandsHistory extends Disposable {
 
 	push(commandId: string): void {
 		commandHistory.set(commandId, commandCounter++); // set counter to command
+
+		CommandsHistory.saveState(this.storageService);
 	}
 
 	peek(commandId: string): number | undefined {
 		return commandHistory.peek(commandId);
 	}
 
-	private saveState(): void {
+	static saveState(storageService: IStorageService): void {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
+		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
+		storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
 	}
 }
 
@@ -169,7 +172,8 @@ export class ClearCommandHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(id, label);
 	}
@@ -179,6 +183,8 @@ export class ClearCommandHistoryAction extends Action {
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
 			commandCounter = 1;
+
+			CommandsHistory.saveState(this.storageService);
 		}
 
 		return Promise.resolve(undefined);
@@ -297,13 +303,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		setTimeout(async () => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
-					/* __GDPR__
-						"workbenchActionExecuted" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
+					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 
 					const promise = action.run();
 					if (promise) {
@@ -385,6 +385,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	private readonly commandsHistory: CommandsHistory;
 
 	private readonly disposables = new DisposableStore();
+	private readonly disposeOnClose = new DisposableStore();
 
 	private waitedForExtensionsRegistered: boolean;
 
@@ -449,6 +450,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 		menu.dispose();
+		this.disposeOnClose.add(toDisposable(() => dispose(menuActions)));
 
 		// Concat
 		let entries = [...editorEntries, ...commandEntries];
@@ -591,8 +593,15 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
 
+	onClose(canceled: boolean): void {
+		super.onClose(canceled);
+
+		this.disposeOnClose.clear();
+	}
+
 	dispose() {
 		this.disposables.dispose();
+		this.disposeOnClose.dispose();
 	}
 }
 

@@ -9,7 +9,8 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 const TERMINAL_MIN_USEFUL_SIZE = 250;
@@ -21,13 +22,13 @@ class SplitPaneContainer {
 	private _splitViewDisposables: IDisposable[];
 	private _children: SplitPane[] = [];
 
-
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	constructor(
 		private _container: HTMLElement,
-		public orientation: Orientation
+		public orientation: Orientation,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
 	) {
 		this._width = this._container.offsetWidth;
 		this._height = this._container.offsetHeight;
@@ -46,16 +47,21 @@ class SplitPaneContainer {
 	}
 
 	public resizePane(index: number, direction: Direction, amount: number): void {
-		// TODO: Should resize pane up/down resize the panel?
+		const isHorizontal = (direction === Direction.Left) || (direction === Direction.Right);
 
-		// Only resize the correct dimension
-		const isHorizontal = direction === Direction.Left || direction === Direction.Right;
-		if (isHorizontal && this.orientation !== Orientation.HORIZONTAL ||
-			!isHorizontal && this.orientation !== Orientation.VERTICAL) {
+		if ((isHorizontal && this.orientation !== Orientation.HORIZONTAL) ||
+			(!isHorizontal && this.orientation !== Orientation.VERTICAL)) {
+			// Resize the entire pane as a whole
+			if ((this.orientation === Orientation.HORIZONTAL && direction === Direction.Down) ||
+				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
+				amount *= -1;
+			}
+			this._layoutService.resizePart(Parts.PANEL_PART, amount);
 			return;
 		}
 
-		// Only resize when there is mor ethan one pane
+		// Resize left/right in horizontal or up/down in vertical
+		// Only resize when there is more than one pane
 		if (this._children.length <= 1) {
 			return;
 		}
@@ -227,7 +233,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		private _container: HTMLElement,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._onDisposed = new Emitter<ITerminalTab>();
@@ -348,7 +355,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const newLocal = new SplitPaneContainer(this._tabElement, orientation);
+			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._tabElement, orientation);
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}

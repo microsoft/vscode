@@ -7,15 +7,15 @@ import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -25,7 +25,7 @@ import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -48,20 +48,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	private static readonly ACTION_HEIGHT = 50;
+	private static readonly ACTION_HEIGHT = 48;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 
 	//#region IView
 
-	readonly minimumWidth: number = 50;
-	readonly maximumWidth: number = 50;
+	readonly minimumWidth: number = 48;
+	readonly maximumWidth: number = 48;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	//#endregion
 
-	private globalActionBar: ActionBar;
-	private globalActivityIdToActions: Map<string, GlobalActivityAction> = new Map();
+	private globalActivityAction: ActivityAction;
+	private globalActivityActionBar: ActionBar;
 
 	private cachedViewlets: ICachedViewlet[] = [];
 
@@ -121,15 +121,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this._register(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 
 		// Extension registration
-		let disposables: IDisposable[] = [];
+		let disposables = this._register(new DisposableStore());
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			disposables = dispose(disposables);
+			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedViewlets(), this, disposables);
 			this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e), this, disposables);
 		}));
-
-		this._register(toDisposable(() => dispose(disposables)));
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -163,22 +161,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
-		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
+		if (viewletOrActionId === GLOBAL_ACTIVITY_ID) {
+			return this.showGlobalActivity(badge, clazz);
+		}
+
+		throw illegalArgument('globalActivityId');
 	}
 
-	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
-		if (!badge) {
-			throw illegalArgument('badge');
-		}
+	private showGlobalActivity(badge: IBadge, clazz?: string): IDisposable {
+		this.globalActivityAction.setBadge(badge, clazz);
 
-		const action = this.globalActivityIdToActions.get(globalActivityId);
-		if (!action) {
-			throw illegalArgument('globalActivityId');
-		}
-
-		action.setBadge(badge, clazz);
-
-		return toDisposable(() => action.setBadge(undefined));
+		return toDisposable(() => this.globalActivityAction.setBadge(undefined));
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -232,23 +225,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
-		const activityRegistry = Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions);
-		const descriptors = activityRegistry.getActivities();
-		const actions = descriptors
-			.map(d => this.instantiationService.createInstance(d))
-			.map(a => new GlobalActivityAction(a));
-
-		this.globalActionBar = this._register(new ActionBar(container, {
+		this.globalActivityActionBar = this._register(new ActionBar(container, {
 			actionViewItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionViewItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('globalActions', "Global Actions"),
+			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false
 		}));
 
-		actions.forEach(a => {
-			this.globalActivityIdToActions.set(a.id, a);
-			this.globalActionBar.push(a);
+		this.globalActivityAction = new ActivityAction({
+			id: 'workbench.actions.manage',
+			name: nls.localize('manage', "Manage"),
+			cssClass: 'update-activity'
 		});
+		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } {
@@ -382,8 +371,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Layout composite bar
 		let availableHeight = contentAreaSize.height;
-		if (this.globalActionBar) {
-			availableHeight -= (this.globalActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		if (this.globalActivityActionBar) {
+			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}

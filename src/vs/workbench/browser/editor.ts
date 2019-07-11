@@ -81,10 +81,10 @@ export class EditorDescriptor implements IEditorDescriptor {
 	}
 }
 
-const INPUT_DESCRIPTORS_PROPERTY = '__$inputDescriptors';
-
 class EditorRegistry implements IEditorRegistry {
+
 	private editors: EditorDescriptor[] = [];
+	private readonly mapEditorToInputs = new Map<EditorDescriptor, SyncDescriptor<EditorInput>[]>();
 
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
@@ -99,7 +99,8 @@ class EditorRegistry implements IEditorRegistry {
 		}
 
 		// Register (Support multiple Editors per Input)
-		descriptor[INPUT_DESCRIPTORS_PROPERTY] = inputDescriptors;
+		this.mapEditorToInputs.set(descriptor, inputDescriptors);
+
 		this.editors.push(descriptor);
 	}
 
@@ -108,20 +109,22 @@ class EditorRegistry implements IEditorRegistry {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
 			for (const editor of this.editors) {
-				const inputDescriptors: SyncDescriptor<EditorInput>[] = editor[INPUT_DESCRIPTORS_PROPERTY];
-				for (const inputDescriptor of inputDescriptors) {
-					const inputClass = inputDescriptor.ctor;
+				const inputDescriptors: SyncDescriptor<EditorInput>[] | undefined = this.mapEditorToInputs.get(editor);
+				if (inputDescriptors) {
+					for (const inputDescriptor of inputDescriptors) {
+						const inputClass = inputDescriptor.ctor;
 
-					// Direct check on constructor type (ignores prototype chain)
-					if (!byInstanceOf && input.constructor === inputClass) {
-						matchingDescriptors.push(editor);
-						break;
-					}
+						// Direct check on constructor type (ignores prototype chain)
+						if (!byInstanceOf && input.constructor === inputClass) {
+							matchingDescriptors.push(editor);
+							break;
+						}
 
-					// Normal instanceof check
-					else if (byInstanceOf && input instanceof inputClass) {
-						matchingDescriptors.push(editor);
-						break;
+						// Normal instanceof check
+						else if (byInstanceOf && input instanceof inputClass) {
+							matchingDescriptors.push(editor);
+							break;
+						}
 					}
 				}
 			}
@@ -175,8 +178,10 @@ class EditorRegistry implements IEditorRegistry {
 	getEditorInputs(): SyncDescriptor<EditorInput>[] {
 		const inputClasses: SyncDescriptor<EditorInput>[] = [];
 		for (const editor of this.editors) {
-			const editorInputDescriptors: SyncDescriptor<EditorInput>[] = editor[INPUT_DESCRIPTORS_PROPERTY];
-			inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
+			const editorInputDescriptors: SyncDescriptor<EditorInput>[] | undefined = this.mapEditorToInputs.get(editor);
+			if (editorInputDescriptors) {
+				inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
+			}
 		}
 
 		return inputClasses;

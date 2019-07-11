@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -276,18 +276,18 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
 export class EditorStatus extends Disposable implements IWorkbenchContribution {
-	private tabFocusModeElement?: IStatusbarEntryAccessor;
-	private screenRedearModeElement?: IStatusbarEntryAccessor;
-	private indentationElement?: IStatusbarEntryAccessor;
-	private selectionElement?: IStatusbarEntryAccessor;
-	private encodingElement?: IStatusbarEntryAccessor;
-	private eolElement?: IStatusbarEntryAccessor;
-	private modeElement?: IStatusbarEntryAccessor;
-	private metadataElement?: IStatusbarEntryAccessor;
+	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly modeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private readonly state = new State();
-	private readonly activeEditorListeners: IDisposable[] = [];
-	private delayedRender: IDisposable | null = null;
+	private readonly activeEditorListeners = this._register(new DisposableStore());
+	private readonly delayedRender = this._register(new MutableDisposable());
 	private toRender: StateChange | null = null;
 	private screenReaderNotification: INotificationHandle | null = null;
 	private promptedScreenReader: boolean = false;
@@ -382,45 +382,35 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private updateTabFocusModeElement(visible: boolean): void {
 		if (visible) {
-			if (!this.tabFocusModeElement) {
-				this.tabFocusModeElement = this.statusbarService.addEntry({
+			if (!this.tabFocusModeElement.value) {
+				this.tabFocusModeElement.value = this.statusbarService.addEntry({
 					text: nls.localize('tabFocusModeEnabled', "Tab Moves Focus"),
 					tooltip: nls.localize('disableTabMode', "Disable Accessibility Mode"),
 					command: 'editor.action.toggleTabFocusMode'
 				}, 'status.editor.tabFocusMode', nls.localize('status.editor.tabFocusMode', "Accessibility Mode"), StatusbarAlignment.RIGHT, 100.7);
 			}
 		} else {
-			if (this.tabFocusModeElement) {
-				this.tabFocusModeElement.dispose();
-				this.tabFocusModeElement = undefined;
-			}
+			this.tabFocusModeElement.clear();
 		}
 	}
 
 	private updateScreenReaderModeElement(visible: boolean): void {
 		if (visible) {
-			if (!this.screenRedearModeElement) {
-				this.screenRedearModeElement = this.statusbarService.addEntry({
+			if (!this.screenRedearModeElement.value) {
+				this.screenRedearModeElement.value = this.statusbarService.addEntry({
 					text: nls.localize('screenReaderDetected', "Screen Reader Optimized"),
 					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
 					command: 'showEditorScreenReaderNotification'
 				}, 'status.editor.screenReaderMode', nls.localize('status.editor.screenReaderMode', "Screen Reader Mode"), StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
-			if (this.screenRedearModeElement) {
-				this.screenRedearModeElement.dispose();
-				this.screenRedearModeElement = undefined;
-			}
+			this.screenRedearModeElement.clear();
 		}
 	}
 
 	private updateSelectionElement(text: string | undefined): void {
 		if (!text) {
-			if (this.selectionElement) {
-				dispose(this.selectionElement);
-				this.selectionElement = undefined;
-			}
-
+			this.selectionElement.clear();
 			return;
 		}
 
@@ -430,16 +420,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			command: 'workbench.action.gotoLine'
 		};
 
-		this.selectionElement = this.updateElement(this.selectionElement, props, 'status.editor.selection', nls.localize('status.editor.selection', "Editor Selection"), StatusbarAlignment.RIGHT, 100.5);
+		this.updateElement(this.selectionElement, props, 'status.editor.selection', nls.localize('status.editor.selection', "Editor Selection"), StatusbarAlignment.RIGHT, 100.5);
 	}
 
 	private updateIndentationElement(text: string | undefined): void {
 		if (!text) {
-			if (this.indentationElement) {
-				dispose(this.indentationElement);
-				this.indentationElement = undefined;
-			}
-
+			this.indentationElement.clear();
 			return;
 		}
 
@@ -449,16 +435,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			command: 'changeEditorIndentation'
 		};
 
-		this.indentationElement = this.updateElement(this.indentationElement, props, 'status.editor.indentation', nls.localize('status.editor.indentation', "Editor Indentation"), StatusbarAlignment.RIGHT, 100.4);
+		this.updateElement(this.indentationElement, props, 'status.editor.indentation', nls.localize('status.editor.indentation', "Editor Indentation"), StatusbarAlignment.RIGHT, 100.4);
 	}
 
 	private updateEncodingElement(text: string | undefined): void {
 		if (!text) {
-			if (this.encodingElement) {
-				dispose(this.encodingElement);
-				this.encodingElement = undefined;
-			}
-
+			this.encodingElement.clear();
 			return;
 		}
 
@@ -468,16 +450,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			command: 'workbench.action.editor.changeEncoding'
 		};
 
-		this.encodingElement = this.updateElement(this.encodingElement, props, 'status.editor.encoding', nls.localize('status.editor.encoding', "Editor Encoding"), StatusbarAlignment.RIGHT, 100.3);
+		this.updateElement(this.encodingElement, props, 'status.editor.encoding', nls.localize('status.editor.encoding', "Editor Encoding"), StatusbarAlignment.RIGHT, 100.3);
 	}
 
 	private updateEOLElement(text: string | undefined): void {
 		if (!text) {
-			if (this.eolElement) {
-				dispose(this.eolElement);
-				this.eolElement = undefined;
-			}
-
+			this.eolElement.clear();
 			return;
 		}
 
@@ -487,16 +465,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			command: 'workbench.action.editor.changeEOL'
 		};
 
-		this.eolElement = this.updateElement(this.eolElement, props, 'status.editor.eol', nls.localize('status.editor.eol', "Editor End of Line"), StatusbarAlignment.RIGHT, 100.2);
+		this.updateElement(this.eolElement, props, 'status.editor.eol', nls.localize('status.editor.eol', "Editor End of Line"), StatusbarAlignment.RIGHT, 100.2);
 	}
 
 	private updateModeElement(text: string | undefined): void {
 		if (!text) {
-			if (this.modeElement) {
-				dispose(this.modeElement);
-				this.modeElement = undefined;
-			}
-
+			this.modeElement.clear();
 			return;
 		}
 
@@ -506,16 +480,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			command: 'workbench.action.editor.changeLanguageMode'
 		};
 
-		this.modeElement = this.updateElement(this.modeElement, props, 'status.editor.mode', nls.localize('status.editor.mode', "Editor Language"), StatusbarAlignment.RIGHT, 100.1);
+		this.updateElement(this.modeElement, props, 'status.editor.mode', nls.localize('status.editor.mode', "Editor Language"), StatusbarAlignment.RIGHT, 100.1);
 	}
 
 	private updateMetadataElement(text: string | undefined): void {
 		if (!text) {
-			if (this.metadataElement) {
-				dispose(this.metadataElement);
-				this.metadataElement = undefined;
-			}
-
+			this.metadataElement.clear();
 			return;
 		}
 
@@ -524,17 +494,15 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			tooltip: nls.localize('fileInfo', "File Information")
 		};
 
-		this.metadataElement = this.updateElement(this.metadataElement, props, 'status.editor.info', nls.localize('status.editor.info', "File Information"), StatusbarAlignment.RIGHT, 100);
+		this.updateElement(this.metadataElement, props, 'status.editor.info', nls.localize('status.editor.info', "File Information"), StatusbarAlignment.RIGHT, 100);
 	}
 
-	private updateElement(element: IStatusbarEntryAccessor | undefined, props: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor | undefined {
-		if (!element) {
-			element = this.statusbarService.addEntry(props, id, name, alignment, priority);
+	private updateElement(element: MutableDisposable<IStatusbarEntryAccessor>, props: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number) {
+		if (!element.value) {
+			element.value = this.statusbarService.addEntry(props, id, name, alignment, priority);
 		} else {
-			element.update(props);
+			element.value.update(props);
 		}
-
-		return element;
 	}
 
 	private updateState(update: StateDelta): void {
@@ -546,8 +514,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender = runAtThisOrScheduleAtNextAnimationFrame(() => {
-				this.delayedRender = null;
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
+				this.delayedRender.clear();
+
 				const toRender = this.toRender;
 				this.toRender = null;
 				if (toRender) {
@@ -608,30 +577,30 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onMetadataChange(activeControl);
 
 		// Dispose old active editor listeners
-		dispose(this.activeEditorListeners);
+		this.activeEditorListeners.clear();
 
 		// Attach new listeners to active editor
 		if (activeCodeEditor) {
 
 			// Hook Listener for Configuration changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
 				if (event.accessibilitySupport) {
 					this.onScreenReaderModeChange(activeCodeEditor);
 				}
 			}));
 
 			// Hook Listener for Selection changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
 				this.onSelectionChange(activeCodeEditor);
 			}));
 
 			// Hook Listener for mode changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
 				this.onModeChange(activeCodeEditor);
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelContent((e) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelContent((e) => {
 				this.onEOLChange(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
@@ -646,7 +615,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}));
 
 			// Hook Listener for content options changes
-			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
 				this.onIndentationChange(activeCodeEditor);
 			}));
 		}
@@ -669,11 +638,11 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 
 			binaryEditors.forEach(editor => {
-				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
+				this.activeEditorListeners.add(editor.onMetadataChanged(metadata => {
 					this.onMetadataChange(activeControl);
 				}));
 
-				this.activeEditorListeners.push(editor.onDidOpenInPlace(() => {
+				this.activeEditorListeners.add(editor.onDidOpenInPlace(() => {
 					this.updateStatusBar();
 				}));
 			});
@@ -844,15 +813,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		return !!activeControl && activeControl === control;
 	}
-
-	dispose(): void {
-		super.dispose();
-
-		if (this.delayedRender) {
-			this.delayedRender.dispose();
-			this.delayedRender = null;
-		}
-	}
 }
 
 function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
@@ -938,21 +898,9 @@ export class ChangeModeAction extends Action {
 				description = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			}
 
-			// construct a fake resource to be able to show nice icons if any
-			let fakeResource: URI | undefined;
-			const extensions = this.modeService.getExtensions(lang);
-			if (extensions && extensions.length) {
-				fakeResource = URI.file(extensions[0]);
-			} else {
-				const filenames = this.modeService.getFilenames(lang);
-				if (filenames && filenames.length) {
-					fakeResource = URI.file(filenames[0]);
-				}
-			}
-
 			return {
 				label: lang,
-				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
+				iconClasses: getIconClasses(this.modelService, this.modeService, this.getFakeResource(lang)),
 				description
 			};
 		});
@@ -1051,6 +999,7 @@ export class ChangeModeAction extends Action {
 			return {
 				id,
 				label: lang,
+				iconClasses: getIconClasses(this.modelService, this.modeService, this.getFakeResource(lang)),
 				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : undefined
 			};
 		});
@@ -1069,7 +1018,7 @@ export class ChangeModeAction extends Action {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspace && !!fileAssociationsConfig.workspace[associationKey]) {
+				if (fileAssociationsConfig.workspace && !!(fileAssociationsConfig.workspace as any)[associationKey]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 
@@ -1080,6 +1029,22 @@ export class ChangeModeAction extends Action {
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 			}
 		}, 50 /* quick open is sensitive to being opened so soon after another */);
+	}
+
+	private getFakeResource(lang: string): URI | undefined {
+		let fakeResource: URI | undefined;
+
+		const extensions = this.modeService.getExtensions(lang);
+		if (extensions && extensions.length) {
+			fakeResource = URI.file(extensions[0]);
+		} else {
+			const filenames = this.modeService.getFilenames(lang);
+			if (filenames && filenames.length) {
+				fakeResource = URI.file(filenames[0]);
+			}
+		}
+
+		return fakeResource;
 	}
 }
 

@@ -25,7 +25,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { hash } from 'vs/base/common/hash';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -37,6 +37,22 @@ export interface IBackupMetaData {
 	etag: string;
 	orphaned: boolean;
 }
+
+type FileTelemetryDataFragment = {
+	mimeType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	path: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	reason?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	whitelistedjson?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+type TelemetryData = {
+	mimeType: string;
+	ext: string;
+	path: number;
+	reason?: number;
+	whitelistedjson?: string;
+};
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -75,7 +91,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSaveDisposable?: IDisposable;
+	private readonly autoSaveDisposable = this._register(new MutableDisposable());
 
 	private saveSequentializer: SaveSequentializer;
 	private lastSaveAttemptTime: number;
@@ -237,13 +253,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	hasBackup(): boolean {
+		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
+	}
+
 	async revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
 			return;
 		}
 
 		// Cancel any running auto-save
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		// Unset flags
 		const undo = this.setDirty(false);
@@ -427,21 +447,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
 		const settingsType = this.getTypeIfSettings();
 		if (settingsType) {
-			/* __GDPR__
-				"settingsRead" : {
-					"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+			type SettingsReadClassification = {
+				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+
+			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 		} else {
-			/* __GDPR__
-				"fileGet" : {
-					"${include}": [
-						"${FileTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+			type FileGetClassification = {} & FileTelemetryDataFragment;
+
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
 		}
 
 		return this;
@@ -567,7 +581,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace(`doAutoSave() - enter for versionId ${versionId}`, this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		// Create new save timer and store it for disposal as needed
 		const handle = setTimeout(() => {
@@ -578,25 +592,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}, this.autoSaveAfterMillies);
 
-		this.autoSaveDisposable = toDisposable(() => clearTimeout(handle));
+		this.autoSaveDisposable.value = toDisposable(() => clearTimeout(handle));
 	}
 
-	private cancelPendingAutoSave(): void {
-		if (this.autoSaveDisposable) {
-			this.autoSaveDisposable.dispose();
-			this.autoSaveDisposable = undefined;
-		}
-	}
-
-	save(options: ISaveOptions = Object.create(null)): Promise<void> {
+	async save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve();
+			return;
 		}
 
 		this.logService.trace('save() - enter', this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelPendingAutoSave();
+		this.autoSaveDisposable.clear();
 
 		return this.doSave(this.versionId, options);
 	}
@@ -740,21 +747,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Telemetry
 				const settingsType = this.getTypeIfSettings();
 				if (settingsType) {
-					/* __GDPR__
-						"settingsWritten" : {
-							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
+					type SettingsWrittenClassification = {
+						settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					};
+					this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 				} else {
-					/* __GDPR__
-							"filePUT" : {
-								"${include}": [
-									"${FileTelemetryData}"
-								]
-							}
-						*/
-					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
+					type FilePutClassfication = {} & FileTelemetryDataFragment;
+					this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(options.reason));
 				}
 			}, error => {
 				this.logService.error(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource);
@@ -792,12 +791,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, joinPath(this.environmentService.appSettingsHome, 'locale.json'), !isLinux)) {
+		if (isEqual(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'locale.json'), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, joinPath(this.environmentService.appSettingsHome, 'snippets'))) {
+		if (isEqualOrParent(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
 			return 'snippets';
 		}
 
@@ -815,7 +814,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return '';
 	}
 
-	private getTelemetryData(reason: number | undefined): object {
+	private getTelemetryData(reason: number | undefined): TelemetryData {
 		const ext = extname(this.resource);
 		const fileName = basename(this.resource);
 		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
@@ -823,22 +822,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			mimeType: guessMimeTypes(this.resource).join(', '),
 			ext,
 			path: hash(path),
-			reason
+			reason,
+			whitelistedjson: undefined as string | undefined
 		};
 
 		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
 			telemetryData['whitelistedjson'] = fileName;
 		}
 
-		/* __GDPR__FRAGMENT__
-			"FileTelemetryData" : {
-				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
 		return telemetryData;
 	}
 
@@ -1037,8 +1028,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
-
-		this.cancelPendingAutoSave();
 
 		super.dispose();
 	}

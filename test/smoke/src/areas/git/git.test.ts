@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { Application } from '../../application';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
-const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
+const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-item[title$="Synchronize Changes"]';
 
 export function setup() {
 	describe('Git', () => {

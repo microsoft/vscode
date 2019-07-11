@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -31,6 +31,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -48,6 +49,7 @@ export const STOP_ID = 'workbench.action.debug.stop';
 export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
 export const CONTINUE_ID = 'workbench.action.debug.continue';
 export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
+export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 
 function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined, run: (thread: IThread) => Promise<void>, ): void {
 	const debugService = accessor.get(IDebugService);
@@ -96,6 +98,55 @@ export function registerCommands(): void {
 		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
 			getThreadAndRun(accessor, thread, thread => thread.terminate());
 		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: JUMP_TO_CURSOR_ID,
+		handler: async (accessor: ServicesAccessor) => {
+			const debugService = accessor.get(IDebugService);
+			const stackFrame = debugService.getViewModel().focusedStackFrame;
+			const editorService = accessor.get(IEditorService);
+			const activeEditor = editorService.activeTextEditorWidget;
+			const notificationService = accessor.get(INotificationService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			if (stackFrame && isCodeEditor(activeEditor) && activeEditor.hasModel()) {
+				const position = activeEditor.getPosition();
+				const resource = activeEditor.getModel().uri;
+				const source = stackFrame.thread.session.getSourceForUri(resource);
+				if (source) {
+					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
+					const targets = response.body.targets;
+					if (targets.length) {
+						let id = targets[0].id;
+						if (targets.length > 1) {
+							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
+							const pick = await quickInputService.pick(picks, { placeHolder: nls.localize('chooseLocation', "Choose the specific location") });
+							if (!pick) {
+								return;
+							}
+
+							id = pick._id;
+						}
+
+						return await stackFrame.thread.session.goto(stackFrame.thread.threadId, id).catch(e => notificationService.warn(e));
+					}
+				}
+			}
+
+			return notificationService.warn(nls.localize('noExecutableCode', "No executable code is associated at the current cursor position."));
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+		command: {
+			id: JUMP_TO_CURSOR_ID,
+			title: nls.localize('jumpToCursor', "Jump to Cursor"),
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		},
+		when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
+		group: 'debug',
+		order: 3
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -432,13 +483,6 @@ export function registerCommands(): void {
 		handler: inlineBreakpointHandler
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		command: {
-			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Inline Breakpoint' },
-			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
-		}
-	});
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,

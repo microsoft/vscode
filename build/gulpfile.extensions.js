@@ -22,6 +22,7 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
 const _ = require('underscore');
+const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -135,11 +136,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return {
-		compileTask: compileTask,
-		watchTask: watchTask,
-		compileBuildTask: compileBuildTask
-	};
+	return { compileTask, watchTask, compileBuildTask };
 });
 
 const compileExtensionsTask = task.define('compile-extensions', task.parallel(...tasks.map(t => t.compileTask)));
@@ -150,5 +147,17 @@ const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tas
 gulp.task(watchExtensionsTask);
 exports.watchExtensionsTask = watchExtensionsTask;
 
-const compileExtensionsBuildTask = task.define('compile-extensions-build', task.parallel(...tasks.map(t => t.compileBuildTask)));
+const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
+gulp.task(compileExtensionsBuildLegacyTask);
+
+// Azure Pipelines
+
+const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
+const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
+	cleanExtensionsBuildTask,
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream().pipe(gulp.dest('.build'))),
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream().pipe(gulp.dest('.build'))),
+));
+
+gulp.task(compileExtensionsBuildTask);
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;

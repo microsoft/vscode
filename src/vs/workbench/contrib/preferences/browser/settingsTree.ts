@@ -702,17 +702,16 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 				}
 			}
 
-			const sortKeys = (obj: Object) => {
-				const keyArray = Object.keys(obj)
-					.map(key => ({ key, val: obj[key] }))
-					.sort((a, b) => a.key.localeCompare(b.key));
+			function sortKeys<T extends object>(obj: T) {
+				const sortedKeys = Object.keys(obj)
+					.sort((a, b) => a.localeCompare(b)) as Array<keyof T>;
 
-				const retVal = {};
-				keyArray.forEach(pair => {
-					retVal[pair.key] = pair.val;
-				});
+				const retVal: Partial<T> = {};
+				for (const key of sortedKeys) {
+					retVal[key] = obj[key];
+				}
 				return retVal;
-			};
+			}
 
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,

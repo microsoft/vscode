@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { extractLocalHostUriMetaDataForPortMapping } from 'vs/workbench/contrib/webview/common/portMapping';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
 
 	constructor(
@@ -33,7 +34,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 
 		for (const tunnel of this._tunnels.values()) {
 			tunnel.then(tunnel => tunnel.dispose());
@@ -48,26 +49,16 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	async $openUri(uriComponent: UriComponents, options: IOpenUriOptions): Promise<boolean> {
 		let uri = URI.revive(uriComponent);
 		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
-			if (uri.scheme === 'http' || uri.scheme === 'https') {
-				const port = this.getLocalhostPort(uri);
-				if (typeof port === 'number') {
-					const tunnel = await this.getOrCreateTunnel(port);
-					if (tunnel) {
-						uri = uri.with({ authority: `localhost:${tunnel.tunnelLocalPort}` });
-					}
+			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+			if (portMappingRequest) {
+				const tunnel = await this.getOrCreateTunnel(portMappingRequest.port);
+				if (tunnel) {
+					uri = uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` });
 				}
 			}
 		}
 
 		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
-	}
-
-	private getLocalhostPort(uri: URI): number | undefined {
-		const match = /^localhost:(\d+)$/.exec(uri.authority);
-		if (match) {
-			return +match[1];
-		}
-		return undefined;
 	}
 
 	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
