@@ -4,19 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IRequestOptions, IRequestContext } from 'vs/base/node/request';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { VSBufferReadableStream, streamToBuffer } from 'vs/base/common/buffer';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
+
+export interface IRequestOptions {
+	type?: string;
+	url?: string;
+	user?: string;
+	password?: string;
+	headers?: any;
+	timeout?: number;
+	data?: string;
+	followRedirects?: number;
+}
+
+export interface IRequestContext {
+	// req: http.ClientRequest;
+	// res: http.ClientResponse;
+	res: {
+		headers: { [n: string]: string };
+		statusCode?: number;
+	};
+	stream: VSBufferReadableStream;
+}
 
 export interface IRequestService {
 	_serviceBrand: any;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 }
+
+function isSuccess(context: IRequestContext): boolean {
+	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
+}
+
+function hasNoContent(context: IRequestContext): boolean {
+	return context.res.statusCode === 204;
+}
+
+export async function asText(context: IRequestContext): Promise<string | null> {
+	if (!isSuccess(context)) {
+		throw new Error('Server returned ' + context.res.statusCode);
+	}
+	if (hasNoContent(context)) {
+		return null;
+	}
+	const buffer = await streamToBuffer(context.stream);
+	return buffer.toString();
+}
+
+export async function asJson<T = {}>(context: IRequestContext): Promise<T | null> {
+	if (!isSuccess(context)) {
+		throw new Error('Server returned ' + context.res.statusCode);
+	}
+	if (hasNoContent(context)) {
+		return null;
+	}
+	const buffer = await streamToBuffer(context.stream);
+	return JSON.parse(buffer.toString());
+}
+
 
 export interface IHTTPConfiguration {
 	http?: {
