@@ -716,7 +716,7 @@
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
 					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.cpp",
+					"contentName": "meta.embedded.block.cpp source.cpp",
 					"patterns": [
 						{
 							"include": "source.cpp"

@@ -35,7 +35,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -527,7 +527,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
+				if (isEqualOrParent(target.resource, source.resource)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -667,8 +667,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				// Check for name collisions
 				const targetNames = new Set<string>();
 				if (targetStat.children) {
+					const ignoreCase = hasToIgnoreCase(target.resource);
 					targetStat.children.forEach(child => {
-						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
+						targetNames.add(ignoreCase ? child.name : child.name.toLowerCase());
 					});
 				}
 
