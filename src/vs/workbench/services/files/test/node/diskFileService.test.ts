@@ -20,7 +20,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, writeableBufferStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, writeableBufferStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -1336,12 +1336,24 @@ suite('Disk File Service', () => {
 	});
 
 	test('createFile', async () => {
+		assertCreateFile(contents => VSBuffer.fromString(contents));
+	});
+
+	test('createFile (readable)', async () => {
+		assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+	});
+
+	test('createFile (stream)', async () => {
+		assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+	});
+
+	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
-		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents));
+		const fileStat = await service.createFile(resource, converter(contents));
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
 		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
@@ -1350,7 +1362,7 @@ suite('Disk File Service', () => {
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.CREATE);
 		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
-	});
+	}
 
 	test('createFile (does not overwrite by default)', async () => {
 		const contents = 'Hello World';

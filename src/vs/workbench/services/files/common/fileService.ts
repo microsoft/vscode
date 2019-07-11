@@ -264,7 +264,7 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Reading/Writing
 
-	async createFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// validate overwrite
 		const overwrite = !!(options && options.overwrite);
@@ -273,7 +273,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// do write into file (this will create it too)
-		const fileStat = await this.writeFile(resource, bufferOrReadable);
+		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
 
 		// events
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
