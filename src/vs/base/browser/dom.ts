@@ -1199,7 +1199,7 @@ export function asDomUri(uri: URI): URI {
 	if (Schemas.vscodeRemote === uri.scheme) {
 		// rewrite vscode-remote-uris to uris of the window location
 		// so that they can be intercepted by the service worker
-		return _location.with({ path: '/vscode-resources/fetch', query: uri.toString() });
+		return _location.with({ path: '/vscode-resources/fetch', query: JSON.stringify({ u: uri.toJSON(), i: 1 }) });
 	}
 	return uri;
 }
