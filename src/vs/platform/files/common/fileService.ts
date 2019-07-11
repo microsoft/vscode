@@ -264,7 +264,7 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Reading/Writing
 
-	async createFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async createFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream = VSBuffer.fromString(''), options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// validate overwrite
 		const overwrite = !!(options && options.overwrite);
@@ -273,7 +273,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// do write into file (this will create it too)
-		const fileStat = await this.writeFile(resource, bufferOrReadable);
+		const fileStat = await this.writeFile(resource, bufferOrReadableOrStream);
 
 		// events
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
@@ -885,17 +885,23 @@ export class FileService extends Disposable implements IFileService {
 			let posInFile = 0;
 
 			stream.on('data', async chunk => {
+
+				// pause stream to perform async write operation
 				stream.pause();
 
 				try {
 					await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
 				} catch (error) {
-					reject(error);
+					return reject(error);
 				}
 
 				posInFile += chunk.byteLength;
 
-				stream.resume();
+				// resume stream now that we have successfully written
+				// run this on the next tick to prevent increasing the
+				// execution stack because resume() may call the event
+				// handler again before finishing.
+				setTimeout(() => stream.resume());
 			});
 
 			stream.on('error', error => reject(error));

@@ -11,6 +11,7 @@ import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ResourceServiceWorker {
 
@@ -19,6 +20,7 @@ class ResourceServiceWorker {
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._initServiceWorker();
 		this._initFetchHandler();
@@ -31,20 +33,20 @@ class ResourceServiceWorker {
 	private _initServiceWorker(): void {
 		const url = require.toUrl('./resourceServiceWorkerMain.js');
 		navigator.serviceWorker.register(url, { scope: '/' }).then(reg => {
-			// console.log('registered', reg);
 			return navigator.serviceWorker.ready;
 		}).then(() => {
-			// console.log('ready');
+			this._logService.trace('SW#init', navigator.serviceWorker.controller);
 		}).catch(err => {
-			console.error(err);
+			this._logService.error('SW#init', err);
 		});
 	}
 
 	private _initFetchHandler(): void {
 
 		const fetchListener: (this: ServiceWorkerContainer, ev: ExtendableMessageEvent) => void = event => {
-			const uri = URI.revive(event.data.uri);
+			this._logService.trace('SW#fetch', event.data.uri);
 
+			const uri = URI.revive(event.data.uri);
 			Promise.all([
 				this._fileService.readFile(uri),
 				this._isExtensionResource(uri)

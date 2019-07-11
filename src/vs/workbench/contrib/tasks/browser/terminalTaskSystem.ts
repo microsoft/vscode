@@ -473,7 +473,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		return resolvedVariables.then((resolvedVariables) => {
 			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution) || (task.command.runtime === RuntimeType.CustomExecution2);
-			if (resolvedVariables && task.command && task.command.runtime && (isCustomExecution || task.command.name)) {
+			if (resolvedVariables && (task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined))) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {

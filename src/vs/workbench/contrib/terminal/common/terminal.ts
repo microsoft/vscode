@@ -533,7 +533,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(): void;
+	copySelection(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.

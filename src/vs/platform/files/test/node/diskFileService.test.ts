@@ -14,13 +14,13 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, toVSBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -1326,12 +1326,24 @@ suite('Disk File Service', () => {
 	});
 
 	test('createFile', async () => {
+		assertCreateFile(contents => VSBuffer.fromString(contents));
+	});
+
+	test('createFile (readable)', async () => {
+		assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+	});
+
+	test('createFile (stream)', async () => {
+		assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+	});
+
+	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
-		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents));
+		const fileStat = await service.createFile(resource, converter(contents));
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
 		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
@@ -1340,7 +1352,7 @@ suite('Disk File Service', () => {
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.CREATE);
 		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
-	});
+	}
 
 	test('createFile (does not overwrite by default)', async () => {
 		const contents = 'Hello World';
@@ -1545,46 +1557,52 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
+	test('writeFile (stream) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'small.txt'));
+		const target = URI.file(join(testDir, 'small-copy.txt'));
+
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'small-copy.txt');
+
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+	});
+
 	test('writeFile (large file - stream) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'lorem-copy.txt');
 
-		const fileStat = await service.writeFile(resource, bufferToStream(VSBuffer.fromString(newContent)));
-		assert.equal(fileStat.name, 'lorem.txt');
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
 	});
 
 	test('writeFile (stream) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		const resource = URI.file(join(testDir, 'small.txt'));
+		const source = URI.file(join(testDir, 'small.txt'));
+		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const content = readFileSync(resource.fsPath);
-		assert.equal(content, 'Small File');
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'small-copy.txt');
 
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, bufferToStream(VSBuffer.fromString(newContent)));
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
 	});
 
 	test('writeFile (large file - stream) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		assert.equal(fileStat.name, 'lorem-copy.txt');
 
-		const fileStat = await service.writeFile(resource, bufferToStream(VSBuffer.fromString(newContent)));
-		assert.equal(fileStat.name, 'lorem.txt');
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
+		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
 	});
 
 	test('writeFile (file is created including parents)', async () => {

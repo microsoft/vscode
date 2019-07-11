@@ -472,7 +472,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
+	private isBadTsConfig(taskId: string | TaskIdentifier | undefined): taskId is string {
+		const badTsconfig = '\\tsconfig.json';
+		const tsc = 'tsc';
+		return typeof taskId === 'string' && (taskId.length > badTsconfig.length) && strings.equalsIgnoreCase(taskId.substring(taskId.length - badTsconfig.length, taskId.length), badTsconfig) && (taskId.substring(0, tsc.length) === tsc);
+	}
+
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+		if (this.isBadTsConfig(identifier)) {
+			return Promise.reject(new Error(nls.localize('badTsConfig', "Task '{0}' contains \"\\\\\". Typescript tasks must use \"/\"", identifier)));
+		}
+
 		const name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
