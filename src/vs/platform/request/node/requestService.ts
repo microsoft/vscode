@@ -17,7 +17,7 @@ import { IRequestOptions, IRequestContext, IRequestService, IHTTPConfiguration }
 import { getProxyAgent, Agent } from 'vs/platform/request/node/proxy';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferWriteableStream, writeableBufferStream } from 'vs/base/common/buffer';
+import { toVSBufferReadableStream } from 'vs/base/common/buffer';
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -111,18 +111,13 @@ export class RequestService extends Disposable implements IRequestService {
 						followRedirects: followRedirects - 1
 					}), token).then(c, e);
 				} else {
-					let _stream: Stream = res;
+					let stream: Stream = res;
 
 					if (res.headers['content-encoding'] === 'gzip') {
-						_stream = _stream.pipe(createGunzip());
+						stream = stream.pipe(createGunzip());
 					}
 
-					const stream: VSBufferWriteableStream = writeableBufferStream();
-					_stream.on('data', (d: string) => stream.write(VSBuffer.fromString(d)));
-					_stream.on('error', e => stream.end(e));
-					_stream.on('end', e => stream.end());
-
-					c({ res, stream } as IRequestContext);
+					c({ res, stream: toVSBufferReadableStream(stream) } as IRequestContext);
 				}
 			});
 
