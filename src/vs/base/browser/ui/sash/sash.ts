@@ -286,7 +286,6 @@ export class Sash extends Disposable {
 
 			dispose(disposables);
 
-			const iframes = getElementsByTagName('iframe');
 			for (const iframe of iframes) {
 				iframe.style.pointerEvents = 'auto';
 			}
