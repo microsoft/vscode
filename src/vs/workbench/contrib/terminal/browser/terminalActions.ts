@@ -754,7 +754,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	private _updateItems(): void {
 		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
-		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
+		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
 		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
 		this.setOptions(items, this.terminalService.activeTabIndex);
 	}
