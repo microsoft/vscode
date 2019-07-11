@@ -104,7 +104,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				const processesPromise: Promise<ProcessItem | void> = options.includeProcesses ? listProcesses(process.pid) : Promise.resolve();
 
 				let workspaceMetadataPromises: Promise<void>[] = [];
-				const workspaceMetadata = {};
+				const workspaceMetadata: { [key: string]: any } = {};
 				if (options.folders) {
 					// only incoming paths are transformed, so remote authority is unneeded.
 					const uriTransformer = createRemoteURITransformer('');

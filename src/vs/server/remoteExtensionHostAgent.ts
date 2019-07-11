@@ -33,7 +33,7 @@ args['user-data-dir'] = USER_DATA_PATH;
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
-const PORT = args['port'] || 8000;
+const PORT = (args as any)['port'] || 8000;
 
 args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
 

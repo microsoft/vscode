@@ -38,7 +38,7 @@ const textMmimeType = {
 	'.json': 'application/json',
 	'.css': 'text/css',
 	'.svg': 'image/svg+xml',
-};
+} as { [ext: string]: string | undefined };
 
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 
@@ -325,7 +325,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			if (queryWorkspace) {
 				workspaceCandidate = URI.from({ scheme: Schemas.file, path: queryWorkspace }).fsPath;
 			} else {
-				workspaceCandidate = this._environmentService.args['workspace'];
+				workspaceCandidate = (this._environmentService.args as any)['workspace'];
 			}
 
 			if (workspaceCandidate && workspaceCandidate.length > 0) {
@@ -341,7 +341,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		if (queryFolder) {
 			folderCandidate = URI.from({ scheme: Schemas.file, path: queryFolder }).fsPath;
 		} else {
-			folderCandidate = this._environmentService.args['folder'];
+			folderCandidate = (this._environmentService.args as any)['folder'];
 		}
 
 		if (folderCandidate && folderCandidate.length > 0) {
