@@ -892,7 +892,7 @@ export class FileService extends Disposable implements IFileService {
 				try {
 					await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
 				} catch (error) {
-					reject(error);
+					return reject(error);
 				}
 
 				posInFile += chunk.byteLength;
