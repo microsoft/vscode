@@ -16,7 +16,7 @@ import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -489,7 +489,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -617,7 +618,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
 		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
 		if (recentlyOpenedRaw) {
-			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw));
+			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw), this.logService);
 		}
 
 		return { workspaces: [], files: [] };
