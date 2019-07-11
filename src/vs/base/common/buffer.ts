@@ -177,12 +177,6 @@ export interface ReadableStream<T> {
 	destroy(): void;
 }
 
-export function isVSBufferReadableStream(obj: any): obj is VSBufferReadableStream {
-	const candidate: VSBufferReadableStream = obj;
-
-	return candidate && [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
-}
-
 /**
  * A readable stream that sends data via VSBuffer.
  */
