@@ -8,7 +8,7 @@ import * as minimist from 'minimist';
 import * as fs from 'fs';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { RemoteExtensionManagementCli } from 'vs/server/remoteExtensionManagement';
+import { run as runCli, shouldSpawnCli } from 'vs/server/remoteExtensionManagement';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { RemoteExtensionHostAgentServer } from 'vs/server/remoteExtensionHostAgentServer';
 import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
@@ -54,8 +54,8 @@ function eventuallyExit(code: number): void {
 	setTimeout(() => process.exit(code), 0);
 }
 
-if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
-	RemoteExtensionManagementCli.instantiate(environmentService, logService).run(args)
+if (shouldSpawnCli(args)) {
+	runCli(args, environmentService, logService)
 		.then(() => eventuallyExit(0))
 		.then(null, err => {
 			logService.error(err.message || err.stack || err);

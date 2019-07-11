@@ -44,8 +44,12 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import pkg from 'vs/platform/product/node/package';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { getMachineId } from 'vs/base/node/id';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { Schemas } from 'vs/base/common/network';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -214,47 +218,48 @@ export class RemoteExtensionManagementServer extends Disposable {
 	}
 }
 
-export class RemoteExtensionManagementCli {
+export function shouldSpawnCli(argv: ParsedArgs): boolean {
+	return !!argv['list-extensions']
+		|| !!argv['install-extension']
+		|| !!argv['uninstall-extension']
+		|| !!argv['locate-extension'];
+}
 
-	private readonly cliMain: CliMain;
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		this.cliMain = instantiationService.createInstance(CliMain);
+export async function run(argv: ParsedArgs, environmentService: EnvironmentService, logService: ILogService): Promise<boolean> {
+	if (!shouldSpawnCli(argv)) {
+		return false;
 	}
 
-	static shouldSpawnCli(argv: ParsedArgs): boolean {
-		return !!argv['list-extensions']
-			|| !!argv['install-extension']
-			|| !!argv['uninstall-extension']
-			|| !!argv['locate-extension'];
+	const disposables = new DisposableStore();
+	const services = new ServiceCollection();
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
+
+	// Files
+	const fileService = new FileService(logService);
+	disposables.add(fileService);
+	services.set(IFileService, fileService);
+
+	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+	disposables.add(diskFileSystemProvider);
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+	const configurationService = new ConfigurationService(environmentService.settingsResource);
+	disposables.add(configurationService);
+	await configurationService.initialize();
+
+	const instantiationService: IInstantiationService = new InstantiationService(services);
+
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(ITelemetryService, NullTelemetryService);
+	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+
+	try {
+		await instantiationService.createInstance(CliMain).run(argv);
+	} finally {
+		disposables.dispose();
 	}
-
-	static instantiate(environmentService: EnvironmentService, logService: ILogService): RemoteExtensionManagementCli {
-		const services = new ServiceCollection();
-
-		services.set(IEnvironmentService, environmentService);
-		services.set(ILogService, logService);
-		const instantiationService: IInstantiationService = new InstantiationService(services);
-
-		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.machineSettingsResource]));
-		services.set(IRequestService, new SyncDescriptor(RequestService));
-		services.set(ITelemetryService, NullTelemetryService);
-		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
-
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-
-		return instantiationService.createInstance(RemoteExtensionManagementCli);
-	}
-
-	async run(argv: ParsedArgs): Promise<boolean> {
-		if (RemoteExtensionManagementCli.shouldSpawnCli(argv)) {
-			await this.cliMain.run(argv);
-			return true;
-		}
-
-		return Promise.resolve(false);
-	}
-
+	return true;
 }
