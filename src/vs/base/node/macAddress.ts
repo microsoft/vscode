@@ -29,11 +29,25 @@ function validateMacAddress(candidate: string): boolean {
 }
 
 export function getMac(): Promise<string> {
+	return new Promise(async (resolve, reject) => {
+		const timeout = setTimeout(() => reject('Unable to retrieve mac address (timeout after 10s)'), 10000);
+
+		try {
+			resolve(await doGetMac());
+		} catch (error) {
+			reject(error);
+		} finally {
+			clearTimeout(timeout);
+		}
+	});
+}
+
+function doGetMac(): Promise<string> {
 	return new Promise((resolve, reject) => {
 		try {
 			exec(isWindows ? cmdline.windows : cmdline.unix, { timeout: 10000 }, (err, stdout, stdin) => {
 				if (err) {
-					reject(err);
+					return reject(`Unable to retrieve mac address (${err.toString()})`);
 				} else {
 					const regex = /(?:[a-f\d]{2}[:\-]){5}[a-f\d]{2}/gi;
 
@@ -41,16 +55,13 @@ export function getMac(): Promise<string> {
 					while ((match = regex.exec(stdout)) !== null) {
 						const macAddressCandidate = match[0];
 						if (validateMacAddress(macAddressCandidate)) {
-							resolve(macAddressCandidate);
-							return;
+							return resolve(macAddressCandidate);
 						}
 					}
 
-					reject('Unable to retrieve mac address.');
+					return reject('Unable to retrieve mac address (unexpected format)');
 				}
 			});
-
-			setTimeout(() => reject('Unable to retrieve mac address'), 10000);
 		} catch (err) {
 			reject(err);
 		}
