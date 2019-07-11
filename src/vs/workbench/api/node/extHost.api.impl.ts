@@ -68,6 +68,9 @@ import { Schemas } from 'vs/base/common/network';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -95,6 +98,10 @@ export function createApiFactory(
 	uriTransformer: IURITransformer | null
 ): IExtensionApiFactory {
 
+	// bootstrap services
+	const services = new ServiceCollection(...getSingletonServiceDescriptors());
+	const instaService = new InstantiationService(services);
+
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
@@ -116,7 +123,7 @@ export function createApiFactory(
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostWorkspace, extHostDocumentsAndEditors, extHostLogService));
-	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
+	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, instaService.createInstance(ExtHostDebugService, rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, uriTransformer, extHostLogService));

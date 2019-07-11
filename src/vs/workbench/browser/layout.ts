@@ -317,7 +317,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout
 		if (this.workbenchGrid instanceof Grid) {
 			if (!wasHidden) {
-				this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView);
+				this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 			}
 
 			this.workbenchGrid.removeView(this.sideBarPartView);
@@ -878,7 +878,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.EDITOR_PART:
 				view = this.editorPartView;
 				if (this.workbenchGrid instanceof Grid) {
-					this.workbenchGrid.resizeView(view, this.workbenchGrid.getViewSize(view) + sizeChange);
+					const { width, height } = this.workbenchGrid.getViewSize(view);
+					this.workbenchGrid.resizeView(view, { width: width + sizeChange, height: height + sizeChange });
 				} else {
 					this.workbenchGrid.resizePart(part, sizeChange);
 				}
@@ -1117,9 +1118,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (this.state.panel.position === Position.BOTTOM) {
-			this.state.panel.height = this.workbenchGrid.getViewSize(this.panelPartView);
+			this.state.panel.height = this.workbenchGrid.getViewSize(this.panelPartView).height;
 		} else {
-			this.state.panel.width = this.workbenchGrid.getViewSize(this.panelPartView);
+			this.state.panel.width = this.workbenchGrid.getViewSize(this.panelPartView).width;
 		}
 	}
 

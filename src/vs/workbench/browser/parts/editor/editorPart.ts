@@ -326,13 +326,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
-	getSize(group: IEditorGroupView | GroupIdentifier): number {
+	getSize(group: IEditorGroupView | GroupIdentifier): { width: number, height: number } {
 		const groupView = this.assertGroupView(group);
 
 		return this.gridWidget.getViewSize(groupView);
 	}
 
-	setSize(group: IEditorGroupView | GroupIdentifier, size: number): void {
+	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number, height: number }): void {
 		const groupView = this.assertGroupView(group);
 
 		this.gridWidget.resizeView(groupView, size);

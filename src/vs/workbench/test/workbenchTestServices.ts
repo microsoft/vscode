@@ -703,11 +703,11 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		throw new Error('not implemented');
 	}
 
-	getSize(_group: number | IEditorGroup): number {
-		return 100;
+	getSize(_group: number | IEditorGroup): { width: number, height: number } {
+		return { width: 100, height: 100 };
 	}
 
-	setSize(_group: number | IEditorGroup, _size: number): void { }
+	setSize(_group: number | IEditorGroup, _size: { width: number, height: number }): void { }
 
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 
