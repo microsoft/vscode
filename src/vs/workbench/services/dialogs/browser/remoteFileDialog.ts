@@ -65,7 +65,7 @@ export class RemoteFileDialog {
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null;
 	private separator: string;
 	private onBusyChangeEmitter = new Emitter<boolean>();
-	private updatingPromise: CancelablePromise<void>[] = [];
+	private updatingPromise: CancelablePromise<void> | undefined;
 
 	protected disposables: IDisposable[] = [
 		this.onBusyChangeEmitter
@@ -735,17 +735,16 @@ export class RemoteFileDialog {
 					this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 				}
 				this.busy = false;
-				this.updatingPromise.shift();
+				this.updatingPromise = undefined;
 			});
 		});
 
-		this.updatingPromise.push(updatingPromise);
-		// Always keep one update around so that we can get into the most recent folder.
-		if (this.updatingPromise.length > 1) {
-			this.updatingPromise.shift()!.cancel();
+		if (this.updatingPromise !== undefined) {
+			this.updatingPromise.cancel();
 		}
-		return updatingPromise;
+		this.updatingPromise = updatingPromise;
 
+		return updatingPromise;
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
