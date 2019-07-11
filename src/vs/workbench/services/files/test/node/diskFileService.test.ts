@@ -14,13 +14,13 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream, ReadStream } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, writeableBufferStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, toVSBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -56,16 +56,6 @@ function toLineByLineReadable(content: string): VSBufferReadable {
 			return null;
 		}
 	};
-}
-
-function nodeStreamToVSBufferStream(stream: ReadStream): VSBufferReadableStream {
-	const vsbufferStream = writeableBufferStream();
-
-	stream.on('data', data => vsbufferStream.write(VSBuffer.wrap(data)));
-	stream.on('end', () => vsbufferStream.end());
-	stream.on('error', error => vsbufferStream.error(error));
-
-	return vsbufferStream;
 }
 
 export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
@@ -1573,7 +1563,7 @@ suite('Disk File Service', () => {
 		const source = URI.file(join(testDir, 'small.txt'));
 		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
@@ -1585,7 +1575,7 @@ suite('Disk File Service', () => {
 		const source = URI.file(join(testDir, 'lorem.txt'));
 		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
@@ -1597,7 +1587,7 @@ suite('Disk File Service', () => {
 		const source = URI.file(join(testDir, 'small.txt'));
 		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
@@ -1609,7 +1599,7 @@ suite('Disk File Service', () => {
 		const source = URI.file(join(testDir, 'lorem.txt'));
 		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, nodeStreamToVSBufferStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
