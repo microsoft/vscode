@@ -6,7 +6,6 @@
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
-import { isLinux } from 'vs/base/common/platform';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -429,10 +428,10 @@ export class FileChangesEvent {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (change.type === FileChangeType.DELETED) {
-				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource);
 			}
 
-			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource);
 		});
 	}
 
