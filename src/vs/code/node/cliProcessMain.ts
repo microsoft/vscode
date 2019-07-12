@@ -111,7 +111,13 @@ export class Main {
 	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		if (category) {
-			extensions = extensions.filter(e => e.manifest.categories && e.manifest.categories.indexOf(category) > -1);
+			extensions = extensions.filter(e => {
+				if (e.manifest.categories) {
+					const lowerCaseCategories: string[] = e.manifest.categories.map(c => c.toLowerCase());
+					return lowerCaseCategories.indexOf(category.toLowerCase()) > -1;
+				}
+				return false;
+			});
 		}
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
