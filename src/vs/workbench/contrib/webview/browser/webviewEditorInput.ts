@@ -14,14 +14,13 @@ import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
 import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
 export class WebviewEditorInput<State = any> extends EditorInput {
-	private static handlePool = 0;
 
 	private static _styleElement?: HTMLStyleElement;
 
-	private static _icons = new Map<number, { light: URI, dark: URI }>();
+	private static _icons = new Map<string, { light: URI, dark: URI }>();
 
 	private static updateStyleElement(
-		id: number,
+		id: string,
 		iconPath: { light: URI, dark: URI } | undefined
 	) {
 		if (!this._styleElement) {
@@ -68,9 +67,9 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 		readonly location: URI;
 		readonly id: ExtensionIdentifier;
 	};
-	private readonly _id: number;
 
 	constructor(
+		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
 		options: WebviewInputOptions,
@@ -83,8 +82,6 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-
-		this._id = WebviewEditorInput.handlePool++;
 
 		this._name = name;
 		this._options = options;
@@ -120,7 +117,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	public getResource(): URI {
 		return URI.from({
 			scheme: 'webview-panel',
-			path: `webview-panel/webview-${this._id}`
+			path: `webview-panel/webview-${this.id}`
 		});
 	}
 
@@ -147,7 +144,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.updateStyleElement(this._id, value);
+		WebviewEditorInput.updateStyleElement(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -213,7 +210,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	public get container(): HTMLElement {
 		if (!this._container) {
 			this._container = document.createElement('div');
-			this._container.id = `webview-${this._id}`;
+			this._container.id = `webview-${this.id}`;
 			const part = this._layoutService.getContainer(Parts.EDITOR_PART);
 			part.appendChild(this._container);
 		}
@@ -301,6 +298,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 	private _revived: boolean = false;
 
 	constructor(
+		id: string,
 		viewType: string,
 		name: string,
 		options: WebviewInputOptions,
@@ -313,7 +311,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
-		super(viewType, name, options, state, events, extension, partService);
+		super(id, viewType, name, options, state, events, extension, partService);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

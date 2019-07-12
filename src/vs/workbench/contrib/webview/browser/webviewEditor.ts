@@ -243,7 +243,7 @@ export class WebviewEditor extends BaseEditor {
 				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 			}
 
-			this._webview = this._webviewService.createWebview(
+			this._webview = this._webviewService.createWebview(input.id,
 				{
 					allowSvgs: true,
 					extension: input.extension,
