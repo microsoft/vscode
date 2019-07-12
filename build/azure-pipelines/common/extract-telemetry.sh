@@ -2,9 +2,6 @@
 set -e
 
 cd $BUILD_STAGINGDIRECTORY
-ls
-echo $BUILD_SOURCESDIRECTORY
-echo $BUILD_STAGINGDIRECTORY
 mkdir extraction
 cd extraction
 npm install vscode-telemetry-extractor@1.3.1
