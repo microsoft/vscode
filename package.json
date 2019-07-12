@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "3982f1fc849fa647074f18677a5e89dab9aa6bf2",
+  "distro": "dc5129c59a3e10c61d732b82f158f39ff306f984",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -35,12 +35,12 @@
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.5.0",
     "jschardet": "1.6.0",
-    "keytar": "4.2.1",
+    "keytar": "^4.11.0",
     "minimist": "1.2.0",
     "native-is-elevated": "^0.2.1",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
-    "node-pty": "0.9.0-beta17",
+    "node-pty": "0.9.0-beta19",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@types/keytar": "^4.0.1",
+    "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",
@@ -155,6 +155,6 @@
     "vscode-windows-registry": "1.0.1",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "0.2.1",
-    "windows-process-tree": "0.2.3"
+    "windows-process-tree": "0.2.4"
   }
 }

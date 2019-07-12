@@ -869,23 +869,63 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {
-		let view: View;
-		switch (part) {
-			case Parts.SIDEBAR_PART:
-				view = this.sideBarPartView;
-			case Parts.PANEL_PART:
-				view = this.panelPartView;
-			case Parts.EDITOR_PART:
-				view = this.editorPartView;
-				if (this.workbenchGrid instanceof Grid) {
-					const { width, height } = this.workbenchGrid.getViewSize(view);
-					this.workbenchGrid.resizeView(view, { width: width + sizeChange, height: height + sizeChange });
-				} else {
-					this.workbenchGrid.resizePart(part, sizeChange);
-				}
-				break;
-			default:
-				return; // Cannot resize other parts
+		if (this.workbenchGrid instanceof Grid) {
+			let viewSize;
+			const sizeChangePxWidth = this.workbenchGrid.width * sizeChange / 100;
+			const sizeChangePxHeight = this.workbenchGrid.height * sizeChange / 100;
+
+			switch (part) {
+				case Parts.SIDEBAR_PART:
+					viewSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
+					this.workbenchGrid.resizeView(this.sideBarPartView,
+						{
+							width: viewSize.width + sizeChangePxWidth,
+							height: viewSize.height
+						});
+
+					break;
+				case Parts.PANEL_PART:
+					viewSize = this.workbenchGrid.getViewSize(this.panelPartView);
+
+					this.workbenchGrid.resizeView(this.panelPartView,
+						{
+							width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
+							height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
+						});
+
+					break;
+				case Parts.EDITOR_PART:
+					viewSize = this.workbenchGrid.getViewSize(this.editorPartView);
+
+					// Single Editor Group
+					if (this.editorGroupService.count === 1) {
+						if (this.isVisible(Parts.SIDEBAR_PART)) {
+							this.workbenchGrid.resizeView(this.editorPartView,
+								{
+									width: viewSize.width + sizeChangePxWidth,
+									height: viewSize.height
+								});
+						} else if (this.isVisible(Parts.PANEL_PART)) {
+							this.workbenchGrid.resizeView(this.editorPartView,
+								{
+									width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
+									height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
+								});
+						}
+					} else {
+						const activeGroup = this.editorGroupService.activeGroup;
+
+						const { width, height } = this.editorGroupService.getSize(activeGroup);
+						this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
+					}
+
+					break;
+				default:
+					return; // Cannot resize other parts
+			}
+		} else {
+			// Legacy Layout
+			this.workbenchGrid.resizePart(part, sizeChange);
 		}
 	}
 
