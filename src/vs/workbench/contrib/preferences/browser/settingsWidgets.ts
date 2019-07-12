@@ -246,7 +246,8 @@ export class ListSettingWidget extends Disposable {
 			editActionTooltip: localize('editItem', "Edit Item"),
 			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
 			addButtonLabel: localize('addItem', "Add Item"),
-			inputPlaceholder: localize('itemInputPlaceholder', "String Item...")
+			inputPlaceholder: localize('itemInputPlaceholder', "String Item..."),
+			siblingInputPlaceholder: localize('listSiblingInputPlaceholder', "Sibling...")
 		};
 	}
 
@@ -459,7 +460,7 @@ export class ListSettingWidget extends Disposable {
 		let siblingInput: InputBox;
 		if (item.sibling) {
 			siblingInput = new InputBox(rowElement, this.contextViewService, {
-				placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
+				placeholder: this.getLocalizedStrings().siblingInputPlaceholder
 			});
 			siblingInput.element.classList.add('setting-list-siblingInput');
 			this.listDisposables.add(siblingInput);
@@ -501,7 +502,8 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 			editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
 			complexEditActionTooltip: localize('editExcludeItemInSettingsJson', "Edit Exclude Item in settings.json"),
 			addButtonLabel: localize('addPattern', "Add Pattern"),
-			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
+			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern..."),
+			siblingInputPlaceholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
 		};
 	}
 
