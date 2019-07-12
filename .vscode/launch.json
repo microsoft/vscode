@@ -139,10 +139,7 @@
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
-				"--no-cached-data",
-				"--extensionDevelopmentPath",
-				"/Users/octref/Code/work/vscode-extension-samples/helloworld-minimal-sample",
-				"/Users/octref/Code/work/vscode-extension-samples/helloworld-minimal-sample"
+				"--no-cached-data"
 			],
 			"webRoot": "${workspaceFolder}"
 		},
