@@ -29,4 +29,8 @@ export class ProductService implements IProductService {
 	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } { return product.sendASmile; }
 
 	get extensionsGallery() { return product.extensionsGallery; }
+
+	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
+
+	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
 }
