@@ -27,7 +27,8 @@
           ".swcrc",
           ".webmanifest",
           ".js.map",
-          ".css.map"
+          ".css.map",
+          ".har"
         ],
         "filenames": [
           "composer.lock",
