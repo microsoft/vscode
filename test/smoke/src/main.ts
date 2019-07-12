@@ -29,6 +29,7 @@ import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.te
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
+import { platform } from 'os';
 
 if (!/^v10/.test(process.version)) {
 	console.error('Error: Smoketest must be run using Node 10. Currently running', process.version);
@@ -156,7 +157,12 @@ async function setupRepository(): Promise<void> {
 		console.log('*** Copying test project repository:', opts['test-repo']);
 		rimraf.sync(workspacePath);
 		// not platform friendly
-		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		if (process.platform === 'win32') {
+			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
+		} else {
+			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		}
+
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			console.log('*** Cloning test project repository...');
