@@ -672,7 +672,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'exclude');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
+		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, 'array-of-string', common.controlElement);
 		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.push(excludeWidget);
 
@@ -743,7 +743,7 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'exclude');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
+		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, 'exclude', common.controlElement);
 		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.push(excludeWidget);
 

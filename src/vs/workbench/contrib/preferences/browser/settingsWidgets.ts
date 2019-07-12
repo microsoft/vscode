@@ -212,6 +212,7 @@ export class ExcludeSettingWidget extends Disposable {
 	}
 
 	constructor(
+		private type: 'exclude' | 'array-of-string',
 		private container: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -240,6 +241,29 @@ export class ExcludeSettingWidget extends Disposable {
 				e.stopPropagation();
 			}
 		}));
+	}
+
+	/**
+	 * All localized strings except those related to `siblings`, which are only present when used as Exclude widget.
+	 */
+	private getLocalizedStrings() {
+		if (this.type === 'exclude') {
+			return {
+				deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
+				editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
+				complexEditActionTooltip: localize('editExcludeItemInSettingsJson', "Edit Exclude Item in settings.json"),
+				addButtonLabel: localize('addPattern', "Add Pattern"),
+				inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
+			};
+		} else {
+			return {
+				deleteActionTooltip: localize('removeItem', "Remove Item"),
+				editActionTooltip: localize('editItem', "Edit Item"),
+				complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
+				addButtonLabel: localize('addItem', "Add Item"),
+				inputPlaceholder: localize('itemInputPlaceholder', "String Item...")
+			};
+		}
 	}
 
 	setValue(excludeData: IExcludeDataItem[]): void {
@@ -324,7 +348,7 @@ export class ExcludeSettingWidget extends Disposable {
 			class: 'setting-excludeAction-remove',
 			enabled: true,
 			id: 'workbench.action.removeExcludeItem',
-			tooltip: localize('removeExcludeItem', "Remove Exclude Item"),
+			tooltip: this.getLocalizedStrings().deleteActionTooltip,
 			run: () => this._onDidChangeExclude.fire({ originalPattern: key, pattern: undefined })
 		};
 	}
@@ -334,19 +358,19 @@ export class ExcludeSettingWidget extends Disposable {
 			class: 'setting-excludeAction-edit',
 			enabled: true,
 			id: 'workbench.action.editExcludeItem',
-			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
+			tooltip: this.getLocalizedStrings().editActionTooltip,
 			run: () => {
 				this.editSetting(key);
 			}
 		};
 	}
 
-	private createComplexEditAction(key: string): IAction {
+	private createComplexEditAction(): IAction {
 		return <IAction>{
 			class: 'setting-excludeAction-edit',
 			enabled: true,
 			id: 'workbench.action.editExcludeItemSettingsJson',
-			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
+			tooltip: this.getLocalizedStrings().complexEditActionTooltip,
 			run: () => {
 				this.preferenceService.openSettings(true, undefined);
 			}
@@ -386,7 +410,7 @@ export class ExcludeSettingWidget extends Disposable {
 		} else {
 			patternElement.textContent = '(Complex Object)';
 			actionBar.push([
-				this.createComplexEditAction(item.pattern)
+				this.createComplexEditAction()
 			], { icon: true, label: false });
 		}
 
@@ -409,7 +433,7 @@ export class ExcludeSettingWidget extends Disposable {
 		const rowElement = $('.setting-exclude-new-row');
 
 		const startAddButton = this._register(new Button(rowElement));
-		startAddButton.label = localize('addPattern', "Add Pattern");
+		startAddButton.label = this.getLocalizedStrings().addButtonLabel;
 		startAddButton.element.classList.add('setting-exclude-addButton');
 		this._register(attachButtonStyler(startAddButton, this.themeService));
 
@@ -447,7 +471,7 @@ export class ExcludeSettingWidget extends Disposable {
 		};
 
 		const patternInput = new InputBox(rowElement, this.contextViewService, {
-			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
+			placeholder: this.getLocalizedStrings().inputPlaceholder
 		});
 		patternInput.element.classList.add('setting-exclude-patternInput');
 		this.listDisposables.add(attachInputBoxStyler(patternInput, this.themeService, {
