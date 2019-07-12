@@ -46,6 +46,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		windowsEnableConpty: boolean,
 		@ILogService private readonly _logService: ILogService
 	) {
+		console.log('pty ctor');
 		let shellName: string;
 		if (os.platform() === 'win32') {
 			shellName = path.basename(shellLaunchConfig.executable || '');
@@ -95,6 +96,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		});
 
 		Promise.all([cwdVerification, exectuableVerification]).then(() => {
+			console.log('pty spawn', options);
 			this.setupPtyProcess(shellLaunchConfig, options);
 		}).catch((exitCode: number) => {
 			return this._launchFailed(exitCode);
@@ -226,6 +228,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
 			return;
 		}
+		console.log('resize pty', cols, rows);
 		// Ensure that cols and rows are always >= 1, this prevents a native
 		// exception in winpty.
 		if (this._ptyProcess) {

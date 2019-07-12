@@ -1084,8 +1084,11 @@ declare module 'vscode' {
 
 		/**
 		 * Implement to handle when the terminal is ready to start firing events.
+		 *
+		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
+		 * terminal panel has not yet been opened.
 		 */
-		start?(): void;
+		start?(initialDimensions: TerminalDimensions | undefined): void;
 	}
 
 	//#endregion

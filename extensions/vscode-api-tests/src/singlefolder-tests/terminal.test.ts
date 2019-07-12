@@ -313,6 +313,26 @@ suite('window namespace tests', () => {
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
 
+			test('should fire provide dimensions on start as the terminal has been shown', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					equal(terminal, term);
+					reg1.dispose();
+				});
+				const virtualProcess: TerminalVirtualProcess = {
+					onDidWrite: new EventEmitter<string>().event,
+					start: (dimensions) => {
+						ok(dimensions!.columns > 0);
+						ok(dimensions!.rows > 0);
+						const reg3 = window.onDidCloseTerminal(() => {
+							reg3.dispose();
+							done();
+						});
+						terminal.dispose();
+					}
+				};
+				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+			});
+
 			test('should respect dimension overrides', (done) => {
 				const reg1 = window.onDidOpenTerminal(term => {
 					equal(terminal, term);
