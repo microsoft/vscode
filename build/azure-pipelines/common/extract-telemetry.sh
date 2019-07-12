@@ -2,7 +2,6 @@
 set -e
 
 cd $BUILD_STAGINGDIRECTORY
-echo $BUILD_SOURCESDIRECTORY
 mkdir extraction
 cd extraction
 npm install vscode-telemetry-extractor@1.3.1
@@ -16,6 +15,6 @@ git clone --depth 1 https://github.com/Microsoft/vscode-json-languageservice.git
 ./node_modules/.bin/vscode-telemetry-extractor --config $BUILD_SOURCESDIRECTORY/build/azure-pipelines/common/telemetry-config.json -o .
 mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
 mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
-mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+mv config-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
 cd ..
 rm -rf extraction
