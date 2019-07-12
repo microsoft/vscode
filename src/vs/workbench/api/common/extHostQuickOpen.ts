@@ -54,6 +54,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
+			sortByLabel: options && options.sortByLabel,
 			ignoreFocusLost: options && options.ignoreFocusOut,
 			canPickMany: options && options.canPickMany
 		}, token);
@@ -485,6 +486,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
+	private _sortByLabel = true;
 	private _activeItems: T[] = [];
 	private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 	private _selectedItems: T[] = [];
@@ -548,6 +550,15 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	set matchOnDetail(matchOnDetail: boolean) {
 		this._matchOnDetail = matchOnDetail;
 		this.update({ matchOnDetail });
+	}
+
+	get sortByLabel() {
+		return this._sortByLabel;
+	}
+
+	set sortByLabel(sortByLabel: boolean) {
+		this._sortByLabel = sortByLabel;
+		this.update({ sortByLabel });
 	}
 
 	get activeItems() {

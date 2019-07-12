@@ -475,6 +475,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	matchOnDescription?: boolean;
 
+	sortByLabel?: boolean;
+
 	matchOnDetail?: boolean;
 }
 
