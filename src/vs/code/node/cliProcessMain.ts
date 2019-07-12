@@ -84,7 +84,7 @@ export class Main {
 			await this.setInstallSource(argv['install-source']);
 
 		} else if (argv['list-extensions']) {
-			await this.listExtensions(!!argv['show-versions']);
+			await this.listExtensions(!!argv['show-versions'], argv['category']);
 
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
@@ -108,8 +108,11 @@ export class Main {
 		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
-	private async listExtensions(showVersions: boolean): Promise<void> {
-		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
+		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		if (category) {
+			extensions = extensions.filter(e => e.manifest.categories && e.manifest.categories.indexOf(category) > -1);
+		}
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
