@@ -132,14 +132,10 @@ export class TokensStore {
 		this._len += insertCount;
 	}
 
-	private _setTokens(lineIndex: number, tokens: ArrayBuffer | null): void {
-		this._ensureLine(lineIndex);
-		this._lineTokens[lineIndex] = tokens;
-	}
-
 	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array): void {
 		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
-		this._setTokens(lineIndex, tokens);
+		this._ensureLine(lineIndex);
+		this._lineTokens[lineIndex] = tokens;
 	}
 
 	//#region Editing
