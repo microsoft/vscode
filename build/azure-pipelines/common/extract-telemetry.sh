@@ -5,7 +5,7 @@ cd $BUILD_STAGINGDIRECTORY
 echo $BUILD_SOURCESDIRECTORY
 mkdir extraction
 cd extraction
-npm install vscode-telemetry-extractor@1.3.0
+npm install vscode-telemetry-extractor@1.3.1
 git clone --depth 1 https://github.com/Microsoft/vscode-extension-telemetry.git
 git clone --depth 1 https://github.com/Microsoft/vscode-chrome-debug-core.git
 git clone --depth 1 https://github.com/Microsoft/vscode-node-debug2.git
