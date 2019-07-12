@@ -2,7 +2,7 @@
 	{
 		"eventPrefix": "typescript-language-features/",
 		"sourceDirs": [
-			"../s/extensions/typescript-language-features"
+			"../../s/extensions/typescript-language-features"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true
@@ -10,7 +10,7 @@
 	{
 		"eventPrefix": "git/",
 		"sourceDirs": [
-			"../s/extensions/git"
+			"../../s/extensions/git"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true
@@ -26,7 +26,7 @@
 	{
 		"eventPrefix": "vscode-markdown/",
 		"sourceDirs": [
-			"../s/extensions/markdown-language-features"
+			"../../s/extensions/markdown-language-features"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true
@@ -34,7 +34,7 @@
 	{
 		"eventPrefix": "html-language-features/",
 		"sourceDirs": [
-			"../s/extensions/html-language-features",
+			"../../s/extensions/html-language-features",
 			"vscode-html-languageservice"
 		],
 		"excludedDirs": [],
@@ -43,7 +43,7 @@
 	{
 		"eventPrefix": "json-language-features/",
 		"sourceDirs": [
-			"../s/extensions/json-language-features",
+			"../../s/extensions/json-language-features",
 			"vscode-json-languageservice"
 		],
 		"excludedDirs": [],
