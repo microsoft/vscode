@@ -29,7 +29,6 @@ import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.te
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
-import { platform } from 'os';
 
 if (!/^v10/.test(process.version)) {
 	console.error('Error: Smoketest must be run using Node 10. Currently running', process.version);
