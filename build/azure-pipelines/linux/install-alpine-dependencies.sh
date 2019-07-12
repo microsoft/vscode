@@ -2,4 +2,4 @@
 set -e
 
 echo "Installing remote dependencies"
-(cd remote && yarn remove keytar && yarn)
+(cd remote && yarn)
