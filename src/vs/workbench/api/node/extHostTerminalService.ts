@@ -287,6 +287,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 	private _variableResolver: ExtHostVariableResolverService | undefined;
+	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -308,9 +309,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		private _extHostConfiguration: ExtHostConfiguration,
 		private _extHostWorkspace: ExtHostWorkspace,
 		private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private _logService: ILogService,
+		private _logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
+		this.registerListeners();
 		this._extHostConfiguration.getConfigProvider().then((configProvider) => {
 			this._extHostWorkspace.getWorkspaceFolders2().then((workspaceFolders) => {
 				this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
@@ -377,6 +379,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
+			this._lastActiveWorkspace,
 			this._variableResolver
 		);
 	}
@@ -389,7 +392,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._variableResolver);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._lastActiveWorkspace, this._variableResolver);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -536,6 +539,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const env = await getMainProcessParentEnv();
 		env.VSCODE_IPC_HOOK_CLI = process.env['VSCODE_IPC_HOOK_CLI']!;
 		return env;
+	}
+
+	private registerListeners() {
+		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => {
+			if (e) {
+				this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(e.document.uri) as IWorkspaceFolder;
+			}
+		});
 	}
 
 	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {

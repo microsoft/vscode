@@ -169,6 +169,7 @@ export function getDefaultShell(
 	defaultShell: string,
 	isWoW64: boolean,
 	windir: string | undefined,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
 	platformOverride: platform.Platform = platform.platform,
 ): string {
@@ -192,7 +193,7 @@ export function getDefaultShell(
 	}
 
 	if (configurationResolverService) {
-		executable = configurationResolverService.resolve(undefined, executable);
+		executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
 	}
 
 	return executable;
@@ -201,6 +202,7 @@ export function getDefaultShell(
 export function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
 	platformOverride: platform.Platform = platform.platform,
 ): string[] {
@@ -210,7 +212,7 @@ export function getDefaultShellArgs(
 	if (configurationResolverService) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
-			resolvedArgs.push(configurationResolverService.resolve(undefined, arg));
+			resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
 		}
 		args = resolvedArgs;
 	}
