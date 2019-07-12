@@ -416,7 +416,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			console.error(err);
 		});
 
-		this._extHostWorkspace.onDidChangeWorkspace(({ added }) => this._handleWorkspaceContainsEagerExtensions(added), this, this._disposables);
+		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
 		return this._handleWorkspaceContainsEagerExtensions(folders);
 	}
@@ -425,6 +425,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		if (folders.length === 0) {
 			return Promise.resolve(undefined);
 		}
+
 		return Promise.all(
 			this._registry.getAllExtensionDescriptions().map((desc) => {
 				return this._handleWorkspaceContainsEagerExtension(folders, desc);
@@ -461,7 +462,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 
 		const fileNamePromise = Promise.all(fileNames.map((fileName) => this._activateIfFileName(folders, desc.identifier, fileName))).then(() => { });
-		const globPatternPromise = this._activateIfGlobPatterns(desc.identifier, folders, globPatterns);
+		const globPatternPromise = this._activateIfGlobPatterns(folders, desc.identifier, globPatterns);
 
 		return Promise.all([fileNamePromise, globPatternPromise]).then(() => { });
 	}
@@ -482,7 +483,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return undefined;
 	}
 
-	private async _activateIfGlobPatterns(extensionId: ExtensionIdentifier, folders: ReadonlyArray<vscode.WorkspaceFolder>, globPatterns: string[]): Promise<void> {
+	private async _activateIfGlobPatterns(folders: ReadonlyArray<vscode.WorkspaceFolder>, extensionId: ExtensionIdentifier, globPatterns: string[]): Promise<void> {
 		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId.value}, entryPoint: workspaceContains`);
 
 		if (globPatterns.length === 0) {
