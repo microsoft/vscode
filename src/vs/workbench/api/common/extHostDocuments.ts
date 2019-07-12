@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -25,7 +25,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
 
-	private _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 	private _proxy: MainThreadDocumentsShape;
 	private _documentsAndEditors: ExtHostDocumentsAndEditors;
 	private _documentLoader = new Map<string, Promise<ExtHostDocumentData>>();
@@ -34,22 +34,20 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDocuments);
 		this._documentsAndEditors = documentsAndEditors;
 
-		this._toDispose = [
-			this._documentsAndEditors.onDidRemoveDocuments(documents => {
-				for (const data of documents) {
-					this._onDidRemoveDocument.fire(data.document);
-				}
-			}),
-			this._documentsAndEditors.onDidAddDocuments(documents => {
-				for (const data of documents) {
-					this._onDidAddDocument.fire(data.document);
-				}
-			})
-		];
+		this._documentsAndEditors.onDidRemoveDocuments(documents => {
+			for (const data of documents) {
+				this._onDidRemoveDocument.fire(data.document);
+			}
+		}, undefined, this._toDispose);
+		this._documentsAndEditors.onDidAddDocuments(documents => {
+			for (const data of documents) {
+				this._onDidAddDocument.fire(data.document);
+			}
+		}, undefined, this._toDispose);
 	}
 
 	public dispose(): void {
-		dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	public getAllDocumentData(): ExtHostDocumentData[] {

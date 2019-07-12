@@ -323,6 +323,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
 
 	public run(): Promise<any> {
@@ -331,7 +332,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name);
+		const focusedExpression = this.debugService.getViewModel().getSelectedExpression();
+		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name && we !== focusedExpression);
 	}
 }
 
@@ -396,11 +398,11 @@ export class CopyValueAction extends Action {
 
 		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
 			return session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context).then(result => {
-				this.clipboardService.writeText(result.body.result);
+				return this.clipboardService.writeText(result.body.result);
 			}, err => this.clipboardService.writeText(this.value.value));
 		}
 
-		this.clipboardService.writeText(this.value);
-		return Promise.resolve(undefined);
+
+		return this.clipboardService.writeText(this.value);
 	}
 }

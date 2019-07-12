@@ -346,9 +346,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void {
+	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void {
 		const provider: modes.CompletionItemProvider = {
 			triggerCharacters,
+			_debugDisplayName: extensionId.value,
 			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
 				return this._proxy.$provideCompletionItems(handle, model.uri, position, context, token).then(result => {
 					if (!result) {
@@ -384,8 +385,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			signatureHelpTriggerCharacters: metadata.triggerCharacters,
 			signatureHelpRetriggerCharacters: metadata.retriggerCharacters,
 
-			provideSignatureHelp: (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelp | undefined> => {
-				return this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
+			provideSignatureHelp: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> => {
+				const result = await this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
+				if (!result) {
+					return undefined;
+				}
+				return {
+					value: result,
+					dispose: () => {
+						this._proxy.$releaseSignatureHelp(handle, result.id);
+					}
+				};
 			}
 		});
 	}

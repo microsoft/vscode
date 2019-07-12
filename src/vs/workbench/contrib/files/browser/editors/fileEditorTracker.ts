@@ -16,7 +16,6 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isLinux } from 'vs/base/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -221,7 +220,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = this.getIndexOfPath(resource.path, oldResource.path);
+							const index = this.getIndexOfPath(resource.path, oldResource.path, resources.hasToIgnoreCase(resource));
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
@@ -244,7 +243,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private getIndexOfPath(path: string, candidate: string): number {
+	private getIndexOfPath(path: string, candidate: string, ignoreCase: boolean): number {
 		if (candidate.length > path.length) {
 			return -1;
 		}
@@ -253,7 +252,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			return 0;
 		}
 
-		if (!isLinux /* ignore case */) {
+		if (ignoreCase) {
 			path = path.toLowerCase();
 			candidate = candidate.toLowerCase();
 		}

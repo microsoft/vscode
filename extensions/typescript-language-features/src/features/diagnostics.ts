@@ -208,7 +208,7 @@ export class DiagnosticsManager extends Disposable {
 
 	public configFileDiagnosticsReceived(
 		file: vscode.Uri,
-		diagnostics: vscode.Diagnostic[]
+		diagnostics: ReadonlyArray<vscode.Diagnostic>
 	): void {
 		this._currentDiagnostics.set(file, diagnostics);
 	}
@@ -218,7 +218,7 @@ export class DiagnosticsManager extends Disposable {
 		this._diagnostics.delete(resource);
 	}
 
-	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
+	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		return this._currentDiagnostics.get(file) || [];
 	}
 

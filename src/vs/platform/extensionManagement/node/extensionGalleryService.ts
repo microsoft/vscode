@@ -9,10 +9,9 @@ import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/commo
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
+import { IRequestService, IRequestOptions, IRequestContext, asJson, asText } from 'vs/platform/request/common/request';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
@@ -23,6 +22,8 @@ import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -202,13 +203,16 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 	return result ? result.value : 0;
 }
 
-function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): { [languageId: string]: IGalleryExtensionAsset } {
+function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): [string, IGalleryExtensionAsset][] {
 	const coreTranslationAssetPrefix = 'Microsoft.VisualStudio.Code.Translation.';
 	const result = version.files.filter(f => f.assetType.indexOf(coreTranslationAssetPrefix) === 0);
-	return result.reduce((result, file) => {
-		result[file.assetType.substring(coreTranslationAssetPrefix.length)] = getVersionAsset(version, file.assetType);
+	return result.reduce<[string, IGalleryExtensionAsset][]>((result, file) => {
+		const asset = getVersionAsset(version, file.assetType);
+		if (asset) {
+			result.push([file.assetType.substring(coreTranslationAssetPrefix.length), asset]);
+		}
 		return result;
-	}, {});
+	}, []);
 }
 
 function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset | null {
@@ -324,8 +328,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	_serviceBrand: any;
 
-	private extensionsGalleryUrl: string;
-	private extensionsControlUrl: string;
+	private extensionsGalleryUrl: string | undefined;
+	private extensionsControlUrl: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 
@@ -333,7 +337,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -552,7 +557,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		} : extension.assets.download;
 
 		return this.getAsset(downloadAsset)
-			.then(context => download(zipPath, context))
+			.then(context => this.fileService.writeFile(URI.file(zipPath), context.stream))
 			.then(() => log(new Date().getTime() - startTime))
 			.then(() => zipPath);
 	}
@@ -576,9 +581,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
-		const asset = extension.assets.coreTranslations[languageId.toUpperCase()];
+		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
-			return this.getAsset(asset)
+			return this.getAsset(asset[1])
 				.then(asText)
 				.then(JSON.parse);
 		}
@@ -647,21 +652,26 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					}
 
 					const message = getErrorMessage(err);
-					/* __GDPR__
-						"galleryService:requestError" : {
-							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
-					/* __GDPR__
-						"galleryService:cdnFallback" : {
-							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
+					type GalleryServiceRequestErrorClassification = {
+						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						cdn: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						message: { classification: 'CallstackOrException', purpose: 'FeatureInsight' };
+					};
+					type GalleryServiceRequestErrorEvent = {
+						url: string;
+						cdn: boolean;
+						message: string;
+					};
+					this.telemetryService.publicLog2<GalleryServiceRequestErrorEvent, GalleryServiceRequestErrorClassification>('galleryService:requestError', { url, cdn: true, message });
+					type GalleryServiceCDNFallbackClassification = {
+						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					};
+					type GalleryServiceCDNFallbackEvent = {
+						url: string;
+						message: string;
+					};
+					this.telemetryService.publicLog2<GalleryServiceCDNFallbackEvent, GalleryServiceCDNFallbackClassification>('galleryService:cdnFallback', { url, message });
 
 					const fallbackOptions = assign({}, options, { url: fallbackUrl });
 					return this.requestService.request(fallbackOptions, token).then(undefined, err => {
@@ -670,14 +680,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						}
 
 						const message = getErrorMessage(err);
-						/* __GDPR__
-							"galleryService:requestError" : {
-								"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-								"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
+						this.telemetryService.publicLog2<GalleryServiceRequestErrorEvent, GalleryServiceRequestErrorClassification>('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
 						return Promise.reject(err);
 					});
 				});

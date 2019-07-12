@@ -12,6 +12,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class WindowsService implements IWindowsService {
 
@@ -193,6 +194,10 @@ export class WindowsService implements IWindowsService {
 
 	openNewWindow(options?: INewWindowOptions): Promise<void> {
 		return this.channel.call('openNewWindow', options);
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
 	}
 
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {

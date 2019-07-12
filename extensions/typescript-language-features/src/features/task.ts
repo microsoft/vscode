@@ -72,6 +72,12 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	public resolveTask(_task: vscode.Task): vscode.Task | undefined {
+		const definition = <TypeScriptTaskDefinition>_task.definition;
+		const badTsconfig = '\\tsconfig.json';
+		if ((definition.tsconfig.length > badTsconfig.length) && (definition.tsconfig.substring(definition.tsconfig.length - badTsconfig.length, definition.tsconfig.length) === badTsconfig)) {
+			// Warn that the task has the wrong slash type
+			vscode.window.showWarningMessage(localize('badTsConfig', "Typescript Task in tasks.json contains \"\\\\\". Typescript tasks must use \"/\""));
+		}
 		return undefined;
 	}
 
@@ -234,8 +240,10 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
-			return path.posix.relative(project.workspaceFolder.uri.path, project.posixPath);
+			const workspaceNormalizedUri = vscode.Uri.file(path.normalize(project.workspaceFolder.uri.fsPath)); // Make sure the drive letter is lowercase
+			return path.posix.relative(workspaceNormalizedUri.path, project.posixPath);
 		}
+
 		return project.posixPath;
 	}
 

@@ -259,18 +259,16 @@ export class RefreshAction extends Action {
 	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
-	private searchView: SearchView | undefined;
-
 	constructor(id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
-		this.searchView = getSearchView(this.viewletService, this.panelService);
 	}
 
 	get enabled(): boolean {
-		return !!this.searchView && this.searchView.isSearchSubmitted();
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		return !!searchView && searchView.hasSearchResults();
 	}
 
 	update(): void {
@@ -386,7 +384,7 @@ export class CancelSearchAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = !!searchView && searchView.isSearching();
+		this.enabled = !!searchView && searchView.isSlowSearch();
 	}
 
 	run(): Promise<void> {
@@ -673,11 +671,11 @@ function uriToClipboardString(resource: URI): string {
 	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath)) : resource.toString();
 }
 
-export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {
+export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
 	const text = uriToClipboardString(fileMatch.resource());
-	clipboardService.writeText(text);
+	await clipboardService.writeText(text);
 };
 
 function matchToString(match: Match, indent = 0): string {
@@ -738,7 +736,7 @@ function folderMatchToString(folderMatch: FolderMatch | BaseFolderMatch, maxMatc
 }
 
 const maxClipboardMatches = 1e4;
-export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMatch) => {
+export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
 	let text: string | undefined;
@@ -751,7 +749,7 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 	}
 
 	if (text) {
-		clipboardService.writeText(text);
+		await clipboardService.writeText(text);
 	}
 };
 
@@ -770,7 +768,7 @@ function allFolderMatchesToString(folderMatches: Array<FolderMatch | BaseFolderM
 	return folderResults.join(lineDelimiter + lineDelimiter);
 }
 
-export const copyAllCommand: ICommandHandler = accessor => {
+export const copyAllCommand: ICommandHandler = async (accessor) => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const clipboardService = accessor.get(IClipboardService);
@@ -780,7 +778,7 @@ export const copyAllCommand: ICommandHandler = accessor => {
 		const root = searchView.searchResult;
 
 		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
-		clipboardService.writeText(text);
+		await clipboardService.writeText(text);
 	}
 };
 

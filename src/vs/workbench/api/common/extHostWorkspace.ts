@@ -9,7 +9,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
-import { isLinux } from 'vs/base/common/platform';
 import { basenameOrAuthority, dirname, isEqual, relativePath, basename } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -34,7 +33,7 @@ export interface IExtHostWorkspaceProvider {
 }
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
-	return isEqual(folderA, folderB, !isLinux);
+	return isEqual(folderA, folderB);
 }
 
 function compareWorkspaceFolderByUri(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {

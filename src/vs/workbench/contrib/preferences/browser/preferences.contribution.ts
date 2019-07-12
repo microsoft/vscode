@@ -13,7 +13,7 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext, RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext, RemoteAuthorityContext, IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -332,10 +332,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	handler: (accessor, args: any) => {
+	handler: async (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybinding(control.activeKeybindingEntry!);
+			await control.copyKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -345,10 +345,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: 0,
-	handler: (accessor, args: any) => {
+	handler: async (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybindingCommand(control.activeKeybindingEntry!);
+			await control.copyKeybindingCommand(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -381,8 +381,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: OpenGlobalKeybindingsAction.ID,
 				title: OpenGlobalKeybindingsAction.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
@@ -397,8 +397,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: commandId,
 				title: OpenSettings2Action.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
@@ -438,8 +438,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: commandId,
 					title: OpenSettings2Action.LABEL,
 					iconLocation: {
-						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 					}
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
@@ -466,8 +466,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						id: commandId,
 						title: OpenSettings2Action.LABEL,
 						iconLocation: {
-							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
-							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
+							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 						}
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
@@ -533,8 +533,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
 		iconLocation: {
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json.svg`)),
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-inverse.svg`))
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-dark.svg`))
 		}
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
@@ -741,10 +741,20 @@ CommandsRegistry.registerCommand(SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, serviceA
 	const control = serviceAccessor.get(IEditorService).activeControl as SettingsEditor2;
 	if (control instanceof SettingsEditor2) {
 		control.focusSearch(`@tag:usesOnlineServices`);
+	} else {
+		serviceAccessor.get(IPreferencesService).openSettings(false, '@tag:usesOnlineServices');
 	}
 });
 
 // Preferences menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+	submenu: MenuId.MenubarPreferencesMenu,
+	group: '5_autosave',
+	order: 2,
+	when: IsMacNativeContext.toNegated() // on macOS native the preferences menu is separate under the application menu
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '1_settings',
@@ -753,6 +763,33 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_COMMAND_OPEN_SETTINGS,
+		title: nls.localize('settings', "Settings")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '1_settings',
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize('onlineServices', "Online Services Settings")
+	},
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -764,6 +801,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 1
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_keybindings',
+	command: {
+		id: OpenGlobalKeybindingsAction.ID,
+		title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts")
+	},
+	order: 1
+});
+
 // Editor tool items
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -771,8 +817,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
 		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-inverse.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json.svg'))
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-light.svg'))
 		}
 	},
 	group: 'navigation',

@@ -49,7 +49,7 @@ export namespace Event {
 
 	/**
 	 * Given an event and a `map` function, returns another event which maps each element
-	 * throught the mapping function.
+	 * through the mapping function.
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
@@ -90,7 +90,7 @@ export namespace Event {
 
 	/**
 	 * Given an event and a `merge` function, returns another event which maps each element
-	 * and the cummulative result throught the `merge` function. Similar to `map`, but with memory.
+	 * and the cumulative result through the `merge` function. Similar to `map`, but with memory.
 	 */
 	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
 		let output: O | undefined = initial;
@@ -271,7 +271,7 @@ export namespace Event {
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
-		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
 		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 	}
 
@@ -299,7 +299,7 @@ export namespace Event {
 			return new ChainableEvent(latch(this.event));
 		}
 
-		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
 			return this.event(listener, thisArgs, disposables);
 		}
 

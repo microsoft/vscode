@@ -10,7 +10,7 @@ import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } 
 import { platform, Platform } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -20,7 +20,7 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 export class DirtyFilesTracker extends Disposable implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
 	private lastDirtyCount: number;
-	private badgeHandle: IDisposable;
+	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -126,9 +126,9 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 	private updateActivityBadge(): void {
 		const dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
-		dispose(this.badgeHandle);
+		this.badgeHandle.clear();
 		if (dirtyCount > 0) {
-			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.badgeHandle.value = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		}
 	}
 

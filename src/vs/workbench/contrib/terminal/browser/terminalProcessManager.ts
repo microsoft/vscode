@@ -5,7 +5,7 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -29,6 +29,11 @@ const LAUNCHING_DURATION = 500;
  */
 const LATENCY_MEASURING_INTERVAL = 1000;
 
+enum ProcessType {
+	Process,
+	VirtualProcess
+}
+
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
@@ -46,10 +51,12 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public userHome: string | undefined;
 
 	private _process: ITerminalChildProcess | null = null;
+	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
 	private _latency: number = -1;
 	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
+	private _initialCwd: string;
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -61,6 +68,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
 	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -96,37 +105,43 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}
 	}
 
-	public createProcess(
+	public async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
-		rows: number
-	): void {
-		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
-		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
+		rows: number,
+		isScreenReaderModeEnabled: boolean
+	): Promise<void> {
+		if (shellLaunchConfig.isVirtualProcess) {
+			this._processType = ProcessType.VirtualProcess;
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
-			this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
-		}
-		const hasRemoteAuthority = !!this.remoteAuthority;
-		let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
-
-		this.userHome = this._environmentService.userHome;
-		this.os = platform.OS;
-		if (launchRemotely) {
-			if (hasRemoteAuthority) {
-				this._remoteAgentService.getEnvironment().then(env => {
-					if (!env) {
-						return;
-					}
-					this.userHome = env.userHome.path;
-					this.os = env.os;
-				});
+			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
+			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
+				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
+			} else {
+				this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
 			}
+			const hasRemoteAuthority = !!this.remoteAuthority;
+			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
-		} else {
-			this._process = this._launchProcess(shellLaunchConfig, cols, rows);
+			this.userHome = this._environmentService.userHome;
+			this.os = platform.OS;
+			if (launchRemotely) {
+				if (hasRemoteAuthority) {
+					this._remoteAgentService.getEnvironment().then(env => {
+						if (!env) {
+							return;
+						}
+						this.userHome = env.userHome.path;
+						this.os = env.os;
+					});
+				}
+
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+			} else {
+				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+			}
 		}
 		this.processState = ProcessState.LAUNCHING;
 
@@ -138,8 +153,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		});
 
-		this._process.onProcessIdReady(pid => {
-			this.shellProcessId = pid;
+		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
+			this.shellProcessId = e.pid;
+			this._initialCwd = e.cwd;
 			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
@@ -151,6 +167,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
 		this._process.onProcessExit(exitCode => this._onExit(exitCode));
+		if (this._process.onProcessOverrideDimensions) {
+			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));
+		}
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
@@ -159,9 +178,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}, LAUNCHING_DURATION);
 	}
 
-	private _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): ITerminalChildProcess {
+	private async _launchProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number,
+		isScreenReaderModeEnabled: boolean
+	): Promise<ITerminalChildProcess> {
 		if (!shellLaunchConfig.executable) {
-			this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, this._terminalInstanceService.getDefaultShell(platform.platform));
+			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs();
+			shellLaunchConfig.executable = defaultConfig.shell;
+			shellLaunchConfig.args = defaultConfig.args;
 		}
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -171,9 +197,10 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables);
+		const baseEnv = this._configHelper.config.inheritEnv ? process.env as platform.IProcessEnvironment : await this._terminalInstanceService.getMainProcessParentEnv();
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables, baseEnv);
 
-		const useConpty = this._configHelper.config.windowsEnableConpty;
+		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 
@@ -194,7 +221,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public write(data: string): void {
-		if (this.shellProcessId) {
+		if (this.shellProcessId || this._processType === ProcessType.VirtualProcess) {
 			if (this._process) {
 				// Send data if the pty is ready
 				this._process.input(data);
@@ -206,10 +233,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		if (!this._process) {
-			return Promise.resolve('');
-		}
-		return this._process.getInitialCwd();
+		return Promise.resolve(this._initialCwd);
 	}
 
 	public getCwd(): Promise<string> {

@@ -18,10 +18,8 @@ export class WebviewService implements IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
 	): Webview {
-		const element = this._instantiationService.createInstance(WebviewElement,
+		return this._instantiationService.createInstance(WebviewElement,
 			options,
 			contentOptions);
-
-		return element;
 	}
 }

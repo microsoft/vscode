@@ -141,16 +141,12 @@ export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement
 	const groupChildren = <SettingsTreeGroupElement[]>model.children.filter(c => c instanceof SettingsTreeGroupElement);
 	const groupsIt = Iterator.fromArray(groupChildren);
 
-
 	return Iterator.map(groupsIt, g => {
-		let nodeExists = true;
-		try { tree.getNode(g); } catch (e) { nodeExists = false; }
-
 		const hasGroupChildren = g.children.some(c => c instanceof SettingsTreeGroupElement);
 
 		return {
 			element: g,
-			collapsed: nodeExists ? undefined : true,
+			collapsed: undefined,
 			collapsible: hasGroupChildren,
 			children: g instanceof SettingsTreeGroupElement ?
 				createTOCIterator(g, tree) :
@@ -203,7 +199,8 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 				}
 			},
 			styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
-			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider)
+			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
+			collapseByDefault: true
 		};
 
 		super(container,

@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -51,14 +51,15 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { URI } from 'vs/base/common/uri';
 
 function renderBody(body: string): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource:; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource:; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 			</head>
 			<body>
@@ -126,7 +127,7 @@ class NavBar extends Disposable {
 	_update(id: string | null = this.currentId, focus?: boolean): Promise<void> {
 		this.currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
-		this.actions.forEach(a => a.enabled = a.id !== id);
+		this.actions.forEach(a => a.checked = a.id === id);
 		return Promise.resolve(undefined);
 	}
 }
@@ -176,9 +177,8 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionManifest: Cache<IExtensionManifest | null> | null;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
-	private contentDisposables: IDisposable[] = [];
-	private transientDisposables: IDisposable[] = [];
-	private disposables: IDisposable[];
+	private readonly contentDisposables = this._register(new DisposableStore());
+	private readonly transientDisposables = this._register(new DisposableStore());
 	private activeElement: IActiveElement | null;
 	private editorLoadComplete: boolean = false;
 
@@ -198,7 +198,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
-		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
@@ -225,19 +224,21 @@ export class ExtensionEditor extends BaseEditor {
 		this.builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
+		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 
-		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
+		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 
-		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
+		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 
 		this.repository = append(subtitle, $('span.repository.clickable'));
 		this.repository.textContent = localize('repository', 'Repository');
 		this.repository.style.display = 'none';
+		this.repository.tabIndex = 0;
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
 		this.license.style.display = 'none';
+		this.license.tabIndex = 0;
 
 		this.description = append(details, $('.description'));
 
@@ -256,18 +257,18 @@ export class ExtensionEditor extends BaseEditor {
 		this.subtext = append(this.subtextContainer, $('.subtext'));
 		this.ignoreActionbar = new ActionBar(this.subtextContainer, { animated: false });
 
-		this.disposables.push(this.extensionActionBar);
-		this.disposables.push(this.ignoreActionbar);
+		this._register(this.extensionActionBar);
+		this._register(this.ignoreActionbar);
 
-		Event.chain(this.extensionActionBar.onDidRun)
+		this._register(Event.chain(this.extensionActionBar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
-			.on(this.onError, this, this.disposables);
+			.on(this.onError, this));
 
-		Event.chain(this.ignoreActionbar.onDidRun)
+		this._register(Event.chain(this.ignoreActionbar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
-			.on(this.onError, this, this.disposables);
+			.on(this.onError, this));
 
 		const body = append(root, $('.body'));
 		this.navbar = new NavBar(body);
@@ -284,7 +285,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.editorLoadComplete = false;
 		const extension = input.extension;
 
-		this.transientDisposables = dispose(this.transientDisposables);
+		this.transientDisposables.clear();
 
 		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
 		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
@@ -383,7 +384,9 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.extensionActionBar.clear();
 		this.extensionActionBar.push(actions, { icon: true, label: true });
-		this.transientDisposables.push(...[...actions, ...widgets, extensionContainers]);
+		for (const disposable of [...actions, ...widgets, extensionContainers]) {
+			this.transientDisposables.add(disposable);
+		}
 
 		this.setSubText(extension, reloadAction);
 		this.content.innerHTML = ''; // Clear content before setting navbar actions.
@@ -430,7 +433,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.ignoreActionbar.clear();
 		this.ignoreActionbar.push([ignoreAction, undoIgnoreAction], { icon: true, label: true });
-		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
+		this.transientDisposables.add(ignoreAction);
+		this.transientDisposables.add(undoIgnoreAction);
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
@@ -463,7 +467,7 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		this.transientDisposables.push(reloadAction.onDidChange(e => {
+		this.transientDisposables.add(reloadAction.onDidChange(e => {
 			if (e.tooltip) {
 				this.subtext.textContent = reloadAction.tooltip;
 				show(this.subtextContainer);
@@ -504,7 +508,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.telemetryService.publicLog('extensionEditor:navbarChange', assign(extension.telemetryData, { navItem: id }));
 		}
 
-		this.contentDisposables = dispose(this.contentDisposables);
+		this.contentDisposables.clear();
 		this.content.innerHTML = '';
 		this.activeElement = null;
 		this.open(id, extension)
@@ -538,15 +542,18 @@ export class ExtensionEditor extends BaseEditor {
 						enableFindWidget: true,
 					},
 					{
-						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders
+						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders,
+						localResourceRoots: [
+							URI.parse(require.toUrl('./media'))
+						]
 					});
 				webviewElement.mountTo(this.content);
-				this.contentDisposables.push(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+				this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
-				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 				webviewElement.html = body;
 
-				this.contentDisposables.push(webviewElement.onDidClickLink(link => {
+				this.contentDisposables.add(webviewElement.onDidClickLink(link => {
 					if (!link) {
 						return;
 					}
@@ -555,7 +562,7 @@ export class ExtensionEditor extends BaseEditor {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables));
-				this.contentDisposables.push(webviewElement);
+				this.contentDisposables.add(webviewElement);
 				return webviewElement;
 			})
 			.then(undefined, () => {
@@ -585,7 +592,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				const layout = () => scrollableContent.scanDomNode();
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 				const renders = [
 					this.renderSettings(content, manifest, layout),
@@ -609,7 +616,7 @@ export class ExtensionEditor extends BaseEditor {
 					append(this.content, content);
 				} else {
 					append(this.content, scrollableContent.getDomNode());
-					this.contentDisposables.push(scrollableContent);
+					this.contentDisposables.add(scrollableContent);
 				}
 				return content;
 			}, () => {
@@ -628,7 +635,7 @@ export class ExtensionEditor extends BaseEditor {
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
 		append(this.content, scrollableContent.getDomNode());
-		this.contentDisposables.push(scrollableContent);
+		this.contentDisposables.add(scrollableContent);
 
 		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content);
 		const layout = () => {
@@ -637,9 +644,9 @@ export class ExtensionEditor extends BaseEditor {
 			dependenciesTree.layout(scrollDimensions.height);
 		};
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
-		this.contentDisposables.push(dependenciesTree);
+		this.contentDisposables.add(dependenciesTree);
 		scrollableContent.scanDomNode();
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
@@ -648,7 +655,7 @@ export class ExtensionEditor extends BaseEditor {
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
 		append(this.content, scrollableContent.getDomNode());
-		this.contentDisposables.push(scrollableContent);
+		this.contentDisposables.add(scrollableContent);
 
 		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content);
 		const layout = () => {
@@ -657,9 +664,9 @@ export class ExtensionEditor extends BaseEditor {
 			extensionsPackTree.layout(scrollDimensions.height);
 		};
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
-		this.contentDisposables.push(extensionsPackTree);
+		this.contentDisposables.add(extensionsPackTree);
 		scrollableContent.scanDomNode();
 		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
 	}
@@ -667,7 +674,7 @@ export class ExtensionEditor extends BaseEditor {
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
-		let properties = {};
+		let properties: any = {};
 		if (Array.isArray(configuration)) {
 			configuration.forEach(config => {
 				properties = { ...properties, ...config.properties };
@@ -1074,7 +1081,7 @@ export class ExtensionEditor extends BaseEditor {
 		const onDone = () => removeClass(this.content, 'loading');
 		result.promise.then(onDone, onDone);
 
-		this.contentDisposables.push(toDisposable(() => result.dispose()));
+		this.contentDisposables.add(toDisposable(() => result.dispose()));
 
 		return result.promise;
 	}
@@ -1089,12 +1096,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.notificationService.error(err);
-	}
-
-	dispose(): void {
-		this.transientDisposables = dispose(this.transientDisposables);
-		this.disposables = dispose(this.disposables);
-		super.dispose();
 	}
 }
 
@@ -1116,7 +1117,7 @@ class ShowExtensionEditorFindCommand extends Command {
 }
 const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
-	precondition: ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus')),
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 		weight: KeybindingWeight.EditorContrib

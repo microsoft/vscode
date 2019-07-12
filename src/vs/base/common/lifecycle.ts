@@ -23,24 +23,25 @@ function markTracked<T extends IDisposable>(x: T): void {
 
 	if (x && x !== Disposable.None) {
 		try {
-			x[__is_disposable_tracked__] = true;
+			(x as any)[__is_disposable_tracked__] = true;
 		} catch {
 			// noop
 		}
 	}
 }
 
-function trackDisposable<T extends IDisposable>(x: T): void {
+function trackDisposable<T extends IDisposable>(x: T): T {
 	if (!TRACK_DISPOSABLES) {
-		return;
+		return x;
 	}
 
-	const stack = new Error().stack!;
+	const stack = new Error('Potentially leaked disposable').stack!;
 	setTimeout(() => {
-		if (!x[__is_disposable_tracked__]) {
+		if (!(x as any)[__is_disposable_tracked__]) {
 			console.log(stack);
 		}
 	}, 3000);
+	return x;
 }
 
 export interface IDisposable {
@@ -76,11 +77,17 @@ export function dispose<T extends IDisposable>(disposables: T | T[] | undefined)
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);
-	return { dispose: () => dispose(disposables) };
+	return trackDisposable({ dispose: () => dispose(disposables) });
 }
 
 export function toDisposable(fn: () => void): IDisposable {
-	return { dispose: fn };
+	const self = trackDisposable({
+		dispose: () => {
+			markTracked(self);
+			fn();
+		}
+	});
+	return self;
 }
 
 export class DisposableStore implements IDisposable {
@@ -93,6 +100,10 @@ export class DisposableStore implements IDisposable {
 	 * Any future disposables added to this object will be disposed of on `add`.
 	 */
 	public dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+
 		markTracked(this);
 		this._isDisposed = true;
 		this.clear();
@@ -109,6 +120,9 @@ export class DisposableStore implements IDisposable {
 	public add<T extends IDisposable>(t: T): T {
 		if (!t) {
 			return t;
+		}
+		if ((t as any as DisposableStore) === this) {
+			throw new Error('Cannot register a disposable on itself!');
 		}
 
 		markTracked(t);
@@ -140,6 +154,9 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
+		if ((t as any as Disposable) === this) {
+			throw new Error('Cannot register a disposable on itself!');
+		}
 		return this._store.add(t);
 	}
 }
