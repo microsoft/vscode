@@ -95,15 +95,7 @@ export class CodeActionUi extends Disposable {
 		}
 	}
 
-	public async showCodeActionList(codeActions: Promise<CodeActionSet>, at?: IAnchor | IPosition): Promise<void> {
-		let actions: CodeActionSet;
-		try {
-			actions = await codeActions;
-		} catch (e) {
-			onUnexpectedError(e);
-			return;
-		}
-
+	public async showCodeActionList(actions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
 		this._codeActionWidget.show(actions, at);
 	}
 
