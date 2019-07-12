@@ -263,19 +263,19 @@ describe('Running Code', () => {
 		});
 	}
 
-	setupDataLossTests();
-	setupDataExplorerTests();
-	setupDataPreferencesTests();
-	setupDataSearchTests();
-	setupDataCSSTests();
-	setupDataEditorTests();
-	setupDataDebugTests();
-	setupDataGitTests();
-	setupDataStatusbarTests();
-	setupDataExtensionTests();
+	// setupDataLossTests();
+	// setupDataExplorerTests();
+	// setupDataPreferencesTests();
+	// setupDataSearchTests();
+	// setupDataCSSTests();
+	// setupDataEditorTests();
+	// setupDataDebugTests();
+	// setupDataGitTests();
+	// setupDataStatusbarTests();
+	// setupDataExtensionTests();
 	setupTerminalTests();
-	setupDataMultirootTests();
-	setupDataLocalizationTests();
+	// setupDataMultirootTests();
+	// setupDataLocalizationTests();
 });
 
 setupLaunchTests();

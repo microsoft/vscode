@@ -66,7 +66,8 @@ export class Application {
 
 	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
-		await this.code.waitForElement('.explorer-folders-view');
+		// web doesn't show explorer?
+		// await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
 			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);

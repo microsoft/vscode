@@ -931,7 +931,9 @@ declare module 'xterm' {
 	interface TerminalCore {
 		debug: boolean;
 
-		handler(text: string): void;
+		_coreService: {
+			triggerDataEvent(text: string): void;
+		};
 
 		_onScroll: IEventEmitter<number>;
 		_onKey: IEventEmitter<{ key: string }>;

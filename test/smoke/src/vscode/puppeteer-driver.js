@@ -7,8 +7,14 @@ const puppeteer = require('puppeteer');
 
 // export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }>
 
-const width = 800;
-const height = 600;
+const width = 1200;
+const height = 800;
+
+const vscodeToPuppeteerKey = {
+	cmd: 'Meta',
+	ctrl: 'Control',
+	enter: 'Enter'
+};
 
 function buildDriver(browser, page) {
 	return {
@@ -20,21 +26,147 @@ function buildDriver(browser, page) {
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: () => browser.close(),
 		dispatchKeybinding: async (windowId, keybinding) => {
-			console.log('ctrl+p');
-			await page.keyboard.down('Control');
-			await page.keyboard.press('p');
-			await page.keyboard.up('Control');
-			await page.waitForSelector('.jkasndknjadsf');
+			const keys = keybinding.split('+');
+			const keysDown = [];
+			for (let i = 0; i < keys.length; i++) {
+				if (keys[i] in vscodeToPuppeteerKey) {
+					keys[i] = vscodeToPuppeteerKey[keys[i]];
+				}
+				await page.keyboard.down(keys[i]);
+				keysDown.push(keys[i]);
+			}
+			while (keysDown.length > 0) {
+				await page.keyboard.up(keysDown.pop());
+			}
 		},
-		click: (windowId, selector, xoffset, yoffset) => Promise.resolve(),
+		click: async (windowId, selector, xoffset, yoffset) => {
+			console.log('click');
+			const { x, y } = await page.evaluate(`
+				(function() {
+					function convertToPixels(element, value) {
+						return parseFloat(value) || 0;
+					}
+					function getDimension(element, cssPropertyName, jsPropertyName) {
+						let computedStyle = getComputedStyle(element);
+						let value = '0';
+						if (computedStyle) {
+							if (computedStyle.getPropertyValue) {
+								value = computedStyle.getPropertyValue(cssPropertyName);
+							} else {
+								// IE8
+								value = (computedStyle).getAttribute(jsPropertyName);
+							}
+						}
+						return convertToPixels(element, value);
+					}
+					function getBorderLeftWidth(element) {
+						return getDimension(element, 'border-left-width', 'borderLeftWidth');
+					}
+					function getBorderRightWidth(element) {
+						return getDimension(element, 'border-right-width', 'borderRightWidth');
+					}
+					function getBorderTopWidth(element) {
+						return getDimension(element, 'border-top-width', 'borderTopWidth');
+					}
+					function getBorderBottomWidth(element) {
+						return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+					}
+					function getClientArea(element) {
+						// Try with DOM clientWidth / clientHeight
+						if (element !== document.body) {
+							return { width: element.clientWidth, height: element.clientHeight };
+						}
+
+						// Try innerWidth / innerHeight
+						if (window.innerWidth && window.innerHeight) {
+							return { width: window.innerWidth, height: window.innerHeight };
+						}
+
+						// Try with document.body.clientWidth / document.body.clientHeight
+						if (document.body && document.body.clientWidth && document.body.clientHeight) {
+							return { width: document.body.clientWidth, height: document.body.clientHeight };
+						}
+
+						// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
+						if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
+							return { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
+						}
+
+						throw new Error('Unable to figure out browser width and height');
+					}
+					function getTopLeftOffset(element) {
+						// Adapted from WinJS.Utilities.getPosition
+						// and added borders to the mix
+
+						let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
+
+						while ((element = element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
+							top -= element.scrollTop;
+							let c = getComputedStyle(element);
+							if (c) {
+								left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
+							}
+
+							if (element === offsetParent) {
+								left += getBorderLeftWidth(element);
+								top += getBorderTopWidth(element);
+								top += element.offsetTop;
+								left += element.offsetLeft;
+								offsetParent = element.offsetParent;
+							}
+						}
+
+						return {
+							left: left,
+							top: top
+						};
+					}
+					const element = document.querySelector('${selector}');
+
+					if (!element) {
+						throw new Error('Element not found: ${selector}');
+					}
+
+					const { left, top } = getTopLeftOffset(element);
+					const { width, height } = getClientArea(element);
+					let x, y;
+
+					x = left + (width / 2);
+					y = top + (height / 2);
+
+					x = Math.round(x);
+					y = Math.round(y);
+
+					return { x, y };
+				})();
+			`);
+			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+		},
 		doubleClick: (windowId, selector) => Promise.resolve(),
-		setValue: (windowId, selector, text) => Promise.resolve(),
+		setValue: async (windowId, selector, text) => {
+			return page.evaluate(`
+				(function() {
+					const element = document.querySelector('${selector}');
+
+					if (!element) {
+						throw new Error('Element not found: ${selector}');
+					}
+
+					const inputElement = element;
+					inputElement.value = '${text}';
+
+					const event = new Event('input', { bubbles: true, cancelable: true });
+					inputElement.dispatchEvent(event);
+					return true;
+				})();
+			`);
+		},
 		getTitle: (windowId) => page.title(),
 		isActiveElement: (windowId, selector) => {
-			page.evaluate(`document.querySelector('${selector}') === document.activeElement`);
+			return page.evaluate(`document.querySelector('${selector}') === document.activeElement`);
 		},
-		getElements: async (windowId, selector, recursive) => {
-			return await page.evaluate(`
+		getElements: (windowId, selector, recursive) => {
+			return page.evaluate(`
 				(function() {
 					function convertToPixels(element, value) {
 						return parseFloat(value) || 0;
@@ -138,22 +270,22 @@ function buildDriver(browser, page) {
 			`);
 		},
 		typeInEditor: (windowId, selector, text) => Promise.resolve(),
-		getTerminalBuffer: async (windowId, selector) => {
-			return await page.evaluate(`
+		getTerminalBuffer: (windowId, selector) => {
+			return page.evaluate(`
 				(function () {
-					const element = document.querySelector(selector);
+					const element = document.querySelector('${selector}');
 
 					if (!element) {
-						throw new Error('Terminal not found: ${selector}'');
+						throw new Error('Terminal not found: ${selector}');
 					}
 
-					const xterm: Terminal = element.xterm;
+					const xterm = element.xterm;
 
 					if (!xterm) {
 						throw new Error('Xterm not found: ${selector}');
 					}
 
-					const lines: string[] = [];
+					const lines = [];
 
 					for (let i = 0; i < xterm.buffer.length; i++) {
 						lines.push(xterm.buffer.getLine(i).translateToString(true));
@@ -163,21 +295,23 @@ function buildDriver(browser, page) {
 				})();
 			`);
 		},
-		writeInTerminal: async (windowId, selector, text) => {
-			page.evaluate(`
-				const element = document.querySelector(selector);
+		writeInTerminal: (windowId, selector, text) => {
+			return page.evaluate(`
+				(function () {
+					const element = document.querySelector('${selector}');
 
-				if (!element) {
-					throw new Error('Element not found: ${selector}');
-				}
+					if (!element) {
+						throw new Error('Element not found: ${selector}');
+					}
 
-				const xterm: Terminal = element.xterm;
+					const xterm = element.xterm;
 
-				if (!xterm) {
-					throw new Error('Xterm not found: ${selector}');
-				}
+					if (!xterm) {
+						throw new Error('Xterm not found: ${selector}');
+					}
 
-				xterm._core.handler(text);
+					xterm._core._coreService.triggerDataEvent('${text}');
+				})();
 			`);
 		}
 	}
@@ -186,13 +320,15 @@ function buildDriver(browser, page) {
 exports.connect = function (outPath, handle) {
 	return new Promise(async (c) => {
 		const browser = await puppeteer.launch({
+			// Run in Edge dev on macOS
+			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
 			headless: false,
 			slowMo: 80,
 			args: [`--window-size=${width},${height}`]
 		});
 		const page = (await browser.pages())[0];
 		await page.setViewport({ width, height });
-		await page.goto('http://127.0.0.1:8000');
+		await page.goto('http://127.0.0.1:9888');
 		const result = {
 			client: { dispose: () => {} },
 			driver: buildDriver(browser, page)
