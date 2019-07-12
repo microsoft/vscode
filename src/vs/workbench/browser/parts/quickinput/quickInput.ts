@@ -335,6 +335,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
 	private _matchOnLabel = true;
+	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
@@ -425,6 +426,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this._matchOnLabel = matchOnLabel;
 		this.update();
 	}
+
+	get sortByLabel() {
+		return this._sortByLabel;
+	}
+
+	set sortByLabel(sortByLabel: boolean) {
+		this._sortByLabel = sortByLabel;
+		this.update();
+	}
+
 
 	get autoFocusOnList() {
 		return this._autoFocusOnList;
@@ -753,6 +764,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
+		this.ui.list.sortByLabel = this.sortByLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
@@ -1249,6 +1261,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
+			input.sortByLabel = (options.sortByLabel === undefined) || options.sortByLabel; // default to true
 			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
@@ -1368,6 +1381,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.matchOnDescription = false;
 		this.ui.list.matchOnDetail = false;
 		this.ui.list.matchOnLabel = true;
+		this.ui.list.sortByLabel = true;
 		this.ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
 		this.ui.inputBox.removeAttribute('aria-label');

@@ -222,6 +222,7 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	sortByLabel = true;
 	private _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
@@ -515,7 +516,7 @@ export class QuickInputList {
 		const shownElements = this.elements.filter(element => !element.hidden);
 
 		// Sort by value
-		if (query) {
+		if (this.sortByLabel && query) {
 			const normalizedSearchValue = query.toLowerCase();
 			shownElements.sort((a, b) => {
 				return compareEntries(a, b, normalizedSearchValue);
