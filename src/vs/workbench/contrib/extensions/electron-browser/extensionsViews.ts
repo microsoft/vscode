@@ -864,18 +864,18 @@ export class ServerExtensionsView extends ExtensionsListView {
 }
 
 export class EnabledExtensionsView extends ExtensionsListView {
-	private readonly enabledExtensionsQuery = '@enabled';
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.enabledExtensionsQuery) ? this.showEmptyModel() : super.show(this.enabledExtensionsQuery);
+		query = query || '@enabled';
+		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 
 export class DisabledExtensionsView extends ExtensionsListView {
-	private readonly disabledExtensionsQuery = '@disabled';
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.disabledExtensionsQuery) ? this.showEmptyModel() : super.show(this.disabledExtensionsQuery);
+		query = query || '@disabled';
+		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 

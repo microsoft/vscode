@@ -9653,9 +9653,10 @@ vscode-sqlite3@4.0.8:
   dependencies:
     nan "^2.14.0"
 
-vscode-textmate@microsoft/vscode-textmate#update_oniguruma:
-  version "4.1.1"
-  resolved "https://codeload.github.com/microsoft/vscode-textmate/tar.gz/5c8c4a64234d9f754c0fb408a3b3e1528e41b57d"
+vscode-textmate@^4.2.2:
+  version "4.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.2.2.tgz#0b4dabc69a6fba79a065cb6b615f66eac07c8f4c"
+  integrity sha512-1U4ih0E/KP1zNK/EbpUqyYtI7PY+Ccd2nDGTtiMR/UalLFnmaYkwoWhN1oI7B91ptBN8NdVwWuvyUnvJAulCUw==
   dependencies:
     oniguruma "^7.2.0"
 

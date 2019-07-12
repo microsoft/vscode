@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -442,7 +442,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 	private settingsGroups: ISettingsGroup[];
 	private hiddenGroups: ISettingsGroup[] = [];
 	private settingsGroupTitleWidgets: SettingsGroupTitleWidget[];
-	private renderDisposables: IDisposable[] = [];
+	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -474,8 +474,8 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 			const settingsGroupTitleWidget = this.instantiationService.createInstance(SettingsGroupTitleWidget, this.editor, group);
 			settingsGroupTitleWidget.render();
 			this.settingsGroupTitleWidgets.push(settingsGroupTitleWidget);
-			this.renderDisposables.push(settingsGroupTitleWidget);
-			this.renderDisposables.push(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
+			this.renderDisposables.add(settingsGroupTitleWidget);
+			this.renderDisposables.add(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
 		}
 		this.settingsGroupTitleWidgets.reverse();
 	}
@@ -515,7 +515,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 
 	private disposeWidgets() {
 		this.hiddenGroups = [];
-		this.renderDisposables = dispose(this.renderDisposables);
+		this.renderDisposables.clear();
 	}
 
 	dispose() {

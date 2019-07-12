@@ -91,7 +91,8 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	private ensureFileSchema(schema: string): string[] {
-		return schema !== Schemas.file ? [schema, Schemas.file] : [schema];
+		// Don't allow untitled schema through.
+		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -207,6 +208,7 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
+		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
 			defaultPath: options.defaultUri && options.defaultUri.fsPath,
 			buttonLabel: options.saveLabel,
@@ -286,12 +288,12 @@ export class FileDialogService implements IFileDialogService {
 		return remoteFileDialog.showSaveDialog(options);
 	}
 
-	private getSchemeFilterForWindow() {
+	private getSchemeFilterForWindow(): string {
 		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
 	}
 
 	private getFileSystemSchema(options: { availableFileSystems?: string[], defaultUri?: URI }): string {
-		return options.availableFileSystems && options.availableFileSystems[0] || options.defaultUri && options.defaultUri.scheme || this.getSchemeFilterForWindow();
+		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
 	}
 }
 
