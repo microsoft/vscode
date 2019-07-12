@@ -79,7 +79,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return false;
 		}
 		return type === SettingValueType.Enum ||
-			type === SettingValueType.Array ||
+			type === SettingValueType.ListOfString ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
 			type === SettingValueType.Exclude;

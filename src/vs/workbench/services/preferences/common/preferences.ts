@@ -25,7 +25,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
-	Array = 'array',
+	ListOfString = 'list-of-string',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
@@ -62,6 +62,7 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	listItemType?: string;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;

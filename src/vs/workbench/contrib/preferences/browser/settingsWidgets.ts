@@ -212,7 +212,7 @@ export class ExcludeSettingWidget extends Disposable {
 	}
 
 	constructor(
-		private type: 'exclude' | 'array-of-string',
+		private type: 'exclude' | 'list-of-string',
 		private container: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService,

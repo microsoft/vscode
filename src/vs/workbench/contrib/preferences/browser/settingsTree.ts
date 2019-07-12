@@ -672,7 +672,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'exclude');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, 'array-of-string', common.controlElement);
+		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, 'list-of-string', common.controlElement);
 		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.push(excludeWidget);
 
@@ -1352,7 +1352,7 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Array) {
+			if (element.valueType === SettingValueType.ListOfString) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 
