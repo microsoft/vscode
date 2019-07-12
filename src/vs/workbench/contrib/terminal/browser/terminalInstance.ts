@@ -993,7 +993,6 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			console.log('create process', this._cols, this._rows, TerminalInstance._lastKnownCanvasDimensions, TerminalInstance._lastKnownGridDimensions);
 			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
 		}, 0);
 	}
@@ -1317,7 +1316,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
 			}
-			console.log('resize xterm', cols, rows);
+
 			this._xterm.resize(cols, rows);
 			TerminalInstance._lastKnownGridDimensions = { cols, rows };
 

@@ -280,7 +280,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 		// Note that onReisze is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override
-		console.log('request', request);
 		const initialDimensions: ITerminalDimensionsDto | undefined = request.cols && request.rows ? {
 			columns: request.cols,
 			rows: request.rows
