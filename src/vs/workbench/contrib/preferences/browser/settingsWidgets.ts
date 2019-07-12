@@ -211,7 +211,6 @@ export class ListSettingWidget extends Disposable {
 	}
 
 	constructor(
-		private type: 'exclude' | 'list-of-string',
 		private container: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService
@@ -241,27 +240,21 @@ export class ListSettingWidget extends Disposable {
 		}));
 	}
 
-	/**
-	 * All localized strings except those related to `siblings`, which are only present when used as Exclude widget.
-	 */
-	private getLocalizedStrings() {
-		if (this.type === 'exclude') {
-			return {
-				deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
-				editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
-				complexEditActionTooltip: localize('editExcludeItemInSettingsJson', "Edit Exclude Item in settings.json"),
-				addButtonLabel: localize('addPattern', "Add Pattern"),
-				inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
-			};
-		} else {
-			return {
-				deleteActionTooltip: localize('removeItem', "Remove Item"),
-				editActionTooltip: localize('editItem', "Edit Item"),
-				complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
-				addButtonLabel: localize('addItem', "Add Item"),
-				inputPlaceholder: localize('itemInputPlaceholder', "String Item...")
-			};
-		}
+	protected getLocalizedStrings() {
+		return {
+			deleteActionTooltip: localize('removeItem', "Remove Item"),
+			editActionTooltip: localize('editItem', "Edit Item"),
+			complexEditActionTooltip: localize('editItemInSettingsJson', "Edit Item in settings.json"),
+			addButtonLabel: localize('addItem', "Add Item"),
+			inputPlaceholder: localize('itemInputPlaceholder', "String Item...")
+		};
+	}
+
+	protected getSettingListRowLocalizedStrings(pattern?: string, sibling?: string) {
+		return {
+			settingListRowPatternHintLabel: localize('listPatternHintLabel', "List item `{0}`", pattern),
+			settingListRowSiblingHintLabel: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", pattern)
+		};
 	}
 
 	setValue(listData: IListDataItem[]): void {
@@ -393,9 +386,9 @@ export class ListSettingWidget extends Disposable {
 			this.createDeleteAction(item.pattern)
 		], { icon: true, label: false });
 
-		rowElement.title = item.sibling ?
-			localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", item.pattern, item.sibling) :
-			localize('excludePatternHintLabel', "Exclude files matching `{0}`", item.pattern);
+		rowElement.title = item.sibling
+			? this.getSettingListRowLocalizedStrings(item.pattern, item.sibling).settingListRowSiblingHintLabel
+			: this.getSettingListRowLocalizedStrings(item.pattern, item.sibling).settingListRowPatternHintLabel;
 
 		if (item.selected) {
 			if (listFocused) {
@@ -498,6 +491,25 @@ export class ListSettingWidget extends Disposable {
 			}));
 
 		return rowElement;
+	}
+}
+
+export class ExcludeSettingWidget extends ListSettingWidget {
+	protected getLocalizedStrings() {
+		return {
+			deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
+			editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
+			complexEditActionTooltip: localize('editExcludeItemInSettingsJson', "Edit Exclude Item in settings.json"),
+			addButtonLabel: localize('addPattern', "Add Pattern"),
+			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
+		};
+	}
+
+	protected getSettingListRowLocalizedStrings(pattern?: string, sibling?: string) {
+		return {
+			settingListRowPatternHintLabel: localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern),
+			settingListRowSiblingHintLabel: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", pattern, sibling)
+		};
 	}
 }
 
