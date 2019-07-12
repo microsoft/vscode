@@ -42,7 +42,7 @@ import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attach
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IExcludeChangeEvent, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ListSettingWidget, IListChangeEvent, IListDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -50,7 +50,7 @@ import { isArray } from 'vs/base/common/types';
 
 const $ = DOM.$;
 
-function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
+function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	const data = element.isConfigured ?
 		{ ...element.defaultValue, ...element.scopeValue } :
 		element.defaultValue;
@@ -69,7 +69,7 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDa
 		});
 }
 
-function getListDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
+function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	return element.value.map((key: string) => {
 		return {
 			pattern: key
@@ -220,8 +220,12 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	button: Button;
 }
 
+interface ISettingListItemTemplate extends ISettingItemTemplate<void> {
+	listWidget: ListSettingWidget;
+}
+
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
-	excludeWidget: ExcludeSettingWidget;
+	excludeWidget: ListSettingWidget;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -666,31 +670,31 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
-export class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
+export class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingListItemTemplate> {
 	templateId = SETTINGS_ARRAY_TEMPLATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'exclude');
+	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, 'list-of-string', common.controlElement);
-		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.push(excludeWidget);
+		const listWidget = this._instantiationService.createInstance(ListSettingWidget, 'list-of-string', common.controlElement);
+		listWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.push(listWidget);
 
-		const template: ISettingExcludeItemTemplate = {
+		const template: ISettingListItemTemplate = {
 			...common,
-			excludeWidget
+			listWidget
 		};
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(excludeWidget.onDidChangeExclude(e => this.onDidChangeExclude(template, e)));
+		common.toDispose.push(listWidget.onDidChangeList(e => this.onDidChangeList(template, e)));
 
 		return template;
 	}
 
-	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IExcludeChangeEvent): void {
+	private onDidChangeList(template: ISettingListItemTemplate, e: IListChangeEvent): void {
 		if (template.context) {
-			const newValue = isArray(template.context.scopeValue)
+			const newValue: any[] | undefined = isArray(template.context.scopeValue)
 				? [...template.context.scopeValue]
 				: [...template.context.value];
 
@@ -726,13 +730,13 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		}
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingExcludeItemTemplate): void {
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingListItemTemplate): void {
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string) => void): void {
 		const value = getListDisplayValue(dataElement);
-		template.excludeWidget.setValue(value);
+		template.listWidget.setValue(value);
 		template.context = dataElement;
 	}
 }
@@ -741,9 +745,9 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'exclude');
+		const common = this.renderCommonTemplate(null, container, 'list');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, 'exclude', common.controlElement);
+		const excludeWidget = this._instantiationService.createInstance(ListSettingWidget, 'exclude', common.controlElement);
 		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.push(excludeWidget);
 
@@ -754,12 +758,12 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(excludeWidget.onDidChangeExclude(e => this.onDidChangeExclude(template, e)));
+		common.toDispose.push(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
 
 		return template;
 	}
 
-	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IExcludeChangeEvent): void {
+	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: IListChangeEvent): void {
 		if (template.context) {
 			const newValue = { ...template.context.scopeValue };
 
