@@ -13,7 +13,7 @@ git clone --depth 1 https://github.com/Microsoft/vscode-node-debug.git
 git clone --depth 1 https://github.com/Microsoft/vscode-html-languageservice.git
 git clone --depth 1 https://github.com/Microsoft/vscode-json-languageservice.git
 ./node_modules/.bin/vscode-telemetry-extractor --sourceDir $BUILD_SOURCESDIRECTORY --excludedDir extensions --outputDir . --applyEndpoints
-./node_modules/.bin/vscode-telemetry-extractor --config config.json -o .
+./node_modules/.bin/vscode-telemetry-extractor --config $BUILD_SOURCESDIRECTORY/build/azure-pipelines/common/telemetry-config.json -o .
 mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
 mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
 mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
