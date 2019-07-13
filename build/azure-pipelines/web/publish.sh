@@ -12,4 +12,4 @@ rm -rf $ROOT/vscode-web-standalone.tar.*
 
 (cd $ROOT && tar --owner=0 --group=0 -czf $WEB_TARBALL_PATH $WEB_BUILD_NAME)
 
-node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-linux-x64-web-standalone" archive-unsigned "$WEB_TARBALL_FILENAME" "$VERSION" true "$WEB_TARBALL_PATH"
+node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "web-standalone" archive-unsigned "$WEB_TARBALL_FILENAME" "$VERSION" true "$WEB_TARBALL_PATH"
