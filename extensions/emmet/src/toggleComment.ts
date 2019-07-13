@@ -57,35 +57,37 @@ function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Sele
 	let startNode = getHtmlNode(document, rootNode, selectionStart, true);
 	let endNode = getHtmlNode(document, rootNode, selectionEnd, true);
 
-	if (!startNode || !endNode) {
-		return [];
-	}
+	if (startNode && endNode) {
 
-	if (sameNodes(startNode, endNode) && startNode.name === 'style'
-		&& startNode.open.end.isBefore(selectionStart)
-		&& startNode.close.start.isAfter(selectionEnd)) {
-		let buffer = new DocumentStreamReader(document, startNode.open.end, new vscode.Range(startNode.open.end, startNode.close.start));
-		let cssRootNode = parseStylesheet(buffer);
 
-		return toggleCommentStylesheet(selection, cssRootNode);
-	}
 
-	let allNodes: Node[] = getNodesInBetween(startNode, endNode);
-	let edits: vscode.TextEdit[] = [];
+		if (sameNodes(startNode, endNode) && startNode.name === 'style'
+			&& startNode.open.end.isBefore(selectionStart)
+			&& startNode.close.start.isAfter(selectionEnd)) {
+			let buffer = new DocumentStreamReader(document, startNode.open.end, new vscode.Range(startNode.open.end, startNode.close.start));
+			let cssRootNode = parseStylesheet(buffer);
 
-	allNodes.forEach(node => {
-		edits = edits.concat(getRangesToUnCommentHTML(node, document));
-	});
+			return toggleCommentStylesheet(selection, cssRootNode);
+		}
 
-	if (startNode.type === 'comment') {
+		let allNodes: Node[] = getNodesInBetween(startNode, endNode);
+		let edits: vscode.TextEdit[] = [];
+
+		allNodes.forEach(node => {
+			edits = edits.concat(getRangesToUnCommentHTML(node, document));
+		});
+
+		if (startNode.type === 'comment') {
+			return edits;
+		}
+
+
+		edits.push(new vscode.TextEdit(new vscode.Range(allNodes[0].start, allNodes[0].start), startCommentHTML));
+		edits.push(new vscode.TextEdit(new vscode.Range(allNodes[allNodes.length - 1].end, allNodes[allNodes.length - 1].end), endCommentHTML));
+
 		return edits;
 	}
-
-
-	edits.push(new vscode.TextEdit(new vscode.Range(allNodes[0].start, allNodes[0].start), startCommentHTML));
-	edits.push(new vscode.TextEdit(new vscode.Range(allNodes[allNodes.length - 1].end, allNodes[allNodes.length - 1].end), endCommentHTML));
-
-	return edits;
+	return []; //We should only reach here if there is no start or end node.
 }
 
 function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vscode.TextEdit[] {

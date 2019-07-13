@@ -146,10 +146,7 @@ class MonacoGenerator {
 		this.stream = es.through();
 		this._watchedFiles = {};
 		let onWillReadFile = (moduleId: string, filePath: string) => {
-			if (!this._isWatch) {
-				return;
-			}
-			if (this._watchedFiles[filePath]) {
+			if (!this._isWatch || this._watchedFiles[filePath]) {
 				return;
 			}
 			this._watchedFiles[filePath] = true;
@@ -188,11 +185,15 @@ class MonacoGenerator {
 
 	private _run(): monacodts.IMonacoDeclarationResult | null {
 		let r = monacodts.run3(this._declarationResolver);
-		if (!r && !this._isWatch) {
-			// The build must always be able to generate the monaco.d.ts
-			throw new Error(`monaco.d.ts generation error - Cannot continue`);
+
+		if (r || this._isWatch) {
+			return r;
 		}
-		return r;
+
+		// The build must always be able to generate the monaco.d.ts
+		throw new Error(`monaco.d.ts generation error - Cannot continue`);
+
+
 	}
 
 	private _log(message: any, ...rest: any[]): void {
@@ -202,19 +203,15 @@ class MonacoGenerator {
 	public execute(): void {
 		const startTime = Date.now();
 		const result = this._run();
-		if (!result) {
-			// nothing really changed
-			return;
-		}
-		if (result.isTheSame) {
-			return;
-		}
 
-		fs.writeFileSync(result.filePath, result.content);
-		fs.writeFileSync(path.join(REPO_SRC_FOLDER, 'vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
-		this._log(`monaco.d.ts is changed - total time took ${Date.now() - startTime} ms`);
-		if (!this._isWatch) {
-			this.stream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
+		//Make sure results have changed
+		if (result && !result.isTheSame) {
+			fs.writeFileSync(result.filePath, result.content);
+			fs.writeFileSync(path.join(REPO_SRC_FOLDER, 'vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+			this._log(`monaco.d.ts is changed - total time took ${Date.now() - startTime} ms`);
+			if (!this._isWatch) {
+				this.stream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
+			}
 		}
 	}
 }

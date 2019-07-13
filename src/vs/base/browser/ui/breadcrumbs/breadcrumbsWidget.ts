@@ -295,9 +295,9 @@ export class BreadcrumbsWidget {
 	}
 
 	private _render(start: number): void {
-		for (; start < this._items.length && start < this._nodes.length; start++) {
+		while (start < this._items.length && start < this._nodes.length) {
 			let item = this._items[start];
-			let node = this._nodes[start];
+			let node = this._nodes[start++];
 			this._renderItem(item, node);
 		}
 		// case a: more nodes -> remove them
@@ -310,8 +310,8 @@ export class BreadcrumbsWidget {
 		}
 
 		// case b: more items -> render them
-		for (; start < this._items.length; start++) {
-			let item = this._items[start];
+		while (start < this._items.length) {
+			let item = this._items[start++];
 			let node = this._freeNodes.length > 0 ? this._freeNodes.pop() : document.createElement('div');
 			if (node) {
 				this._renderItem(item, node);

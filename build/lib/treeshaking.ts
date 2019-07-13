@@ -464,7 +464,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		}
 
 		if (black_queue.length === 0) {
-			for (let i = 0; i< gray_queue.length; i++) {
+			for (let i = 0; i < gray_queue.length; i++) {
 				const node = gray_queue[i];
 				const nodeParent = node.parent;
 				if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {

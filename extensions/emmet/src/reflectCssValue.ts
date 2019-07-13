@@ -11,17 +11,17 @@ const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
 
 export function reflectCssValue(): Thenable<boolean> | undefined {
 	let editor = window.activeTextEditor;
-	if (!editor) {
+	if (editor) {
+		let node = getCssPropertyFromDocument(editor, editor.selection.active);
+		if (node) {
+			return updateCSSNode(editor, node);
+		}
+	}
+	else {
 		window.showInformationMessage('No editor is active.');
-		return;
 	}
+	return;
 
-	let node = getCssPropertyFromDocument(editor, editor.selection.active);
-	if (!node) {
-		return;
-	}
-
-	return updateCSSNode(editor, node);
 }
 
 function updateCSSNode(editor: TextEditor, property: Property): Thenable<boolean> {

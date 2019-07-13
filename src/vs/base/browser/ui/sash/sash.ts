@@ -208,82 +208,7 @@ export class Sash extends Disposable {
 			}
 		}
 
-		if (!this.state) {
-			return;
-		}
-    
-		// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
-		const iframes = [
-			...getElementsByTagName('webview'),
-			...getElementsByTagName('iframe'),
-		];
-    
-		for (const iframe of iframes) {
-			iframe.style.pointerEvents = 'none'; // disable mouse events on iframes as long as we drag the sash
-		}
-
-		const mouseDownEvent = new StandardMouseEvent(e);
-		const startX = mouseDownEvent.posx;
-		const startY = mouseDownEvent.posy;
-		const altKey = mouseDownEvent.altKey;
-		const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
-
-		addClass(this.el, 'active');
-		this._onDidStart.fire(startEvent);
-
-		// fix https://github.com/Microsoft/vscode/issues/21675
-		const style = createStyleSheet(this.el);
-		const updateStyle = () => {
-			let cursor = '';
-
-			if (isMultisashResize) {
-				cursor = 'all-scroll';
-			} else if (this.orientation === Orientation.HORIZONTAL) {
-				if (this.state === SashState.Minimum) {
-					cursor = 's-resize';
-				} else if (this.state === SashState.Maximum) {
-					cursor = 'n-resize';
-				} else {
-					cursor = isMacintosh ? 'row-resize' : 'ns-resize';
-				}
-			} else {
-				if (this.state === SashState.Minimum) {
-					cursor = 'e-resize';
-				} else if (this.state === SashState.Maximum) {
-					cursor = 'w-resize';
-				} else {
-					cursor = isMacintosh ? 'col-resize' : 'ew-resize';
-				}
-			}
-
-			style.innerHTML = `* { cursor: ${cursor} !important; }`;
-		};
-
-		const disposables: IDisposable[] = [];
-
-		updateStyle();
-
-		if (!isMultisashResize) {
-			this.onDidEnablementChange(updateStyle, null, disposables);
-		}
-
-		const onMouseMove = (e: MouseEvent) => {
-			EventHelper.stop(e, false);
-			const mouseMoveEvent = new StandardMouseEvent(e);
-			const event: ISashEvent = { startX, currentX: mouseMoveEvent.posx, startY, currentY: mouseMoveEvent.posy, altKey };
-
-			this._onDidChange.fire(event);
-		};
-
-		const onMouseUp = (e: MouseEvent) => {
-			EventHelper.stop(e, false);
-
-			this.el.removeChild(style);
-
-			removeClass(this.el, 'active');
-			this._onDidEnd.fire();
-
-			dispose(disposables);
+		if (this.state) {
 
 			// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
 			const iframes = [
@@ -291,14 +216,88 @@ export class Sash extends Disposable {
 				...getElementsByTagName('iframe'),
 			];
 
-
 			for (const iframe of iframes) {
-				iframe.style.pointerEvents = 'auto';
+				iframe.style.pointerEvents = 'none'; // disable mouse events on iframes as long as we drag the sash
 			}
-		};
 
-		domEvent(window, 'mousemove')(onMouseMove, null, disposables);
-		domEvent(window, 'mouseup')(onMouseUp, null, disposables);
+			const mouseDownEvent = new StandardMouseEvent(e);
+			const startX = mouseDownEvent.posx;
+			const startY = mouseDownEvent.posy;
+			const altKey = mouseDownEvent.altKey;
+			const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
+
+			addClass(this.el, 'active');
+			this._onDidStart.fire(startEvent);
+
+			// fix https://github.com/Microsoft/vscode/issues/21675
+			const style = createStyleSheet(this.el);
+			const updateStyle = () => {
+				let cursor = '';
+
+				if (isMultisashResize) {
+					cursor = 'all-scroll';
+				} else if (this.orientation === Orientation.HORIZONTAL) {
+					if (this.state === SashState.Minimum) {
+						cursor = 's-resize';
+					} else if (this.state === SashState.Maximum) {
+						cursor = 'n-resize';
+					} else {
+						cursor = isMacintosh ? 'row-resize' : 'ns-resize';
+					}
+				} else {
+					if (this.state === SashState.Minimum) {
+						cursor = 'e-resize';
+					} else if (this.state === SashState.Maximum) {
+						cursor = 'w-resize';
+					} else {
+						cursor = isMacintosh ? 'col-resize' : 'ew-resize';
+					}
+				}
+
+				style.innerHTML = `* { cursor: ${cursor} !important; }`;
+			};
+
+			const disposables: IDisposable[] = [];
+
+			updateStyle();
+
+			if (!isMultisashResize) {
+				this.onDidEnablementChange(updateStyle, null, disposables);
+			}
+
+			const onMouseMove = (e: MouseEvent) => {
+				EventHelper.stop(e, false);
+				const mouseMoveEvent = new StandardMouseEvent(e);
+				const event: ISashEvent = { startX, currentX: mouseMoveEvent.posx, startY, currentY: mouseMoveEvent.posy, altKey };
+
+				this._onDidChange.fire(event);
+			};
+
+			const onMouseUp = (e: MouseEvent) => {
+				EventHelper.stop(e, false);
+
+				this.el.removeChild(style);
+
+				removeClass(this.el, 'active');
+				this._onDidEnd.fire();
+
+				dispose(disposables);
+
+				// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
+				const iframes = [
+					...getElementsByTagName('webview'),
+					...getElementsByTagName('iframe'),
+				];
+
+
+				for (const iframe of iframes) {
+					iframe.style.pointerEvents = 'auto';
+				}
+			};
+
+			domEvent(window, 'mousemove')(onMouseMove, null, disposables);
+			domEvent(window, 'mouseup')(onMouseUp, null, disposables);
+		}
 	}
 
 	private onMouseDoubleClick(event: MouseEvent): void {
