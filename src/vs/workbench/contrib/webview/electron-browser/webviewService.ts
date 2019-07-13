@@ -15,6 +15,7 @@ export class WebviewService implements IWebviewService {
 	) { }
 
 	createWebview(
+		_id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
 	): Webview {

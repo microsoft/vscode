@@ -26,6 +26,7 @@ export interface IWebviewService {
 	_serviceBrand: any;
 
 	createWebview(
+		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 	): Webview;
