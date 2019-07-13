@@ -12,7 +12,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -199,7 +199,7 @@ export interface IExcludeChangeEvent {
 
 export class ExcludeSettingWidget extends Disposable {
 	private listElement: HTMLElement;
-	private listDisposables: IDisposable[] = [];
+	private readonly listDisposables = this._register(new DisposableStore());
 
 	private model = new ExcludeSettingListModel();
 
@@ -304,7 +304,7 @@ export class ExcludeSettingWidget extends Disposable {
 		const focused = DOM.isAncestor(document.activeElement, this.listElement);
 
 		DOM.clearNode(this.listElement);
-		this.listDisposables = dispose(this.listDisposables);
+		this.listDisposables.clear();
 
 		const newMode = this.model.items.some(item => !!(item.editing && !item.pattern));
 		DOM.toggleClass(this.container, 'setting-exclude-new-mode', newMode);
@@ -357,7 +357,7 @@ export class ExcludeSettingWidget extends Disposable {
 		DOM.toggleClass(rowElement, 'selected', item.selected);
 
 		const actionBar = new ActionBar(rowElement);
-		this.listDisposables.push(actionBar);
+		this.listDisposables.add(actionBar);
 
 		const patternElement = DOM.append(rowElement, $('.setting-exclude-pattern'));
 		const siblingElement = DOM.append(rowElement, $('.setting-exclude-sibling'));
@@ -429,14 +429,14 @@ export class ExcludeSettingWidget extends Disposable {
 			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
 		});
 		patternInput.element.classList.add('setting-exclude-patternInput');
-		this.listDisposables.push(attachInputBoxStyler(patternInput, this.themeService, {
+		this.listDisposables.add(attachInputBoxStyler(patternInput, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
-		this.listDisposables.push(patternInput);
+		this.listDisposables.add(patternInput);
 		patternInput.value = item.pattern;
-		this.listDisposables.push(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+		this.listDisposables.add(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 
 		let siblingInput: InputBox;
 		if (item.sibling) {
@@ -444,40 +444,35 @@ export class ExcludeSettingWidget extends Disposable {
 				placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
 			});
 			siblingInput.element.classList.add('setting-exclude-siblingInput');
-			this.listDisposables.push(siblingInput);
-			this.listDisposables.push(attachInputBoxStyler(siblingInput, this.themeService, {
+			this.listDisposables.add(siblingInput);
+			this.listDisposables.add(attachInputBoxStyler(siblingInput, this.themeService, {
 				inputBackground: settingsTextInputBackground,
 				inputForeground: settingsTextInputForeground,
 				inputBorder: settingsTextInputBorder
 			}));
 			siblingInput.value = item.sibling;
-			this.listDisposables.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+			this.listDisposables.add(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 		}
 
 		const okButton = this._register(new Button(rowElement));
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-exclude-okButton');
-		this.listDisposables.push(attachButtonStyler(okButton, this.themeService));
-		this.listDisposables.push(okButton.onDidClick(() => onSubmit(true)));
+		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
+		this.listDisposables.add(okButton.onDidClick(() => onSubmit(true)));
 
 		const cancelButton = this._register(new Button(rowElement));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-exclude-cancelButton');
-		this.listDisposables.push(attachButtonStyler(cancelButton, this.themeService));
-		this.listDisposables.push(cancelButton.onDidClick(() => onSubmit(false)));
+		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
+		this.listDisposables.add(cancelButton.onDidClick(() => onSubmit(false)));
 
-		this.listDisposables.push(
+		this.listDisposables.add(
 			disposableTimeout(() => {
 				patternInput.focus();
 				patternInput.select();
 			}));
 
 		return rowElement;
-	}
-
-	dispose() {
-		super.dispose();
-		this.listDisposables = dispose(this.listDisposables);
 	}
 }
 

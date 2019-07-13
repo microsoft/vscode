@@ -24,7 +24,6 @@ import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { hash } from 'vs/base/common/hash';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isLinux } from 'vs/base/common/platform';
 import { toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
@@ -781,17 +780,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for global settings file
-		if (isEqual(this.resource, this.environmentService.settingsResource, !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.settingsResource)) {
 			return 'global-settings';
 		}
 
 		// Check for keybindings file
-		if (isEqual(this.resource, this.environmentService.keybindingsResource, !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.keybindingsResource)) {
 			return 'keybindings';
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'locale.json'), !isLinux)) {
+		if (isEqual(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'locale.json'))) {
 			return 'locale';
 		}
 

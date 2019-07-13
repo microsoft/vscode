@@ -80,7 +80,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._ui.update(newState);
 	}
 
-	public showCodeActions(actions: Promise<CodeActionSet>, at: IAnchor | IPosition) {
+	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
 		return this._ui.showCodeActionList(actions, at);
 	}
 

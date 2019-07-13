@@ -20,7 +20,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remot
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

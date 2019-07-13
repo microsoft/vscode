@@ -14,7 +14,7 @@ import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isUNC } from 'vs/base/common/extpath';
 
 import { IFileService } from 'vs/platform/files/common/files';
@@ -473,7 +473,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		return resolvedVariables.then((resolvedVariables) => {
 			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution) || (task.command.runtime === RuntimeType.CustomExecution2);
-			if (resolvedVariables && task.command && task.command.runtime && (isCustomExecution || task.command.name)) {
+			if (resolvedVariables && (task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined))) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {
@@ -518,9 +518,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
-			let toDispose: IDisposable[] | undefined = [];
+			const toDispose = new DisposableStore();
 			let eventCounter: number = 0;
-			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
+			toDispose.add(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					eventCounter++;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -618,8 +618,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 					eventCounter = 0;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
-					toDispose = dispose(toDispose!);
-					toDispose = undefined;
+					toDispose.dispose();
 					resolve({ exitCode });
 				});
 			});

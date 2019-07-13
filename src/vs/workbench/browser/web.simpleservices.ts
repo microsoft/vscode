@@ -8,7 +8,6 @@ import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -17,7 +16,7 @@ import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -32,12 +31,6 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
-// tslint:disable-next-line: import-patterns
-import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
-// tslint:disable-next-line: import-patterns
-import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { CommentingRanges } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -48,45 +41,6 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-
-//#region Clipboard
-
-export class SimpleClipboardService implements IClipboardService {
-
-	_serviceBrand: any;
-
-	writeText(text: string, type?: string): void { }
-
-	readText(type?: string): string {
-		// @ts-ignore
-		return undefined;
-	}
-
-	readTextSync(): string | undefined {
-		return undefined;
-	}
-
-	readFindText(): string {
-		// @ts-ignore
-		return undefined;
-	}
-
-	writeFindText(text: string): void { }
-
-	writeResources(resources: URI[]): void { }
-
-	readResources(): URI[] {
-		return [];
-	}
-
-	hasResources(): boolean {
-		return false;
-	}
-}
-
-registerSingleton(IClipboardService, SimpleClipboardService, true);
-
-//#endregion
 
 //#region Download
 
@@ -192,51 +146,6 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 	allowedBadgeProviders: string[];
 }
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregion
-
-//#region ICommentService
-export class SimpleCommentService implements ICommentService {
-	_serviceBrand: any;
-	onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = Event.None;
-	onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = Event.None;
-	onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = Event.None;
-	onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges; }> = Event.None;
-	onDidChangeActiveCommentThread: Event<any> = Event.None;
-	onDidSetDataProvider: Event<void> = Event.None;
-	onDidDeleteDataProvider: Event<string> = Event.None;
-	setDocumentComments: any;
-	setWorkspaceComments: any;
-	removeWorkspaceComments: any;
-	registerCommentController: any;
-	unregisterCommentController: any;
-	getCommentController: any;
-	createCommentThreadTemplate: any;
-	updateCommentThreadTemplate: any;
-	getCommentMenus: any;
-	registerDataProvider: any;
-	unregisterDataProvider: any;
-	updateComments: any;
-	disposeCommentThread: any;
-	createNewCommentThread: any;
-	replyToCommentThread: any;
-	editComment: any;
-	deleteComment: any;
-	getComments() { return Promise.resolve([]); }
-	getCommentingRanges: any;
-	startDraft: any;
-	deleteDraft: any;
-	finishDraft: any;
-	getStartDraftLabel: any;
-	getDeleteDraftLabel: any;
-	getFinishDraftLabel: any;
-	addReaction: any;
-	deleteReaction: any;
-	getReactionGroup: any;
-	hasReactionHandler: any;
-	toggleReaction: any;
-	setActiveCommentThread: any;
-}
-registerSingleton(ICommentService, SimpleCommentService, true);
 //#endregion
 
 //#region Extension Management
@@ -351,17 +260,17 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve([]);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve([]);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve(local);
 	}
 }
 
@@ -450,27 +359,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
-	}
-}
-
-//#endregion
-
-//#region Request
-
-export const IRequestService = createDecorator<IRequestService>('requestService');
-
-export interface IRequestService {
-	_serviceBrand: any;
-
-	request(options: any, token: CancellationToken): Promise<object>;
-}
-
-export class SimpleRequestService implements IRequestService {
-
-	_serviceBrand: any;
-
-	request(options: any, token: CancellationToken): Promise<object> {
-		return Promise.resolve(Object.create(null));
 	}
 }
 
@@ -580,7 +468,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -708,7 +597,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
 		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
 		if (recentlyOpenedRaw) {
-			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw));
+			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw), this.logService);
 		}
 
 		return { workspaces: [], files: [] };

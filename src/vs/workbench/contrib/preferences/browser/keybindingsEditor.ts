@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
-import { dispose, Disposable, toDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -248,7 +248,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				});
 	}
 
-	copyKeybinding(keybinding: IKeybindingItemEntry): void {
+	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
@@ -258,13 +258,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (keybinding.keybindingItem.when) {
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
-		this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
+		await this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
 	}
 
-	copyKeybindingCommand(keybinding: IKeybindingItemEntry): void {
+	async copyKeybindingCommand(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
-		this.clipboardService.writeText(keybinding.keybindingItem.command);
+		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
 	focusSearch(): void {
@@ -897,6 +897,7 @@ class ActionsColumn extends Column {
 	}
 
 	dispose(): void {
+		super.dispose();
 		dispose(this.actionBar);
 	}
 }
@@ -1015,7 +1016,7 @@ class WhenColumn extends Column {
 	readonly element: HTMLElement;
 	private whenLabel: HTMLElement;
 	private whenInput: InputBox;
-	private disposables: IDisposable[] = [];
+	private readonly renderDisposables = this._register(new DisposableStore());
 
 	private _onDidAccept: Emitter<void> = this._register(new Emitter<void>());
 	private readonly onDidAccept: Event<void> = this._onDidAccept.event;
@@ -1031,7 +1032,6 @@ class WhenColumn extends Column {
 	) {
 		super(keybindingsEditor);
 		this.element = this.create(parent);
-		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
 	private create(parent: HTMLElement): HTMLElement {
@@ -1094,14 +1094,14 @@ class WhenColumn extends Column {
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
-		this.disposables = dispose(this.disposables);
+		this.renderDisposables.clear();
 		DOM.clearNode(this.whenLabel);
 
 		this.keybindingsEditor.onDefineWhenExpression(e => {
 			if (keybindingItemEntry === e) {
 				this.startEditing();
 			}
-		}, this, this.disposables);
+		}, this, this.renderDisposables);
 		this.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
 		this.whenLabel.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		DOM.toggleClass(this.whenLabel, 'code', !!keybindingItemEntry.keybindingItem.when);
@@ -1118,11 +1118,11 @@ class WhenColumn extends Column {
 		this.onDidAccept(() => {
 			this.keybindingsEditor.updateKeybinding(keybindingItemEntry, keybindingItemEntry.keybindingItem.keybinding ? keybindingItemEntry.keybindingItem.keybinding.getUserSettingsLabel() || '' : '', this.whenInput.value);
 			this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
-		}, this, this.disposables);
+		}, this, this.renderDisposables);
 		this.onDidReject(() => {
 			this.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
 			this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
-		}, this, this.disposables);
+		}, this, this.renderDisposables);
 	}
 
 	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {

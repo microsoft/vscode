@@ -9,7 +9,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
@@ -237,65 +236,26 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		let readTextResult: string | null | undefined;
-		const clipboardService = new class implements IClipboardService {
-			_serviceBrand: any;
-			readText(): any { return readTextResult; }
-			readTextSync(): any { return readTextResult; }
-			_throw = () => { throw new Error(); };
-			writeText = this._throw;
-			readFindText = this._throw;
-			writeFindText = this._throw;
-			writeResources = this._throw;
-			readResources = this._throw;
-			hasResources = this._throw;
-		};
-		let resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 0);
+		assertVariableResolve(new ClipboardBasedVariableResolver(undefined, 1, 0), 'CLIPBOARD', undefined);
 
-		readTextResult = undefined;
-		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(null!, 1, 0), 'CLIPBOARD', undefined);
 
-		readTextResult = null;
-		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('', 1, 0), 'CLIPBOARD', undefined);
 
-		readTextResult = '';
-		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0), 'CLIPBOARD', 'foo');
 
-		readTextResult = 'foo';
-		assertVariableResolve(resolver, 'CLIPBOARD', 'foo');
-
-		assertVariableResolve(resolver, 'foo', undefined);
-		assertVariableResolve(resolver, 'cLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0), 'foo', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0), 'cLIPBOARD', undefined);
 	});
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		let readTextResult: string;
-		let resolver: VariableResolver;
-		const clipboardService = new class implements IClipboardService {
-			_serviceBrand: any;
-			readText(): string { return readTextResult; }
-			readTextSync(): any { return readTextResult; }
-			_throw = () => { throw new Error(); };
-			writeText = this._throw;
-			readFindText = this._throw;
-			writeFindText = this._throw;
-			writeResources = this._throw;
-			readResources = this._throw;
-			hasResources = this._throw;
-		};
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1', 1, 2), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2\nline3', 1, 2), 'CLIPBOARD', 'line1\nline2\nline3');
 
-		resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 2);
-		readTextResult = 'line1';
-		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
-		readTextResult = 'line1\nline2\nline3';
-		assertVariableResolve(resolver, 'CLIPBOARD', 'line1\nline2\nline3');
-
-		readTextResult = 'line1\nline2';
-		assertVariableResolve(resolver, 'CLIPBOARD', 'line2');
-		readTextResult = 'line1\nline2';
-		resolver = new ClipboardBasedVariableResolver(clipboardService, 0, 2);
-		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 1, 2), 'CLIPBOARD', 'line2');
+		resolver = new ClipboardBasedVariableResolver('line1\nline2', 0, 2);
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2), 'CLIPBOARD', 'line1');
 	});
 
 

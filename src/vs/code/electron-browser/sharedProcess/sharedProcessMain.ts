@@ -19,8 +19,8 @@ import { ExtensionManagementService } from 'vs/platform/extensionManagement/node
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -51,6 +51,10 @@ import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
+import { Schemas } from 'vs/base/common/network';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -121,6 +125,15 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 	const dialogChannel = server.getChannel('dialog', activeWindowRouter);
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
+
+	// Files
+	const fileService = new FileService(logService);
+	services.set(IFileService, fileService);
+	disposables.add(fileService);
+
+	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+	disposables.add(diskFileSystemProvider);
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 	const instantiationService = new InstantiationService(services);
 

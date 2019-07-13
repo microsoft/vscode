@@ -133,12 +133,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
 
 	@memoize
-	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
-
-	@memoize
-	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
-
-	@memoize
 	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize

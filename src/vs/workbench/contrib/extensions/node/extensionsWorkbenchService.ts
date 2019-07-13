@@ -20,7 +20,6 @@ import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSa
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1043,7 +1042,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				return this.windowService.focusWindow()
 					.then(() => this.open(extension));
 			}
-
 			return this.queryGallery({ names: [extensionId], source: 'uri' }, CancellationToken.None).then(result => {
 				if (result.total < 1) {
 					return Promise.resolve(null);
@@ -1052,17 +1050,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const extension = result.firstPage[0];
 
 				return this.windowService.focusWindow().then(() => {
-					return this.open(extension).then(() => {
-						this.notificationService.prompt(
-							Severity.Info,
-							nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher),
-							[{
-								label: nls.localize('install', "Install"),
-								run: () => this.install(extension).then(undefined, error => this.onError(error))
-							}],
-							{ sticky: true }
-						);
-					});
+					return this.open(extension);
 				});
 			});
 		}).then(undefined, error => this.onError(error));

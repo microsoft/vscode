@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,11 +15,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 const SPLIT_PANE_MIN_SIZE = 120;
 const TERMINAL_MIN_USEFUL_SIZE = 250;
 
-class SplitPaneContainer {
+class SplitPaneContainer extends Disposable {
 	private _height: number;
 	private _width: number;
 	private _splitView: SplitView;
-	private _splitViewDisposables: IDisposable[];
+	private readonly _splitViewDisposables = this._register(new DisposableStore());
 	private _children: SplitPane[] = [];
 
 	private _onDidChange: Event<number | undefined> = Event.None;
@@ -30,6 +30,7 @@ class SplitPaneContainer {
 		public orientation: Orientation,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
 	) {
+		super();
 		this._width = this._container.offsetWidth;
 		this._height = this._container.offsetHeight;
 		this._createSplitView();
@@ -38,8 +39,8 @@ class SplitPaneContainer {
 
 	private _createSplitView(): void {
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
-		this._splitViewDisposables = [];
-		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
+		this._splitViewDisposables.clear();
+		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
 	public split(instance: ITerminalInstance, index: number = this._children.length): void {
@@ -149,8 +150,7 @@ class SplitPaneContainer {
 		while (this._container.children.length > 0) {
 			this._container.removeChild(this._container.children[0]);
 		}
-		this._splitViewDisposables.forEach(d => d.dispose());
-		this._splitViewDisposables = [];
+		this._splitViewDisposables.clear();
 		this._splitView.dispose();
 
 		// Create new split view with updated orientation

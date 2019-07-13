@@ -703,11 +703,11 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		throw new Error('not implemented');
 	}
 
-	getSize(_group: number | IEditorGroup): number {
-		return 100;
+	getSize(_group: number | IEditorGroup): { width: number, height: number } {
+		return { width: 100, height: 100 };
 	}
 
-	setSize(_group: number | IEditorGroup, _size: number): void { }
+	setSize(_group: number | IEditorGroup, _size: { width: number, height: number }): void { }
 
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 
@@ -1593,30 +1593,6 @@ export class TestSharedProcessService implements ISharedProcessService {
 	}
 
 	registerChannel(channelName: string, channel: any): void { }
-}
-
-export class NullFileSystemProvider implements IFileSystemProvider {
-
-	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
-
-	onDidChangeCapabilities: Event<void> = Event.None;
-	onDidChangeFile: Event<IFileChange[]> = Event.None;
-
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
-
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
-	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
-	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	readFile?(resource: URI): Promise<Uint8Array> { return Promise.resolve(undefined!); }
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	open?(resource: URI, opts: FileOpenOptions): Promise<number> { return Promise.resolve(undefined!); }
-	close?(fd: number): Promise<void> { return Promise.resolve(undefined!); }
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
 }
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {

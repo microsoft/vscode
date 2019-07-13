@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUpdateService, createUpdateURL } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 

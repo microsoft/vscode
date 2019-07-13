@@ -5,7 +5,7 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersModel, compareMarkersByUri } from './markersModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
@@ -59,6 +59,8 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
+
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
 		@IMarkerService private readonly markerService: IMarkerService
@@ -72,6 +74,6 @@ export class ActivityUpdater extends Disposable implements IWorkbenchContributio
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
 		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
+		this.activity.value = this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}
 }

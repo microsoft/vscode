@@ -1031,7 +1031,8 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired will exit the process with an exit code, this will behave the
-		 * same for a virtual process as when a regular process exits with an exit code.
+		 * same for a virtual process as when a regular process exits with an exit code. Note that
+		 * exit codes must be positive numbers, when negative the exit code will be forced to `1`.
 		 *
 		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
 		 * ```typescript
@@ -1083,8 +1084,11 @@ declare module 'vscode' {
 
 		/**
 		 * Implement to handle when the terminal is ready to start firing events.
+		 *
+		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
+		 * terminal panel has not been opened before this is called.
 		 */
-		start?(): void;
+		start?(initialDimensions: TerminalDimensions | undefined): void;
 	}
 
 	//#endregion

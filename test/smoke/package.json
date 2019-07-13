@@ -35,5 +35,8 @@
     "tmp": "0.0.33",
     "typescript": "2.9.2",
     "watch": "^1.0.2"
+  },
+  "dependencies": {
+    "vscode-uri": "^2.0.3"
   }
 }
