@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { join } from 'vs/base/common/path';
 import { forEach } from 'vs/base/common/collections';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import {
@@ -82,7 +82,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _globallyIgnoredRecommendations: string[] = [];
 	private _workspaceIgnoredRecommendations: string[] = [];
 	private _extensionsRecommendationsUrl: string;
-	private _disposables: IDisposable[] = [];
 	public loadWorkspaceConfigPromise: Promise<void>;
 	private proactiveRecommendationsFetched: boolean = false;
 
@@ -134,7 +133,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		this.loadWorkspaceConfigPromise = this.getWorkspaceRecommendations().then(() => {
 			this.promptWorkspaceRecommendations();
-			this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this, this._disposables);
+			this._register(this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this));
 			this._modelService.getModels().forEach(model => this.promptFiletypeBasedRecommendations(model));
 		});
 
@@ -1033,9 +1032,5 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
 		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
 	}
 }

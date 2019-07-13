@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor, CodeAction } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -517,21 +517,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const hoverElement = $('div.hover-row.status-bar');
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
-		disposables.add(this.renderAction(actionsElement, {
-			label: nls.localize('quick fixes', "Quick Fix..."),
-			commandId: QuickFixAction.Id,
-			run: async (target) => {
-				const codeActionsPromise = this.getCodeActions(markerHover.marker);
-				disposables.add(toDisposable(() => codeActionsPromise.cancel()));
-
-				const controller = QuickFixController.get(this._editor);
-				const elementPosition = dom.getDomNodePagePosition(target);
-				controller.showCodeActions(codeActionsPromise, {
-					x: elementPosition.left + 6,
-					y: elementPosition.top + elementPosition.height + 6
-				});
-			}
-		}));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
 			disposables.add(this.renderAction(actionsElement, {
 				label: nls.localize('peek problem', "Peek Problem"),
@@ -543,27 +528,61 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 		}
+
+		const quickfixPlaceholderElement = dom.append(actionsElement, $('div'));
+		quickfixPlaceholderElement.style.opacity = '0';
+		quickfixPlaceholderElement.style.transition = 'opacity 0.2s';
+		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
+		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
+		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
+
+
+		const codeActionsPromise = this.getCodeActions(markerHover.marker);
+		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
+		codeActionsPromise.then(actions => {
+			quickfixPlaceholderElement.style.transition = '';
+			quickfixPlaceholderElement.style.opacity = '1';
+
+			if (!actions.actions.length) {
+				actions.dispose();
+				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+				return;
+			}
+			quickfixPlaceholderElement.remove();
+
+			let showing = false;
+			disposables.add(toDisposable(() => {
+				if (!showing) {
+					actions.dispose();
+				}
+			}));
+
+			disposables.add(this.renderAction(actionsElement, {
+				label: nls.localize('quick fixes', "Quick Fix..."),
+				commandId: QuickFixAction.Id,
+				run: (target) => {
+					showing = true;
+					const controller = QuickFixController.get(this._editor);
+					const elementPosition = dom.getDomNodePagePosition(target);
+					controller.showCodeActions(actions, {
+						x: elementPosition.left + 6,
+						y: elementPosition.top + elementPosition.height + 6
+					});
+				}
+			}));
+		});
+
 		this.renderDisposable.value = disposables;
 		return hoverElement;
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
-		const noAction: CodeAction = {
-			title: nls.localize('editor.action.quickFix.noneMessage', "No code actions available"),
-			kind: CodeActionKind.QuickFix.value,
-		};
-		return createCancelablePromise(async (cancellationToken): Promise<CodeActionSet> => {
-			const result = await getCodeActions(
+		return createCancelablePromise(cancellationToken => {
+			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
 				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
 				cancellationToken);
-
-			return {
-				actions: result.actions.length ? result.actions : [noAction],
-				hasAutoFix: result.hasAutoFix,
-				dispose: () => result.dispose(),
-			};
 		});
 	}
 

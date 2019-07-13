@@ -9,6 +9,7 @@ import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -67,7 +68,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const extensionLocation = reviveUri(data.extensionLocation);
 		const extensionId = data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined;
 		const iconPath = reviveIconPath(data.iconPath);
-		return this._webviewService.reviveWebview(data.viewType, data.title, iconPath, data.state, data.options, extensionLocation ? {
+		return this._webviewService.reviveWebview(generateUuid(), data.viewType, data.title, iconPath, data.state, data.options, extensionLocation ? {
 			location: extensionLocation,
 			id: extensionId
 		} : undefined, data.group);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extensionsWidgets';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
@@ -196,7 +196,7 @@ export class TooltipWidget extends ExtensionWidget {
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = this._register(new DisposableStore());
 
 	private _tooltip: string;
 	get tooltip(): string { return this._tooltip; }
@@ -227,7 +227,7 @@ export class RecommendationWidget extends ExtensionWidget {
 			this.parent.removeChild(this.element);
 		}
 		this.element = undefined;
-		this.disposables = dispose(this.disposables);
+		this.disposables.clear();
 	}
 
 	render(): void {
@@ -256,8 +256,7 @@ export class RecommendationWidget extends ExtensionWidget {
 
 export class RemoteBadgeWidget extends ExtensionWidget {
 
-	private remoteBadge: RemoteBadge | null;
-	private disposables: IDisposable[] = [];
+	private readonly remoteBadge = this._register(new MutableDisposable<RemoteBadge>());
 
 	private element: HTMLElement;
 
@@ -274,12 +273,10 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.remoteBadge) {
-			this.element.removeChild(this.remoteBadge.element);
-			this.remoteBadge.dispose();
+		if (this.remoteBadge.value) {
+			this.element.removeChild(this.remoteBadge.value.element);
 		}
-		this.remoteBadge = null;
-		this.disposables = dispose(this.disposables);
+		this.remoteBadge.clear();
 	}
 
 	render(): void {
@@ -288,16 +285,9 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			return;
 		}
 		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-			this.remoteBadge = this.instantiationService.createInstance(RemoteBadge, this.tooltip);
-			append(this.element, this.remoteBadge.element);
+			this.remoteBadge.value = this.instantiationService.createInstance(RemoteBadge, this.tooltip);
+			append(this.element, this.remoteBadge.value.element);
 		}
-	}
-
-	dispose(): void {
-		if (this.remoteBadge) {
-			this.remoteBadge.dispose();
-		}
-		super.dispose();
 	}
 }
 
