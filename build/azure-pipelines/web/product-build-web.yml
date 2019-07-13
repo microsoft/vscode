@@ -89,18 +89,6 @@ steps:
       yarn gulp vscode-web-standalone-min-ci
   displayName: Build
 
-# - script: |
-#     set -e
-#     yarn gulp "electron-$(VSCODE_ARCH)"
-
-#     # xvfb seems to be crashing often, let's make sure it's always up
-#     service xvfb start
-
-#     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
-#     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-#   displayName: Run unit tests
-#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
 - script: |
     set -e
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
@@ -108,13 +96,3 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     ./build/azure-pipelines/web/publish.sh
   displayName: Publish
-
-# - task: PublishPipelineArtifact@0
-#   displayName: 'Publish Pipeline Artifact'
-#   inputs:
-#     artifactName: snap-$(VSCODE_ARCH)
-#     targetPath: .build/linux/snap-tarball
-
-# - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-#   displayName: 'Component Detection'
-#   continueOnError: true
