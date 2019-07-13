@@ -169,27 +169,31 @@ export class ToggleScreencastModeAction extends Action {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
-			const shortcut = this.keybindingService.softDispatch(event, event.target);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-			const label = keybinding.getLabel();
+			const [firstPart,] = keybinding.getDispatchParts();
 
-			if (shortcut) {
-				if (enterChord) {
-					keyboardMarker.textContent += ' ' + label;
-				} else {
-					keyboardMarker.textContent = label;
-				}
-				keyboardMarker.style.display = 'block';
-				enterChord = shortcut.enterChord;
-			} else if (!this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
-				if (this.keybindingService.mightProducePrintableCharacter(event) && label) {
-					keyboardMarker.textContent += ' ' + label;
+			if (firstPart !== null) {
+				const shortcut = this.keybindingService.softDispatch(event, event.target);
+				const label = keybinding.getLabel();
+
+				if (shortcut) {
+					if (enterChord) {
+						keyboardMarker.textContent += ' ' + label;
+					} else {
+						keyboardMarker.textContent = label;
+					}
 					keyboardMarker.style.display = 'block';
-				} else if (!event.shiftKey) {
-					keyboardMarker.textContent = label;
-					keyboardMarker.style.display = 'block';
+					enterChord = shortcut.enterChord;
+				} else if (!this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+					if (this.keybindingService.mightProducePrintableCharacter(event) && label) {
+						keyboardMarker.textContent += ' ' + label;
+						keyboardMarker.style.display = 'block';
+					} else {
+						keyboardMarker.textContent = label;
+						keyboardMarker.style.display = 'block';
+					}
+					enterChord = false;
 				}
-				enterChord = false;
 			}
 
 			const promise = timeout(800);
