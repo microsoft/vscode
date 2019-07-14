@@ -23,6 +23,8 @@ out-vscode-reh-web-min/
 out-vscode-reh-web-pkg/
 out-vscode-web-standalone/
 out-vscode-web-standalone-min/
+src/vs/server
+resources/server
 build/node_modules
 coverage/
 test_data/
