@@ -760,26 +760,30 @@ export class SplitView extends Disposable {
 		const expandsUp = reverseViews.map(i => previous = (i.maximumSize - i.size > 0) || previous).reverse();
 
 		this.sashItems.forEach((s, i) => {
-			const min = !(collapsesDown[i] && expandsUp[i + 1]);
-			const max = !(expandsDown[i] && collapsesUp[i + 1]);
+			if (!this.viewItems[i].visible) {
+				s.sash.state = SashState.Disabled;
+			} else {
+				const min = !(collapsesDown[i] && expandsUp[i + 1]);
+				const max = !(expandsDown[i] && collapsesUp[i + 1]);
 
-			if (min && max) {
-				const before = !range(0, i + 1).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
-				const after = !range(i + 1, this.viewItems.length).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
+				if (min && max) {
+					const before = !range(0, i + 1).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
+					const after = !range(i + 1, this.viewItems.length).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
 
-				if (before) {
+					if (before) {
+						s.sash.state = SashState.Minimum;
+					} else if (after) {
+						s.sash.state = SashState.Maximum;
+					} else {
+						s.sash.state = SashState.Disabled;
+					}
+				} else if (min && !max) {
 					s.sash.state = SashState.Minimum;
-				} else if (after) {
+				} else if (!min && max) {
 					s.sash.state = SashState.Maximum;
 				} else {
-					s.sash.state = SashState.Disabled;
+					s.sash.state = SashState.Enabled;
 				}
-			} else if (min && !max) {
-				s.sash.state = SashState.Minimum;
-			} else if (!min && max) {
-				s.sash.state = SashState.Maximum;
-			} else {
-				s.sash.state = SashState.Enabled;
 			}
 		});
 	}
