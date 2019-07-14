@@ -138,7 +138,7 @@ export class ListSettingListModel {
 
 	get items(): IListViewItem[] {
 		const items = this._dataItems.map((item, i) => {
-			const editing = item.pattern === this._editKey;
+			const editing = item.value === this._editKey;
 			return <IListViewItem>{
 				...item,
 				editing,
@@ -150,7 +150,7 @@ export class ListSettingListModel {
 			items.push({
 				editing: true,
 				selected: true,
-				pattern: '',
+				value: '',
 				sibling: ''
 			});
 		}
@@ -192,8 +192,8 @@ export class ListSettingListModel {
 }
 
 export interface IListChangeEvent {
-	originalPattern: string;
-	pattern?: string;
+	originalValue: string;
+	value?: string;
 	sibling?: string;
 }
 
@@ -251,10 +251,10 @@ export class ListSettingWidget extends Disposable {
 		};
 	}
 
-	protected getSettingListRowLocalizedStrings(pattern?: string, sibling?: string) {
+	protected getSettingListRowLocalizedStrings(value?: string, sibling?: string) {
 		return {
-			settingListRowPatternHintLabel: localize('listPatternHintLabel', "List item `{0}`", pattern),
-			settingListRowSiblingHintLabel: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", pattern)
+			settingListRowValueHintLabel: localize('listValueHintLabel', "List item `{0}`", value),
+			settingListRowSiblingHintLabel: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value)
 		};
 	}
 
@@ -287,7 +287,7 @@ export class ListSettingWidget extends Disposable {
 
 		const item = this.model.items[targetIdx];
 		if (item) {
-			this.editSetting(item.pattern);
+			this.editSetting(item.value);
 			e.preventDefault();
 			e.stopPropagation();
 		}
@@ -324,7 +324,7 @@ export class ListSettingWidget extends Disposable {
 		DOM.clearNode(this.listElement);
 		this.listDisposables.clear();
 
-		const newMode = this.model.items.some(item => !!(item.editing && !item.pattern));
+		const newMode = this.model.items.some(item => !!(item.editing && !item.value));
 		DOM.toggleClass(this.container, 'setting-list-new-mode', newMode);
 
 		this.model.items
@@ -341,7 +341,7 @@ export class ListSettingWidget extends Disposable {
 			enabled: true,
 			id: 'workbench.action.removeListItem',
 			tooltip: this.getLocalizedStrings().deleteActionTooltip,
-			run: () => this._onDidChangeList.fire({ originalPattern: key, pattern: undefined })
+			run: () => this._onDidChangeList.fire({ originalValue: key, value: undefined })
 		};
 	}
 
@@ -377,19 +377,19 @@ export class ListSettingWidget extends Disposable {
 		const actionBar = new ActionBar(rowElement);
 		this.listDisposables.add(actionBar);
 
-		const patternElement = DOM.append(rowElement, $('.setting-list-pattern'));
+		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
-		patternElement.textContent = item.pattern;
+		valueElement.textContent = item.value;
 		siblingElement.textContent = item.sibling ? ('when: ' + item.sibling) : null;
 
 		actionBar.push([
-			this.createEditAction(item.pattern),
-			this.createDeleteAction(item.pattern)
+			this.createEditAction(item.value),
+			this.createDeleteAction(item.value)
 		], { icon: true, label: false });
 
 		rowElement.title = item.sibling
-			? this.getSettingListRowLocalizedStrings(item.pattern, item.sibling).settingListRowSiblingHintLabel
-			: this.getSettingListRowLocalizedStrings(item.pattern, item.sibling).settingListRowPatternHintLabel;
+			? this.getSettingListRowLocalizedStrings(item.value, item.sibling).settingListRowSiblingHintLabel
+			: this.getSettingListRowLocalizedStrings(item.value, item.sibling).settingListRowValueHintLabel;
 
 		if (item.selected) {
 			if (listFocused) {
@@ -423,11 +423,11 @@ export class ListSettingWidget extends Disposable {
 
 		const onSubmit = (edited: boolean) => {
 			this.model.setEditKey(null);
-			const pattern = patternInput.value.trim();
-			if (edited && pattern) {
+			const value = valueInput.value.trim();
+			if (edited && value) {
 				this._onDidChangeList.fire({
-					originalPattern: item.pattern,
-					pattern,
+					originalValue: item.value,
+					value: value,
 					sibling: siblingInput && siblingInput.value.trim()
 				});
 			}
@@ -443,19 +443,19 @@ export class ListSettingWidget extends Disposable {
 			}
 		};
 
-		const patternInput = new InputBox(rowElement, this.contextViewService, {
+		const valueInput = new InputBox(rowElement, this.contextViewService, {
 			placeholder: this.getLocalizedStrings().inputPlaceholder
 		});
 
-		patternInput.element.classList.add('setting-list-patternInput');
-		this.listDisposables.add(attachInputBoxStyler(patternInput, this.themeService, {
+		valueInput.element.classList.add('setting-list-valueInput');
+		this.listDisposables.add(attachInputBoxStyler(valueInput, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
-		this.listDisposables.add(patternInput);
-		patternInput.value = item.pattern;
-		this.listDisposables.add(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+		this.listDisposables.add(valueInput);
+		valueInput.value = item.value;
+		this.listDisposables.add(DOM.addStandardDisposableListener(valueInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 
 		let siblingInput: InputBox;
 		if (item.sibling) {
@@ -487,8 +487,8 @@ export class ListSettingWidget extends Disposable {
 
 		this.listDisposables.add(
 			disposableTimeout(() => {
-				patternInput.focus();
-				patternInput.select();
+				valueInput.focus();
+				valueInput.select();
 			}));
 
 		return rowElement;
@@ -509,14 +509,14 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 
 	protected getSettingListRowLocalizedStrings(pattern?: string, sibling?: string) {
 		return {
-			settingListRowPatternHintLabel: localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern),
+			settingListRowValueHintLabel: localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern),
 			settingListRowSiblingHintLabel: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", pattern, sibling)
 		};
 	}
 }
 
 export interface IListDataItem {
-	pattern: string;
+	value: string;
 	sibling?: string;
 }
 

@@ -7,12 +7,12 @@
 	width: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-pattern {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value {
 	margin-right: 3px;
 	margin-left: 2px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-pattern,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	display: inline-block;
 	line-height: 22px;
@@ -90,7 +90,7 @@
 	display: flex
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-patternInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput {
 	height: 22px;
 	max-width: 320px;

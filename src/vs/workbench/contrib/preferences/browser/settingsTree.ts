@@ -63,7 +63,7 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 
 			return {
 				id: key,
-				pattern: key,
+				value: key,
 				sibling
 			};
 		});
@@ -72,7 +72,7 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	return element.value.map((key: string) => {
 		return {
-			pattern: key
+			value: key
 		};
 	});
 }
@@ -698,27 +698,27 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				? [...template.context.scopeValue]
 				: [...template.context.value];
 
-			// Add pattern
-			if (e.pattern && !e.originalPattern) {
-				newValue.push(e.pattern);
+			// Add value
+			if (e.value && !e.originalValue) {
+				newValue.push(e.value);
 			}
-			// Delete pattern
-			else if (!e.pattern && e.originalPattern) {
-				const patternIndex = newValue.indexOf(e.originalPattern);
-				if (patternIndex > -1) {
-					newValue.splice(patternIndex, 1);
+			// Delete value
+			else if (!e.value && e.originalValue) {
+				const valueIndex = newValue.indexOf(e.originalValue);
+				if (valueIndex > -1) {
+					newValue.splice(valueIndex, 1);
 				}
 			}
-			// Update pattern
-			else if (e.pattern && e.originalPattern) {
-				const patternIndex = newValue.indexOf(e.originalPattern);
-				if (patternIndex > -1) {
-					newValue[patternIndex] = e.pattern;
+			// Update value
+			else if (e.value && e.originalValue) {
+				const valueIndex = newValue.indexOf(e.originalValue);
+				if (valueIndex > -1) {
+					newValue[valueIndex] = e.value;
 				}
-				// For some reason, we are updating and cannot find original pattern
+				// For some reason, we are updating and cannot find original value
 				// Just append the value in this case
 				else {
-					newValue.push(e.pattern);
+					newValue.push(e.value);
 				}
 			}
 
@@ -768,22 +768,22 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalPattern) {
-				if (e.originalPattern in template.context.defaultValue) {
+			if (e.originalValue) {
+				if (e.originalValue in template.context.defaultValue) {
 					// delete a default by overriding it
-					newValue[e.originalPattern] = false;
+					newValue[e.originalValue] = false;
 				} else {
-					delete newValue[e.originalPattern];
+					delete newValue[e.originalValue];
 				}
 			}
 
 			// then add the new or updated entry, if present
-			if (e.pattern) {
-				if (e.pattern in template.context.defaultValue && !e.sibling) {
+			if (e.value) {
+				if (e.value in template.context.defaultValue && !e.sibling) {
 					// add a default by deleting its override
-					delete newValue[e.pattern];
+					delete newValue[e.value];
 				} else {
-					newValue[e.pattern] = e.sibling ? { when: e.sibling } : true;
+					newValue[e.value] = e.sibling ? { when: e.sibling } : true;
 				}
 			}
 
