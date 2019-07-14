@@ -98,7 +98,7 @@ steps:
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
-    exec { yarn gulp "vscode-web-win32-$env:VSCODE_ARCH-min-ci" }
+    exec { yarn gulp "vscode-reh-web-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
   displayName: Build
 

@@ -89,7 +89,7 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-reh-darwin-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-darwin-min-ci
+      yarn gulp vscode-reh-web-darwin-min-ci
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       yarn gulp upload-vscode-sourcemaps
   displayName: Build
