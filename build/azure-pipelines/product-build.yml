@@ -89,6 +89,18 @@ jobs:
   steps:
   - template: linux/product-build-linux-multiarch.yml
 
+- job: LinuxWeb
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+  timeoutInMinutes: 120
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  dependsOn:
+  - Compile
+  steps:
+  - template: web/product-build-web.yml
+
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
   timeoutInMinutes: 120
