@@ -145,6 +145,7 @@ const configurationValueWhitelist = [
 	'editor.codeLens',
 	'editor.folding',
 	'editor.showFoldingControls',
+	'editor.foldingFromEnd',
 	'editor.matchBrackets',
 	'editor.glyphMargin',
 	'editor.useTabStops',

@@ -959,6 +959,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.showFoldingControls,
 			'description': nls.localize('showFoldingControls', "Controls whether the fold controls on the gutter are automatically hidden.")
 		},
+		'editor.foldingFromEnd': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.foldingFromEnd,
+			'description': nls.localize('foldingFromEnd', "Allow folding from the end of a region.")
+		},
 		'editor.matchBrackets': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.matchBrackets,

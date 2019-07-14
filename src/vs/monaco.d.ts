@@ -3023,6 +3023,11 @@ declare namespace monaco.editor {
 		 */
 		showFoldingControls?: 'always' | 'mouseover';
 		/**
+		 * Enable code folding from end of region
+		 * Defaults to false.
+		 */
+		foldingFromEnd?: boolean;
+		/**
 		 * Enable highlighting of matching brackets.
 		 * Defaults to true.
 		 */
@@ -3344,6 +3349,7 @@ declare namespace monaco.editor {
 		readonly folding: boolean;
 		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';
+		readonly foldingFromEnd: boolean;
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
 		readonly colorDecorators: boolean;

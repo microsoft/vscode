@@ -26,18 +26,46 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		linesDecorationsClassName: 'folding alwaysShowFoldIcons'
 	});
 
+	private static COLLAPSED_VISUAL_DECORATION_END = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: 'foldingEnd collapsed'
+	});
+
+	private static EXPANDED_AUTO_HIDE_VISUAL_DECORATION_END = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: 'foldingEnd'
+	});
+
+	private static EXPANDED_VISUAL_DECORATION_END = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: 'foldingEnd alwaysShowFoldIcons'
+	});
+
+	private static VISUAL_DECORATION_HIDDEN = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: ''
+	});
+
 	public autoHideFoldingControls: boolean = true;
 
 	constructor(private readonly editor: ICodeEditor) {
 	}
 
-	getDecorationOption(isCollapsed: boolean): ModelDecorationOptions {
-		if (isCollapsed) {
-			return FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
+	getDecorationOption(isCollapsed: boolean, isEnd: boolean = false, isHidden: boolean = false): ModelDecorationOptions {
+		if (isHidden) {
+			return FoldingDecorationProvider.VISUAL_DECORATION_HIDDEN;
+		} else if (isCollapsed) {
+			return isEnd ?
+				FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION_END :
+				FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
 		} else if (this.autoHideFoldingControls) {
-			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
+			return isEnd ?
+				FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION_END :
+				FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
-			return FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
+			return isEnd ?
+				FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION_END :
+				FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
 		}
 	}
 

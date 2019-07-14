@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .margin-view-overlays .folding {
+.monaco-editor .margin-view-overlays .folding,
+.monaco-editor .margin-view-overlays .foldingEnd {
 	cursor: pointer;
 	background-repeat: no-repeat;
 	background-origin: border-box;
@@ -17,13 +18,26 @@
 	background-image: url('tree-expanded-light.svg');
 }
 
+.monaco-editor .margin-view-overlays .foldingEnd {
+	background-image: url('tree-expanded-end-light.svg');
+}
+
 .monaco-editor.hc-black .margin-view-overlays .folding,
 .monaco-editor.vs-dark .margin-view-overlays .folding {
 	background-image: url('tree-expanded-dark.svg');
 }
 
+.monaco-editor.hc-black .margin-view-overlays .foldingEnd,
+.monaco-editor.vs-dark .margin-view-overlays .foldingEnd {
+	background-image: url('tree-expanded-end-dark.svg');
+}
+
 .monaco-editor.hc-black .margin-view-overlays .folding {
 	background-image: url('tree-expanded-hc.svg');
+}
+
+.monaco-editor.hc-black .margin-view-overlays .foldingEnd {
+	background-image: url('tree-expanded-end-hc.svg');
 }
 
 .monaco-editor .margin-view-overlays:hover .folding,
@@ -31,9 +45,30 @@
 	opacity: 1;
 }
 
+.monaco-editor .margin-view-overlays:hover .foldingEnd,
+.monaco-editor .margin-view-overlays .foldingEnd.alwaysShowFoldIcons {
+	opacity: .50;
+}
+
+.monaco-editor .margin-view-overlays:hover .foldingEnd:hover,
+.monaco-editor .margin-view-overlays .foldingEnd.alwaysShowFoldIcons:hover {
+	opacity: 1;
+}
+
 .monaco-editor .margin-view-overlays .folding.collapsed {
 	background-image: url('tree-collapsed-light.svg');
 	opacity: 1;
+}
+
+.monaco-editor .margin-view-overlays .folding + .foldingEnd,
+.monaco-editor .margin-view-overlays .foldingEnd.collapsed {
+	opacity: 0;
+	cursor: default;
+	z-index: -1;
+}
+
+.monaco-editor .margin-view-overlays .foldingEnd.collapsed {
+	z-index: -2;
 }
 
 .monaco-editor.vs-dark .margin-view-overlays .folding.collapsed {

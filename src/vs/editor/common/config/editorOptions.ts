@@ -656,6 +656,11 @@ export interface IEditorOptions {
 	 */
 	showFoldingControls?: 'always' | 'mouseover';
 	/**
+	 * Enable code folding from end of region
+	 * Defaults to false.
+	 */
+	foldingFromEnd?: boolean;
+	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to true.
 	 */
@@ -1036,6 +1041,7 @@ export interface EditorContribOptions {
 	readonly folding: boolean;
 	readonly foldingStrategy: 'auto' | 'indentation';
 	readonly showFoldingControls: 'always' | 'mouseover';
+	readonly foldingFromEnd: boolean;
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
@@ -1463,6 +1469,7 @@ export class InternalEditorOptions {
 			&& a.folding === b.folding
 			&& a.foldingStrategy === b.foldingStrategy
 			&& a.showFoldingControls === b.showFoldingControls
+			&& a.foldingFromEnd === b.foldingFromEnd
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
@@ -2118,6 +2125,7 @@ export class EditorOptionsValidator {
 			folding: _boolean(opts.folding, defaults.folding),
 			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
+			foldingFromEnd: _boolean(opts.foldingFromEnd, defaults.foldingFromEnd),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
@@ -2232,6 +2240,7 @@ export class InternalEditorOptionsFactory {
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
+				foldingFromEnd: opts.contribInfo.foldingFromEnd,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
@@ -2728,6 +2737,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		folding: true,
 		foldingStrategy: 'auto',
 		showFoldingControls: 'mouseover',
+		foldingFromEnd: false,
 		matchBrackets: true,
 		find: {
 			seedSearchStringFromSelection: true,
