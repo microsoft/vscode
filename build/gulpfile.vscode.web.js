@@ -9,7 +9,7 @@ const gulp = require('gulp');
 
 const noop = () => { return Promise.resolve(); };
 
-gulp.task('vscode-web-standalone', noop);
-gulp.task('vscode-web-standalone-min', noop);
-gulp.task('vscode-web-standalone-ci', noop);
-gulp.task('vscode-web-standalone-min-ci', noop);
+gulp.task('vscode-web', noop);
+gulp.task('vscode-web-min', noop);
+gulp.task('vscode-web-ci', noop);
+gulp.task('vscode-web-min-ci', noop);
