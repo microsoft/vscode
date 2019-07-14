@@ -265,14 +265,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const src = gulp.src(out + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']))
-			.pipe(filter(['**', '!**/*.js.map']));
+			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const root = path.resolve(path.join(__dirname, '..'));
+		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true });
 
-		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true })
+		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.js.map']));
-		const sources = es.merge(src, extensions);
 
 		let version = packageJson.version;
 		// @ts-ignore JSON checking: quality is optional
@@ -310,6 +308,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
+		const root = path.resolve(path.join(__dirname, '..'));
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
