@@ -111,6 +111,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			// Workbench
 			try {
 				const pathname = url.parse(req.url!).pathname;
+				let validatePath = true;
 
 				let filePath: string;
 				if (pathname === '/') {
@@ -153,10 +154,19 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 				// Anything else
 				else {
-					filePath = path.join(APP_ROOT, path.normalize(pathname!));
+					const client = (this._environmentService.args as any)['client'];
+					let clientRoot;
+					if (!client || pathname! === '/out/vs/code/browser/workbench/workbench.js') {
+						clientRoot = APP_ROOT;
+					} else {
+						clientRoot = path.normalize(client); // use provided path as client root
+						validatePath = false; // do not validate path as such
+					}
+
+					filePath = path.join(clientRoot, path.normalize(pathname!));
 				}
 
-				if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
+				if (validatePath && !isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 					throw new Error(`Invalid path ${pathname}`); // prevent navigation outside root
 				}
 
