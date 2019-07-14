@@ -40,6 +40,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { WebRequestService as RequestService } from 'vs/workbench/services/request/browser/requestService';
 
 class CodeRendererMain extends Disposable {
 
@@ -160,7 +162,7 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.userData, userDataProvider);
 		}
 
-		const services = await Promise.all([
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -181,7 +183,10 @@ class CodeRendererMain extends Disposable {
 			})
 		]);
 
-		return { serviceCollection, logService, storageService: services[1] };
+		// Request Service
+		serviceCollection.set(IRequestService, new RequestService(this.configuration.requestHandler, remoteAgentService, configurationService, logService));
+
+		return { serviceCollection, logService, storageService };
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
