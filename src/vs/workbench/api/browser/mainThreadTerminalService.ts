@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, ITerminalVirtualProcessRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -48,7 +48,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
-		this._toDispose.add(_terminalService.onInstanceRequestVirtualProcess(proxy => this._onTerminalRequestVirtualProcess(proxy)));
+		this._toDispose.add(_terminalService.onInstanceRequestVirtualProcess(e => this._onTerminalRequestVirtualProcess(e)));
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 		this._toDispose.add(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
@@ -244,12 +244,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			return;
 		}
 
-		const ready = this._terminalProcessesReady[request.proxy.terminalId];
+		const proxy = request.proxy;
+		const ready = this._terminalProcessesReady[proxy.terminalId];
 		if (ready) {
-			ready(request.proxy);
-			delete this._terminalProcessesReady[request.proxy.terminalId];
+			ready(proxy);
+			delete this._terminalProcessesReady[proxy.terminalId];
 		} else {
-			this._terminalProcesses[request.proxy.terminalId] = Promise.resolve(request.proxy);
+			this._terminalProcesses[proxy.terminalId] = Promise.resolve(proxy);
 		}
 		const shellLaunchConfigDto: ShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,
@@ -258,16 +259,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			cwd: request.shellLaunchConfig.cwd,
 			env: request.shellLaunchConfig.env
 		};
-		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows, request.isWorkspaceShellAllowed);
-		request.proxy.onInput(data => this._proxy.$acceptProcessInput(request.proxy.terminalId, data));
-		request.proxy.onResize(dimensions => this._proxy.$acceptProcessResize(request.proxy.terminalId, dimensions.cols, dimensions.rows));
-		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));
-		request.proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(request.proxy.terminalId));
-		request.proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(request.proxy.terminalId));
-		request.proxy.onRequestLatency(() => this._onRequestLatency(request.proxy.terminalId));
+		this._proxy.$createProcess(proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows, request.isWorkspaceShellAllowed);
+		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
+		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
+		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
+		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));
+		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.terminalId));
+		proxy.onRequestLatency(() => this._onRequestLatency(proxy.terminalId));
 	}
 
-	private _onTerminalRequestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void {
+	private _onTerminalRequestVirtualProcess(request: ITerminalVirtualProcessRequest): void {
+		const proxy = request.proxy;
 		const ready = this._terminalProcessesReady[proxy.terminalId];
 		if (!ready) {
 			this._terminalProcesses[proxy.terminalId] = Promise.resolve(proxy);
@@ -278,6 +280,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 		// Note that onReisze is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override
+		const initialDimensions: ITerminalDimensionsDto | undefined = request.cols && request.rows ? {
+			columns: request.cols,
+			rows: request.rows
+		} : undefined;
+		this._proxy.$startVirtualProcess(proxy.terminalId, initialDimensions);
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
 		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));
