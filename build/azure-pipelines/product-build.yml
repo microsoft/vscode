@@ -96,7 +96,6 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: x64
-  container: vscode-x64
   dependsOn:
   - Compile
   steps:

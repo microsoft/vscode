@@ -7,7 +7,7 @@ steps:
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'
