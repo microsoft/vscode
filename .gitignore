@@ -21,6 +21,8 @@ out-vscode-reh-pkg/
 out-vscode-reh-web/
 out-vscode-reh-web-min/
 out-vscode-reh-web-pkg/
+out-vscode-web/
+out-vscode-web-min/
 build/node_modules
 coverage/
 test_data/

@@ -21,7 +21,7 @@ rm -rf $ROOT/vscode-server-*.tar.*
 node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$VERSION" true "$SERVER_TARBALL_PATH"
 
 # Publish Remote Extension Host (Web)
-LEGACY_SERVER_BUILD_NAME="vscode-web-$PLATFORM_LINUX"
+LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$PLATFORM_LINUX"
 SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
 SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
 SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
