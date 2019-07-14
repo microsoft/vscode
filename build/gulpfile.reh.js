@@ -281,10 +281,10 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions]
 			.map(name => `.build/extensions/${name}/**`);
 
-		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true })
-			.pipe(filter(['**', '!**/*.js.map']));
+		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
 		const extensionsCommonDependencies = gulp.src('.build/extensions/node_modules/**', { base: '.build', dot: true });
-		const sources = es.merge(src, extensions, extensionsCommonDependencies);
+		const sources = es.merge(src, extensions, extensionsCommonDependencies)
+			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
 
 		let version = packageJson.version;
 		// @ts-ignore JSON checking: quality is optional
