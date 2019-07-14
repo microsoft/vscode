@@ -9,9 +9,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RequestService } from 'vs/platform/request/browser/requestService';
+import { RequestService as BrowserRequestService } from 'vs/platform/request/browser/requestService';
 
-export class WebRequestService extends RequestService {
+export class RequestService extends BrowserRequestService {
 
 	private readonly remoteRequestChannel: RequestChannelClient | null;
 

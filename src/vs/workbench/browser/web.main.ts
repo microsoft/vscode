@@ -41,7 +41,7 @@ import { BrowserStorageService } from 'vs/platform/storage/browser/storageServic
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { WebRequestService as RequestService } from 'vs/workbench/services/request/browser/requestService';
+import { RequestService } from 'vs/workbench/services/request/browser/requestService';
 
 class CodeRendererMain extends Disposable {
 
