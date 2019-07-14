@@ -195,6 +195,7 @@ export interface IListChangeEvent {
 	originalValue: string;
 	value?: string;
 	sibling?: string;
+	removeIndex?: number;
 }
 
 export class ListSettingWidget extends Disposable {
@@ -335,13 +336,13 @@ export class ListSettingWidget extends Disposable {
 		this.listElement.style.height = listHeight + 'px';
 	}
 
-	private createDeleteAction(key: string): IAction {
+	private createDeleteAction(key: string, idx: number): IAction {
 		return <IAction>{
 			class: 'setting-listAction-remove',
 			enabled: true,
 			id: 'workbench.action.removeListItem',
 			tooltip: this.getLocalizedStrings().deleteActionTooltip,
-			run: () => this._onDidChangeList.fire({ originalValue: key, value: undefined })
+			run: () => this._onDidChangeList.fire({ originalValue: key, value: undefined, removeIndex: idx })
 		};
 	}
 
@@ -384,7 +385,7 @@ export class ListSettingWidget extends Disposable {
 
 		actionBar.push([
 			this.createEditAction(item.value),
-			this.createDeleteAction(item.value)
+			this.createDeleteAction(item.value, idx)
 		], { icon: true, label: false });
 
 		rowElement.title = item.sibling

@@ -698,16 +698,15 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				? [...template.context.scopeValue]
 				: [...template.context.value];
 
-			// Add value
-			if (e.value && !e.originalValue) {
-				newValue.push(e.value);
-			}
 			// Delete value
-			else if (!e.value && e.originalValue) {
-				const valueIndex = newValue.indexOf(e.originalValue);
-				if (valueIndex > -1) {
-					newValue.splice(valueIndex, 1);
+			if (e.removeIndex) {
+				if (!e.value && e.originalValue && e.removeIndex > -1) {
+					newValue.splice(e.removeIndex, 1);
 				}
+			}
+			// Add value
+			else if (e.value && !e.originalValue) {
+				newValue.push(e.value);
 			}
 			// Update value
 			else if (e.value && e.originalValue) {
