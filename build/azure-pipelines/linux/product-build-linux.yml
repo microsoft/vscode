@@ -7,7 +7,7 @@ steps:
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'
@@ -90,7 +90,7 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-reh-linux-$VSCODE_ARCH-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-web-linux-$VSCODE_ARCH-min-ci
+      yarn gulp vscode-reh-web-linux-$VSCODE_ARCH-min-ci
   displayName: Build
 
 - script: |
