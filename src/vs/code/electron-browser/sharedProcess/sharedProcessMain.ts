@@ -16,7 +16,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';

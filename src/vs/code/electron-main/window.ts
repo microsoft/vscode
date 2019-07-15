@@ -21,7 +21,7 @@ import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/worksp
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
-import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
