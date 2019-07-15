@@ -8,7 +8,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isArray } from 'vs/base/common/types';
+import { asArray } from 'vs/base/common/arrays';
 
 export interface IEditorDescriptor {
 	instantiate(instantiationService: IInstantiationService): BaseEditor;
@@ -90,13 +90,7 @@ class EditorRegistry implements IEditorRegistry {
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput> | SyncDescriptor<EditorInput>[]): void {
 
-		// Support both non-array and array parameter
-		let inputDescriptors: SyncDescriptor<EditorInput>[] = [];
-		if (!isArray(editorInputDescriptor)) {
-			inputDescriptors.push(editorInputDescriptor);
-		} else {
-			inputDescriptors = editorInputDescriptor;
-		}
+		const inputDescriptors: SyncDescriptor<EditorInput>[] = asArray(editorInputDescriptor);
 
 		// Register (Support multiple Editors per Input)
 		this.mapEditorToInputs.set(descriptor, inputDescriptors);
