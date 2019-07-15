@@ -112,7 +112,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined> {
+	async $tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined> {
 		const uri = URI.revive(resource);
 
 		const editorOptions: ITextEditorOptions = {
@@ -126,37 +126,35 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		return this._editorService.openEditor(input, viewColumnToEditorGroup(this._editorGroupService, options.position)).then(editor => {
-			if (!editor) {
-				return undefined;
-			}
-			return this._documentsAndEditors.findTextEditorIdFor(editor);
-		});
+		const editor = await this._editorService.openEditor(input, viewColumnToEditorGroup(this._editorGroupService, options.position));
+		if (!editor) {
+			return undefined;
+		}
+		return this._documentsAndEditors.findTextEditorIdFor(editor);
 	}
 
-	$tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
+	async $tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			const model = mainThreadEditor.getModel();
-			return this._editorService.openEditor({
+			await this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, viewColumnToEditorGroup(this._editorGroupService, position)).then(() => { return; });
+			}, viewColumnToEditorGroup(this._editorGroupService, position));
+			return;
 		}
-		return Promise.resolve();
 	}
 
-	$tryHideEditor(id: string): Promise<void> {
+	async $tryHideEditor(id: string): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			const editors = this._editorService.visibleControls;
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
-					return editor.group.closeEditor(editor.input).then(() => { return; });
+					return editor.group.closeEditor(editor.input);
 				}
 			}
 		}
-		return Promise.resolve();
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
