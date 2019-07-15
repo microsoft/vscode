@@ -59,9 +59,9 @@ export class NotificationService extends Disposable implements INotificationServ
 	notify(notification: INotification): INotificationHandle {
 
 		let handle: INotificationHandle;
-		if (notification.neverShowOptions) {
-			const id = notification.neverShowOptions.id;
-			if (this.isRejected(id)) {
+		if (notification.neverShowAgainOptions) {
+			const id = notification.neverShowAgainOptions.id;
+			if (!!this.storageService.get(id, StorageScope.GLOBAL)) {
 				return new NoOpNotification();
 			}
 
@@ -70,22 +70,18 @@ export class NotificationService extends Disposable implements INotificationServ
 				nls.localize('neverShowAgain', "Don't Show Again"),
 				undefined, true, () => {
 					handle.close();
-					this.neverShow(id);
+					this.storageService.store(id, true, StorageScope.GLOBAL);
 					return Promise.resolve();
 				});
 
-			//default to secondary
-			if (typeof (notification.neverShowOptions.isSecondary) !== 'boolean') {
-				notification.neverShowOptions.isSecondary = true;
-			}
 			notification.actions = notification.actions || {};
-			if (notification.neverShowOptions.isSecondary) {
+			if (notification.neverShowAgainOptions.isSecondary) {
 				notification.actions.secondary = notification.actions.secondary || [];
 				notification.actions.secondary = [...notification.actions.secondary, neverShowAction];
 			}
 			else {
 				notification.actions.primary = notification.actions.primary || [];
-				notification.actions.primary = [...notification.actions.primary, neverShowAction];
+				notification.actions.primary = [neverShowAction, ...notification.actions.primary];
 			}
 		}
 
@@ -97,21 +93,23 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 
-		if (options && options.neverShowOptions) {
-			const id = options.neverShowOptions.id;
-			if (this.isRejected(id)) {
+		if (options && options.neverShowAgainOptions) {
+			const id = options.neverShowAgainOptions.id;
+			if (!!this.storageService.get(id, StorageScope.GLOBAL)) {
 				return new NoOpNotification();
 			}
 
-			if (typeof (options.neverShowOptions.isSecondary) !== 'boolean') {
-				options.neverShowOptions.isSecondary = false;
-			}
-
-			choices.push({
+			const neverShowAgainChoice = {
 				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.neverShow(id),
-				isSecondary: options.neverShowOptions.isSecondary
-			});
+				run: () => this.storageService.store(id, true, StorageScope.GLOBAL),
+				isSecondary: options.neverShowAgainOptions.isSecondary
+			};
+			if (options.neverShowAgainOptions.isSecondary) {
+				choices = [...choices, neverShowAgainChoice];
+			}
+			else {
+				choices = [neverShowAgainChoice, ...choices];
+			}
 		}
 
 		let choiceClicked = false;
@@ -157,14 +155,6 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		return handle;
-	}
-
-	private neverShow(id: string) {
-		this.storageService.store(id, true, StorageScope.GLOBAL);
-	}
-
-	private isRejected(id: string): boolean {
-		return !!this.storageService.get(id, StorageScope.GLOBAL);
 	}
 
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {

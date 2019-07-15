@@ -31,9 +31,9 @@ export interface INotificationProperties {
 	silent?: boolean;
 
 	/**
- * options for showing "never show again" action.
- */
-	neverShowOptions?: INeverShowOptions;
+	 * Add a "never show again" action. If user selects the action, the notification will not appear again.
+	 */
+	neverShowAgainOptions?: INeverShowAgainOptions;
 }
 
 export interface INotification extends INotificationProperties {
@@ -179,13 +179,19 @@ export interface IPromptOptions extends INotificationProperties {
 }
 
 
-export interface INeverShowOptions {
+export interface INeverShowAgainOptions {
 	/**
 	* Sending prompt id automatically adds a "never show again" action to the prompt.
 	* If user picks this option, future calls to 'prompt' with the same prompt id will be ignored.
 	* The id is used to persist the selection to storage
 	*/
 	id: string;
+
+	/**
+	 *
+	 * Primary: The never show again action will show up as a button on the notificaion.
+	 * Secondary The never show again action will show up under the gear icon.
+	 */
 	isSecondary?: boolean;
 }
 
