@@ -116,6 +116,9 @@ export class TokensStore {
 		if (deleteCount === 0) {
 			return;
 		}
+		if (start + deleteCount > this._len) {
+			deleteCount = this._len - start;
+		}
 		this._lineTokens.splice(start, deleteCount);
 		this._len -= deleteCount;
 	}

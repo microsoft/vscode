@@ -9,6 +9,7 @@ import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
+import { parse } from 'vs/editor/common/modes/tokenization/typescript';
 
 class ForceRetokenizeAction extends EditorAction {
 	constructor() {
@@ -25,19 +26,88 @@ class ForceRetokenizeAction extends EditorAction {
 			return;
 		}
 		const model = editor.getModel();
-		model.resetTokenization();
+		// model.resetTokenization();
 		const sw = new StopWatch(true);
 		model.forceTokenization(model.getLineCount());
 		sw.stop();
 		console.log(`tokenization took ${sw.elapsed()}`);
 
 		if (!true) {
-			extractTokenTypes(model);
+			const expected = extractTokenTypes(model);
+
+			const sw2 = new StopWatch(true);
+			const actual = parse(model.getValue());
+			sw2.stop();
+			console.log(`classification took ${sw2.elapsed()}`);
+
+			let expectedIndex = 0, expectedCount = expected.length / 3;
+			let actualIndex = 0, actualCount = actual.length / 3;
+			outer: while (expectedIndex < expectedCount && actualIndex < actualCount) {
+				const expectedOffset = expected[3 * expectedIndex];
+				const expectedLength = expected[3 * expectedIndex + 1];
+				const expectedType = expected[3 * expectedIndex + 2];
+				const actualOffset = actual[3 * actualIndex];
+				const actualLength = actual[3 * actualIndex + 1];
+				const actualType = actual[3 * actualIndex + 2];
+
+				// TS breaks up comments or begins them before (in case of whitespace)...
+				if (actualType === StandardTokenType.Comment && expectedOffset <= actualOffset && expectedType === actualType) {
+					const actualEndOffset = actualOffset + actualLength;
+					while (expectedIndex < expectedCount && expected[3 * expectedIndex] + expected[3 * expectedIndex + 1] <= actualEndOffset) {
+						// console.log(`(Fuzzy match):`);
+						// console.log(`--- Expected: ${model.getPositionAt(expected[3 * expectedIndex])} - ${expected[3 * expectedIndex]}, ${expected[3 * expectedIndex + 1]}, ${expected[3 * expectedIndex + 2]}`);
+						// console.log(`--- Actual: ${model.getPositionAt(actualOffset)} - ${actualOffset}, ${actualLength}, ${actualType}`);
+						expectedIndex++;
+					}
+					actualIndex++;
+					continue;
+				}
+
+				// TS identifies regexes as strings and begins them before (in case of whitespace)...
+				if (actualType === StandardTokenType.RegEx && expectedOffset <= actualOffset && expectedType === StandardTokenType.String) {
+					const actualEndOffset = actualOffset + actualLength;
+					while (expectedIndex < expectedCount && expected[3 * expectedIndex] + expected[3 * expectedIndex + 1] <= actualEndOffset) {
+						expectedIndex++;
+					}
+					actualIndex++;
+					continue;
+				}
+
+				if (actualType === StandardTokenType.String && expectedType === actualType) {
+					const actualEndOffset = actualOffset + actualLength;
+					while (expectedIndex < expectedCount && expected[3 * expectedIndex] + expected[3 * expectedIndex + 1] <= actualEndOffset) {
+						// console.log(`(Fuzzy match):`);
+						// console.log(`--- Expected: ${model.getPositionAt(expected[3 * expectedIndex])} - ${expected[3 * expectedIndex]}, ${expected[3 * expectedIndex + 1]}, ${expected[3 * expectedIndex + 2]}`);
+						// console.log(`--- Actual: ${model.getPositionAt(actualOffset)} - ${actualOffset}, ${actualLength}, ${actualType}`);
+						expectedIndex++;
+					}
+					actualIndex++;
+					continue;
+				}
+
+				if (expectedOffset === actualOffset && expectedLength === actualLength && expectedType === actualType) {
+					expectedIndex++;
+					actualIndex++;
+					continue;
+				}
+
+				const expectedPosition = model.getPositionAt(expectedOffset);
+				console.error(`Missmatch at position: ${expectedPosition}`);
+				console.error(`Expected: ${model.getPositionAt(expectedOffset)} - ${expectedOffset}, ${expectedLength}, ${expectedType}`);
+				console.error(`Actual: ${model.getPositionAt(actualOffset)} - ${actualOffset}, ${actualLength}, ${actualType}`);
+				break;
+			}
+
+			if (expectedIndex !== expectedCount || actualIndex !== actualCount) {
+				console.error(`Missmatch at the end`);
+			}
+
+			console.log(`Finished comparison!`);
 		}
 	}
 }
 
-function extractTokenTypes(model: ITextModel): void {
+function extractTokenTypes(model: ITextModel): number[] {
 	const eolLength = model.getEOL().length;
 	let result: number[] = [];
 	let resultLen: number = 0;
@@ -46,6 +116,7 @@ function extractTokenTypes(model: ITextModel): void {
 	let offset = 0;
 	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
 		const lineTokens = model.getLineTokens(lineNumber);
+		const lineText = lineTokens.getLineContent();
 
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			const tokenType = lineTokens.getStandardTokenType(i);
@@ -67,7 +138,7 @@ function extractTokenTypes(model: ITextModel): void {
 				continue;
 			}
 
-			result[resultLen++] = startOffset; // - lastEndOffset
+			result[resultLen++] = startOffset;
 			result[resultLen++] = length;
 			result[resultLen++] = tokenType;
 
@@ -75,8 +146,10 @@ function extractTokenTypes(model: ITextModel): void {
 			lastEndOffset = endOffset;
 		}
 
-		offset += lineTokens.getLineContent().length + eolLength;
+		offset += lineText.length + eolLength;
 	}
+
+	return result;
 }
 
 registerEditorAction(ForceRetokenizeAction);

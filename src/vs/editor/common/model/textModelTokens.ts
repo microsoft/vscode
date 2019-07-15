@@ -117,6 +117,9 @@ export class TokenizationStateStore {
 		if (deleteCount === 0) {
 			return;
 		}
+		if (start + deleteCount > this._len) {
+			deleteCount = this._len - start;
+		}
 		this._beginState.splice(start, deleteCount);
 		this._valid.splice(start, deleteCount);
 		this._len -= deleteCount;
