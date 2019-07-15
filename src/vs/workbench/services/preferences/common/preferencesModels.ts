@@ -629,7 +629,7 @@ export class DefaultSettings extends Disposable {
 					overrides,
 					scope: prop.scope,
 					type: prop.type,
-					listItemType,
+					arrayItemType: listItemType,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,

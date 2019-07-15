@@ -1355,7 +1355,7 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.Array) {
+			if (element.valueType === SettingValueType.ArrayOfString) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 
