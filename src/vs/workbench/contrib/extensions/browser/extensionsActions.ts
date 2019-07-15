@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/extensionActions';
+import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';

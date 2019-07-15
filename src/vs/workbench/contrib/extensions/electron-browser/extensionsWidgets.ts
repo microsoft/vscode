@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction, ReloadAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
