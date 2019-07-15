@@ -67,10 +67,6 @@
 	z-index: -1;
 }
 
-.monaco-editor .margin-view-overlays .foldingEnd.collapsed {
-	z-index: -2;
-}
-
 .monaco-editor.vs-dark .margin-view-overlays .folding.collapsed {
 	background-image: url('tree-collapsed-dark.svg');
 }

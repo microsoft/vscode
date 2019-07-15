@@ -71,12 +71,12 @@ export class FoldingModel {
 
 							if (insideRegionDecorationIdEnd && !processed[insideRegionDecorationIdEnd]) {
 								processed[insideRegionDecorationIdEnd] = true;
-								accessor.changeDecorationOptions(insideRegionDecorationIdEnd, this._decorationProvider.getDecorationOption(newCollapseState, true, region.isCollapsed));
+								accessor.changeDecorationOptions(insideRegionDecorationIdEnd, this._decorationProvider.getDecorationOption(insideRegion.isCollapsed, true, region.isCollapsed));
 							}
 						});
 
 						processed[editorDecorationIdEnd] = true;
-						accessor.changeDecorationOptions(editorDecorationIdEnd, this._decorationProvider.getDecorationOption(newCollapseState, true));
+						accessor.changeDecorationOptions(editorDecorationIdEnd, this._decorationProvider.getDecorationOption(newCollapseState, true, region.isCollapsed));
 					}
 				}
 			}
@@ -243,29 +243,16 @@ export class FoldingModel {
 	}
 
 	getTopEndRegionAtLine(lineNumber: number): FoldingRegion | null {
-		let endRegions = this.getAllRegionsAtLine(lineNumber, region => {
-			return region.endLineNumber === lineNumber;
-		});
-
-		if (!endRegions) {
-			return null;
+		let resultIndex = -1;
+		let index = this._regions.findRange(lineNumber);
+		while (index >= 0 && this._regions.getEndLineNumber(index) === lineNumber) {
+			resultIndex = index;
+			index = this._regions.getParentIndex(index);
 		}
-
-		if (endRegions.length === 1) {
-			return endRegions[0];
+		if (resultIndex >= 0) {
+			return this._regions.toRegion(resultIndex);
 		}
-
-		let topLevelRegion: FoldingRegion = endRegions[0];
-
-		for (let index = 0; index < endRegions.length; index++) {
-			const currentRegion = endRegions[index];
-
-			if (currentRegion.regionIndex < topLevelRegion.regionIndex) {
-				topLevelRegion = currentRegion;
-			}
-		}
-
-		return topLevelRegion;
+		return null;
 	}
 
 	getRegionsInside(region: FoldingRegion | null, filter?: (r: FoldingRegion, level?: number) => boolean): FoldingRegion[] {

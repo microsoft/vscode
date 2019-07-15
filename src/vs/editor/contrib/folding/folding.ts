@@ -88,7 +88,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
-		this._isFoldFromEndEnabled = this.editor.getConfiguration().contribInfo.foldingFromEnd;
+		this._isFoldFromEndEnabled = this.editor.getConfiguration().contribInfo.foldingControls === 'top-bottom';
 		this._autoHideFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls === 'mouseover';
 		this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
 
@@ -109,7 +109,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 					this.onModelChanged();
 				}
 				let oldIsFoldFromEndEnabled = this._isFoldFromEndEnabled;
-				this._isFoldFromEndEnabled = this.editor.getConfiguration().contribInfo.foldingFromEnd;
+				this._isFoldFromEndEnabled = this.editor.getConfiguration().contribInfo.foldingControls === 'top-bottom';
 				if (oldIsFoldFromEndEnabled !== this._isFoldFromEndEnabled) {
 					this.onModelChanged();
 				}
