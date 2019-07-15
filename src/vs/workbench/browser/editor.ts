@@ -46,7 +46,7 @@ export interface IEditorRegistry {
 	/**
 	 * Returns an array of registered editors known to the platform.
 	 */
-	getEditors(): IEditorDescriptor[];
+	getEditors(): readonly IEditorDescriptor[];
 }
 
 /**
@@ -54,15 +54,12 @@ export interface IEditorRegistry {
  * can load lazily in the workbench.
  */
 export class EditorDescriptor implements IEditorDescriptor {
-	private ctor: IConstructorSignature0<BaseEditor>;
-	private id: string;
-	private name: string;
 
-	constructor(ctor: IConstructorSignature0<BaseEditor>, id: string, name: string) {
-		this.ctor = ctor;
-		this.id = id;
-		this.name = name;
-	}
+	constructor(
+		private readonly ctor: IConstructorSignature0<BaseEditor>,
+		private readonly id: string,
+		private readonly name: string
+	) { }
 
 	instantiate(instantiationService: IInstantiationService): BaseEditor {
 		return instantiationService.createInstance(this.ctor);
@@ -84,7 +81,7 @@ export class EditorDescriptor implements IEditorDescriptor {
 class EditorRegistry implements IEditorRegistry {
 
 	private editors: EditorDescriptor[] = [];
-	private readonly mapEditorToInputs = new Map<EditorDescriptor, SyncDescriptor<EditorInput>[]>();
+	private readonly mapEditorToInputs = new Map<EditorDescriptor, readonly SyncDescriptor<EditorInput>[]>();
 
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>): void;
 	registerEditor(descriptor: EditorDescriptor, editorInputDescriptor: SyncDescriptor<EditorInput>[]): void;
@@ -159,7 +156,7 @@ class EditorRegistry implements IEditorRegistry {
 		return undefined;
 	}
 
-	getEditors(): EditorDescriptor[] {
+	getEditors(): readonly EditorDescriptor[] {
 		return this.editors.slice(0);
 	}
 
@@ -170,7 +167,7 @@ class EditorRegistry implements IEditorRegistry {
 	getEditorInputs(): SyncDescriptor<EditorInput>[] {
 		const inputClasses: SyncDescriptor<EditorInput>[] = [];
 		for (const editor of this.editors) {
-			const editorInputDescriptors: SyncDescriptor<EditorInput>[] | undefined = this.mapEditorToInputs.get(editor);
+			const editorInputDescriptors = this.mapEditorToInputs.get(editor);
 			if (editorInputDescriptors) {
 				inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
 			}
