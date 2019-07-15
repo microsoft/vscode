@@ -312,6 +312,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		private _logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
+		this.updateLastActiveWorkspace();
+		this.updateVariableResolver();
 		this.registerListeners();
 	}
 
@@ -532,17 +534,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return env;
 	}
 
-	private registerListeners() {
-		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => {
-			if (e) {
-				this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(e.document.uri) as IWorkspaceFolder;
-			}
-		});
-		this._extHostWorkspace.onDidChangeWorkspace(async () => {
-			const configProvider = await this._extHostConfiguration.getConfigProvider();
-			const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-			this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
-		});
+	private registerListeners(): void {
+		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this.updateLastActiveWorkspace());
+		this._extHostWorkspace.onDidChangeWorkspace(() => this.updateVariableResolver());
+	}
+
+	private updateLastActiveWorkspace(): void {
+		const activeEditor = this._extHostDocumentsAndEditors.activeEditor();
+		if (activeEditor) {
+			this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(activeEditor.document.uri) as IWorkspaceFolder;
+		}
+	}
+
+	private async updateVariableResolver(): Promise<void> {
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+		this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 	}
 
 	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
