@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./sash';
-import {Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
@@ -281,7 +281,7 @@ export class Sash extends Disposable {
 				removeClass(this.el, 'active');
 				this._onDidEnd.fire();
 
-				disposables.despose();
+
 
 				// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
 				const iframes = [
@@ -289,6 +289,7 @@ export class Sash extends Disposable {
 					...getElementsByTagName('iframe'),
 				];
 
+				disposables.despose();
 
 				for (const iframe of iframes) {
 					iframe.style.pointerEvents = 'auto';
