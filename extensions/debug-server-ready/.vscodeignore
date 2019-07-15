@@ -3,3 +3,4 @@ tsconfig.json
 out/**
 extension.webpack.config.js
 yarn.lock
+.vscode

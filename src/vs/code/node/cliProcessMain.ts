@@ -17,7 +17,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -46,6 +46,8 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/product';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -301,6 +303,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
+	services.set(IProductService, new SyncDescriptor(ProductService));
 
 	// Files
 	const fileService = new FileService(logService);

@@ -27,13 +27,14 @@ import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, Grid } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -87,16 +88,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
-	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
+	private workbenchGrid: Grid | WorkbenchLegacyLayout;
 
 	private disposed: boolean;
 
-	private titleBarPartView: View;
-	private activityBarPartView: View;
-	private sideBarPartView: View;
-	private panelPartView: View;
-	private editorPartView: View;
-	private statusBarPartView: View;
+	private titleBarPartView: IView;
+	private activityBarPartView: IView;
+	private sideBarPartView: IView;
+	private panelPartView: IView;
+	private editorPartView: IView;
+	private statusBarPartView: IView;
 
 	private environmentService: IWorkbenchEnvironmentService;
 	private configurationService: IConfigurationService;
@@ -701,16 +702,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
 			// Create view wrappers for all parts
-			this.titleBarPartView = new View(titleBar);
-			this.sideBarPartView = new View(sideBar);
-			this.activityBarPartView = new View(activityBar);
-			this.editorPartView = new View(editorPart);
-			this.panelPartView = new View(panelPart);
-			this.statusBarPartView = new View(statusBar);
+			this.titleBarPartView = titleBar;
+			this.sideBarPartView = sideBar;
+			this.activityBarPartView = activityBar;
+			this.editorPartView = editorPart;
+			this.panelPartView = panelPart;
+			this.statusBarPartView = statusBar;
 
 			this.workbenchGrid = new Grid(this.editorPartView, { proportionalLayout: false });
 
 			this.container.prepend(this.workbenchGrid.element);
+
+			this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
+				this.setSideBarHidden(!visible, true);
+			}));
+
+			this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
+				this.setPanelHidden(!visible, true);
+			}));
 		} else {
 			this.workbenchGrid = instantiationService.createInstance(
 				WorkbenchLegacyLayout,
@@ -789,52 +798,52 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Hide parts
 		if (this.state.panel.hidden) {
-			this.panelPartView.hide();
+			this.workbenchGrid.setViewVisible(this.panelPartView, false);
 		}
 
 		if (this.state.statusBar.hidden) {
-			this.statusBarPartView.hide();
+			this.workbenchGrid.setViewVisible(this.statusBarPartView, false);
 		}
 
-		if (!this.isVisible(Parts.TITLEBAR_PART)) {
-			this.titleBarPartView.hide();
+		if (titlebarInGrid && !this.isVisible(Parts.TITLEBAR_PART)) {
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, false);
 		}
 
 		if (this.state.activityBar.hidden) {
-			this.activityBarPartView.hide();
+			this.workbenchGrid.setViewVisible(this.activityBarPartView, false);
 		}
 
 		if (this.state.sideBar.hidden) {
-			this.sideBarPartView.hide();
+			this.workbenchGrid.setViewVisible(this.sideBarPartView, false);
 		}
 
 		if (this.state.editor.hidden) {
-			this.editorPartView.hide();
+			this.workbenchGrid.setViewVisible(this.editorPartView, false);
 		}
 
 		// Show visible parts
 		if (!this.state.editor.hidden) {
-			this.editorPartView.show();
+			this.workbenchGrid.setViewVisible(this.editorPartView, true);
 		}
 
 		if (!this.state.statusBar.hidden) {
-			this.statusBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.statusBarPartView, true);
 		}
 
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			this.titleBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, true);
 		}
 
 		if (!this.state.activityBar.hidden) {
-			this.activityBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.activityBarPartView, true);
 		}
 
 		if (!this.state.sideBar.hidden) {
-			this.sideBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.sideBarPartView, true);
 		}
 
 		if (!this.state.panel.hidden) {
-			this.panelPartView.show();
+			this.workbenchGrid.setViewVisible(this.panelPartView, true);
 		}
 	}
 
