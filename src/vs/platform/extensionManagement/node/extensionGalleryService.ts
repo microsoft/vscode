@@ -15,7 +15,6 @@ import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -24,6 +23,7 @@ import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -343,7 +343,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(this.environmentService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(this.environmentService, this.fileService);
 	}
 
 	private api(path = ''): string {
@@ -774,24 +774,30 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 }
 
-export function resolveMarketplaceHeaders(environmentService: IEnvironmentService): Promise<{ [key: string]: string; }> {
-	const marketplaceMachineIdFile = path.join(environmentService.userDataPath, 'machineid');
+export async function resolveMarketplaceHeaders(environmentService: IEnvironmentService, fileService: IFileService): Promise<{ [key: string]: string; }> {
+	const marketplaceMachineIdFile = URI.file(path.join(environmentService.userDataPath, 'machineid'));
 
-	return readFile(marketplaceMachineIdFile, 'utf8')
-		.then<string | null>(contents => isUUID(contents) ? contents : null, () => null /* error reading ID file */)
-		.then(uuid => {
-			if (!uuid) {
-				uuid = generateUuid();
-				try {
-					writeFileSync(marketplaceMachineIdFile, uuid);
-				} catch (error) {
-					//noop
-				}
-			}
-			return {
-				'X-Market-Client-Id': `VSCode ${pkg.version}`,
-				'User-Agent': `VSCode ${pkg.version}`,
-				'X-Market-User-Id': uuid
-			};
-		});
+	let uuid: string | null = null;
+
+	try {
+		const contents = await fileService.readFile(marketplaceMachineIdFile);
+		const value = contents.value.toString();
+		uuid = isUUID(value) ? value : null;
+	} catch (e) {
+		uuid = null;
+	}
+
+	if (!uuid) {
+		uuid = generateUuid();
+		try {
+			await fileService.writeFile(marketplaceMachineIdFile, VSBuffer.fromString(uuid));
+		} catch (error) {
+			//noop
+		}
+	}
+	return {
+		'X-Market-Client-Id': `VSCode ${pkg.version}`,
+		'User-Agent': `VSCode ${pkg.version}`,
+		'X-Market-User-Id': uuid
+	};
 }
