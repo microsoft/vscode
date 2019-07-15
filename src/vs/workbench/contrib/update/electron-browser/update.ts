@@ -29,6 +29,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 
@@ -97,7 +98,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
-	static readonly ID = 'update.showCurrentReleaseNotes';
+	static readonly ID = ShowCurrentReleaseNotesActionId;
 	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(

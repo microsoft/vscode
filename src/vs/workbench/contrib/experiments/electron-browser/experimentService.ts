@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/node/product';
-
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -21,21 +18,15 @@ import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/co
 import { WorkspaceStats } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
-import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExperimentState, IExperimentAction, IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { IProductService } from 'vs/platform/product/common/product';
 
 interface IExperimentStorageState {
 	enabled: boolean;
 	state: ExperimentState;
 	editCount?: number;
 	lastEditedDate?: string;
-}
-
-export const enum ExperimentState {
-	Evaluating,
-	NoRun,
-	Run,
-	Complete
 }
 
 interface IRawExperiment {
@@ -64,51 +55,6 @@ interface IRawExperiment {
 	action?: IExperimentAction;
 }
 
-interface IExperimentAction {
-	type: ExperimentActionType;
-	properties: any;
-}
-
-export enum ExperimentActionType {
-	Custom = 'Custom',
-	Prompt = 'Prompt',
-	AddToRecommendations = 'AddToRecommendations',
-	ExtensionSearchResults = 'ExtensionSearchResults'
-}
-
-export type LocalizedPromptText = { [locale: string]: string; };
-
-export interface IExperimentActionPromptProperties {
-	promptText: string | LocalizedPromptText;
-	commands: IExperimentActionPromptCommand[];
-}
-
-export interface IExperimentActionPromptCommand {
-	text: string | { [key: string]: string };
-	externalLink?: string;
-	curatedExtensionsKey?: string;
-	curatedExtensionsList?: string[];
-}
-
-export interface IExperiment {
-	id: string;
-	enabled: boolean;
-	state: ExperimentState;
-	action?: IExperimentAction;
-}
-
-export interface IExperimentService {
-	_serviceBrand: any;
-	getExperimentById(id: string): Promise<IExperiment>;
-	getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]>;
-	getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]>;
-	markAsCompleted(experimentId: string): void;
-
-	onExperimentEnabled: Event<IExperiment>;
-}
-
-export const IExperimentService = createDecorator<IExperimentService>('experimentService');
-
 export class ExperimentService extends Disposable implements IExperimentService {
 	_serviceBrand: any;
 	private _experiments: IExperiment[] = [];
@@ -127,7 +73,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -171,10 +118,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected getExperiments(): Promise<IRawExperiment[]> {
-		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
+		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return Promise.resolve([]);
 		}
-		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
+		return this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
 				return Promise.resolve(null);
 			}

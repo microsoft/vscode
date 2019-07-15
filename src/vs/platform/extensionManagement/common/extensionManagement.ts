@@ -151,7 +151,7 @@ export interface IExtensionGalleryService {
 	isEnabled(): boolean;
 	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string>;
+	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<URI>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;

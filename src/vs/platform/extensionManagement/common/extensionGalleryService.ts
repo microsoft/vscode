@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tmpdir } from 'os';
-import * as path from 'vs/base/common/path';
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -12,11 +10,8 @@ import { assign, getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestService, IRequestOptions, IRequestContext, asJson, asText } from 'vs/platform/request/common/request';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
-import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
+import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -24,6 +19,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IProductService } from 'vs/platform/product/common/product';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -339,11 +337,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService,
 	) {
-		const config = product.extensionsGallery;
+		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(this.environmentService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, this.environmentService, this.fileService);
 	}
 
 	private api(path = ''): string {
@@ -356,7 +355,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, version?: string): Promise<IGalleryExtension | null> {
 		const extension: IGalleryExtension | null = isIExtensionIdentifier(arg1) ? null : arg1;
-		if (extension && extension.properties.engine && isEngineValid(extension.properties.engine)) {
+		if (extension && extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version)) {
 			return Promise.resolve(extension);
 		}
 		const { id, uuid } = extension ? extension.identifier : <IExtensionIdentifier>arg1;
@@ -382,7 +381,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					const versionAsset = rawExtension.versions.filter(v => v.version === version)[0];
 					if (versionAsset) {
 						const extension = toExtension(rawExtension, versionAsset, 0, query);
-						if (extension.properties.engine && isEngineValid(extension.properties.engine)) {
+						if (extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version)) {
 							return extension;
 						}
 					}
@@ -537,9 +536,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
+	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<URI> {
 		this.logService.trace('ExtensionGalleryService#download', extension.identifier.id);
-		const zipPath = path.join(tmpdir(), generateUuid());
+		const zip = joinPath(location, generateUuid());
 		const data = getGalleryExtensionTelemetryData(extension);
 		const startTime = new Date().getTime();
 		/* __GDPR__
@@ -559,9 +558,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		} : extension.assets.download;
 
 		return this.getAsset(downloadAsset)
-			.then(context => this.fileService.writeFile(URI.file(zipPath), context.stream))
+			.then(context => this.fileService.writeFile(zip, context.stream))
 			.then(() => log(new Date().getTime() - startTime))
-			.then(() => zipPath);
+			.then(() => zip);
 	}
 
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
@@ -617,7 +616,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions }) => {
 			if (galleryExtensions.length) {
 				if (compatible) {
-					return Promise.all(galleryExtensions[0].versions.map(v => this.getEngine(v).then(engine => isEngineValid(engine) ? v : null)))
+					return Promise.all(galleryExtensions[0].versions.map(v => this.getEngine(v).then(engine => isEngineValid(engine, this.productService.version) ? v : null)))
 						.then(versions => versions
 							.filter(v => !!v)
 							.map(v => ({ version: v!.version, date: v!.lastUpdated })));
@@ -703,7 +702,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			if (!engine) {
 				return null;
 			}
-			if (isEngineValid(engine)) {
+			if (isEngineValid(engine, this.productService.version)) {
 				return Promise.resolve(version);
 			}
 		}
@@ -735,7 +734,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const version = versions[0];
 		return this.getEngine(version)
 			.then(engine => {
-				if (!isEngineValid(engine)) {
+				if (!isEngineValid(engine, this.productService.version)) {
 					return this.getLastValidExtensionVersionRecursively(extension, versions.slice(1));
 				}
 
@@ -776,24 +775,30 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 }
 
-export function resolveMarketplaceHeaders(environmentService: IEnvironmentService): Promise<{ [key: string]: string; }> {
-	const marketplaceMachineIdFile = path.join(environmentService.userDataPath, 'machineid');
+export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService): Promise<{ [key: string]: string; }> {
+	const marketplaceMachineIdFile = joinPath(URI.file(environmentService.userDataPath), 'machineid');
 
-	return readFile(marketplaceMachineIdFile, 'utf8')
-		.then<string | null>(contents => isUUID(contents) ? contents : null, () => null /* error reading ID file */)
-		.then(uuid => {
-			if (!uuid) {
-				uuid = generateUuid();
-				try {
-					writeFileSync(marketplaceMachineIdFile, uuid);
-				} catch (error) {
-					//noop
-				}
-			}
-			return {
-				'X-Market-Client-Id': `VSCode ${pkg.version}`,
-				'User-Agent': `VSCode ${pkg.version}`,
-				'X-Market-User-Id': uuid
-			};
-		});
+	let uuid: string | null = null;
+
+	try {
+		const contents = await fileService.readFile(marketplaceMachineIdFile);
+		const value = contents.value.toString();
+		uuid = isUUID(value) ? value : null;
+	} catch (e) {
+		uuid = null;
+	}
+
+	if (!uuid) {
+		uuid = generateUuid();
+		try {
+			await fileService.writeFile(marketplaceMachineIdFile, VSBuffer.fromString(uuid));
+		} catch (error) {
+			//noop
+		}
+	}
+	return {
+		'X-Market-Client-Id': `VSCode ${version}`,
+		'User-Agent': `VSCode ${version}`,
+		'X-Market-User-Id': uuid
+	};
 }
