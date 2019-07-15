@@ -1707,7 +1707,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file symbolic link', async done => {
+	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - file symbolic link', async done => {
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
 
@@ -1834,7 +1834,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => rimrafSync(folder.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async done => {
+	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async done => {
 		const watchDir = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), watchDir.fsPath);
 
