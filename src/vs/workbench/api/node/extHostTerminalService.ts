@@ -583,7 +583,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				}
 			}
 		}
-		// TODO: Resolve terminal env, args, and executable if extension sets them as well
 
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
