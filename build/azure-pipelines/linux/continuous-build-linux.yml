@@ -3,10 +3,6 @@ steps:
     set -e
     sudo apt-get update
     sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
-
-    # Workaround for: https://github.com/electron/electron/issues/17972
-    sudo sysctl kernel.unprivileged_userns_clone=1
-    
     sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
     sudo chmod +x /etc/init.d/xvfb
     sudo update-rc.d xvfb defaults
@@ -48,7 +44,7 @@ steps:
     yarn download-builtin-extensions
   displayName: Download Built-in Extensions
 - script: |
-    DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
+    DISPLAY=:10 ./scripts/test.sh --no-sandbox --tfs "Unit Tests"
   displayName: Run Unit Tests
 - task: PublishTestResults@2
   displayName: Publish Tests Results
