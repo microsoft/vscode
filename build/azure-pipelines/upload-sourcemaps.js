@@ -9,7 +9,7 @@ const path = require('path');
 const es = require('event-stream');
 const azure = require('gulp-azure-storage');
 const vfs = require('vinyl-fs');
-const util = require('./lib/util');
+const util = require('../lib/util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 

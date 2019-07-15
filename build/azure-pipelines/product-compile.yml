@@ -7,7 +7,7 @@ steps:
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'
@@ -103,7 +103,7 @@ steps:
     yarn gulp compile-extensions-build
     yarn gulp minify-vscode
     yarn gulp minify-vscode-reh
-    yarn gulp minify-vscode-web
+    yarn gulp minify-vscode-reh-web
   displayName: Compile
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
@@ -117,7 +117,7 @@ steps:
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
     keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'

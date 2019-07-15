@@ -8,7 +8,6 @@ resources:
 
 jobs:
 - job: Compile
-  timeoutInMinutes: 40
   pool:
     vmImage: 'Ubuntu-16.04'
   container: vscode-x64
@@ -17,7 +16,6 @@ jobs:
 
 - job: Windows
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
-  timeoutInMinutes: 50
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -29,7 +27,6 @@ jobs:
 
 - job: Windows32
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
-  timeoutInMinutes: 50
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -41,7 +38,6 @@ jobs:
 
 - job: Linux
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  timeoutInMinutes: 30
   pool:
     vmImage: 'Ubuntu-16.04'
   container: vscode-x64
@@ -52,7 +48,6 @@ jobs:
 
 - job: LinuxSnap
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  timeoutInMinutes: 30
   pool:
     vmImage: 'Ubuntu-16.04'
   container: snapcraft
@@ -62,7 +57,6 @@ jobs:
 
 - job: LinuxArmhf
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
-  timeoutInMinutes: 30
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -74,7 +68,6 @@ jobs:
 
 - job: LinuxAlpine
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
-  timeoutInMinutes: 30
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -84,9 +77,19 @@ jobs:
   steps:
   - template: linux/product-build-linux-multiarch.yml
 
+- job: LinuxWeb
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: x64
+  dependsOn:
+  - Compile
+  steps:
+  - template: web/product-build-web.yml
+
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
-  timeoutInMinutes: 50
   pool:
     vmImage: macOS 10.13
   dependsOn:
