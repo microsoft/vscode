@@ -33,4 +33,6 @@ export class ProductService implements IProductService {
 	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
 
 	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
+
+	get experimentsUrl(): string | undefined { return product.experimentsUrl; }
 }

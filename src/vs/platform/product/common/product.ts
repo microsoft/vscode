@@ -33,6 +33,8 @@ export interface IProductService {
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
+
+	readonly experimentsUrl?: string;
 }
 
 export interface IProductConfiguration {
