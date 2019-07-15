@@ -31,8 +31,6 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch="$(VSCODE_ARCH)"
-
     cat << EOF > ~/.netrc
     machine github.com
     login vscode
@@ -107,6 +105,13 @@ steps:
     yarn gulp minify-vscode-reh
     yarn gulp minify-vscode-reh-web
   displayName: Compile
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      node build/azure-pipelines/upload-sourcemaps
+  displayName: Upload sourcemaps
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
