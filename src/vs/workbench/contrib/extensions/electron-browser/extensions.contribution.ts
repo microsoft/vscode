@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensions';
+import 'vs/css!../browser/media/extensions';
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -337,8 +337,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -350,8 +350,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -363,8 +363,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -376,8 +376,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},
