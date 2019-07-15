@@ -567,6 +567,21 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		if (!shellLaunchConfig.executable) {
 			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
 			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
+		} else {
+			if (this._variableResolver) {
+				shellLaunchConfig.executable = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.executable);
+				if (shellLaunchConfig.args) {
+					if (Array.isArray(shellLaunchConfig.args)) {
+						const resolvedArgs: string[] = [];
+						for (const arg of shellLaunchConfig.args) {
+							resolvedArgs.push(this._variableResolver.resolve(this._lastActiveWorkspace, arg));
+						}
+						shellLaunchConfig.args = resolvedArgs;
+					} else {
+						shellLaunchConfig.args = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.args);
+					}
+				}
+			}
 		}
 		// TODO: Resolve terminal env, args, and executable if extension sets them as well
 
