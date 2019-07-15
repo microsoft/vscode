@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import pkg from 'vs/platform/product/node/package';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -222,9 +221,9 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	return isVersionValid(version, extensionDesc.engines.vscode, notices);
 }
 
-export function isEngineValid(engine: string): boolean {
+export function isEngineValid(engine: string, version: string): boolean {
 	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
-	return engine === '*' || isVersionValid(pkg.version, engine);
+	return engine === '*' || isVersionValid(version, engine);
 }
 
 export function isVersionValid(currentVersion: string, requestedVersion: string, notices: string[] = []): boolean {
