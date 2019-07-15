@@ -1526,13 +1526,13 @@ export class Repository {
 		}
 	}
 
-	async dropStash(index?: number): Promise<void> {
+	async dropStash(index: number): Promise<void> {
 		const args = ['stash', 'drop'];
 
-		try {
-			if (typeof index === 'number') {
-				args.push(`stash@{${index}}`);
+		if (typeof index === 'number') {
+			args.push(`stash@{${index}}`);
 
+			try {
 				await this.run(args);
 			}
 		} catch (err) {
