@@ -712,6 +712,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid = new Grid(this.editorPartView, { proportionalLayout: false });
 
 			this.container.prepend(this.workbenchGrid.element);
+
+			this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
+				this.setSideBarHidden(!visible, true);
+			}));
+
+			this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
+				this.setPanelHidden(!visible, true);
+			}));
 		} else {
 			this.workbenchGrid = instantiationService.createInstance(
 				WorkbenchLegacyLayout,

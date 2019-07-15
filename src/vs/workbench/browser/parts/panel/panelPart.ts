@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
@@ -63,6 +63,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
 	get onDidPanelClose(): Event<IPanel> { return this.onDidCompositeClose.event; }
+
+	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -431,6 +434,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private setStoredCachedViewletsValue(value: string): void {
 		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {
