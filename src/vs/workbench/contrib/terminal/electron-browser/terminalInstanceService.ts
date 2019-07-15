@@ -71,7 +71,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 	}
 
-	public getDefaultShellAndArgs(platformOverride: Platform = platform): Promise<{ shell: string, args: string[] | undefined }> {
+	public getDefaultShellAndArgs(platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {
 		const isWorkspaceShellAllowed = this._isWorkspaceShellAllowed();
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 		let lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
