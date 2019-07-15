@@ -1860,7 +1860,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', done => {
+	(runWatchTests && isLinux /* this test requires a case sensitive file system */ ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', done => {
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
