@@ -41,6 +41,10 @@ const vscodeWebResources = [
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
+	// Excludes
+	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
+	'!out-build/vs/editor/standalone/**',
+	'!out-build/vs/workbench/**/*-tb.png',
 	'!**/test/**'
 ];
 

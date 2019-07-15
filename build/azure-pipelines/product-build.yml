@@ -18,7 +18,6 @@ jobs:
 
 - job: Windows
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
-  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -30,7 +29,6 @@ jobs:
 
 - job: Windows32
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
-  timeoutInMinutes: 120
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -42,7 +40,6 @@ jobs:
 
 - job: Linux
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -55,7 +52,6 @@ jobs:
 
 - job: LinuxSnap
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -67,7 +63,6 @@ jobs:
 
 - job: LinuxArmhf
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
-  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -79,7 +74,6 @@ jobs:
 
 - job: LinuxAlpine
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
-  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -91,7 +85,6 @@ jobs:
 
 - job: LinuxWeb
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WEB'], 'true'))
-  timeoutInMinutes: 120
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -103,7 +96,6 @@ jobs:
 
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
-  timeoutInMinutes: 120
   pool:
     vmImage: macOS 10.13
   dependsOn:
