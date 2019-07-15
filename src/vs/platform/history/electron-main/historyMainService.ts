@@ -270,7 +270,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
 		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(HistoryMainService.recentlyOpenedStorageKey);
 
-		return restoreRecentlyOpened(storedRecents);
+		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

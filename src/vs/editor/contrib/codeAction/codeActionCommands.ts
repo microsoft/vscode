@@ -24,6 +24,9 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { IPosition } from 'vs/editor/common/core/position';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -58,7 +61,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._editor = editor;
 		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
-		this._register(this._model.onDidChangeState((newState) => this._onDidChangeCodeActionsState(newState)));
+		this._register(this._model.onDidChangeState((newState) => this.update(newState)));
 
 		this._ui = this._register(new CodeActionUi(editor, QuickFixAction.Id, {
 			applyCodeAction: async (action, retrigger) => {
@@ -73,8 +76,12 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		}, contextMenuService, keybindingService));
 	}
 
-	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
+	private update(newState: CodeActionsState.State): void {
 		this._ui.update(newState);
+	}
+
+	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
+		return this._ui.showCodeActionList(actions, at);
 	}
 
 	public getId(): string {

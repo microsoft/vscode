@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -20,7 +20,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remot
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -39,6 +39,10 @@ import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/workbench/services/request/browser/requestService';
+import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -57,6 +61,9 @@ class CodeRendererMain extends Disposable {
 		await domContentLoaded();
 		mark('willStartWorkbench');
 
+		// Base Theme
+		this.restoreBaseTheme();
+
 		// Create Workbench
 		this.workbench = new Workbench(
 			this.domElement,
@@ -69,12 +76,31 @@ class CodeRendererMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(this.workbench.onShutdown(() => this.dispose()));
+		this._register(this.workbench.onWillShutdown(() => {
+			services.storageService.close();
+			this.saveBaseTheme();
+		}));
 
 		// Startup
 		this.workbench.startup();
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService }> {
+	private restoreBaseTheme(): void {
+		addClass(this.domElement, window.localStorage.getItem('baseTheme') || getThemeTypeSelector(DARK));
+	}
+
+	private saveBaseTheme(): void {
+		const classes = this.domElement.className;
+		const baseThemes = [DARK, LIGHT, HIGH_CONTRAST].map(baseTheme => getThemeTypeSelector(baseTheme));
+		for (const baseTheme of baseThemes) {
+			if (classes.indexOf(baseTheme) >= 0) {
+				window.localStorage.setItem('baseTheme', baseTheme);
+				break;
+			}
+		}
+	}
+
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -132,12 +158,14 @@ class CodeRendererMain extends Disposable {
 			}
 		}
 
-		// User Data Provider
-		if (userDataProvider) {
-			fileService.registerProvider(Schemas.userData, userDataProvider);
+		if (!userDataProvider) {
+			userDataProvider = this._register(new InMemoryUserDataProvider());
 		}
 
-		await Promise.all([
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, userDataProvider);
+
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -158,10 +186,13 @@ class CodeRendererMain extends Disposable {
 			})
 		]);
 
-		return { serviceCollection, logService };
+		// Request Service
+		serviceCollection.set(IRequestService, new RequestService(this.configuration.requestHandler, remoteAgentService, configurationService, logService));
+
+		return { serviceCollection, logService, storageService };
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<IStorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
 		const storageService = new BrowserStorageService(environmentService, fileService);
 
 		try {

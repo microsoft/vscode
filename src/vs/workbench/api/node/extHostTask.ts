@@ -22,6 +22,7 @@ import {
 	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
 	ShellExecutionOptionsDTO, ShellExecutionDTO,
 	CustomExecutionDTO,
+	CustomExecution2DTO,
 	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../common/shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
@@ -79,7 +80,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO | undefined): value is ProcessExecutionDTO {
 		if (value) {
 			const candidate = value as ProcessExecutionDTO;
 			return candidate && !!candidate.process;
@@ -124,7 +125,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO | undefined): value is ShellExecutionDTO {
 		if (value) {
 			const candidate = value as ShellExecutionDTO;
 			return candidate && (!!candidate.commandLine || !!candidate.command);
@@ -162,7 +163,7 @@ namespace ShellExecutionDTO {
 }
 
 namespace CustomExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined): value is CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO | undefined): value is CustomExecutionDTO {
 		if (value) {
 			let candidate = value as CustomExecutionDTO;
 			return candidate && candidate.customExecution === 'customExecution';
@@ -174,6 +175,23 @@ namespace CustomExecutionDTO {
 	export function from(value: vscode.CustomExecution): CustomExecutionDTO {
 		return {
 			customExecution: 'customExecution'
+		};
+	}
+}
+
+namespace CustomExecution2DTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO | undefined): value is CustomExecution2DTO {
+		if (value) {
+			let candidate = value as CustomExecution2DTO;
+			return candidate && candidate.customExecution === 'customExecution2';
+		} else {
+			return false;
+		}
+	}
+
+	export function from(value: vscode.CustomExecution2): CustomExecution2DTO {
+		return {
+			customExecution: 'customExecution2'
 		};
 	}
 }
@@ -211,14 +229,17 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | undefined;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO | CustomExecution2DTO | undefined;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
 		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution) {
 			execution = CustomExecutionDTO.from(<types.CustomExecution>(<vscode.Task2>value).execution2);
+		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution2) {
+			execution = CustomExecution2DTO.from(<types.CustomExecution2>(<vscode.Task2>value).execution2);
 		}
+
 		const definition: TaskDefinitionDTO | undefined = TaskDefinitionDTO.from(value.definition);
 		let scope: number | UriComponents;
 		if (value.scope) {
@@ -468,6 +489,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
 	private _providedCustomExecutions: Map<string, CustomExecutionData>;
 	private _activeCustomExecutions: Map<string, CustomExecutionData>;
+	private _providedCustomExecutions2: Map<string, vscode.CustomExecution2>;
+	private _activeCustomExecutions2: Map<string, vscode.CustomExecution2>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -491,6 +514,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
 		this._providedCustomExecutions = new Map<string, CustomExecutionData>();
 		this._activeCustomExecutions = new Map<string, CustomExecutionData>();
+		this._providedCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
+		this._activeCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
@@ -555,6 +580,19 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public async $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): Promise<void> {
+		const execution2: vscode.CustomExecution2 | undefined = this._providedCustomExecutions2.get(execution.id);
+		if (execution2) {
+			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
+				throw new Error('We should not be trying to start the same custom task executions twice.');
+			}
+
+			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
+			this._activeCustomExecutions2.set(execution.id, execution2);
+			this._terminalService.performTerminalIdAction(terminalId, async terminal => {
+				this._terminalService.attachVirtualProcessToTerminal(terminalId, await execution2.callback());
+			});
+		}
+
 		// Once a terminal is spun up for the custom execution task this event will be fired.
 		// At that point, we need to actually start the callback, but
 		// only if it hasn't already begun.
@@ -630,6 +668,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		// since we obviously cannot send callback functions through the proxy.
 		// So, clear out any existing ones.
 		this._providedCustomExecutions.clear();
+		this._providedCustomExecutions2.clear();
 
 		// Set up a list of task ID promises that we can wait on
 		// before returning the provided tasks. The ensures that
@@ -657,6 +696,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 							// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 							// is invoked, we have to be able to map it back to our data.
 							taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task));
+						} else if (CustomExecution2DTO.is(taskDTO.execution)) {
+							taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task));
+
 						}
 					}
 				}
@@ -703,6 +745,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
 			await this.addCustomExecution(taskDTO, <vscode.Task2>task);
+		}
+
+		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
+			await this.addCustomExecution2(taskDTO, <vscode.Task2>task);
 		}
 
 		return resolvedTaskDTO;
@@ -758,6 +804,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._providedCustomExecutions.set(taskId, new CustomExecutionData(<vscode.CustomExecution>(<vscode.Task2>task).execution2, this._terminalService));
 	}
 
+	private async addCustomExecution2(taskDTO: TaskDTO, task: vscode.Task2): Promise<void> {
+		const taskId = await this._proxy.$createTaskId(taskDTO);
+		this._providedCustomExecutions2.set(taskId, <vscode.CustomExecution2>(<vscode.Task2>task).execution2);
+	}
+
 	private async getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
 		if (typeof execution === 'string') {
 			const taskExecution = this._taskExecutions.get(execution);
@@ -786,6 +837,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 			this._activeCustomExecutions.delete(execution.id);
 			this._proxy.$customExecutionComplete(execution.id, extensionCallback.result);
 			extensionCallback.dispose();
+		}
+		const extensionCallback2: vscode.CustomExecution2 | undefined = this._activeCustomExecutions2.get(execution.id);
+		if (extensionCallback2) {
+			this._activeCustomExecutions2.delete(execution.id);
 		}
 	}
 }

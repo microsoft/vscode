@@ -19,6 +19,7 @@ export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
+	trueMachineId?: string;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -74,6 +75,15 @@ export class TelemetryService implements ITelemetryService {
 					}
 				*/
 				this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
+
+				if (config.trueMachineId) {
+					/* __GDPR__
+						"machineIdDisambiguation" : {
+							"correctedMachineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.publicLog('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
+				}
 			});
 		}
 	}

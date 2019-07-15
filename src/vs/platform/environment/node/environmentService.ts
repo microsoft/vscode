@@ -133,12 +133,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
 
 	@memoize
-	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
-
-	@memoize
-	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
-
-	@memoize
 	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
@@ -278,8 +272,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
-	readonly webviewResourceRoot = 'vscode-resource:';
-	readonly webviewCspRule = 'vscode-resource:';
+	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
+	readonly webviewCspSource = 'vscode-resource:';
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {

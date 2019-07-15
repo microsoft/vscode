@@ -212,12 +212,12 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 				this._worker.postMessage(msg);
 			},
 			handleMessage: (method: string, args: any[]): Promise<any> => {
-				if (typeof host[method] !== 'function') {
+				if (typeof (host as any)[method] !== 'function') {
 					return Promise.reject(new Error('Missing method ' + method + ' on main thread host.'));
 				}
 
 				try {
-					return Promise.resolve(host[method].apply(host, args));
+					return Promise.resolve((host as any)[method].apply(host, args));
 				} catch (e) {
 					return Promise.reject(e);
 				}

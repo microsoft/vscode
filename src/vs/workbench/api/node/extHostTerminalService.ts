@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -332,10 +332,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public createVirtualProcessTerminal(options: vscode.TerminalVirtualProcessOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
 		const p = new ExtHostVirtualProcess(options.virtualProcess);
-		terminal.createVirtualProcess().then(() => {
-			this._setupExtHostProcessListeners(terminal._id, p);
-			p.startSendingEvents();
-		});
+		terminal.createVirtualProcess().then(() => this._setupExtHostProcessListeners(terminal._id, p));
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -347,7 +344,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 		const p = new ExtHostVirtualProcess(virtualProcess);
 		this._setupExtHostProcessListeners(id, p);
-		p.startSendingEvents();
 	}
 
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
@@ -516,7 +512,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				if (terminal) {
 					callback(terminal);
 				}
-			}, EXT_HOST_CREATION_DELAY);
+			}, EXT_HOST_CREATION_DELAY * 2);
 		}
 	}
 
@@ -601,6 +597,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
+	}
+
+	public $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): void {
+		(this._terminalProcesses[id] as ExtHostVirtualProcess).startSendingEvents(initialDimensions);
 	}
 
 	private _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
@@ -797,7 +797,7 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		return Promise.resolve(0);
 	}
 
-	startSendingEvents(): void {
+	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
 		// Flush all buffered events
 		this._queuedEvents.forEach(e => (<any>e.emitter.fire)(e.data));
 		this._queuedEvents = [];
@@ -806,10 +806,17 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		// Attach the real listeners
 		this._virtualProcess.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._virtualProcess.onDidExit) {
-			this._virtualProcess.onDidExit(e => this._onProcessExit.fire(e));
+			this._virtualProcess.onDidExit(e => {
+				// Ensure only positive exit codes are returned
+				this._onProcessExit.fire(e >= 0 ? e : 1);
+			});
 		}
 		if (this._virtualProcess.onDidOverrideDimensions) {
 			this._virtualProcess.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
+		}
+
+		if (this._virtualProcess.start) {
+			this._virtualProcess.start(initialDimensions);
 		}
 	}
 }

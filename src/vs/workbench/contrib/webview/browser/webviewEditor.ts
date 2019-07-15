@@ -243,7 +243,7 @@ export class WebviewEditor extends BaseEditor {
 				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 			}
 
-			this._webview = this._webviewService.createWebview(
+			this._webview = this._webviewService.createWebview(input.id,
 				{
 					allowSvgs: true,
 					extension: input.extension,
@@ -256,7 +256,7 @@ export class WebviewEditor extends BaseEditor {
 				this._webview.initialScrollProgress = input.scrollYPercentage;
 			}
 
-			this._webview.state = input.webviewState;
+			this._webview.state = input.state ? input.state.state : undefined;
 
 			this._content!.setAttribute('aria-flowto', this._webviewContent.id);
 

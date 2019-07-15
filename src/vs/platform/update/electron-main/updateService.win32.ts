@@ -9,20 +9,21 @@ import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IRequestService } from 'vs/platform/request/node/request';
 import product from 'vs/platform/product/node/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { download, asJson } from 'vs/base/node/request';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -64,7 +65,8 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(lifecycleService, configurationService, environmentService, requestService, logService);
 
@@ -142,7 +144,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							const downloadPath = `${updatePackagePath}.tmp`;
 
 							return this.requestService.request({ url }, CancellationToken.None)
-								.then(context => download(downloadPath, context))
+								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);

@@ -30,6 +30,13 @@ export interface IProductService {
 		readonly reportIssueUrl: string;
 		readonly requestFeatureUrl: string;
 	};
+
+	readonly settingsSearchBuildId?: number;
+	readonly settingsSearchUrl?: string;
+
+	readonly experimentsUrl?: string;
+	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
+	readonly extensionAllowedBadgeProviders?: readonly string[];
 }
 
 export interface IProductConfiguration {

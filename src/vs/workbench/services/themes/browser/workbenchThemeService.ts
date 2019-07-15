@@ -31,6 +31,7 @@ import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSetting
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 // implementation
 
@@ -96,10 +97,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService
 	) {
 
-		this.container = document.body;
+		this.container = layoutService.getWorkbenchContainer();
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
@@ -385,14 +387,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IColorTheme | null> {
-		if (this.container) {
-			if (this.currentColorTheme) {
-				removeClasses(this.container, this.currentColorTheme.id);
-			} else {
-				removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
-			}
-			addClasses(this.container, newTheme.id);
+		if (this.currentColorTheme) {
+			removeClasses(this.container, this.currentColorTheme.id);
+		} else {
+			removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 		}
+		addClasses(this.container, newTheme.id);
+
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
 			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(_ => this.updateDynamicCSSRules(this.currentColorTheme));
@@ -512,12 +513,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private doSetFileIconTheme(iconThemeData: FileIconThemeData): void {
 		this.currentIconTheme = iconThemeData;
 
-		if (this.container) {
-			if (iconThemeData.id) {
-				addClasses(this.container, fileIconsEnabledClass);
-			} else {
-				removeClasses(this.container, fileIconsEnabledClass);
-			}
+		if (iconThemeData.id) {
+			addClasses(this.container, fileIconsEnabledClass);
+		} else {
+			removeClasses(this.container, fileIconsEnabledClass);
 		}
 
 		if (this.fileService && !resources.isEqual(iconThemeData.location, this.watchedIconThemeLocation)) {
@@ -574,12 +573,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private getBaseThemeFromContainer() {
-		if (this.container) {
-			for (let i = this.container.classList.length - 1; i >= 0; i--) {
-				const item = document.body.classList.item(i);
-				if (item === VS_LIGHT_THEME || item === VS_DARK_THEME || item === VS_HC_THEME) {
-					return item;
-				}
+		for (let i = this.container.classList.length - 1; i >= 0; i--) {
+			const item = this.container.classList.item(i);
+			if (item === VS_LIGHT_THEME || item === VS_DARK_THEME || item === VS_HC_THEME) {
+				return item;
 			}
 		}
 		return VS_DARK_THEME;

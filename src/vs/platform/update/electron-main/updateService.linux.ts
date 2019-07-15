@@ -6,13 +6,12 @@
 import product from 'vs/platform/product/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { asJson } from 'vs/base/node/request';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 

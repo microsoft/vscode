@@ -603,7 +603,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const focus = list.getFocus();
 
 			if (focus.length > 0) {
-				list.toggleCollapsed(focus[0]);
+				let toggleCollapsed = true;
+
+				if (list.expandOnlyOnTwistieClick === true) {
+					toggleCollapsed = false;
+				} else if (typeof list.expandOnlyOnTwistieClick !== 'boolean' && list.expandOnlyOnTwistieClick(focus[0])) {
+					toggleCollapsed = false;
+				}
+
+				if (toggleCollapsed) {
+					list.toggleCollapsed(focus[0]);
+				}
 			}
 
 			list.setSelection(focus, fakeKeyboardEvent);

@@ -34,4 +34,14 @@ export class ProductService implements IProductService {
 	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } | undefined { return this.productConfiguration ? this.productConfiguration.sendASmile : undefined; }
 
 	get extensionsGallery() { return this.productConfiguration ? this.productConfiguration.extensionsGallery : undefined; }
+
+	get settingsSearchBuildId(): number | undefined { return this.productConfiguration ? this.productConfiguration.settingsSearchBuildId : undefined; }
+
+	get settingsSearchUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.settingsSearchUrl : undefined; }
+
+	get experimentsUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.experimentsUrl : undefined; }
+
+	get extensionKeywords(): { [extension: string]: readonly string[]; } | undefined { return this.productConfiguration ? this.productConfiguration.extensionKeywords : undefined; }
+
+	get extensionAllowedBadgeProviders(): readonly string[] | undefined { return this.productConfiguration ? this.productConfiguration.extensionAllowedBadgeProviders : undefined; }
 }

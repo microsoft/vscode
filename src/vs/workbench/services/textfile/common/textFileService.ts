@@ -31,7 +31,6 @@ import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename, toLocalResource } from 'vs/base/common/resources';
-import { posix } from 'vs/base/common/path';
 import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -436,7 +435,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
+		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 
 		await this.revertAll(dirtyFiles, { soft: true });
 
@@ -467,7 +466,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}
 
 		// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
-		const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
+		const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source));
 		const dirtyTargetModelUris: URI[] = [];
 		if (dirtySourceModels.length) {
 			await Promise.all(dirtySourceModels.map(async sourceModel => {
@@ -475,7 +474,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				let targetModelResource: URI;
 
 				// If the source is the actual model, just use target as new resource
-				if (isEqual(sourceModelResource, source, !platform.isLinux /* ignorecase */)) {
+				if (isEqual(sourceModelResource, source)) {
 					targetModelResource = target;
 				}
 
@@ -538,7 +537,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 		}
 
 		const resourcesToConfirm = this.getDirty(resources);
@@ -904,7 +903,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			return joinPath(lastActiveFolder, untitledFileName);
 		}
 
-		return schemeFilter === Schemas.file ? URI.file(untitledFileName) : URI.from({ scheme: schemeFilter, authority: remoteAuthority, path: posix.sep + untitledFileName });
+		return untitledResource.with({ path: untitledFileName });
 	}
 
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {

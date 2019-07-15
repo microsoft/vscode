@@ -713,121 +713,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Comments
-	/**
-	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
-	 */
-
-	interface CommentInfo {
-		/**
-		 * All of the comment threads associated with the document.
-		 */
-		threads: CommentThread[];
-
-		/**
-		 * The ranges of the document which support commenting.
-		 */
-		commentingRanges?: Range[];
-
-		/**
-		 * If it's in draft mode or not
-		 */
-		inDraftMode?: boolean;
-	}
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The display name of the user who created the comment
-		 */
-		readonly userName: string;
-
-		/**
-		 * The icon path for the user who created the comment
-		 */
-		readonly userIconPath?: Uri;
-
-		/**
-		 * The id of the comment
-		 *
-		 * @deprecated Use Id instead
-		 */
-		readonly commentId: string;
-
-		/**
-		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
-		 */
-		gravatar?: string;
-
-		/**
-		 * Whether the current user has permission to edit the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
-		 *
-		 * DEPRECATED, use editCommand
-		 */
-		canEdit?: boolean;
-
-		/**
-		 * Whether the current user has permission to delete the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
-		 *
-		 * DEPRECATED, use deleteCommand
-		 */
-		canDelete?: boolean;
-
-		/**
-		 * @deprecated
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		command?: Command;
-
-		/**
-		 * Deprecated
-		 */
-		isDraft?: boolean;
-
-		/**
-		 * The command to be executed when users try to delete the comment
-		 */
-		deleteCommand?: Command;
-
-		/**
-		 * Proposed Comment Reaction
-		 */
-		commentReactions?: CommentReaction[];
-	}
-
-	/**
-	 * Deprecated
-	 */
-	export interface CommentThreadChangedEvent {
-		/**
-		 * Added comment threads.
-		 */
-		readonly added: ReadonlyArray<CommentThread>;
-
-		/**
-		 * Removed comment threads.
-		 */
-		readonly removed: ReadonlyArray<CommentThread>;
-
-		/**
-		 * Changed comment threads.
-		 */
-		readonly changed: ReadonlyArray<CommentThread>;
-
-		/**
-		 * Changed draft mode
-		 */
-		readonly inDraftMode: boolean;
-	}
-
 	/**
 	 * Comment Reactions
 	 * Stay in proposed.
@@ -837,94 +722,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * DEPRECATED
-	 */
-	interface DocumentCommentProvider {
-		/**
-		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
-		 */
-		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-
-		/**
-		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
-		 */
-		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
-		 */
-		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user edits the comment body to the be new text.
-		 */
-		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-
-		/**
-		 * Called when a user deletes the comment.
-		 */
-		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
-
-		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-
-		startDraftLabel?: string;
-		deleteDraftLabel?: string;
-		finishDraftLabel?: string;
-
-		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		reactionGroup?: CommentReaction[];
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface WorkspaceCommentProvider {
-		/**
-		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
-		 * from the panel runs the comment's command.
-		 */
-		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
 	 * Stay in proposed
 	 */
 	export interface CommentReactionProvider {
 		availableReactions: CommentReaction[];
 		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-	}
-
-	export interface CommentThread {
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		readonly resource: Uri;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		deleteCommand?: Command;
 	}
 
 
@@ -936,42 +738,6 @@ declare module 'vscode' {
 		reactionProvider?: CommentReactionProvider;
 	}
 
-	namespace workspace {
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead.
-		 */
-		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
-		 */
-		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
-	}
-
-	/**
-	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
-	 */
-	export interface CommentThread {
-		/**
-		 * A unique identifier of the comment thread.
-		 */
-		readonly id: string;
-
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		acceptInputCommand?: Command;
-	}
 
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
@@ -980,45 +746,7 @@ declare module 'vscode' {
 		/**
 		 * The id of the comment
 		 */
-		id: string;
-
-		/**
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		selectCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to save the edits to the comment
-		 */
-		editCommand?: Command;
-	}
-
-	/**
-	 * The comment input box in Comment Widget.
-	 */
-	export interface CommentInputBox {
-		/**
-		 * Setter and getter for the contents of the comment input box
-		 */
-		value: string;
-	}
-
-	/**
-	 * Commenting range provider for a [comment controller](#CommentController).
-	 */
-	export interface CommentingRangeProvider {
-		/**
-		 * Provide a list of ranges which allow new comment threads creation or null for a given document
-		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
-	}
-
-	export interface EmptyCommentThreadFactory {
-		/**
-		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
-		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
-		 */
-		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
+		commentId: string;
 	}
 
 	/**
@@ -1026,52 +754,10 @@ declare module 'vscode' {
 	 * provide users various ways to interact with comments.
 	 */
 	export interface CommentController {
-
-		/**
-		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
-		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
-		 */
-		readonly inputBox?: CommentInputBox;
-
-		/**
-		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel once created.
-		 *
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
-		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
-
-		/**
-		 * Optional new comment thread factory.
-		 */
-		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
-
 		/**
 		 * Optional reaction provider
 		 */
 		reactionProvider?: CommentReactionProvider;
-
-		/**
-		 * Dispose this comment controller.
-		 *
-		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
-		 * and Comments Panel.
-		 */
-		dispose(): void;
-	}
-
-	namespace comment {
-		/**
-		 * Creates a new [comment controller](#CommentController) instance.
-		 *
-		 * @param id An `id` for the comment controller.
-		 * @param label A human-readable string for the comment controller.
-		 * @return An instance of [comment controller](#CommentController).
-		 */
-		export function createCommentController(id: string, label: string): CommentController;
 	}
 
 	//#endregion
@@ -1345,7 +1031,8 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired will exit the process with an exit code, this will behave the
-		 * same for a virtual process as when a regular process exits with an exit code.
+		 * same for a virtual process as when a regular process exits with an exit code. Note that
+		 * exit codes must be positive numbers, when negative the exit code will be forced to `1`.
 		 *
 		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
 		 * ```typescript
@@ -1394,6 +1081,14 @@ declare module 'vscode' {
 		 * Implement to handle when the terminal shuts down by an act of the user.
 		 */
 		shutdown?(): void;
+
+		/**
+		 * Implement to handle when the terminal is ready to start firing events.
+		 *
+		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
+		 * terminal panel has not been opened before this is called.
+		 */
+		start?(initialDimensions: TerminalDimensions | undefined): void;
 	}
 
 	//#endregion
@@ -1495,6 +1190,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution2 {
+		/**
+		 * @param process The [TerminalVirtualProcess](#TerminalVirtualProcess) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>);
+
+		/**
+		 * The callback used to execute the task. Cancellation should be handled using the shutdown method of [TerminalVirtualProcess](#TerminalVirtualProcess).
+		 * When the task is complete, onDidExit should be fired on the TerminalVirtualProcess with the exit code with '0' for success and a non-zero value for failure.
+		 */
+		callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>;
+	}
+
+	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
@@ -1510,12 +1222,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2;
 	}
 
 	//#region Tasks
@@ -1586,95 +1298,7 @@ declare module 'vscode' {
 		/**
 		 * Content security policy rule for webview resources.
 		 */
-		readonly cspRule: string;
-	}
-
-	//#endregion
-
-
-	//#region Joh - read/write files of any scheme
-
-	/**
-	 * The file system interface exposes the editor's built-in and contributed
-	 * [file system providers](#FileSystemProvider). It allows extensions to work
-	 * with files from the local disk as well as files from remote places, like the
-	 * remote extension host or ftp-servers.
-	 */
-	export interface FileSystem {
-
-		/**
-		 * Retrieve metadata about a file.
-		 *
-		 * @param uri The uri of the file to retrieve metadata about.
-		 * @return The file metadata about the file.
-		 */
-		stat(uri: Uri): Thenable<FileStat>;
-
-		/**
-		 * Retrieve all entries of a [directory](#FileType.Directory).
-		 *
-		 * @param uri The uri of the folder.
-		 * @return An array of name/type-tuples or a thenable that resolves to such.
-		 */
-		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
-
-		/**
-		 * Create a new directory (Note, that new files are created via `write`-calls).
-		 *
-		 * @param uri The uri of the new folder.
-		 */
-		createDirectory(uri: Uri): Thenable<void>;
-
-		/**
-		 * Read the entire contents of a file.
-		 *
-		 * @param uri The uri of the file.
-		 * @return An array of bytes or a thenable that resolves to such.
-		 */
-		readFile(uri: Uri): Thenable<Uint8Array>;
-
-		/**
-		 * Write data to a file, replacing its entire contents.
-		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
-		 */
-		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
-
-		/**
-		 * Delete a file.
-		 *
-		 * @param uri The resource that is to be deleted.
-		 * @param options Defines if trash can should be used and if deletion of folders is recursive
-		 */
-		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
-
-		/**
-		 * Copy files or folders. Implementing this function is optional but it will speedup
-		 * the copy operation.
-		 *
-		 * @param source The existing file.
-		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
-	}
-
-	export namespace workspace {
-
-		/**
-		 * File system that allows to interact with local and remote files.
-		 */
-		export const fs: FileSystem;
+		readonly cspSource: string;
 	}
 
 	//#endregion
