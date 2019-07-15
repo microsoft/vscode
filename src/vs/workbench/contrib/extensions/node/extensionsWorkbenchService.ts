@@ -25,7 +25,6 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConf
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import product from 'vs/platform/product/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -35,6 +34,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IProductService } from 'vs/platform/product/common/product';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -45,14 +45,15 @@ class Extension implements IExtension {
 	public enablementState: EnablementState = EnablementState.Enabled;
 
 	constructor(
-		private galleryService: IExtensionGalleryService,
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		public readonly server: IExtensionManagementServer | undefined,
 		public local: ILocalExtension | undefined,
 		public gallery: IGalleryExtension | undefined,
-		private telemetryService: ITelemetryService,
-		private logService: ILogService,
-		private fileService: IFileService
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
 	get type(): ExtensionType | undefined {
@@ -111,11 +112,11 @@ class Extension implements IExtension {
 	}
 
 	get url(): string | undefined {
-		if (!product.extensionsGallery || !this.gallery) {
+		if (!this.productService.extensionsGallery || !this.gallery) {
 			return undefined;
 		}
 
-		return `${product.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
+		return `${this.productService.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
 	}
 
 	get iconUrl(): string {
@@ -316,10 +317,8 @@ class Extensions extends Disposable {
 		private readonly server: IExtensionManagementServer,
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(server.extensionManagementService.onInstallExtension(e => this.onInstallExtension(e)));
@@ -341,7 +340,7 @@ class Extensions extends Disposable {
 		const installed = await this.server.extensionManagementService.getInstalled();
 		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
 		this.installed = installed.map(local => {
-			const extension = byId[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, this.server, local, undefined, this.telemetryService, this.logService, this.fileService);
+			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined);
 			extension.local = local;
 			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 			return extension;
@@ -394,7 +393,7 @@ class Extensions extends Disposable {
 		const { gallery } = event;
 		if (gallery) {
 			const extension = this.installed.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0]
-				|| new Extension(this.galleryService, this.stateProvider, this.server, undefined, gallery, this.telemetryService, this.logService, this.fileService);
+				|| this.instantiationService.createInstance(Extension, this.stateProvider, this.server, undefined, gallery);
 			this.installing.push(extension);
 			this._onChange.fire(extension);
 		}
@@ -405,7 +404,7 @@ class Extensions extends Disposable {
 		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0] : null;
 		this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 
-		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, this.server, local, undefined, this.telemetryService, this.logService, this.fileService) : undefined;
+		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? this.instantiationService.createInstance(Extension, this.stateProvider, this.server, local, undefined) : undefined;
 		if (extension) {
 			if (local) {
 				const installed = this.installed.filter(e => areSameExtensions(e.identifier, extension!.identifier))[0];
@@ -495,12 +494,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private readonly windowService: IWindowService,
-		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IFileService private readonly fileService: IFileService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 		this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext)));
@@ -605,7 +603,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			text = text.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const lookup = product.extensionKeywords || {};
+				const lookup = this.productService.extensionKeywords || {};
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
@@ -648,7 +646,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (installed) {
 			return installed;
 		}
-		const extension = new Extension(this.galleryService, ext => this.getExtensionState(ext), undefined, undefined, gallery, this.telemetryService, this.logService, this.fileService);
+		const extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), undefined, undefined, gallery);
 		if (maliciousExtensionSet.has(extension.identifier.id)) {
 			extension.isMalicious = true;
 		}
@@ -998,7 +996,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	get allowedBadgeProviders(): string[] {
 		if (!this._extensionAllowedBadgeProviders) {
-			this._extensionAllowedBadgeProviders = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
+			this._extensionAllowedBadgeProviders = (this.productService.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 		}
 		return this._extensionAllowedBadgeProviders;
 	}
