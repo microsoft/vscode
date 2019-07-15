@@ -109,22 +109,20 @@ class EditorRegistry implements IEditorRegistry {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
 			for (const editor of this.editors) {
-				const inputDescriptors = this.mapEditorToInputs.get(editor);
-				if (inputDescriptors) {
-					for (const inputDescriptor of inputDescriptors) {
-						const inputClass = inputDescriptor.ctor;
+				const inputDescriptors = this.mapEditorToInputs.get(editor) || [];
+				for (const inputDescriptor of inputDescriptors) {
+					const inputClass = inputDescriptor.ctor;
 
-						// Direct check on constructor type (ignores prototype chain)
-						if (!byInstanceOf && input.constructor === inputClass) {
-							matchingDescriptors.push(editor);
-							break;
-						}
+					// Direct check on constructor type (ignores prototype chain)
+					if (!byInstanceOf && input.constructor === inputClass) {
+						matchingDescriptors.push(editor);
+						break;
+					}
 
-						// Normal instanceof check
-						else if (byInstanceOf && input instanceof inputClass) {
-							matchingDescriptors.push(editor);
-							break;
-						}
+					// Normal instanceof check
+					else if (byInstanceOf && input instanceof inputClass) {
+						matchingDescriptors.push(editor);
+						break;
 					}
 				}
 			}
