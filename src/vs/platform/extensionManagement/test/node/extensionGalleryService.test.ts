@@ -18,6 +18,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
+import pkg from 'vs/platform/product/node/package';
 
 suite('Extension Gallery Service', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extensiongalleryservice');
@@ -52,10 +53,10 @@ suite('Extension Gallery Service', () => {
 		const args = ['--user-data-dir', marketplaceHome];
 		const environmentService = new EnvironmentService(parseArgs(args), process.execPath);
 
-		return resolveMarketplaceHeaders(environmentService, fileService).then(headers => {
+		return resolveMarketplaceHeaders(pkg.version, environmentService, fileService).then(headers => {
 			assert.ok(isUUID(headers['X-Market-User-Id']));
 
-			return resolveMarketplaceHeaders(environmentService, fileService).then(headers2 => {
+			return resolveMarketplaceHeaders(pkg.version, environmentService, fileService).then(headers2 => {
 				assert.equal(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 			});
 		});

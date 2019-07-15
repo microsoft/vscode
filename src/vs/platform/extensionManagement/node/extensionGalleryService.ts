@@ -11,8 +11,6 @@ import { assign, getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestService, IRequestOptions, IRequestContext, asJson, asText } from 'vs/platform/request/common/request';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
@@ -24,6 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IProductService } from 'vs/platform/product/common/product';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -339,11 +338,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
+		@IProductService productService: IProductService,
 	) {
-		const config = product.extensionsGallery;
+		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(this.environmentService, this.fileService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, this.environmentService, this.fileService);
 	}
 
 	private api(path = ''): string {
@@ -774,7 +774,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 }
 
-export async function resolveMarketplaceHeaders(environmentService: IEnvironmentService, fileService: IFileService): Promise<{ [key: string]: string; }> {
+export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService): Promise<{ [key: string]: string; }> {
 	const marketplaceMachineIdFile = URI.file(path.join(environmentService.userDataPath, 'machineid'));
 
 	let uuid: string | null = null;
@@ -796,8 +796,8 @@ export async function resolveMarketplaceHeaders(environmentService: IEnvironment
 		}
 	}
 	return {
-		'X-Market-Client-Id': `VSCode ${pkg.version}`,
-		'User-Agent': `VSCode ${pkg.version}`,
+		'X-Market-Client-Id': `VSCode ${version}`,
+		'User-Agent': `VSCode ${version}`,
 		'X-Market-User-Id': uuid
 	};
 }
