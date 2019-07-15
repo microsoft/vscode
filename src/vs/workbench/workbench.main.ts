@@ -67,7 +67,7 @@ import { AccessibilityService } from 'vs/workbench/services/accessibility/node/a
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
@@ -257,7 +257,7 @@ import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
-import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
+import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output Panel
 import 'vs/workbench/contrib/output/browser/output.contribution';

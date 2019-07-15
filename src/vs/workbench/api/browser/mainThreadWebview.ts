@@ -93,7 +93,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewEditorService.createWebview(this.getInternalWebviewId(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
+		const webview = this._webviewEditorService.createWebview(handle, this.getInternalWebviewViewType(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
 			location: URI.revive(extensionLocation),
 			id: extensionId
 		}, this.createWebviewEventDelegate(handle)) as WebviewEditorInput<MainThreadWebviewState>;
@@ -212,7 +212,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._revivers.delete(viewType);
 	}
 
-	private getInternalWebviewId(viewType: string): string {
+	private getInternalWebviewViewType(viewType: string): string {
 		return `mainThreadWebview-${viewType}`;
 	}
 

@@ -270,27 +270,6 @@ suite('window namespace tests', () => {
 				window.createTerminal({ name: 'c', virtualProcess });
 			});
 
-			test('should get dimensions event when shown', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
-					reg1.dispose();
-					equal(terminal, term);
-					term.show();
-				});
-				const virtualProcess: TerminalVirtualProcess = {
-					onDidWrite: new EventEmitter<string>().event,
-					setDimensions: dimensions => {
-						ok(dimensions.columns > 0);
-						ok(dimensions.rows > 0);
-						const reg2 = window.onDidCloseTerminal(() => {
-							reg2.dispose();
-							done();
-						});
-						terminal.dispose();
-					}
-				};
-				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
-			});
-
 			test('should fire Terminal.onData on write', (done) => {
 				const reg1 = window.onDidOpenTerminal(term => {
 					equal(terminal, term);
@@ -309,6 +288,26 @@ suite('window namespace tests', () => {
 				const writeEmitter = new EventEmitter<string>();
 				const virtualProcess: TerminalVirtualProcess = {
 					onDidWrite: writeEmitter.event
+				};
+				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+			});
+
+			test('should fire provide dimensions on start as the terminal has been shown', (done) => {
+				const reg1 = window.onDidOpenTerminal(term => {
+					equal(terminal, term);
+					reg1.dispose();
+				});
+				const virtualProcess: TerminalVirtualProcess = {
+					onDidWrite: new EventEmitter<string>().event,
+					start: (dimensions) => {
+						ok(dimensions!.columns > 0);
+						ok(dimensions!.rows > 0);
+						const reg3 = window.onDidCloseTerminal(() => {
+							reg3.dispose();
+							done();
+						});
+						terminal.dispose();
+					}
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});

@@ -156,7 +156,12 @@ async function setupRepository(): Promise<void> {
 		console.log('*** Copying test project repository:', opts['test-repo']);
 		rimraf.sync(workspacePath);
 		// not platform friendly
-		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		if (process.platform === 'win32') {
+			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
+		} else {
+			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		}
+
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			console.log('*** Cloning test project repository...');

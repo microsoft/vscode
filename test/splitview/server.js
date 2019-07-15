@@ -3,10 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module getmac {
-	export function getMac(callback: (error: Error, macAddress: string) => void): void;
-}
+const fs = require('mz/fs');
+const path = require('path');
+const Koa = require('koa');
+const _ = require('koa-route');
+const serve = require('koa-static');
+const mount = require('koa-mount');
 
-declare module 'getmac' {
-	export = getmac;
-}
+const app = new Koa();
+
+app.use(serve('public'));
+app.use(mount('/static', serve('../../out')));
+
+app.listen(3000);
+console.log('http://localhost:3000');

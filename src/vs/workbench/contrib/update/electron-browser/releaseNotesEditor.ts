@@ -26,6 +26,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { generateUuid } from 'vs/base/common/uuid';
 
 function renderBody(
 	body: string,
@@ -91,6 +92,7 @@ export class ReleaseNotesManager {
 			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
+				generateUuid(),
 				'releaseNotes',
 				title,
 				{ group: ACTIVE_GROUP, preserveFocus: false },
