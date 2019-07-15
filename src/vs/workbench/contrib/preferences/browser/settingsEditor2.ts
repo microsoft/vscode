@@ -79,6 +79,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return false;
 		}
 		return type === SettingValueType.Enum ||
+			type === SettingValueType.ArrayOfString ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
 			type === SettingValueType.Exclude;
@@ -968,7 +969,7 @@ export class SettingsEditor2 extends BaseEditor {
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key &&
-					!DOM.hasClass(focusedSetting, 'setting-item-exclude')) { // update `exclude`s live, as they have a separate "submit edit" step built in before this
+					!DOM.hasClass(focusedSetting, 'setting-item-list')) { // update `list`s live, as they have a separate "submit edit" step built in before this
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
