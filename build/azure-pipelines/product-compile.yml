@@ -1,15 +1,15 @@
 steps:
 - script: |
-    mkdir -p .build
-    echo -n $BUILD_SOURCEVERSION > .build/commit
-  displayName: Prepare cache flag
-
-- script: |
     set -e
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
     git merge origin/master
   displayName: Merge master
+
+- script: |
+    mkdir -p .build
+    echo -n $BUILD_SOURCEVERSION > .build/commit
+  displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
