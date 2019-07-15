@@ -130,7 +130,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	}
 
 	public getDescription() {
-		return null;
+		return undefined;
 	}
 
 	public setName(value: string): void {

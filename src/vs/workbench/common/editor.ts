@@ -295,7 +295,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display description of this input.
 	 */
-	getDescription(verbosity?: Verbosity): string | null;
+	getDescription(verbosity?: Verbosity): string | undefined;
 
 	/**
 	 * Returns the display title of this input.
@@ -364,8 +364,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the description of this input that can be shown to the user. Examples include showing the description of
 	 * the input above the editor area to the side of the name of the input.
 	 */
-	getDescription(verbosity?: Verbosity): string | null {
-		return null;
+	getDescription(verbosity?: Verbosity): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -552,7 +552,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	constructor(
 		private readonly name: string,
-		private readonly description: string | null,
+		private readonly description: string | undefined,
 		private readonly _details: EditorInput,
 		private readonly _master: EditorInput
 	) {
@@ -625,7 +625,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.name;
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 

@@ -77,9 +77,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | null {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 		if (!this.hasAssociatedFilePath) {
-			return null;
+			return undefined;
 		}
 
 		switch (verbosity) {

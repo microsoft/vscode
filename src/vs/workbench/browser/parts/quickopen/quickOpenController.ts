@@ -745,7 +745,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
 			this.label = types.withNullAsUndefined(input.getName());
-			this.description = types.withNullAsUndefined(input.getDescription());
+			this.description = input.getDescription();
 			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;
