@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/extensionEditor';
+import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
@@ -43,7 +43,7 @@ import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, ExtensionData } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
-import { ShowCurrentReleaseNotesAction } from 'vs/workbench/contrib/update/electron-browser/update';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -54,7 +54,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 function renderBody(body: string): string {
-	const styleSheetPath = require.toUrl('../browser/media/markdown.css').replace('file://', 'vscode-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -544,7 +544,7 @@ export class ExtensionEditor extends BaseEditor {
 					{
 						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders,
 						localResourceRoots: [
-							URI.parse(require.toUrl('../browser/media'))
+							URI.parse(require.toUrl('./media'))
 						]
 					});
 				webviewElement.mountTo(this.content);
@@ -558,7 +558,7 @@ export class ExtensionEditor extends BaseEditor {
 						return;
 					}
 					// Whitelist supported schemes for links
-					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesAction.ID)) {
+					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables));
