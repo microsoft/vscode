@@ -14,7 +14,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { NullTelemetryService, ITelemetryAppender, NullAppender, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
