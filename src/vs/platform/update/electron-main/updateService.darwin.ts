@@ -81,12 +81,10 @@ export class DarwinUpdateService extends AbstractUpdateService {
 			return;
 		}
 
-		/* __GDPR__
-			"update:downloaded" : {
-				"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('update:downloaded', { version: update.version });
+		type UpdateDownloadedClassification = {
+			version: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });
 
 		this.setState(State.Ready(update));
 	}
@@ -96,12 +94,10 @@ export class DarwinUpdateService extends AbstractUpdateService {
 			return;
 		}
 
-		/* __GDPR__
-				"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-		this.telemetryService.publicLog('update:notAvailable', { explicit: !!this.state.context });
+		type UpdateNotAvailableClassification = {
+			explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!this.state.context });
 
 		this.setState(State.Idle(UpdateType.Archive));
 	}

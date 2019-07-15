@@ -109,12 +109,14 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		}
 
 		const logTelemetry = (optout?: boolean) => {
-			/* __GDPR__
-				"experiments:optout" : {
-					"optOut": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('experiments:optout', typeof optout === 'boolean' ? { optout } : {});
+			type ExperimentsOptOutClassification = {
+				optout?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			};
+
+			type ExperimentsOptOutEvent = {
+				optout?: boolean;
+			};
+			this.telemetryService.publicLog2<ExperimentsOptOutEvent, ExperimentsOptOutClassification>('experiments:optout', typeof optout === 'boolean' ? { optout } : {});
 		};
 
 		queryPromise.then(() => {
