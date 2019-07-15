@@ -375,7 +375,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] {
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))

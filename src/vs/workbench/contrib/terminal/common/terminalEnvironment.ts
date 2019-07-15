@@ -205,10 +205,13 @@ export function getDefaultShellArgs(
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
 	platformOverride: platform.Platform = platform.platform,
-): string[] {
+): string | string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	let args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	let args = <string[] | string>((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default);
+	if (typeof args === 'string' && platformOverride === platform.Platform.Windows) {
+		return configurationResolverService ? configurationResolverService.resolve(lastActiveWorkspace, args) : args;
+	}
 	if (configurationResolverService) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
