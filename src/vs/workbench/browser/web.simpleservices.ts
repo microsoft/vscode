@@ -75,7 +75,7 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 		return Promise.resolve(undefined);
 	}
 
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
+	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<URI> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
 	}

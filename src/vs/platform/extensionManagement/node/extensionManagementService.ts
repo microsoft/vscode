@@ -391,9 +391,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		};
 
 		this.logService.trace('Started downloading extension:', extension.identifier.id);
-		return this.galleryService.download(extension, operation)
+		return this.galleryService.download(extension, URI.file(tmpdir()), operation)
 			.then(
-				zipPath => {
+				zip => {
+					const zipPath = zip.fsPath;
 					this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
 					return getManifest(zipPath)
 						.then(
