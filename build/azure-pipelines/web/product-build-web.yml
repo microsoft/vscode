@@ -32,18 +32,8 @@ steps:
     azureSubscription: 'vscode-builds-subscription'
     KeyVaultName: vscode
 
-- task: Docker@1
-  displayName: 'Pull image'
-  inputs:
-    azureSubscriptionEndpoint: 'vscode-builds-subscription'
-    azureContainerRegistry: vscodehub.azurecr.io
-    command: 'Run an image'
-    imageName: 'vscode-linux-build-agent:$(VSCODE_ARCH)'
-    containerCommand: uname
-
 - script: |
     set -e
-
     cat << EOF > ~/.netrc
     machine github.com
     login vscode
@@ -93,12 +83,8 @@ steps:
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/prebuild.sh
-  displayName: Prebuild
-
-- script: |
-    set -e
-    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/build.sh
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-web-min-ci
   displayName: Build
 
 - script: |
@@ -106,10 +92,5 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/publish.sh
+    ./build/azure-pipelines/web/publish.sh
   displayName: Publish
-
-- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-  displayName: 'Component Detection'
-  continueOnError: true
