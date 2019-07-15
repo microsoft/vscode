@@ -35,6 +35,7 @@ export interface IProductService {
 	readonly settingsSearchUrl?: string;
 
 	readonly experimentsUrl?: string;
+	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 }
 
 export interface IProductConfiguration {

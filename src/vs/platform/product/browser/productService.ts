@@ -40,4 +40,6 @@ export class ProductService implements IProductService {
 	get settingsSearchUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.settingsSearchUrl : undefined; }
 
 	get experimentsUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.experimentsUrl : undefined; }
+
+	get extensionKeywords(): { [extension: string]: readonly string[]; } | undefined { return this.productConfiguration ? this.productConfiguration.extensionKeywords : undefined; }
 }
