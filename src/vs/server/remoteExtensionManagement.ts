@@ -50,6 +50,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -204,6 +205,8 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(this._logService, this._environmentService);
 			server.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
+
+			server.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => this.getUriTransformer(ctx.remoteAuthority));
