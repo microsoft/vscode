@@ -505,30 +505,8 @@ export class SplitView extends Disposable {
 				const minDeltaDown = downIndexes.length === 0 ? Number.NEGATIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].viewMaximumSize), 0);
 				const minDelta = Math.max(minDeltaUp, minDeltaDown);
 				const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
-
-				const findSnapIndex = (indexes: number[]): number | undefined => {
-					// visible views first
-					for (const index of indexes) {
-						if (!this.viewItems[index].visible) {
-							continue;
-						}
-
-						if (this.viewItems[index].snap) {
-							return index;
-						}
-					}
-
-					// then, hidden views
-					for (const index of indexes) {
-						if (!this.viewItems[index].visible && this.viewItems[index].snap) {
-							return index;
-						}
-					}
-
-					return undefined;
-				};
-
-				const snapBeforeIndex = findSnapIndex(upIndexes);
+				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
 
 				if (typeof snapBeforeIndex === 'number') {
 					const viewItem = this.viewItems[snapBeforeIndex];
@@ -539,8 +517,6 @@ export class SplitView extends Disposable {
 						limitDelta: viewItem.visible ? minDelta - halfSize : minDelta + halfSize
 					};
 				}
-
-				const snapAfterIndex = findSnapIndex(downIndexes);
 
 				if (typeof snapAfterIndex === 'number') {
 					const viewItem = this.viewItems[snapAfterIndex];
@@ -799,38 +775,31 @@ export class SplitView extends Disposable {
 		previous = false;
 		const expandsUp = reverseViews.map(i => previous = (i.maximumSize - i.size > 0) || previous).reverse();
 
-		const firstVisibleViewIndex = firstIndex(this.viewItems, viewItem => viewItem.visible);
+		this.sashItems.forEach(({ sash }, index) => {
+			const min = !(collapsesDown[index] && expandsUp[index + 1]);
+			const max = !(expandsDown[index] && collapsesUp[index + 1]);
 
-		this.sashItems.forEach((s, i) => {
-			if (!this.viewItems[i].visible) {
-				if (i === firstVisibleViewIndex - 1) {
-					s.sash.state = SashState.Minimum;
+			if (min && max) {
+				const upIndexes = range(index, -1);
+				const downIndexes = range(index + 1, this.viewItems.length);
+				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+
+				if (typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible) {
+					sash.state = SashState.Minimum;
+				} else if (typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible) {
+					sash.state = SashState.Maximum;
 				} else {
-					s.sash.state = SashState.Disabled;
+					sash.state = SashState.Disabled;
 				}
+			} else if (min && !max) {
+				sash.state = SashState.Minimum;
+			} else if (!min && max) {
+				sash.state = SashState.Maximum;
 			} else {
-				const min = !(collapsesDown[i] && expandsUp[i + 1]);
-				const max = !(expandsDown[i] && collapsesUp[i + 1]);
-
-				if (min && max) {
-					const before = !range(0, i + 1).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
-					const after = !range(i + 1, this.viewItems.length).some(i => !this.viewItems[i].snap || this.viewItems[i].visible);
-
-					if (before) {
-						s.sash.state = SashState.Minimum;
-					} else if (after) {
-						s.sash.state = SashState.Maximum;
-					} else {
-						s.sash.state = SashState.Disabled;
-					}
-				} else if (min && !max) {
-					s.sash.state = SashState.Minimum;
-				} else if (!min && max) {
-					s.sash.state = SashState.Maximum;
-				} else {
-					s.sash.state = SashState.Enabled;
-				}
+				sash.state = SashState.Enabled;
 			}
+			// }
 		});
 	}
 
@@ -846,6 +815,28 @@ export class SplitView extends Disposable {
 		}
 
 		return 0;
+	}
+
+	private findFirstSnapIndex(indexes: number[]): number | undefined {
+		// visible views first
+		for (const index of indexes) {
+			if (!this.viewItems[index].visible) {
+				continue;
+			}
+
+			if (this.viewItems[index].snap) {
+				return index;
+			}
+		}
+
+		// then, hidden views
+		for (const index of indexes) {
+			if (!this.viewItems[index].visible && this.viewItems[index].snap) {
+				return index;
+			}
+		}
+
+		return undefined;
 	}
 
 	dispose(): void {

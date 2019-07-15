@@ -103,7 +103,7 @@
 							this.minimumSize = typeof minimumSize === 'number' ? minimumSize : 100;
 							this.maximumSize = typeof maximumSize === 'number' ? maximumSize : Number.POSITIVE_INFINITY;
 							this.onDidChange = Event.None;
-							this.snap = true;
+							this.snap = !minimumSize && !maximumSize;
 
 							this.button = document.createElement('button');
 							this.button.onclick = () => splitview.setViewVisible(this.id, !splitview.isViewVisible(this.id));
