@@ -549,7 +549,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private async updateVariableResolver(): Promise<void> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
+		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
 	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
@@ -568,6 +568,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
 			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
 		}
+		// TODO: Resolve terminal env, args, and executable if extension sets them as well
 
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
