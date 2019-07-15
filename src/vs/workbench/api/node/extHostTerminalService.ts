@@ -313,11 +313,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 		this.registerListeners();
-		this._extHostConfiguration.getConfigProvider().then((configProvider) => {
-			this._extHostWorkspace.getWorkspaceFolders2().then((workspaceFolders) => {
-				this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
-			});
-		});
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
@@ -546,6 +541,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			if (e) {
 				this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(e.document.uri) as IWorkspaceFolder;
 			}
+		});
+		this._extHostWorkspace.onDidChangeWorkspace(e => {
+			this._extHostConfiguration.getConfigProvider().then(async (configProvider) => {
+				const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+				this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
+			});
 		});
 	}
 
