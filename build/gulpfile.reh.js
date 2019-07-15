@@ -43,11 +43,11 @@ gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
 gulp.task('vscode-reh-linux-alpine-min', noop);
 
-gulp.task('vscode-web-win32-ia32-min', noop);
-gulp.task('vscode-web-win32-x64-min', noop);
-gulp.task('vscode-web-darwin-min', noop);
-gulp.task('vscode-web-linux-x64-min', noop);
-gulp.task('vscode-web-linux-alpine-min', noop);
+gulp.task('vscode-reh-web-win32-ia32-min', noop);
+gulp.task('vscode-reh-web-win32-x64-min', noop);
+gulp.task('vscode-reh-web-darwin-min', noop);
+gulp.task('vscode-reh-web-linux-x64-min', noop);
+gulp.task('vscode-reh-web-linux-alpine-min', noop);
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
