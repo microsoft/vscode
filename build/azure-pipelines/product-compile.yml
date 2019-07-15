@@ -4,6 +4,26 @@ steps:
     echo -n $BUILD_SOURCEVERSION > .build/commit
   displayName: Prepare cache flag
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- script: |
+    set -e
+    export npm_config_arch="$(VSCODE_ARCH)"
+
+    cat << EOF > ~/.netrc
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
+
 - script: |
     set -e
     git merge origin/master
@@ -25,28 +45,6 @@ steps:
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.10.1"
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- task: AzureKeyVault@1
-  displayName: 'Azure Key Vault: Get Secrets'
-  inputs:
-    azureSubscription: 'vscode-builds-subscription'
-    KeyVaultName: vscode
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- script: |
-    set -e
-    export npm_config_arch="$(VSCODE_ARCH)"
-
-    cat << EOF > ~/.netrc
-    machine github.com
-    login vscode
-    password $(github-distro-mixin-password)
-    EOF
-
-    git config user.email "vscode@microsoft.com"
-    git config user.name "VSCode"
-  displayName: Prepare tooling
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - script: |
