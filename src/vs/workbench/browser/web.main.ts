@@ -42,6 +42,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/workbench/services/request/browser/requestService';
+import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -157,10 +158,12 @@ class CodeRendererMain extends Disposable {
 			}
 		}
 
-		// User Data Provider
-		if (userDataProvider) {
-			fileService.registerProvider(Schemas.userData, userDataProvider);
+		if (!userDataProvider) {
+			userDataProvider = this._register(new InMemoryUserDataProvider());
 		}
+
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, userDataProvider);
 
 		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
