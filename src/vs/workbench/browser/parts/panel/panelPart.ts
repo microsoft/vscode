@@ -59,6 +59,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
+	readonly snap = true;
 
 	//#endregion
 

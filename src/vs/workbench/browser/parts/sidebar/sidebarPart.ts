@@ -47,6 +47,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	readonly priority: LayoutPriority = LayoutPriority.Low;
+	readonly snap = true;
 
 	//#endregion
 
