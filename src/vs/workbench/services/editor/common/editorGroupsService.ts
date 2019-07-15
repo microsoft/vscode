@@ -411,7 +411,7 @@ export interface IEditorGroup {
 	/**
 	 * Returns the editor at a specific index of the group.
 	 */
-	getEditor(index: number): IEditorInput | null;
+	getEditor(index: number): IEditorInput | undefined;
 
 	/**
 	 * Get all editors that are currently opened in the group optionally
