@@ -381,7 +381,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
 	getPreferredEditorId(candidates: string[]): string | null {
-		if (candidates && candidates.length > 0) {
+		if (candidates.length > 0) {
 			return candidates[0];
 		}
 
