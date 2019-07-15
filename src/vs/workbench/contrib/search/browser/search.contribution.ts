@@ -55,7 +55,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_CONTAINER, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 
@@ -236,12 +235,12 @@ CommandsRegistry.registerCommand({
 
 const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Side Bar")
+	title: nls.localize('revealInSideBar', "Reveal in Explorer")
 };
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	command: RevealInSideBarForSearchResultsCommand,
-	when: ResourceContextKey.IsFileSystemResource && Constants.HasSearchResults,
+	when: ContextKeyExpr.and(Constants.FileMatchOrFolderMatchFocusKey, Constants.HasSearchResults),
 	group: '2_files',
 });
 
