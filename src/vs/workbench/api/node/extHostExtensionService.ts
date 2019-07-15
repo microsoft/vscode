@@ -662,12 +662,24 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		try {
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
+
+			// Support the old resolver interface, TODO remove after awhile
+			const authority = typeof (<any>result).host === 'string' ?
+				{
+					authority: remoteAuthority,
+					host: (<any>result).host,
+					port: (<any>result).port
+				} :
+				{
+					authority: remoteAuthority,
+					host: result.authority.host,
+					port: result.authority.port
+				};
 			return {
 				type: 'ok',
 				value: {
-					authority: remoteAuthority,
-					host: result.host,
-					port: result.port,
+					authority,
+					options: result.options
 				}
 			};
 		} catch (err) {

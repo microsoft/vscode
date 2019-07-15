@@ -105,8 +105,8 @@ export class TunnelService implements ITunnelService {
 			webSocketFactory: nodeWebSocketFactory,
 			addressProvider: {
 				getAddress: async () => {
-					const { host, port } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
-					return { host, port };
+					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+					return { host: authority.host, port: authority.port };
 				}
 			},
 			signService: this.signService
