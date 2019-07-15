@@ -95,6 +95,9 @@ steps:
     set -e
     yarn gulp "electron-x64"
 
+    # Workaround for: https://github.com/electron/electron/issues/17972
+    sudo sysctl kernel.unprivileged_userns_clone=1
+
     # xvfb seems to be crashing often, let's make sure it's always up
     service xvfb start
 

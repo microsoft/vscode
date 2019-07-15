@@ -3,6 +3,10 @@ steps:
     set -e
     sudo apt-get update
     sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
+
+    # Workaround for: https://github.com/electron/electron/issues/17972
+    sudo sysctl kernel.unprivileged_userns_clone=1
+    
     sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
     sudo chmod +x /etc/init.d/xvfb
     sudo update-rc.d xvfb defaults
