@@ -64,6 +64,7 @@
     "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",
+    "@types/puppeteer": "^1.12.4",
     "@types/semver": "^5.5.0",
     "@types/sinon": "^1.16.36",
     "@types/webpack": "^4.4.10",
