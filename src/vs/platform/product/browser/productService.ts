@@ -42,4 +42,6 @@ export class ProductService implements IProductService {
 	get experimentsUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.experimentsUrl : undefined; }
 
 	get extensionKeywords(): { [extension: string]: readonly string[]; } | undefined { return this.productConfiguration ? this.productConfiguration.extensionKeywords : undefined; }
+
+	get extensionAllowedBadgeProviders(): readonly string[] | undefined { return this.productConfiguration ? this.productConfiguration.extensionAllowedBadgeProviders : undefined; }
 }

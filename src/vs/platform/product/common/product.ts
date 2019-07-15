@@ -36,6 +36,7 @@ export interface IProductService {
 
 	readonly experimentsUrl?: string;
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
+	readonly extensionAllowedBadgeProviders?: readonly string[];
 }
 
 export interface IProductConfiguration {
