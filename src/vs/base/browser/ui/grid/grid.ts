@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { $ } from 'vs/base/browser/dom';
 import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 
-export { Orientation } from './gridview';
+export { Orientation, Sizing as GridViewSizing } from './gridview';
 
 export const enum Direction {
 	Up,
@@ -315,6 +315,16 @@ export class Grid<T extends IView> extends Disposable {
 
 	distributeViewSizes(): void {
 		this.gridview.distributeViewSizes();
+	}
+
+	isViewVisible(view: T): boolean {
+		const location = this.getViewLocation(view);
+		return this.gridview.isViewVisible(location);
+	}
+
+	setViewVisible(view: T, visible: boolean): void {
+		const location = this.getViewLocation(view);
+		this.gridview.setViewVisible(location, visible);
 	}
 
 	getViews(): GridBranchNode<T> {
@@ -653,7 +663,7 @@ export class View implements IView {
 	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
 
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
-	get snapSize(): number | undefined { return this.visible ? this.view.snapSize : undefined; }
+	get snap(): boolean | undefined { return this.view.snap; }
 
 	constructor(private view: IView) {
 		this.show();
