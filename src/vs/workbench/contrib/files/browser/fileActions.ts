@@ -328,11 +328,11 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwirte: boolean }): URI {
+export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
-	while (true && !fileToPaste.allowOverwirte) {
+	while (true && !fileToPaste.allowOverwrite) {
 		if (!targetFolder.root.find(candidate)) {
 			break;
 		}
@@ -1030,7 +1030,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 					target = element.isDirectory ? element : element.parent!;
 				}
 
-				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
+				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove });
 
 				// Move/Copy File
 				if (pasteShouldMove) {
