@@ -11,9 +11,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 // tslint:disable-next-line: import-patterns no-standalone-editor
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IPager } from 'vs/base/common/paging';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
@@ -29,7 +28,6 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
-// tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -41,6 +39,8 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+// tslint:disable-next-line: import-patterns
+import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 
 //#region Download
 
@@ -55,74 +55,6 @@ export class SimpleDownloadService implements IDownloadService {
 }
 
 registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
-
-//#region Extension Gallery
-
-export class SimpleExtensionGalleryService implements IExtensionGalleryService {
-
-	_serviceBrand: any;
-
-	isEnabled(): boolean {
-		return false;
-	}
-
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	// @ts-ignore
-	getCompatibleExtension(extension: IGalleryExtension): Promise<IGalleryExtension>;
-	getCompatibleExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
-	getCompatibleExtension(id: any, version?: any) {
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true);
 
 //#endregion
 
@@ -1064,5 +996,36 @@ class SimpleTunnelService implements ITunnelService {
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);
+
+//#endregion
+
+//#region experiments
+
+class ExperimentService implements IExperimentService {
+	_serviceBrand: any;
+
+	async getExperimentById(id: string): Promise<IExperiment> {
+		return {
+			enabled: false,
+			id: '',
+			state: ExperimentState.NoRun
+		};
+	}
+
+	async getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
+		return [];
+	}
+
+	async getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
+		return [];
+	}
+
+	markAsCompleted(experimentId: string): void { }
+
+	onExperimentEnabled: Event<IExperiment> = Event.None;
+
+}
+
+registerSingleton(IExperimentService, ExperimentService);
 
 //#endregion

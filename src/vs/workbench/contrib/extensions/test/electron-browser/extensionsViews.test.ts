@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionsListView } from 'vs/workbench/contrib/extensions/electron-browser/extensionsViews';
+import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
@@ -18,7 +18,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
@@ -34,7 +34,8 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
-import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
+import { IExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { ExperimentService } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';

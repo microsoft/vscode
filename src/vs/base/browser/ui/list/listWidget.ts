@@ -329,6 +329,7 @@ export function mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 
 	return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
 		|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+		|| (event.keyCode >= KeyCode.NUMPAD_0 && event.keyCode <= KeyCode.NUMPAD_9)
 		|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
 }
 
