@@ -538,11 +538,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(e.document.uri) as IWorkspaceFolder;
 			}
 		});
-		this._extHostWorkspace.onDidChangeWorkspace(e => {
-			this._extHostConfiguration.getConfigProvider().then(async (configProvider) => {
-				const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-				this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
-			});
+		this._extHostWorkspace.onDidChangeWorkspace(async () => {
+			const configProvider = await this._extHostConfiguration.getConfigProvider();
+			const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+			this._variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		});
 	}
 
