@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./sash';
-import { IDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import {Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
@@ -257,7 +257,7 @@ export class Sash extends Disposable {
 				style.innerHTML = `* { cursor: ${cursor} !important; }`;
 			};
 
-			const disposables: IDisposable[] = [];
+			const disposables: new DisposableStore();;
 
 			updateStyle();
 
@@ -281,7 +281,7 @@ export class Sash extends Disposable {
 				removeClass(this.el, 'active');
 				this._onDidEnd.fire();
 
-				dispose(disposables);
+				disposables.despose();
 
 				// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
 				const iframes = [
@@ -307,7 +307,7 @@ export class Sash extends Disposable {
 	private onTouchStart(event: GestureEvent): void {
 		EventHelper.stop(event);
 
-		const listeners: IDisposable[] = [];
+		const listeners: new DisposableStore();;
 
 		const startX = event.pageX;
 		const startY = event.pageY;
@@ -335,7 +335,7 @@ export class Sash extends Disposable {
 
 		listeners.push(addDisposableListener(this.el, EventType.End, (event: GestureEvent) => {
 			this._onDidEnd.fire();
-			dispose(listeners);
+			listeners.despose();
 		}));
 	}
 
@@ -389,15 +389,5 @@ export class Sash extends Disposable {
 
 	private onOrthogonalEndSashEnablementChange(state: SashState): void {
 		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		if (this.el && this.el.parentElement) {
-			this.el.parentElement.removeChild(this.el);
-		}
-
-		this.el = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }
