@@ -28,7 +28,6 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
-// tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -40,6 +39,8 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+// tslint:disable-next-line: import-patterns
+import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 
 //#region Download
 
@@ -995,5 +996,36 @@ class SimpleTunnelService implements ITunnelService {
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);
+
+//#endregion
+
+//#region experiments
+
+class ExperimentService implements IExperimentService {
+	_serviceBrand: any;
+
+	async getExperimentById(id: string): Promise<IExperiment> {
+		return {
+			enabled: false,
+			id: '',
+			state: ExperimentState.NoRun
+		};
+	}
+
+	async getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
+		return [];
+	}
+
+	async getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
+		return [];
+	}
+
+	markAsCompleted(experimentId: string): void { }
+
+	onExperimentEnabled: Event<IExperiment> = Event.None;
+
+}
+
+registerSingleton(IExperimentService, ExperimentService);
 
 //#endregion
