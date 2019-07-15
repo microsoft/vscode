@@ -12,7 +12,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -302,8 +302,6 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	private detailsElement: HTMLElement;
 	private dropDownElement: HTMLElement;
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -312,7 +310,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
 		this._folder = workspace.folders.length === 1 ? workspace.folders[0] : null;
-		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 	}
 
 	get folder(): IWorkspaceFolder | null {
@@ -347,8 +345,8 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
-		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
-		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
+		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
+		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
 
 		DOM.append(this.container, this.anchorElement);
 
@@ -459,11 +457,6 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		}
 
 		return label;
-	}
-
-	dispose(): void {
-		dispose(this.disposables);
-		super.dispose();
 	}
 }
 

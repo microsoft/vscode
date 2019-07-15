@@ -15,6 +15,8 @@ import { CodeActionsState } from './codeActionModel';
 import { CodeActionAutoApply } from './codeActionTrigger';
 import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 
 export class CodeActionUi extends Disposable {
 
@@ -91,6 +93,10 @@ export class CodeActionUi extends Disposable {
 				this._activeCodeActions.value = actions;
 			}
 		}
+	}
+
+	public async showCodeActionList(actions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {
+		this._codeActionWidget.show(actions, at);
 	}
 
 	private _handleLightBulbSelect(e: { x: number, y: number, actions: CodeActionSet }): void {

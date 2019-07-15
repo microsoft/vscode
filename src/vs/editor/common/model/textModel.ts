@@ -32,7 +32,8 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-import { TokensStore } from 'vs/editor/common/model/tokensStore';
+import { TokensStore, MultilineTokens } from 'vs/editor/common/model/tokensStore';
+import { Color } from 'vs/base/common/color';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -423,6 +424,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._buffer = textBuffer;
 		this._increaseVersionId();
+
+		// Flush all tokens
+		this._tokens.flush();
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
@@ -1708,12 +1712,48 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens);
 	}
 
+	public setTokens(tokens: MultilineTokens[]): void {
+		if (tokens.length === 0) {
+			return;
+		}
+
+		let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const element = tokens[i];
+			ranges.push({ fromLineNumber: element.startLineNumber, toLineNumber: element.startLineNumber + element.tokens.length - 1 });
+			for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
+				this.setLineTokens(element.startLineNumber + j, element.tokens[j]);
+			}
+		}
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: ranges
+		});
+	}
+
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
+		startLineNumber = Math.max(1, startLineNumber);
+		endLineNumber = Math.min(this._buffer.getLineCount(), endLineNumber);
 		this._tokenization.tokenizeViewport(startLineNumber, endLineNumber);
 	}
 
 	public clearTokens(): void {
 		this._tokens.flush();
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: true,
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this._buffer.getLineCount()
+			}]
+		});
+	}
+
+	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
+		if (!this._isDisposing) {
+			this._onDidChangeTokens.fire(e);
+		}
 	}
 
 	public resetTokenization(): void {
@@ -1780,12 +1820,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const position = this.validatePosition(new Position(lineNumber, column));
 		const lineTokens = this.getLineTokens(position.lineNumber);
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
-	}
-
-	emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
-		if (!this._isDisposing) {
-			this._onDidChangeTokens.fire(e);
-		}
 	}
 
 	// Having tokens allows implementing additional helper methods
@@ -2602,12 +2636,22 @@ function cleanClassName(className: string): string {
 class DecorationOptions implements model.IDecorationOptions {
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
-	private _resolvedColor: string | null;
 
 	constructor(options: model.IDecorationOptions) {
 		this.color = options.color || strings.empty;
 		this.darkColor = options.darkColor || strings.empty;
+
+	}
+}
+
+export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
+	readonly position: model.OverviewRulerLane;
+	private _resolvedColor: string | null;
+
+	constructor(options: model.IModelDecorationOverviewRulerOptions) {
+		super(options);
 		this._resolvedColor = null;
+		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 	}
 
 	public getColor(theme: ITheme): string {
@@ -2637,21 +2681,33 @@ class DecorationOptions implements model.IDecorationOptions {
 	}
 }
 
-export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
-	readonly position: model.OverviewRulerLane;
-
-	constructor(options: model.IModelDecorationOverviewRulerOptions) {
-		super(options);
-		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
-	}
-}
-
 export class ModelDecorationMinimapOptions extends DecorationOptions {
 	readonly position: model.MinimapPosition;
+	private _resolvedColor: Color | undefined;
+
 
 	constructor(options: model.IModelDecorationMinimapOptions) {
 		super(options);
 		this.position = options.position;
+	}
+
+	public getColor(theme: ITheme): Color | undefined {
+		if (!this._resolvedColor) {
+			if (theme.type !== 'light' && this.darkColor) {
+				this._resolvedColor = this._resolveColor(this.darkColor, theme);
+			} else {
+				this._resolvedColor = this._resolveColor(this.color, theme);
+			}
+		}
+
+		return this._resolvedColor;
+	}
+
+	private _resolveColor(color: string | ThemeColor, theme: ITheme): Color | undefined {
+		if (typeof color === 'string') {
+			return Color.fromHex(color);
+		}
+		return theme.getColor(color.id);
 	}
 }
 

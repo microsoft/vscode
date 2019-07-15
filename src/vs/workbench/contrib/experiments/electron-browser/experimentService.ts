@@ -12,11 +12,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
-import { asJson } from 'vs/base/node/request';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
@@ -179,7 +178,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			if (context.res.statusCode !== 200) {
 				return Promise.resolve(null);
 			}
-			return asJson(context).then(result => {
+			return asJson(context).then((result: any) => {
 				return result && Array.isArray(result['experiments']) ? result['experiments'] : [];
 			});
 		}, () => Promise.resolve(null));

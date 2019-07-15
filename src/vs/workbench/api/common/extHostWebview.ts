@@ -18,8 +18,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
-	private readonly _uuid: string = generateUuid();
-
 	private _html: string;
 	private _isDisposed: boolean = false;
 
@@ -38,11 +36,11 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	public toWebviewResource(resource: vscode.Uri): vscode.Uri {
-		return toWebviewResource(this._initData, this._uuid, resource);
+		return toWebviewResource(this._initData, this._handle, resource);
 	}
 
 	public get cspSource(): string {
-		return this._initData.webviewCspSource;
+		return this._initData.webviewCspSource.replace('{{uuid}}', this._handle);
 	}
 
 	public get html(): string {
@@ -234,10 +232,9 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 }
 
 export class ExtHostWebviews implements ExtHostWebviewsShape {
-	private static webviewHandlePool = 1;
 
 	private static newHandle(): WebviewPanelHandle {
-		return ExtHostWebviews.webviewHandlePool++ + '';
+		return generateUuid();
 	}
 
 	private readonly _proxy: MainThreadWebviewsShape;

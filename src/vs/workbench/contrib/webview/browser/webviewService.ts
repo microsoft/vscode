@@ -15,10 +15,12 @@ export class WebviewService implements IWebviewService {
 	) { }
 
 	createWebview(
+		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
 	): Webview {
 		return this._instantiationService.createInstance(WebviewElement,
+			id,
 			options,
 			contentOptions);
 	}

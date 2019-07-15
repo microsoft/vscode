@@ -52,13 +52,13 @@ export interface IWebWorkerOptions {
 	/**
 	 * An object that can be used by the web worker to make calls back to the main thread.
 	 */
-	host?: object;
+	host?: any;
 }
 
 class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
 	private readonly _foreignModuleId: string;
-	private readonly _foreignModuleHost: object | null;
+	private readonly _foreignModuleHost: { [method: string]: Function } | null;
 	private _foreignModuleCreateData: any | null;
 	private _foreignProxy: Promise<T> | null;
 

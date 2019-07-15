@@ -75,6 +75,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 	}
 
 	private _endSync(): void {
+		this._isSynced = false;
 		this._worker.acceptRemovedModel(this._model.uri.toString());
 	}
 

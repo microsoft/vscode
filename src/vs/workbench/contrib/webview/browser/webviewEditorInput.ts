@@ -13,15 +13,14 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
 import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
-export class WebviewEditorInput extends EditorInput {
-	private static handlePool = 0;
+export class WebviewEditorInput<State = any> extends EditorInput {
 
 	private static _styleElement?: HTMLStyleElement;
 
-	private static _icons = new Map<number, { light: URI, dark: URI }>();
+	private static _icons = new Map<string, { light: URI, dark: URI }>();
 
 	private static updateStyleElement(
-		id: number,
+		id: string,
 		iconPath: { light: URI, dark: URI } | undefined
 	) {
 		if (!this._styleElement) {
@@ -62,19 +61,19 @@ export class WebviewEditorInput extends EditorInput {
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
-	private _state: any;
+	private _state: State;
 
 	public readonly extension?: {
 		readonly location: URI;
 		readonly id: ExtensionIdentifier;
 	};
-	private readonly _id: number;
 
 	constructor(
+		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: any,
+		state: State,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;
@@ -83,8 +82,6 @@ export class WebviewEditorInput extends EditorInput {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-
-		this._id = WebviewEditorInput.handlePool++;
 
 		this._name = name;
 		this._options = options;
@@ -120,7 +117,7 @@ export class WebviewEditorInput extends EditorInput {
 	public getResource(): URI {
 		return URI.from({
 			scheme: 'webview-panel',
-			path: `webview-panel/webview-${this._id}`
+			path: `webview-panel/webview-${this.id}`
 		});
 	}
 
@@ -147,7 +144,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.updateStyleElement(this._id, value);
+		WebviewEditorInput.updateStyleElement(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -175,16 +172,12 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public get state(): any {
+	public get state(): State {
 		return this._state;
 	}
 
-	public set state(value: any) {
+	public set state(value: State) {
 		this._state = value;
-	}
-
-	public get webviewState() {
-		return this._state.state;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -217,7 +210,7 @@ export class WebviewEditorInput extends EditorInput {
 	public get container(): HTMLElement {
 		if (!this._container) {
 			this._container = document.createElement('div');
-			this._container.id = `webview-${this._id}`;
+			this._container.id = `webview-${this.id}`;
 			const part = this._layoutService.getContainer(Parts.EDITOR_PART);
 			part.appendChild(this._container);
 		}
@@ -253,7 +246,9 @@ export class WebviewEditorInput extends EditorInput {
 		}, null, this._webviewDisposables);
 
 		this._webview.onDidUpdateState(newState => {
-			this._state.state = newState;
+			if (this._events && this._events.onDidUpdateWebviewState) {
+				this._events.onDidUpdateWebviewState(newState);
+			}
 		}, null, this._webviewDisposables);
 	}
 
@@ -262,7 +257,6 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public claimWebview(owner: any) {
-
 		this._webviewOwner = owner;
 	}
 
@@ -304,6 +298,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 	private _revived: boolean = false;
 
 	constructor(
+		id: string,
 		viewType: string,
 		name: string,
 		options: WebviewInputOptions,
@@ -316,7 +311,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
-		super(viewType, name, options, state, events, extension, partService);
+		super(id, viewType, name, options, state, events, extension, partService);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

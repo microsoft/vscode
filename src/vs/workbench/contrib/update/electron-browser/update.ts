@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { URI } from 'vs/base/common/uri';
@@ -219,7 +219,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 export class UpdateContribution extends Disposable implements IWorkbenchContribution {
 
 	private state: UpdateState;
-	private badgeDisposable: IDisposable = Disposable.None;
+	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 
 	constructor(
@@ -298,10 +298,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			clazz = 'progress-badge';
 		}
 
-		this.badgeDisposable.dispose();
+		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
+			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
 		}
 
 		this.state = state;

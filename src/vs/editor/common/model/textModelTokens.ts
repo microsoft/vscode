@@ -9,13 +9,14 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IModelTokensChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { CharCode } from 'vs/base/common/charCode';
+import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
 
 export function countEOL(text: string): [number, number] {
 	let eolCount = 0;
@@ -146,7 +147,7 @@ export class TokenizationStateStore {
 		this._beginState[lineIndex] = beginState;
 	}
 
-	public setGoodTokens(linesLength: number, lineIndex: number, endState: IState): void {
+	public setEndState(linesLength: number, lineIndex: number, endState: IState): void {
 		this._setValid(lineIndex, true);
 		this._invalidLineStartIndex = lineIndex + 1;
 
@@ -238,19 +239,11 @@ export class TextModelTokenization extends Disposable {
 
 			this._resetTokenizationState();
 			this._textModel.clearTokens();
-			this._textModel.emitModelTokensChangedEvent({
-				tokenizationSupportChanged: true,
-				ranges: [{
-					fromLineNumber: 1,
-					toLineNumber: this._textModel.getLineCount()
-				}]
-			});
 		}));
 
 		this._register(this._textModel.onDidChangeRawContentFast((e) => {
 			if (e.containsEvent(RawContentChangedType.Flush)) {
 				this._resetTokenizationState();
-				this._textModel.clearTokens();
 				return;
 			}
 		}));
@@ -272,14 +265,6 @@ export class TextModelTokenization extends Disposable {
 		this._register(this._textModel.onDidChangeLanguage(() => {
 			this._resetTokenizationState();
 			this._textModel.clearTokens();
-
-			this._textModel.emitModelTokensChangedEvent({
-				tokenizationSupportChanged: true,
-				ranges: [{
-					fromLineNumber: 1,
-					toLineNumber: this._textModel.getLineCount()
-				}]
-			});
 		}));
 
 		this._resetTokenizationState();
@@ -316,7 +301,7 @@ export class TextModelTokenization extends Disposable {
 
 	private _revalidateTokensNow(toLineNumber: number = this._textModel.getLineCount()): void {
 		const MAX_ALLOWED_TIME = 20;
-		const eventBuilder = new ModelTokensChangedEventBuilder();
+		const builder = new MultilineTokensBuilder();
 		const sw = StopWatch.create(false);
 
 		while (this._hasLinesToTokenize()) {
@@ -325,7 +310,7 @@ export class TextModelTokenization extends Disposable {
 				break;
 			}
 
-			const tokenizedLineNumber = this._tokenizeOneInvalidLine(eventBuilder);
+			const tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
 
 			if (tokenizedLineNumber >= toLineNumber) {
 				break;
@@ -333,47 +318,24 @@ export class TextModelTokenization extends Disposable {
 		}
 
 		this._beginBackgroundTokenization();
-
-		const e = eventBuilder.build();
-		if (e) {
-			this._textModel.emitModelTokensChangedEvent(e);
-		}
+		this._textModel.setTokens(builder.tokens);
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		startLineNumber = Math.max(1, startLineNumber);
-		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
-
-		const eventBuilder = new ModelTokensChangedEventBuilder();
-		this._tokenizeViewport(eventBuilder, startLineNumber, endLineNumber);
-
-		const e = eventBuilder.build();
-		if (e) {
-			this._textModel.emitModelTokensChangedEvent(e);
-		}
+		const builder = new MultilineTokensBuilder();
+		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
+		this._textModel.setTokens(builder.tokens);
 	}
 
 	public reset(): void {
 		this._resetTokenizationState();
 		this._textModel.clearTokens();
-		this._textModel.emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
-			ranges: [{
-				fromLineNumber: 1,
-				toLineNumber: this._textModel.getLineCount()
-			}]
-		});
 	}
 
 	public forceTokenization(lineNumber: number): void {
-		const eventBuilder = new ModelTokensChangedEventBuilder();
-
-		this._updateTokensUntilLine(eventBuilder, lineNumber);
-
-		const e = eventBuilder.build();
-		if (e) {
-			this._textModel.emitModelTokensChangedEvent(e);
-		}
+		const builder = new MultilineTokensBuilder();
+		this._updateTokensUntilLine(builder, lineNumber);
+		this._textModel.setTokens(builder.tokens);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -404,16 +366,16 @@ export class TextModelTokenization extends Disposable {
 		return (this._tokenizationStateStore.invalidLineStartIndex < this._textModel.getLineCount());
 	}
 
-	private _tokenizeOneInvalidLine(eventBuilder: ModelTokensChangedEventBuilder): number {
+	private _tokenizeOneInvalidLine(builder: MultilineTokensBuilder): number {
 		if (!this._hasLinesToTokenize()) {
 			return this._textModel.getLineCount() + 1;
 		}
 		const lineNumber = this._tokenizationStateStore.invalidLineStartIndex + 1;
-		this._updateTokensUntilLine(eventBuilder, lineNumber);
+		this._updateTokensUntilLine(builder, lineNumber);
 		return lineNumber;
 	}
 
-	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
+	private _updateTokensUntilLine(builder: MultilineTokensBuilder, lineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			return;
 		}
@@ -427,14 +389,13 @@ export class TextModelTokenization extends Disposable {
 			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
 
 			const r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, lineStartState!);
-			this._textModel.setLineTokens(lineIndex + 1, r.tokens);
-			this._tokenizationStateStore.setGoodTokens(linesLength, lineIndex, r.endState);
-			eventBuilder.registerChangedTokens(lineIndex + 1);
+			builder.add(lineIndex + 1, r.tokens);
+			this._tokenizationStateStore.setEndState(linesLength, lineIndex, r.endState);
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
 	}
 
-	private _tokenizeViewport(eventBuilder: ModelTokensChangedEventBuilder, startLineNumber: number, endLineNumber: number): void {
+	private _tokenizeViewport(builder: MultilineTokensBuilder, startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokenizationSupport) {
 			// nothing to do
 			return;
@@ -447,7 +408,7 @@ export class TextModelTokenization extends Disposable {
 
 		if (startLineNumber <= this._tokenizationStateStore.invalidLineStartIndex) {
 			// tokenization has reached the viewport start...
-			this._updateTokensUntilLine(eventBuilder, endLineNumber);
+			this._updateTokensUntilLine(builder, endLineNumber);
 			return;
 		}
 
@@ -485,10 +446,9 @@ export class TextModelTokenization extends Disposable {
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			let text = this._textModel.getLineContent(lineNumber);
 			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, state);
-			this._textModel.setLineTokens(lineNumber, r.tokens);
+			builder.add(lineNumber, r.tokens);
 			this._tokenizationStateStore.setFakeTokens(lineNumber - 1);
 			state = r.endState;
-			eventBuilder.registerChangedTokens(lineNumber);
 		}
 	}
 }
@@ -529,40 +489,4 @@ function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSuppor
 
 	LineTokens.convertToEndOffset(r.tokens, text.length);
 	return r;
-}
-
-export class ModelTokensChangedEventBuilder {
-
-	private readonly _ranges: { fromLineNumber: number; toLineNumber: number; }[];
-
-	constructor() {
-		this._ranges = [];
-	}
-
-	public registerChangedTokens(lineNumber: number): void {
-		const ranges = this._ranges;
-		const rangesLength = ranges.length;
-		const previousRange = rangesLength > 0 ? ranges[rangesLength - 1] : null;
-
-		if (previousRange && previousRange.toLineNumber === lineNumber - 1) {
-			// extend previous range
-			previousRange.toLineNumber++;
-		} else {
-			// insert new range
-			ranges[rangesLength] = {
-				fromLineNumber: lineNumber,
-				toLineNumber: lineNumber
-			};
-		}
-	}
-
-	public build(): IModelTokensChangedEvent | null {
-		if (this._ranges.length === 0) {
-			return null;
-		}
-		return {
-			tokenizationSupportChanged: false,
-			ranges: this._ranges
-		};
-	}
 }

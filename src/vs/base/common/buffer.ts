@@ -141,18 +141,13 @@ export interface VSBufferReadable {
 	read(): VSBuffer | null;
 }
 
-/**
- * A buffer readable stream emits data to listeners. The stream
- * will only start emitting when the first data listener has
- * been added or the resume() method has been called.
- */
-export interface VSBufferReadableStream {
+export interface ReadableStream<T> {
 
 	/**
 	 * The 'data' event is emitted whenever the stream is
 	 * relinquishing ownership of a chunk of data to a consumer.
 	 */
-	on(event: 'data', callback: (chunk: VSBuffer) => void): void;
+	on(event: 'data', callback: (chunk: T) => void): void;
 
 	/**
 	 * Emitted when any error occurs.
@@ -169,17 +164,32 @@ export interface VSBufferReadableStream {
 	/**
 	 * Stops emitting any events until resume() is called.
 	 */
-	pause(): void;
+	pause?(): void;
 
 	/**
 	 * Starts emitting events again after pause() was called.
 	 */
-	resume(): void;
+	resume?(): void;
 
 	/**
 	 * Destroys the stream and stops emitting any event.
 	 */
+	destroy?(): void;
+}
+
+/**
+ * A readable stream that sends data via VSBuffer.
+ */
+export interface VSBufferReadableStream extends ReadableStream<VSBuffer> {
+	pause(): void;
+	resume(): void;
 	destroy(): void;
+}
+
+export function isVSBufferReadableStream(obj: any): obj is VSBufferReadableStream {
+	const candidate: VSBufferReadableStream = obj;
+
+	return candidate && [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
 }
 
 /**
@@ -237,6 +247,19 @@ export function bufferToStream(buffer: VSBuffer): VSBufferReadableStream {
 	stream.end(buffer);
 
 	return stream;
+}
+
+/**
+ * Helper to create a VSBufferStream from a Uint8Array stream.
+ */
+export function toVSBufferReadableStream(stream: ReadableStream<Uint8Array | string>): VSBufferReadableStream {
+	const vsbufferStream = writeableBufferStream();
+
+	stream.on('data', data => vsbufferStream.write(typeof data === 'string' ? VSBuffer.fromString(data) : VSBuffer.wrap(data)));
+	stream.on('end', () => vsbufferStream.end());
+	stream.on('error', error => vsbufferStream.error(error));
+
+	return vsbufferStream;
 }
 
 /**

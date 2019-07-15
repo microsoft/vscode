@@ -53,8 +53,8 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 // import { IDownloadService } from 'vs/platform/download/common/download';
 // import { DownloadService } from 'vs/platform/download/node/downloadService';
-// import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-// import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -63,11 +63,9 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-// import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-// import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-// import { IRequestService } from 'vs/platform/request/node/request';
-// import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -149,14 +147,13 @@ registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
 registerSingleton(IMarkerService, MarkerService, true);
 // registerSingleton(IDownloadService, DownloadService, true);
-// registerSingleton(IClipboardService, ClipboardService, true);
+registerSingleton(IClipboardService, BrowserClipboardService, true);
 registerSingleton(IContextKeyService, ContextKeyService);
 registerSingleton(IModelService, ModelServiceImpl, true);
 registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
 registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
-// registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-// registerSingleton(IRequestService, RequestService, true);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
@@ -250,7 +247,7 @@ import 'vs/workbench/contrib/debug/browser/debugHelperService';
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Comments
-// import 'vs/workbench/contrib/comments/browser/comments.contribution';
+import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
 import 'vs/workbench/contrib/url/common/url.contribution';
@@ -306,8 +303,8 @@ import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 // import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
-// Execution
-// import 'vs/workbench/contrib/externalTerminal/electron-browser/externalTerminal.contribution';
+// External terminal
+import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';

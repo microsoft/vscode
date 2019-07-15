@@ -29,7 +29,6 @@ import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workben
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, DisabledLabelAction, SystemDisabledWarningAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
-import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -52,6 +51,7 @@ import { getDefaultValue } from 'vs/platform/configuration/common/configurationR
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { URI } from 'vs/base/common/uri';
+import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
@@ -194,8 +194,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
-
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IWebviewService private readonly webviewService: IWebviewService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -490,8 +490,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	showFind(): void {
-		if (this.activeElement instanceof WebviewElement) {
-			this.activeElement.showFind();
+		if (this.activeElement && (<Webview>this.activeElement).showFind) {
+			(<Webview>this.activeElement).showFind();
 		}
 	}
 
@@ -537,7 +537,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then(body => {
-				const webviewElement = this.instantiationService.createInstance(WebviewElement,
+				const webviewElement = this.webviewService.createWebview('extensionEditor',
 					{
 						enableFindWidget: true,
 					},

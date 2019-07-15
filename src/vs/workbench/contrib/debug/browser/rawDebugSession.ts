@@ -610,7 +610,10 @@ export class RawDebugSession {
 		let env: IProcessEnvironment = {};
 		if (vscodeArgs.env) {
 			// merge environment variables into a copy of the process.env
-			env = objects.mixin(objects.mixin(env, process.env), vscodeArgs.env);
+			if (typeof process === 'object' && process.env) {
+				env = objects.mixin(env, process.env);
+			}
+			env = objects.mixin(env, vscodeArgs.env);
 			// and delete some if necessary
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}
