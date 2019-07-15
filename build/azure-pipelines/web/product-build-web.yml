@@ -34,8 +34,6 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch="$(VSCODE_ARCH)"
-
     cat << EOF > ~/.netrc
     machine github.com
     login vscode

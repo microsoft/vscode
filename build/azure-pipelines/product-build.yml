@@ -10,8 +10,6 @@ jobs:
 - job: Compile
   pool:
     vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: x64
   container: vscode-x64
   steps:
   - template: product-compile.yml
@@ -42,8 +40,6 @@ jobs:
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: x64
   container: vscode-x64
   dependsOn:
   - Compile
@@ -54,8 +50,6 @@ jobs:
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
   pool:
     vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: x64
   container: snapcraft
   dependsOn: Linux
   steps:
