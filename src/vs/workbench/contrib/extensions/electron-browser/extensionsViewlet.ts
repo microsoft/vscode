@@ -26,7 +26,7 @@ import {
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, ServerExtensionsView, DefaultRecommendedExtensionsView } from './extensionsViews';
+import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, ServerExtensionsView, DefaultRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
