@@ -58,12 +58,6 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
 
-const BUNDLED_FILE_HEADER = [
-	'/*!--------------------------------------------------------',
-	' * Copyright (C) Microsoft Corporation. All rights reserved.',
-	' *--------------------------------------------------------*/'
-].join('\n');
-
 const vscodeResources = [
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
@@ -122,7 +116,6 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 		otherSources: [],
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
-		header: BUNDLED_FILE_HEADER,
 		out: 'out-vscode-reh',
 		bundleInfo: undefined
 	})
@@ -157,24 +150,23 @@ const webEntryPoints = [
 	buildfile.base
 ];
 
-const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
-	util.rimraf('out-vscode-web'),
+const optimizeVSCodeWebTask = task.define('optimize-vscode-reh-web', task.series(
+	util.rimraf('out-vscode-reh-web'),
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: _.flatten(webEntryPoints),
 		otherSources: [],
 		resources: webResources,
 		loaderConfig: common.loaderConfig(nodeModules),
-		header: BUNDLED_FILE_HEADER,
-		out: 'out-vscode-web',
+		out: 'out-vscode-reh-web',
 		bundleInfo: undefined
 	})
 ));
 
-const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
+const minifyVSCodeWebTask = task.define('minify-vscode-reh-web', task.series(
 	optimizeVSCodeWebTask,
-	util.rimraf('out-vscode-web-min'),
-	common.minifyTask('out-vscode-web', baseUrl)
+	util.rimraf('out-vscode-reh-web-min'),
+	common.minifyTask('out-vscode-reh-web', baseUrl)
 ));
 gulp.task(minifyVSCodeWebTask);
 
@@ -269,7 +261,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		};
 		const localWorkspaceExtensions = glob.sync('extensions/*/package.json')
 			.filter((extensionPath) => {
-				if (type === 'web') {
+				if (type === 'reh-web') {
 					return true; // web: ship all extensions for now
 				}
 
@@ -287,7 +279,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
 
 		let version = packageJson.version;
-		// @ts-ignore JSON checking: quality is optional
 		const quality = product.quality;
 
 		if (quality && quality !== 'stable') {
@@ -323,7 +314,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			node
 		);
 
-		if (type === 'web') {
+		if (type === 'reh-web') {
 			all = es.merge(all,
 				gulp.src('resources/server/favicon.ico', { base: '.' })
 					.pipe(rename('resources/server/favicon.ico')));
@@ -405,7 +396,7 @@ function packagePkgTask(platform, arch, pkgTarget) {
 }
 
 BUILD_TARGETS.forEach(buildTarget => {
-	['reh', 'web'].forEach(type => {
+	['reh', 'reh-web'].forEach(type => {
 		const dashed = (str) => (str ? `-${str}` : ``);
 		const platform = buildTarget.platform;
 		const arch = buildTarget.arch;
