@@ -223,9 +223,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
 	private readonly _onDisposed: Emitter<ITerminalTab>;
-	public get onDisposed(): Event<ITerminalTab> { return this._onDisposed.event; }
+	public readonly onDisposed: Event<ITerminalTab> = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void>;
-	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
+	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 
 	constructor(
 		terminalFocusContextKey: IContextKey<boolean>,

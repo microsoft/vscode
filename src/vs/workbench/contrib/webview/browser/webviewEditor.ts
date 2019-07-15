@@ -37,7 +37,7 @@ export class WebviewEditor extends BaseEditor {
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
-	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
+	public readonly onDidFocus: Event<any> = this._onDidFocusWebview.event;
 
 	private pendingMessages: any[] = [];
 

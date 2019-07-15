@@ -32,10 +32,10 @@ export class FileService extends Disposable implements IFileService {
 	//#region File System Provider
 
 	private _onDidChangeFileSystemProviderRegistrations: Emitter<IFileSystemProviderRegistrationEvent> = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
-	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
+	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
 
 	private _onWillActivateFileSystemProvider: Emitter<IFileSystemProviderActivationEvent> = this._register(new Emitter<IFileSystemProviderActivationEvent>());
-	get onWillActivateFileSystemProvider(): Event<IFileSystemProviderActivationEvent> { return this._onWillActivateFileSystemProvider.event; }
+	readonly onWillActivateFileSystemProvider: Event<IFileSystemProviderActivationEvent> = this._onWillActivateFileSystemProvider.event;
 
 	private readonly provider = new Map<string, IFileSystemProvider>();
 
@@ -132,10 +132,10 @@ export class FileService extends Disposable implements IFileService {
 	//#endregion
 
 	private _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
-	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+	readonly onAfterOperation: Event<FileOperationEvent> = this._onAfterOperation.event;
 
 	private _onError: Emitter<Error> = this._register(new Emitter<Error>());
-	get onError(): Event<Error> { return this._onError.event; }
+	readonly onError: Event<Error> = this._onError.event;
 
 	//#region File Metadata Resolving
 
@@ -763,7 +763,7 @@ export class FileService extends Disposable implements IFileService {
 	//#region File Watching
 
 	private _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
-	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
+	readonly onFileChanges: Event<FileChangesEvent> = this._onFileChanges.event;
 
 	private activeWatchers = new Map<string, { disposable: IDisposable, count: number }>();
 

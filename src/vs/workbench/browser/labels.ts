@@ -239,7 +239,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
-	get onDidRender(): Event<void> { return this._onDidRender.event; }
+	readonly onDidRender: Event<void> = this._onDidRender.event;
 
 	private label?: IResourceLabelProps;
 	private options?: IResourceLabelOptions;

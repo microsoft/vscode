@@ -71,25 +71,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region events
 
 	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
+	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
 	private readonly _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
-	get onDidGroupChange(): Event<IGroupChangeEvent> { return this._onDidGroupChange.event; }
+	readonly onDidGroupChange: Event<IGroupChangeEvent> = this._onDidGroupChange.event;
 
 	private readonly _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
-	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent> = this._onWillOpenEditor.event;
 
 	private readonly _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
+	readonly onDidOpenEditorFail: Event<EditorInput> = this._onDidOpenEditorFail.event;
 
 	private readonly _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
+	readonly onWillCloseEditor: Event<IEditorCloseEvent> = this._onWillCloseEditor.event;
 
 	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = this._onDidCloseEditor.event;
 
 	//#endregion
 

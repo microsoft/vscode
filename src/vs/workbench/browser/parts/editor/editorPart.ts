@@ -91,29 +91,29 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	//#region Events
 
 	private readonly _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
-	get onDidLayout(): Event<Dimension> { return this._onDidLayout.event; }
+	readonly onDidLayout: Event<Dimension> = this._onDidLayout.event;
 
 	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	get onDidActiveGroupChange(): Event<IEditorGroupView> { return this._onDidActiveGroupChange.event; }
+	readonly onDidActiveGroupChange: Event<IEditorGroupView> = this._onDidActiveGroupChange.event;
 
 	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	get onDidActivateGroup(): Event<IEditorGroupView> { return this._onDidActivateGroup.event; }
+	readonly onDidActivateGroup: Event<IEditorGroupView> = this._onDidActivateGroup.event;
 
 	private readonly _onDidAddGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	get onDidAddGroup(): Event<IEditorGroupView> { return this._onDidAddGroup.event; }
+	readonly onDidAddGroup: Event<IEditorGroupView> = this._onDidAddGroup.event;
 
 	private readonly _onDidRemoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	get onDidRemoveGroup(): Event<IEditorGroupView> { return this._onDidRemoveGroup.event; }
+	readonly onDidRemoveGroup: Event<IEditorGroupView> = this._onDidRemoveGroup.event;
 
 	private readonly _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	get onDidMoveGroup(): Event<IEditorGroupView> { return this._onDidMoveGroup.event; }
+	readonly onDidMoveGroup: Event<IEditorGroupView> = this._onDidMoveGroup.event;
 
 	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
 	private readonly _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
+	readonly onDidPreferredSizeChange: Event<void> = this._onDidPreferredSizeChange.event;
 
 	//#endregion
 
@@ -162,7 +162,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private enforcedPartOptions: IEditorPartOptions[] = [];
 
 	private readonly _onDidEditorPartOptionsChange: Emitter<IEditorPartOptionsChangeEvent> = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
-	get onDidEditorPartOptionsChange(): Event<IEditorPartOptionsChangeEvent> { return this._onDidEditorPartOptionsChange.event; }
+	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent> = this._onDidEditorPartOptionsChange.event;
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));

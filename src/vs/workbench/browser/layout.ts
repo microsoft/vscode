@@ -63,22 +63,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
-	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
+	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
 
 	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onZenModeChange(): Event<boolean> { return this._onZenModeChange.event; }
+	readonly onZenModeChange: Event<boolean> = this._onZenModeChange.event;
 
 	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onFullscreenChange(): Event<boolean> { return this._onFullscreenChange.event; }
+	readonly onFullscreenChange: Event<boolean> = this._onFullscreenChange.event;
 
 	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayoutChange.event; }
+	readonly onCenteredLayoutChange: Event<boolean> = this._onCenteredLayoutChange.event;
 
 	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
-	get onPanelPositionChange(): Event<string> { return this._onPanelPositionChange.event; }
+	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
-	get onLayout(): Event<IDimension> { return this._onLayout.event; }
+	readonly onLayout: Event<IDimension> = this._onLayout.event;
 
 	private _dimension: IDimension;
 	get dimension(): IDimension { return this._dimension; }

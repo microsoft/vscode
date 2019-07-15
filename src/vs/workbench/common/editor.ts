@@ -330,13 +330,13 @@ export interface IEditorInput extends IDisposable {
 export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeDirty(): Event<void> { return this._onDidChangeDirty.event; }
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
 	protected readonly _onDidChangeLabel: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeLabel(): Event<void> { return this._onDidChangeLabel.event; }
+	readonly onDidChangeLabel: Event<void> = this._onDidChangeLabel.event;
 
 	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private disposed: boolean = false;
 
@@ -658,7 +658,7 @@ export interface ITextEditorModel extends IEditorModel {
 export class EditorModel extends Disposable implements IEditorModel {
 
 	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	readonly onDispose: Event<void> = this._onDispose.event;
 
 	/**
 	 * Causes this model to load returning a promise when loading is completed.

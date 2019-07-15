@@ -64,10 +64,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onShow: Emitter<void> = this._register(new Emitter<void>());
-	get onShow(): Event<void> { return this._onShow.event; }
+	readonly onShow: Event<void> = this._onShow.event;
 
 	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
-	get onHide(): Event<void> { return this._onHide.event; }
+	readonly onHide: Event<void> = this._onHide.event;
 
 	private preserveInput: boolean;
 	private isQuickOpen: boolean;

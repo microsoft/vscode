@@ -52,10 +52,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 
 	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
-	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
+	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
 
 	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
 	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }

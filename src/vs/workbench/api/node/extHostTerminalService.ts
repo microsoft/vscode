@@ -726,13 +726,13 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 	private _queueDisposables: IDisposable[] | undefined;
 
 	private readonly _onProcessData = new Emitter<string>();
-	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = new Emitter<number>();
-	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
 	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = new Emitter<string>();
-	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 

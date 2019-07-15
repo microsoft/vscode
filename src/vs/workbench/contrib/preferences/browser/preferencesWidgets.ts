@@ -745,7 +745,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private _editPreferenceDecoration: string[];
 
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
-	get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
+	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor
 	) {

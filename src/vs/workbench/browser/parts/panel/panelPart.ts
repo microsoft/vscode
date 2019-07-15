@@ -62,10 +62,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
-	get onDidPanelClose(): Event<IPanel> { return this.onDidCompositeClose.event; }
+	readonly onDidPanelClose: Event<IPanel> = this.onDidCompositeClose.event;
 
 	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;

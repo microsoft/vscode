@@ -60,31 +60,31 @@ export class EditorGroup extends Disposable {
 	//#region events
 
 	private readonly _onDidEditorActivate = this._register(new Emitter<EditorInput>());
-	get onDidEditorActivate(): Event<EditorInput> { return this._onDidEditorActivate.event; }
+	readonly onDidEditorActivate: Event<EditorInput> = this._onDidEditorActivate.event;
 
 	private readonly _onDidEditorOpen = this._register(new Emitter<EditorInput>());
-	get onDidEditorOpen(): Event<EditorInput> { return this._onDidEditorOpen.event; }
+	readonly onDidEditorOpen: Event<EditorInput> = this._onDidEditorOpen.event;
 
 	private readonly _onDidEditorClose = this._register(new Emitter<EditorCloseEvent>());
-	get onDidEditorClose(): Event<EditorCloseEvent> { return this._onDidEditorClose.event; }
+	readonly onDidEditorClose: Event<EditorCloseEvent> = this._onDidEditorClose.event;
 
 	private readonly _onDidEditorDispose = this._register(new Emitter<EditorInput>());
-	get onDidEditorDispose(): Event<EditorInput> { return this._onDidEditorDispose.event; }
+	readonly onDidEditorDispose: Event<EditorInput> = this._onDidEditorDispose.event;
 
 	private readonly _onDidEditorBecomeDirty = this._register(new Emitter<EditorInput>());
-	get onDidEditorBecomeDirty(): Event<EditorInput> { return this._onDidEditorBecomeDirty.event; }
+	readonly onDidEditorBecomeDirty: Event<EditorInput> = this._onDidEditorBecomeDirty.event;
 
 	private readonly _onDidEditorLabelChange = this._register(new Emitter<EditorInput>());
-	get onDidEditorLabelChange(): Event<EditorInput> { return this._onDidEditorLabelChange.event; }
+	readonly onDidEditorLabelChange: Event<EditorInput> = this._onDidEditorLabelChange.event;
 
 	private readonly _onDidEditorMove = this._register(new Emitter<EditorInput>());
-	get onDidEditorMove(): Event<EditorInput> { return this._onDidEditorMove.event; }
+	readonly onDidEditorMove: Event<EditorInput> = this._onDidEditorMove.event;
 
 	private readonly _onDidEditorPin = this._register(new Emitter<EditorInput>());
-	get onDidEditorPin(): Event<EditorInput> { return this._onDidEditorPin.event; }
+	readonly onDidEditorPin: Event<EditorInput> = this._onDidEditorPin.event;
 
 	private readonly _onDidEditorUnpin = this._register(new Emitter<EditorInput>());
-	get onDidEditorUnpin(): Event<EditorInput> { return this._onDidEditorUnpin.event; }
+	readonly onDidEditorUnpin: Event<EditorInput> = this._onDidEditorUnpin.event;
 
 	//#endregion
 
