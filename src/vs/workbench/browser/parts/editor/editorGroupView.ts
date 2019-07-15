@@ -44,7 +44,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
@@ -789,10 +789,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Proceed with opening
-		return this.doOpenEditor(editor, options);
+		return this.doOpenEditor(editor, options).then(withUndefinedAsNull);
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
+	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | undefined> {
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
@@ -833,10 +833,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doShowEditor(editor, !!openEditorOptions.active, options);
 	}
 
-	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
+	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditor | null>;
+		let openEditorPromise: Promise<IEditor | undefined>;
 		if (active) {
 			openEditorPromise = (async () => {
 				try {
@@ -853,11 +853,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					// Handle errors but do not bubble them up
 					this.doHandleOpenEditorError(error, editor, options);
 
-					return null; // error: return NULL as result to signal this
+					return undefined; // error: return undefined as result to signal this
 				}
 			})();
 		} else {
-			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
+			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it
