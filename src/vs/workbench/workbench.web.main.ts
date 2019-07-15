@@ -264,7 +264,7 @@ registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 // Extensions Management
 // import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
 // import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
-// import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
+// import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output Panel
 import 'vs/workbench/contrib/output/browser/output.contribution';

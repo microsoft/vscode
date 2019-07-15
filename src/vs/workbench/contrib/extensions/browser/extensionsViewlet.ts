@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/extensionsViewlet';
+import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { timeout, Delayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
