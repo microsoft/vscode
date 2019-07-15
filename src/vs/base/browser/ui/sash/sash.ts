@@ -14,7 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 
-const DEBUG = true;
+const DEBUG = false;
 
 export interface ISashLayoutProvider { }
 
