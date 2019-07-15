@@ -179,6 +179,12 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 	}
 
+	setVisible(visible: boolean): void {
+		for (const child of this.children) {
+			child.setVisible(visible);
+		}
+	}
+
 	orthogonalLayout(size: number): void {
 		this._size = size;
 		this.splitview.layout(size);
@@ -503,6 +509,12 @@ class LeafNode implements ISplitView, IDisposable {
 	layout(size: number): void {
 		this._size = size;
 		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.view.setVisible) {
+			this.view.setVisible(visible);
+		}
 	}
 
 	orthogonalLayout(size: number): void {
