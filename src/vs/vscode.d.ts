@@ -1617,11 +1617,6 @@ declare module 'vscode' {
 		matchOnDetail?: boolean;
 
 		/**
-		 * An optional flag to sort the final results by index of first query match in label, defaults to true.
-		 */
-		sortByLabel?: boolean;
-
-		/**
 		 * An optional string to show as place holder in the input box to guide the user what to pick on.
 		 */
 		placeHolder?: string;
@@ -7331,11 +7326,6 @@ declare module 'vscode' {
 		 * If the filter text should also be matched against the detail of the items. Defaults to false.
 		 */
 		matchOnDetail: boolean;
-
-		/**
-		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
-		 */
-		sortByLabel: boolean;
 
 		/**
 		 * Active items. This can be read and updated by the extension.

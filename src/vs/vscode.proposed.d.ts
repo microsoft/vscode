@@ -1299,4 +1299,21 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region pelmers - allow QuickPicks to skip sorting
+
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+		/**
+		* An optional flag to sort the final results by index of first query match in label. Defaults to true.
+		*/
+		sortByLabel: boolean;
+	}
+	export interface QuickPickOptions {
+		/**
+		* An optional flag to sort the final results by index of first query match in label, defaults to true.
+		*/
+		sortByLabel?: boolean;
+	}
+
+	//#endregion
 }
