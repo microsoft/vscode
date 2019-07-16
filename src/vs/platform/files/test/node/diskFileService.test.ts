@@ -1696,9 +1696,7 @@ suite('Disk File Service', () => {
 		assert.ok(!error);
 	});
 
-	const runWatchTests = isLinux;
-
-	(runWatchTests ? test : test.skip)('watch - file', done => {
+	test('watch - file', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1707,7 +1705,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
-	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - file symbolic link', async done => {
+	test('watch - file symbolic link', async done => {
+		if (isWindows) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
 
@@ -1716,7 +1718,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - multiple writes', done => {
+	test('watch - file - multiple writes', done => {
+		if (isWindows) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1727,7 +1733,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 3'), 20);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - delete file', done => {
+	test('watch - file - delete file', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1736,7 +1742,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => unlinkSync(toWatch.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - rename file', done => {
+	test('watch - file - rename file', done => {
+		if (isWindows) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'index-watch1-renamed.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -1746,7 +1756,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - rename file (different case)', done => {
+	test('watch - file - rename file (different case)', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'INDEX-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -1760,7 +1770,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file (atomic save)', function (done) {
+	test('watch - file (atomic save)', function (done) {
 		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
 
@@ -1776,7 +1786,11 @@ suite('Disk File Service', () => {
 		}, 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - change file', done => {
+	test('watch - folder (non recursive) - change file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1788,7 +1802,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add file', done => {
+	test('watch - folder (non recursive) - add file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch4'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1799,7 +1817,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete file', done => {
+	test('watch - folder (non recursive) - delete file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch5'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1811,7 +1833,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => unlinkSync(file.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add folder', done => {
+	test('watch - folder (non recursive) - add folder', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch6'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1822,7 +1848,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => mkdirSync(folder.fsPath), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete folder', done => {
+	test('watch - folder (non recursive) - delete folder', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch7'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1834,7 +1864,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => rimrafSync(folder.fsPath), 50);
 	});
 
-	(runWatchTests && !isWindows /* symbolic links not reliable on windows */ ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async done => {
+	test('watch - folder (non recursive) - symbolic link - change file', async done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), watchDir.fsPath);
 
@@ -1846,7 +1880,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - rename file', done => {
+	test('watch - folder (non recursive) - rename file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1860,7 +1898,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
 	});
 
-	(runWatchTests && isLinux /* this test requires a case sensitive file system */ ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', done => {
+	test('watch - folder (non recursive) - rename file (different case)', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 

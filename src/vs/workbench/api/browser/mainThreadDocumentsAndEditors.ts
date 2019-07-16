@@ -306,7 +306,7 @@ export class MainThreadDocumentsAndEditors {
 
 	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
-	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
+	private _textEditors = <{ [id: string]: MainThreadTextEditor }>Object.create(null);
 
 	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
 	private _onTextEditorRemove = new Emitter<string[]>();
@@ -368,16 +368,16 @@ export class MainThreadDocumentsAndEditors {
 			const mainThreadEditor = new MainThreadTextEditor(apiEditor.id, apiEditor.editor.getModel(),
 				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._modelService);
 
-			this._textEditors.set(apiEditor.id, mainThreadEditor);
+			this._textEditors[apiEditor.id] = mainThreadEditor;
 			addedEditors.push(mainThreadEditor);
 		}
 
 		// removed editors
 		for (const { id } of delta.removedEditors) {
-			const mainThreadEditor = this._textEditors.get(id);
+			const mainThreadEditor = this._textEditors[id];
 			if (mainThreadEditor) {
 				mainThreadEditor.dispose();
-				this._textEditors.delete(id);
+				delete this._textEditors[id];
 				removedEditors.push(id);
 			}
 		}
@@ -448,16 +448,16 @@ export class MainThreadDocumentsAndEditors {
 		return undefined;
 	}
 
-	findTextEditorIdFor(inputEditor: IWorkbenchEditor): string | undefined {
-		for (const [id, editor] of this._textEditors) {
-			if (editor.matches(inputEditor)) {
+	findTextEditorIdFor(editor: IWorkbenchEditor): string | undefined {
+		for (const id in this._textEditors) {
+			if (this._textEditors[id].matches(editor)) {
 				return id;
 			}
 		}
 		return undefined;
 	}
 
-	getEditor(id: string): MainThreadTextEditor | undefined {
-		return this._textEditors.get(id);
+	getEditor(id: string): MainThreadTextEditor {
+		return this._textEditors[id];
 	}
 }

@@ -443,11 +443,11 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | undefined;
+	let editorToCopy: IEditorInput | null;
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditor(context.editorIndex);
 	} else {
-		editorToCopy = types.withNullAsUndefined(sourceGroup.activeEditor);
+		editorToCopy = sourceGroup.activeEditor;
 	}
 
 	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {

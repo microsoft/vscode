@@ -28,9 +28,8 @@ export interface IView {
 	readonly maximumHeight: number;
 	readonly onDidChange: Event<IViewSize | undefined>;
 	readonly priority?: LayoutPriority;
-	readonly snap?: boolean;
+	readonly snapSize?: number;
 	layout(width: number, height: number, orientation: Orientation): void;
-	setVisible?(visible: boolean): void;
 }
 
 export function orthogonal(orientation: Orientation): Orientation {
@@ -179,12 +178,6 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		for (const child of this.children) {
-			child.setVisible(visible);
-		}
-	}
-
 	orthogonalLayout(size: number): void {
 		this._size = size;
 		this.splitview.layout(size);
@@ -309,22 +302,6 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		return this.splitview.getViewSize(index);
-	}
-
-	isChildVisible(index: number): boolean {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
-
-		return this.splitview.isViewVisible(index);
-	}
-
-	setChildVisible(index: number, visible: boolean): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
-		}
-
-		this.splitview.setViewVisible(index, visible);
 	}
 
 	private onDidChildrenChange(): void {
@@ -486,8 +463,8 @@ class LeafNode implements ISplitView, IDisposable {
 		return this.view.priority;
 	}
 
-	get snap(): boolean | undefined {
-		return this.view.snap;
+	get snapSize(): number | undefined {
+		return this.view.snapSize;
 	}
 
 	get minimumOrthogonalSize(): number {
@@ -509,12 +486,6 @@ class LeafNode implements ISplitView, IDisposable {
 	layout(size: number): void {
 		this._size = size;
 		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
-	}
-
-	setVisible(visible: boolean): void {
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
-		}
 	}
 
 	orthogonalLayout(size: number): void {
@@ -837,28 +808,6 @@ export class GridView implements IDisposable {
 		}
 
 		node.distributeViewSizes();
-	}
-
-	isViewVisible(location: number[]): boolean {
-		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
-
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid from location');
-		}
-
-		return parent.isChildVisible(index);
-	}
-
-	setViewVisible(location: number[], visible: boolean): void {
-		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
-
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid from location');
-		}
-
-		parent.setChildVisible(index, visible);
 	}
 
 	getViews(): GridBranchNode {

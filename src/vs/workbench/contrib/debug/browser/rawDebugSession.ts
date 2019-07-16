@@ -126,8 +126,8 @@ export class RawDebugSession {
 					break;
 				case 'capabilities':
 					if (event.body) {
-						const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-						this.mergeCapabilities(capabilities);
+						const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+						this.mergeCapabilities(capabilites);
 					}
 					break;
 				case 'stopped':

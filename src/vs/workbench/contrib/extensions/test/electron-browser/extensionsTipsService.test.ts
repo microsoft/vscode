@@ -15,7 +15,7 @@ import {
 	IExtensionEnablementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -41,7 +41,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { IExperimentService } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';

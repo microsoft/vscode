@@ -160,58 +160,52 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		editor.setSelections(selections);
+		this._documentsAndEditors.getEditor(id).setSelections(selections);
 		return Promise.resolve(undefined);
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		editor.setDecorations(key, ranges);
+		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
 		return Promise.resolve(undefined);
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		editor.setDecorationsFast(key, ranges);
+		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
 		return Promise.resolve(undefined);
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		editor.revealRange(range, revealType);
+		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return Promise.resolve();
 	}
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		editor.setConfiguration(options);
+		this._documentsAndEditors.getEditor(id).setConfiguration(options);
 		return Promise.resolve(undefined);
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return Promise.resolve(editor.applyEdits(modelVersionId, edits, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Promise<boolean> {
@@ -220,11 +214,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
+		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return Promise.resolve(editor.insertSnippet(template, ranges, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

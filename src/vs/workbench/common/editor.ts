@@ -380,12 +380,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the preferred editor for this input. A list of candidate editors is passed in that whee registered
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
-	getPreferredEditorId(candidates: string[]): string | undefined {
-		if (candidates.length > 0) {
+	getPreferredEditorId(candidates: string[]): string | null {
+		if (candidates && candidates.length > 0) {
 			return candidates[0];
 		}
 
-		return undefined;
+		return null;
 	}
 
 	/**

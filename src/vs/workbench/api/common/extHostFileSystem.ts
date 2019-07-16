@@ -192,23 +192,23 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._usedSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
 
-		let capabilities = files.FileSystemProviderCapabilities.FileReadWrite;
+		let capabilites = files.FileSystemProviderCapabilities.FileReadWrite;
 		if (options.isCaseSensitive) {
-			capabilities += files.FileSystemProviderCapabilities.PathCaseSensitive;
+			capabilites += files.FileSystemProviderCapabilities.PathCaseSensitive;
 		}
 		if (options.isReadonly) {
-			capabilities += files.FileSystemProviderCapabilities.Readonly;
+			capabilites += files.FileSystemProviderCapabilities.Readonly;
 		}
 		if (typeof provider.copy === 'function') {
-			capabilities += files.FileSystemProviderCapabilities.FileFolderCopy;
+			capabilites += files.FileSystemProviderCapabilities.FileFolderCopy;
 		}
 		if (typeof provider.open === 'function' && typeof provider.close === 'function'
 			&& typeof provider.read === 'function' && typeof provider.write === 'function'
 		) {
-			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
+			capabilites += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities);
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilites);
 
 		const subscription = provider.onDidChangeFile(event => {
 			const mapped: IFileChangeDto[] = [];

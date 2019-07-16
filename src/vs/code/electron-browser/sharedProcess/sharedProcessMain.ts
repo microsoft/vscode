@@ -16,7 +16,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -55,8 +55,6 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/product';
-import { ProductService } from 'vs/platform/product/node/productService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -116,7 +114,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IConfigurationService, configurationService);
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
-	services.set(IProductService, new SyncDescriptor(ProductService));
 
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);

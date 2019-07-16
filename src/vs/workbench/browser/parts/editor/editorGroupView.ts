@@ -729,7 +729,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.editors;
 	}
 
-	getEditor(index: number): EditorInput | undefined {
+	getEditor(index: number): EditorInput | null {
 		return this._group.getEditor(index);
 	}
 

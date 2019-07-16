@@ -12,24 +12,22 @@ import { VSBufferReadableStream, streamToBuffer } from 'vs/base/common/buffer';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
-export interface IHeaders {
-	[header: string]: string;
-}
-
 export interface IRequestOptions {
 	type?: string;
 	url?: string;
 	user?: string;
 	password?: string;
-	headers?: IHeaders;
+	headers?: any;
 	timeout?: number;
 	data?: string;
 	followRedirects?: number;
 }
 
 export interface IRequestContext {
+	// req: http.ClientRequest;
+	// res: http.ClientResponse;
 	res: {
-		headers: IHeaders;
+		headers: { [n: string]: string };
 		statusCode?: number;
 	};
 	stream: VSBufferReadableStream;

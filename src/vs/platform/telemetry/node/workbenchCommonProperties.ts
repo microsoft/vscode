@@ -5,7 +5,11 @@
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+
+export const instanceStorageKey = 'telemetry.instanceId';
+export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
+export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
+export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 
 export async function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, installSourcePath: string, remoteAuthority?: string): Promise<{ [name: string]: string | undefined }> {
 	const result = await resolveCommonProperties(commit, version, machineId, installSourcePath);

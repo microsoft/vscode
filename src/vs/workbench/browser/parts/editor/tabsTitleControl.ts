@@ -695,7 +695,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
 		const isTab = (typeof index === 'number');
-		const editor = typeof index === 'number' ? this.group.getEditor(index) : undefined;
+		const editor = typeof index === 'number' ? this.group.getEditor(index) : null;
 		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
 
 		// Background

@@ -281,7 +281,7 @@ export class Sash extends Disposable {
 				removeClass(this.el, 'active');
 				this._onDidEnd.fire();
 
-			disposables.dispose();
+
 
 				// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
 				const iframes = [
