@@ -26,7 +26,7 @@ export interface IEditorRegistry {
 	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
 	 * the first editor in the list will be returned.
 	 *
-	 * @param inputDescriptors A set of constructor functions that returns an instance of EditorInput for which the
+	 * @param inputDescriptors A set of constructor functions that return an instance of EditorInput for which the
 	 * registered editor should be used for.
 	 */
 	registerEditor(descriptor: IEditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): void;
@@ -37,7 +37,7 @@ export interface IEditorRegistry {
 	getEditor(input: EditorInput): IEditorDescriptor | undefined;
 
 	/**
-	 * Returns the editor descriptor for the given identifier or null if none.
+	 * Returns the editor descriptor for the given identifier or `undefined` if none.
 	 */
 	getEditorById(editorId: string): IEditorDescriptor | undefined;
 
