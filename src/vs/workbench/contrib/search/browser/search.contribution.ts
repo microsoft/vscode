@@ -50,7 +50,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_CONTAINER, VIEW_ID } from 'vs/workbench/services/search/common/search';
@@ -215,7 +215,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand({
 	id: Constants.RevealInSideBarForSearchResults,
-	handler: (accessor, fileMatch: FileMatch | FolderMatch) => {
+	handler: (accessor, fileMatch: FileMatch) => {
 		const viewletService = accessor.get(IViewletService);
 		const explorerService = accessor.get(IExplorerService);
 		const contextService = accessor.get(IWorkspaceContextService);
@@ -240,7 +240,7 @@ const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	command: RevealInSideBarForSearchResultsCommand,
-	when: ContextKeyExpr.and(Constants.FileMatchOrFolderMatchFocusKey, Constants.HasSearchResults),
+	when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
 	group: '2_files',
 });
 
