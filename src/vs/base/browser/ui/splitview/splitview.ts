@@ -736,6 +736,16 @@ export class SplitView extends Disposable {
 		let emptyDelta = this.size - contentSize;
 
 		const indexes = range(this.viewItems.length - 1, -1);
+		const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low);
+		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+
+		for (const index of highPriorityIndexes) {
+			pushToStart(indexes, index);
+		}
+
+		for (const index of lowPriorityIndexes) {
+			pushToEnd(indexes, index);
+		}
 
 		if (typeof lowPriorityIndex === 'number') {
 			pushToEnd(indexes, lowPriorityIndex);
