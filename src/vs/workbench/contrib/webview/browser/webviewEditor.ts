@@ -24,10 +24,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class WebviewEditor extends BaseEditor {
 
+	public static readonly ID = 'WebviewEditor';
+
 	private _webview: Webview | undefined;
 	private _findWidgetVisible: IContextKey<boolean>;
-
-	public static readonly ID = 'WebviewEditor';
 
 	private _editorFrame: HTMLElement;
 	private _content?: HTMLElement;
@@ -37,7 +37,7 @@ export class WebviewEditor extends BaseEditor {
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
-	public readonly onDidFocus: Event<any> = this._onDidFocusWebview.event;
+	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
 	private _pendingMessages: any[] = [];
 
