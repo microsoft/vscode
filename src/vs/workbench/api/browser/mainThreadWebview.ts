@@ -176,7 +176,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._revivers.set(viewType, this._webviewEditorService.registerReviver({
 			canRevive: (webview) => {
-				return webview.state && webview.state.viewType === viewType;
+				return webview.state && webview.viewType === this.getInternalWebviewViewType(viewType);
 			},
 			reviveWebview: async (webview): Promise<void> => {
 				const viewType = webview.state.viewType;
