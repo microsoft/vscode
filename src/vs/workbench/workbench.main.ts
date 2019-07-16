@@ -64,7 +64,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityService } from 'vs/workbench/services/accessibility/node/accessibilityService';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -127,7 +127,6 @@ import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -139,6 +138,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 
 
+registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -344,5 +344,6 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { ExtensionManagementService } from './services/extensionManagement/node/extensionManagement';
 
 //#endregion

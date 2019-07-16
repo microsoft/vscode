@@ -13,14 +13,12 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/product';
 
-export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
+export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	_serviceBrand: any;
 
@@ -29,13 +27,13 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	readonly onUninstallExtension: Event<IExtensionIdentifier>;
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	private readonly servers: IExtensionManagementServer[];
+	protected readonly servers: IExtensionManagementServer[];
 
 	constructor(
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IProductService protected readonly productService: IProductService,
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -133,20 +131,6 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	}
 
 	async install(vsix: URI): Promise<ILocalExtension> {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const manifest = await getManifest(vsix.fsPath);
-			if (isLanguagePackExtension(manifest)) {
-				// Install on both servers
-				const [local] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
-				return local;
-			}
-			if (isUIExtension(manifest, this.productService, this.configurationService)) {
-				// Install only on local server
-				return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
-			}
-			// Install only on remote server
-			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
-		}
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
 	}
 
@@ -179,5 +163,3 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 	}
 }
-
-registerSingleton(IExtensionManagementService, MultiExtensionManagementService);
