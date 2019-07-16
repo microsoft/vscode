@@ -16,8 +16,8 @@ import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-b
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/contrib/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
+import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,

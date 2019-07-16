@@ -146,14 +146,14 @@ class Extension implements IExtension {
 		if (this.type === ExtensionType.System && this.local) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
-					return require.toUrl('../browser/media/theme-icon.png');
+					return require.toUrl('./media/theme-icon.png');
 				}
 				if (Array.isArray(this.local.manifest.contributes.grammars) && this.local.manifest.contributes.grammars.length) {
-					return require.toUrl('../browser/media/language-icon.svg');
+					return require.toUrl('./media/language-icon.svg');
 				}
 			}
 		}
-		return require.toUrl('../browser/media/defaultIcon.png');
+		return require.toUrl('./media/defaultIcon.png');
 	}
 
 	get repository(): string | undefined {

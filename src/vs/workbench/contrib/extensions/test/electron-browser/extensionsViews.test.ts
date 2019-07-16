@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, EnablementState, ExtensionRecommendationReason, SortBy, IExtensionManagementServer
