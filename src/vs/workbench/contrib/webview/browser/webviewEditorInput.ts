@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -103,9 +102,6 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	public getTypeId(): string {
 		return WebviewEditorInput.typeId;
 	}
-
-	private readonly _onDidChangeIcon = this._register(new Emitter<void>());
-	public readonly onDidChangeIcon = this._onDidChangeIcon.event;
 
 	public dispose() {
 		this.disposeWebview();
