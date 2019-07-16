@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const puppeteer = require('puppeteer');
-
-// export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }>
+import * as puppeteer from 'puppeteer';
 
 const width = 1200;
 const height = 800;
@@ -16,7 +14,7 @@ const vscodeToPuppeteerKey = {
 	enter: 'Enter'
 };
 
-function buildDriver(browser, page) {
+function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver {
 	return {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
@@ -36,11 +34,10 @@ function buildDriver(browser, page) {
 				keysDown.push(keys[i]);
 			}
 			while (keysDown.length > 0) {
-				await page.keyboard.up(keysDown.pop());
+				await page.keyboard.up(keysDown.pop()!);
 			}
 		},
 		click: async (windowId, selector, xoffset, yoffset) => {
-			console.log('click');
 			const { x, y } = await page.evaluate(`
 				(function() {
 					function convertToPixels(element, value) {
