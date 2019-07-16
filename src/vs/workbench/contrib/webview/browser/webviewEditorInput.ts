@@ -82,7 +82,7 @@ export class WebviewEditorInput extends EditorInput {
 		public readonly viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: string,
+		state: string | undefined,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;
@@ -300,7 +300,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: string,
+		state: string | undefined,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;

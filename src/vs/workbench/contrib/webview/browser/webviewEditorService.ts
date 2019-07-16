@@ -146,7 +146,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		},
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, options, {}, events, extension);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, options, undefined, events, extension);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
