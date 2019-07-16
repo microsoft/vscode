@@ -27,7 +27,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	readonly onUninstallExtension: Event<IExtensionIdentifier>;
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	protected readonly servers: IExtensionManagementServer[];
+	protected readonly servers: IExtensionManagementServer[] = [];
 
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -36,7 +36,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@IProductService protected readonly productService: IProductService,
 	) {
 		super();
-		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			this.servers.push(this.extensionManagementServerService.localExtensionManagementServer);
+		}
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			this.servers.push(this.extensionManagementServerService.remoteExtensionManagementServer);
+		}
 
 		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>())).event;
 		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
@@ -51,31 +56,33 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.catch(e => installedExtensions);
 	}
 
-	async uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const server = this.getServer(extension);
-			if (!server) {
-				return Promise.reject(`Invalid location ${extension.location.toString()}`);
-			}
-			if (isLanguagePackExtension(extension.manifest)) {
-				return this.uninstallEverywhere(extension, force);
-			}
-			return this.uninstallInServer(extension, server, force);
+	async uninstall(extension: ILocalExtension): Promise<void> {
+		const server = this.getServer(extension);
+		if (!server) {
+			return Promise.reject(`Invalid location ${extension.location.toString()}`);
 		}
-		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.uninstall(extension, force);
+		if (this.servers.length > 1) {
+			if (isLanguagePackExtension(extension.manifest)) {
+				return this.uninstallEverywhere(extension);
+			}
+			return this.uninstallInServer(extension, server);
+		}
+		return server.extensionManagementService.uninstall(extension);
 	}
 
-	private async uninstallEverywhere(extension: ILocalExtension, force?: boolean): Promise<void> {
+	private async uninstallEverywhere(extension: ILocalExtension): Promise<void> {
 		const server = this.getServer(extension);
 		if (!server) {
 			return Promise.reject(`Invalid location ${extension.location.toString()}`);
 		}
 		const promise = server.extensionManagementService.uninstall(extension);
-		const anotherServer: IExtensionManagementServer = server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer! : this.extensionManagementServerService.localExtensionManagementServer;
-		const installed = await anotherServer.extensionManagementService.getInstalled(ExtensionType.User);
-		extension = installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0];
-		if (extension) {
-			await anotherServer.extensionManagementService.uninstall(extension);
+		const anotherServer: IExtensionManagementServer | null = server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer! : this.extensionManagementServerService.localExtensionManagementServer;
+		if (anotherServer) {
+			const installed = await anotherServer.extensionManagementService.getInstalled(ExtensionType.User);
+			extension = installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0];
+			if (extension) {
+				await anotherServer.extensionManagementService.uninstall(extension);
+			}
 		}
 		return promise;
 	}
@@ -131,11 +138,17 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	async install(vsix: URI): Promise<ILocalExtension> {
-		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
+		}
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
+		}
+		return Promise.reject('No Servers to Install');
 	}
 
 	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 			if (manifest) {
 				if (isLanguagePackExtension(manifest)) {
@@ -152,11 +165,23 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
 			}
 		}
-		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
+		}
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
+		}
+		return Promise.reject('No Servers to Install');
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
-		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getExtensionsReport();
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getExtensionsReport();
+		}
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getExtensionsReport();
+		}
+		return Promise.resolve([]);
 	}
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {

@@ -8,12 +8,12 @@ import { isLanguagePackExtension } from 'vs/platform/extensions/common/extension
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
 	async install(vsix: URI): Promise<ILocalExtension> {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const manifest = await getManifest(vsix.fsPath);
 			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
@@ -27,7 +27,10 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 			// Install only on remote server
 			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
 		}
-		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
+		}
+		return Promise.reject('No Servers to Install');
 	}
 
 }

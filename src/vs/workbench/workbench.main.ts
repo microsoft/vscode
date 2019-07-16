@@ -136,7 +136,7 @@ import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-
+import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/extensionManagementService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -344,6 +344,5 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
-import { ExtensionManagementService } from './services/extensionManagement/node/extensionManagement';
 
 //#endregion
