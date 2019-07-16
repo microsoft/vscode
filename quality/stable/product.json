@@ -354,6 +354,13 @@
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
 				"GoogleCloudTools.cloudcode"
 			]
+		},
+		"wsl": {
+			"friendlyName": "Remote WSL",
+			"windowsPath": "%SYSTEM32%\\wsl.exe",
+			"recommendations": [
+				"ms-vscode-remote.remote-wsl"
+			]
 		}
 	},
 	"extensionKeywords": {
