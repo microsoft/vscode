@@ -367,7 +367,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	//#region File Watching
 
 	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	get onDidErrorOccur(): Event<string> { return this._onDidWatchErrorOccur.event; }
+	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
 
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }

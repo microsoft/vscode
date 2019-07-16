@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensions';
+import 'vs/css!../browser/media/extensions';
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -22,11 +22,11 @@ import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, OpenExtensionsFolderAction, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction
-} from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { ExtensionEditor } from 'vs/workbench/contrib/extensions/electron-browser/extensionEditor';
-import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker, ExtensionsViewletViewsContribution } from 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
+import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
+import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker, ExtensionsViewletViewsContribution } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -47,7 +47,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
+import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
@@ -337,8 +337,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -350,8 +350,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -363,8 +363,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -376,8 +376,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-dark.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},

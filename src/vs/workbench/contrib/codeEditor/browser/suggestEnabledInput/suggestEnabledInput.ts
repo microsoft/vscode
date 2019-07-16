@@ -9,7 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
@@ -103,7 +103,6 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
-	private disposables: IDisposable[] = [];
 	private readonly inputWidget: CodeEditorWidget;
 	private readonly inputModel: ITextModel;
 	private stylingContainer: HTMLDivElement;
@@ -134,31 +133,31 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
 				isSimpleWidget: true,
 			});
-		this.disposables.push(this.inputWidget);
+		this._register(this.inputWidget);
 
 		let scopeHandle = uri.parse(resourceHandle);
 		this.inputModel = modelService.createModel('', null, scopeHandle, true);
 		this.inputWidget.setModel(this.inputModel);
 
-		this.disposables.push(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses
+		this._register(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses
 
-		this.disposables.push((this.inputWidget.onDidFocusEditorText(() => {
+		this._register((this.inputWidget.onDidFocusEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(true); }
 			addClass(this.stylingContainer, 'synthetic-focus');
 		})));
-		this.disposables.push((this.inputWidget.onDidBlurEditorText(() => {
+		this._register((this.inputWidget.onDidBlurEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(false); }
 			removeClass(this.stylingContainer, 'synthetic-focus');
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this));
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();
 		const inputWidgetModel = this.inputWidget.getModel();
 		if (inputWidgetModel) {
-			this.disposables.push(inputWidgetModel.onDidChangeContent(() => {
+			this._register(inputWidgetModel.onDidChangeContent(() => {
 				let content = this.getValue();
 				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 				if (preexistingContent.trim() === content.trim()) { return; }
@@ -175,7 +174,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this.setValue(options.value || '');
 
-		this.disposables.push(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this._register(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
@@ -248,11 +247,6 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		super.dispose();
 	}
 }
 

@@ -26,6 +26,7 @@ export interface IWebviewEditorService {
 	_serviceBrand: any;
 
 	createWebview(
+		id: string,
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
@@ -38,6 +39,7 @@ export interface IWebviewEditorService {
 	): WebviewEditorInput;
 
 	reviveWebview(
+		id: string,
 		viewType: string,
 		title: string,
 		iconPath: { light: URI, dark: URI } | undefined,
@@ -133,6 +135,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	) { }
 
 	public createWebview(
+		id: string,
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
@@ -143,7 +146,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		},
 		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extension);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, options, {}, events, extension);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
@@ -164,6 +167,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	}
 
 	public reviveWebview(
+		id: string,
 		viewType: string,
 		title: string,
 		iconPath: { light: URI, dark: URI } | undefined,
@@ -175,7 +179,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		},
 		group: number | undefined,
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, viewType, title, options, state, {}, extension, async (webview: WebviewEditorInput): Promise<void> => {
+		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, id, viewType, title, options, state, {}, extension, async (webview: WebviewEditorInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
 			if (didRevive) {
 				return Promise.resolve(undefined);

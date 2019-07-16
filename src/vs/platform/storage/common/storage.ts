@@ -126,7 +126,7 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 	_serviceBrand = null as any;
 
 	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
 
 	readonly onWillSaveState = Event.None;
 

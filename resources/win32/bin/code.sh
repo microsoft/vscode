@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
@@ -11,7 +11,7 @@ VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 if grep -qi Microsoft /proc/version; then
 	# in a wsl shell
-	if ! [ -z "$WSL_DISTRO_NAME" ]; then
+	if [ "$WSL_DISTRO_NAME" ]; then
 		# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
 		WSL_BUILD=18362
 	else
@@ -26,21 +26,16 @@ if grep -qi Microsoft /proc/version; then
 		# WSLPATH is available since WSL build 17046
 		# WSLENV is available since WSL build 17063
 		export WSLENV=ELECTRON_RUN_AS_NODE/w:$WSLENV
+		CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")
 
 		# use the Remote WSL extension if installed
-		pushd "$VSCODE_PATH" > /dev/null
 		WSL_EXT_ID="ms-vscode-remote.remote-wsl"
-		WSL_EXT_WLOC=$(ELECTRON_RUN_AS_NODE=1 "$ELECTRON" ".\resources\app\out\cli.js" --locate-extension $WSL_EXT_ID)
-		popd > /dev/null
-
-		if ! [ -z "$WSL_EXT_WLOC" ]; then
+		WSL_EXT_WLOC=$(ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID)
+		if [ -n "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC
 			WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
-			WIN_CODE_CMD=$(wslpath -w "$VSCODE_PATH/bin/$APP_NAME.cmd")
-			"$WSL_CODE" "$COMMIT" "$QUALITY" "$WIN_CODE_CMD" "$APP_NAME" "$DATAFOLDER" "$@"
+			"$WSL_CODE" "$COMMIT" "$QUALITY" "$ELECTRON" "$APP_NAME" "$DATAFOLDER" "$@"
 			exit $?
-		else
-			CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")
 		fi
 	else
 		# If running under older WSL, don't pass cli.js to Electron as

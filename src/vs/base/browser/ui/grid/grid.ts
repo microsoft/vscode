@@ -8,11 +8,9 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
-import { Event, Emitter } from 'vs/base/common/event';
-import { $ } from 'vs/base/browser/dom';
-import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
+import { Event } from 'vs/base/common/event';
 
-export { Orientation } from './gridview';
+export { Orientation, Sizing as GridViewSizing } from './gridview';
 
 export const enum Direction {
 	Up,
@@ -187,7 +185,7 @@ export interface IGridOptions {
 	proportionalLayout?: boolean;
 }
 
-export class Grid<T extends IView> extends Disposable {
+export class Grid<T extends IView = IView> extends Disposable {
 
 	protected gridview: GridView;
 	private views = new Map<T, HTMLElement>();
@@ -302,12 +300,6 @@ export class Grid<T extends IView> extends Disposable {
 		return this.gridview.getViewSize(location);
 	}
 
-	// TODO@joao cleanup
-	getViewSize2(view: T): { width: number; height: number; } {
-		const location = this.getViewLocation(view);
-		return this.gridview.getViewSize(location);
-	}
-
 	maximizeViewSize(view: T): void {
 		const location = this.getViewLocation(view);
 		this.gridview.maximizeViewSize(location);
@@ -315,6 +307,16 @@ export class Grid<T extends IView> extends Disposable {
 
 	distributeViewSizes(): void {
 		this.gridview.distributeViewSizes();
+	}
+
+	isViewVisible(view: T): boolean {
+		const location = this.getViewLocation(view);
+		return this.gridview.isViewVisible(location);
+	}
+
+	setViewVisible(view: T, visible: boolean): void {
+		const location = this.getViewLocation(view);
+		this.gridview.setViewVisible(location, visible);
 	}
 
 	getViews(): GridBranchNode<T> {
@@ -633,64 +635,4 @@ export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerialize
 		width: width || 1,
 		height: height || 1
 	};
-}
-
-export class View implements IView {
-
-	readonly element = $('.grid-view-view');
-
-	private visible = false;
-	private width: number | undefined;
-	private height: number | undefined;
-	private orientation: Orientation = Orientation.HORIZONTAL;
-
-	get minimumWidth(): number { return this.visible ? this.view.minimumWidth : 0; }
-	get maximumWidth(): number { return this.visible ? this.view.maximumWidth : (this.orientation === Orientation.HORIZONTAL ? 0 : Number.POSITIVE_INFINITY); }
-	get minimumHeight(): number { return this.visible ? this.view.minimumHeight : 0; }
-	get maximumHeight(): number { return this.visible ? this.view.maximumHeight : (this.orientation === Orientation.VERTICAL ? 0 : Number.POSITIVE_INFINITY); }
-
-	private onDidChangeVisibility = new Emitter<{ width: number; height: number; } | undefined>();
-	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
-
-	get priority(): LayoutPriority | undefined { return this.view.priority; }
-	get snapSize(): number | undefined { return this.visible ? this.view.snapSize : undefined; }
-
-	constructor(private view: IView) {
-		this.show();
-		this.onDidChange = Event.any(this.onDidChangeVisibility.event, Event.filter(view.onDidChange, () => this.visible));
-	}
-
-	show(): void {
-		if (this.visible) {
-			return;
-		}
-
-		this.visible = true;
-
-		this.element.appendChild(this.view.element);
-		this.onDidChangeVisibility.fire(typeof this.width === 'number' ? { width: this.width, height: this.height! } : undefined);
-	}
-
-	hide(): void {
-		if (!this.visible) {
-			return;
-		}
-
-		this.visible = false;
-
-		this.element.removeChild(this.view.element);
-		this.onDidChangeVisibility.fire(undefined);
-	}
-
-	layout(width: number, height: number, orientation: Orientation): void {
-		this.orientation = orientation;
-
-		if (!this.visible) {
-			return;
-		}
-
-		this.view.layout(width, height, orientation);
-		this.width = width;
-		this.height = height;
-	}
 }

@@ -55,8 +55,8 @@ export class DataUriEditorInput extends EditorInput {
 		return withUndefinedAsNull(this.name);
 	}
 
-	getDescription(): string | null {
-		return withUndefinedAsNull(this.description);
+	getDescription(): string | undefined {
+		return this.description;
 	}
 
 	resolve(): Promise<BinaryEditorModel> {

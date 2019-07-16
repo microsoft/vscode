@@ -86,7 +86,7 @@ export interface IStatusMessageChangeEvent {
 export class NotificationHandle implements INotificationHandle {
 
 	private readonly _onDidClose: Emitter<void> = new Emitter();
-	get onDidClose(): Event<void> { return this._onDidClose.event; }
+	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	constructor(private readonly item: INotificationViewItem, private readonly closeItem: (item: INotificationViewItem) => void) {
 		this.registerListeners();
@@ -126,10 +126,10 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private static NO_OP_NOTIFICATION = new NoOpNotification();
 
 	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent> = this._register(new Emitter<INotificationChangeEvent>());
-	get onDidNotificationChange(): Event<INotificationChangeEvent> { return this._onDidNotificationChange.event; }
+	readonly onDidNotificationChange: Event<INotificationChangeEvent> = this._onDidNotificationChange.event;
 
 	private readonly _onDidStatusMessageChange: Emitter<IStatusMessageChangeEvent> = this._register(new Emitter<IStatusMessageChangeEvent>());
-	get onDidStatusMessageChange(): Event<IStatusMessageChangeEvent> { return this._onDidStatusMessageChange.event; }
+	readonly onDidStatusMessageChange: Event<IStatusMessageChangeEvent> = this._onDidStatusMessageChange.event;
 
 	private readonly _notifications: INotificationViewItem[] = [];
 	get notifications(): INotificationViewItem[] { return this._notifications; }
@@ -301,7 +301,7 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 	private readonly _state: INotificationViewItemProgressState;
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor() {
 		super();
@@ -397,13 +397,13 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private _progress: NotificationViewItemProgress;
 
 	private readonly _onDidExpansionChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidExpansionChange(): Event<void> { return this._onDidExpansionChange.event; }
+	readonly onDidExpansionChange: Event<void> = this._onDidExpansionChange.event;
 
 	private readonly _onDidClose: Emitter<void> = this._register(new Emitter<void>());
-	get onDidClose(): Event<void> { return this._onDidClose.event; }
+	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	private readonly _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent> = this._register(new Emitter<INotificationViewItemLabelChangeEvent>());
-	get onDidLabelChange(): Event<INotificationViewItemLabelChangeEvent> { return this._onDidLabelChange.event; }
+	readonly onDidLabelChange: Event<INotificationViewItemLabelChangeEvent> = this._onDidLabelChange.event;
 
 	static create(notification: INotification): INotificationViewItem | null {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
@@ -654,7 +654,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 export class ChoiceAction extends Action {
 
 	private readonly _onDidRun = new Emitter<void>();
-	get onDidRun(): Event<void> { return this._onDidRun.event; }
+	readonly onDidRun: Event<void> = this._onDidRun.event;
 
 	private readonly _keepOpen: boolean;
 

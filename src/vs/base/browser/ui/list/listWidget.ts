@@ -111,7 +111,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	private sortedIndexes: number[] = [];
 
 	private _onChange = new Emitter<ITraitChangeEvent>();
-	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
+	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
 
 	get trait(): string { return this._trait; }
 
@@ -329,6 +329,7 @@ export function mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 
 	return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
 		|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+		|| (event.keyCode >= KeyCode.NUMPAD_0 && event.keyCode <= KeyCode.NUMPAD_9)
 		|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
 }
 
@@ -1164,7 +1165,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidBlur: Event<void>;
 
 	private _onDidDispose = new Emitter<void>();
-	get onDidDispose(): Event<void> { return this._onDidDispose.event; }
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(
 		container: HTMLElement,
