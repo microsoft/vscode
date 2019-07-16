@@ -12,7 +12,6 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 
@@ -276,7 +275,12 @@ export class Sash extends Disposable {
 				style.innerHTML = `* { cursor: ${cursor} !important; }`;
 			};
 
+<<<<<<< HEAD
 			const disposables: IDisposable[] = [];
+=======
+			const disposables: new DisposableStore();
+
+>>>>>>> 260cd34740f046254d46e318d2d1fe83cc2a10e4
 
 			updateStyle();
 
@@ -306,9 +310,14 @@ export class Sash extends Disposable {
 				removeClass(this.el, 'active');
 				this._onDidEnd.fire();
 
+<<<<<<< HEAD
 				dispose(disposables);
 
 				// Select both iframes and webviews, as Electron nests an iframe in its webview. Fix to issue #75090
+=======
+				// Select both iframes and webviews, as Electron nests an iframe in its
+				// webview. Fix to issue #75090
+>>>>>>> 260cd34740f046254d46e318d2d1fe83cc2a10e4
 				const iframes = [
 					...getElementsByTagName('webview'),
 					...getElementsByTagName('iframe'),
@@ -332,7 +341,11 @@ export class Sash extends Disposable {
 	private onTouchStart(event: GestureEvent): void {
 		EventHelper.stop(event);
 
+<<<<<<< HEAD
 		const listeners: IDisposable[] = [];
+=======
+		const listeners: new DisposableStore();
+>>>>>>> 260cd34740f046254d46e318d2d1fe83cc2a10e4
 
 		const startX = event.pageX;
 		const startY = event.pageY;
@@ -359,10 +372,18 @@ export class Sash extends Disposable {
 				}
 			}));
 
+<<<<<<< HEAD
 		listeners.push(addDisposableListener(this.el, EventType.End, (event: GestureEvent) => {
 			this._onDidEnd.fire();
 			dispose(listeners);
 		}));
+=======
+		listeners.push(
+			addDisposableListener(this.el, EventType.End, (event: GestureEvent) => {
+				this._onDidEnd.fire();
+				listeners.despose();
+			}));
+>>>>>>> 260cd34740f046254d46e318d2d1fe83cc2a10e4
 	}
 
 	layout(): void {
