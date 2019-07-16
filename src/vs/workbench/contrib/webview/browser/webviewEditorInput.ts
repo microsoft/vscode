@@ -52,7 +52,7 @@ class WebviewIconsManager {
 	}
 }
 
-export class WebviewEditorInput<State = any> extends EditorInput {
+export class WebviewEditorInput extends EditorInput {
 
 	private readonly iconsManager = new WebviewIconsManager();
 
@@ -70,7 +70,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
-	private _state: State | undefined;
+	public state: string | undefined;
 
 	public readonly extension?: {
 		readonly location: URI;
@@ -82,7 +82,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 		public readonly viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: State,
+		state: string,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;
@@ -95,7 +95,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 		this._name = name;
 		this._options = options;
 		this._events = events;
-		this._state = state;
+		this.state = state;
 		this.extension = extension;
 	}
 
@@ -176,14 +176,6 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 			this._webview.html = value;
 			this._currentWebviewHtml = value;
 		}
-	}
-
-	public get state(): State | undefined {
-		return this._state;
-	}
-
-	public set state(value: State | undefined) {
-		this._state = value;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -308,7 +300,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: any,
+		state: string,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;

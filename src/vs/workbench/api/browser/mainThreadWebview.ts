@@ -22,8 +22,9 @@ import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/commo
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IProductService } from 'vs/platform/product/common/product';
+import { startsWith } from 'vs/base/common/strings';
 
-interface MainThreadWebviewState {
+interface OldMainThreadWebviewState {
 	readonly viewType: string;
 	state: any;
 }
@@ -43,7 +44,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviews = new Map<WebviewPanelHandle, WebviewEditorInput<MainThreadWebviewState>>();
+	private readonly _webviews = new Map<WebviewPanelHandle, WebviewEditorInput>();
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	private _activeWebview: WebviewPanelHandle | undefined = undefined;
@@ -67,8 +68,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// This reviver's only job is to activate webview extensions
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewEditorService.registerReviver({
-			canRevive: (webview: WebviewEditorInput<any>) => {
-				const viewType = webview.state && webview.state.viewType;
+			canRevive: (webview: WebviewEditorInput) => {
+				if (!webview.state) {
+					return false;
+				}
+
+				const viewType = this.fromInternalWebviewViewType(webview.viewType);
 				if (typeof viewType === 'string') {
 					extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
 				}
@@ -96,11 +101,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		const webview = this._webviewEditorService.createWebview(handle, this.getInternalWebviewViewType(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), {
 			location: URI.revive(extensionLocation),
 			id: extensionId
-		}, this.createWebviewEventDelegate(handle)) as WebviewEditorInput<MainThreadWebviewState>;
-		webview.state = {
-			viewType: viewType,
-			state: undefined
-		};
+		}, this.createWebviewEventDelegate(handle)) as WebviewEditorInput;
 
 		this._webviews.set(handle, webview);
 
@@ -176,17 +177,31 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._revivers.set(viewType, this._webviewEditorService.registerReviver({
 			canRevive: (webview) => {
-				return webview.state && webview.viewType === this.getInternalWebviewViewType(viewType);
+				return !!webview.state && webview.viewType === this.getInternalWebviewViewType(viewType);
 			},
 			reviveWebview: async (webview): Promise<void> => {
-				const viewType = webview.state.viewType;
-				const handle = 'revival-' + MainThreadWebviews.revivalPool++;
+				const viewType = this.fromInternalWebviewViewType(webview.viewType);
+				if (!viewType) {
+					webview.html = MainThreadWebviews.getDeserializationFailedContents(webview.viewType);
+					return;
+				}
+
+				const handle = `revival-${MainThreadWebviews.revivalPool++}`;
 				this._webviews.set(handle, webview);
 				webview._events = this.createWebviewEventDelegate(handle);
 				let state = undefined;
-				if (webview.state.state) {
+				if (webview.state) {
 					try {
-						state = JSON.parse(webview.state.state);
+						// Check for old-style webview state first which stored state inside another state object
+						// TODO: remove this after 1.37 ships.
+						if (
+							typeof (webview.state as unknown as OldMainThreadWebviewState).viewType === 'string' &&
+							'state' in (webview.state as unknown as OldMainThreadWebviewState)
+						) {
+							state = JSON.parse((webview.state as any).state);
+						} else {
+							state = JSON.parse(webview.state);
+						}
 					} catch {
 						// noop
 					}
@@ -216,6 +231,13 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return `mainThreadWebview-${viewType}`;
 	}
 
+	private fromInternalWebviewViewType(viewType: string): string | undefined {
+		if (!startsWith(viewType, 'mainThreadWebview-')) {
+			return undefined;
+		}
+		return viewType.replace(/^mainThreadWebview-/, '');
+	}
+
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {
 		return {
 			onDidClickLink: (uri: URI) => this.onDidClickLink(handle, uri),
@@ -230,7 +252,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				if (!webview || webview.isDisposed()) {
 					return;
 				}
-				(webview as WebviewEditorInput<MainThreadWebviewState>).state!.state = newState;
+				webview.state = newState;
 			}
 		};
 	}
