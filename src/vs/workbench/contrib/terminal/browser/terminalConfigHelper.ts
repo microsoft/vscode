@@ -267,7 +267,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					Severity.Info,
 					nls.localize(
 						'useWslExtension.title',
-						"Use the 'Remote WSL' extension for developping in WSL . Click [here]({0}) to learn more.",
+						"Check out the 'Visual Studio Code Remote - WSL' extension for a great development experience in WSL. Click [here]({0}) to learn more.",
 						'https://go.microsoft.com/fwlink/?linkid=2097212'
 					),
 					[
