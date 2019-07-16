@@ -255,13 +255,13 @@ export function createTerminalEnvironment(
 			}
 		}
 
-		// Merge config (settings) and ShellLaunchConfig environments
-		mergeEnvironments(env, allowedEnvFromConfig);
-		mergeEnvironments(env, shellLaunchConfig.env);
-
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
 		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+
+		// Merge config (settings) and ShellLaunchConfig environments
+		mergeEnvironments(env, allowedEnvFromConfig);
+		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
 		addTerminalEnvironmentKeys(env, version, platform.locale, setLocaleVariables);
