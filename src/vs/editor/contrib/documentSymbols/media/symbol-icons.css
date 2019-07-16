@@ -170,7 +170,7 @@
 }
 .vs-dark .monaco-workbench .symbol-icon.keyword,
 .hc-black .monaco-workbench .symbol-icon.keyword {
-	background-image: url('keyword-light.svg');
+	background-image: url('keyword-dark.svg');
 }
 
 /* interface */

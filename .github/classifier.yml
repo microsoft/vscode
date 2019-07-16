@@ -81,7 +81,7 @@
         hot-exit: [],
         html: [],
         install-update: [],
-        integrated-terminal: [ Tyriar ],
+        integrated-terminal: [],
         integration-test: [],
         intellisense-config: [],
         issue-reporter: [ RMacfarlane ],

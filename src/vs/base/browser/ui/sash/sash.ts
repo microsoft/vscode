@@ -12,7 +12,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 
@@ -276,7 +276,8 @@ export class Sash extends Disposable {
 				style.innerHTML = `* { cursor: ${cursor} !important; }`;
 			};
 
-			const disposables: IDisposable[] = [];
+			const disposables: new DisposableStore();
+
 
 			updateStyle();
 
@@ -306,8 +307,6 @@ export class Sash extends Disposable {
 				removeClass(this.el, 'active');
 				this._onDidEnd.fire();
 
-				dispose(disposables);
-
 				// Select both iframes and webviews, as Electron nests an iframe in its
 				// webview. Fix to issue #75090
 				const iframes = [
@@ -315,6 +314,7 @@ export class Sash extends Disposable {
 					...getElementsByTagName('iframe'),
 				];
 
+				disposables.despose();
 
 				for (const iframe of iframes) {
 					iframe.style.pointerEvents = 'auto';
@@ -333,7 +333,7 @@ export class Sash extends Disposable {
 	private onTouchStart(event: GestureEvent): void {
 		EventHelper.stop(event);
 
-		const listeners: IDisposable[] = [];
+		const listeners: new DisposableStore();
 
 		const startX = event.pageX;
 		const startY = event.pageY;
@@ -363,7 +363,7 @@ export class Sash extends Disposable {
 		listeners.push(
 			addDisposableListener(this.el, EventType.End, (event: GestureEvent) => {
 				this._onDidEnd.fire();
-				dispose(listeners);
+				listeners.despose();
 			}));
 	}
 
@@ -424,15 +424,5 @@ export class Sash extends Disposable {
 
 	private onOrthogonalEndSashEnablementChange(state: SashState): void {
 		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		if (this.el && this.el.parentElement) {
-			this.el.parentElement.removeChild(this.el);
-		}
-
-		this.el = null!;  // StrictNullOverride: nulling out ok in dispose
 	}
 }

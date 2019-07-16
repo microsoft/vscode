@@ -138,16 +138,16 @@ export class EditorGroup extends Disposable {
 		return mru ? this.mru.slice(0) : this.editors.slice(0);
 	}
 
-	getEditor(index: number): EditorInput | null;
-	getEditor(resource: URI): EditorInput | null;
-	getEditor(arg1: number | URI): EditorInput | null {
+	getEditor(index: number): EditorInput | undefined;
+	getEditor(resource: URI): EditorInput | undefined;
+	getEditor(arg1: number | URI): EditorInput | undefined {
 		if (typeof arg1 === 'number') {
 			return this.editors[arg1];
 		}
 
 		const resource: URI = arg1;
 		if (!this.contains(resource)) {
-			return null; // fast check for resource opened or not
+			return undefined; // fast check for resource opened or not
 		}
 
 		for (const editor of this.editors) {
@@ -157,7 +157,7 @@ export class EditorGroup extends Disposable {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 
 	get activeEditor(): EditorInput | null {

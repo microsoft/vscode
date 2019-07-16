@@ -33,6 +33,10 @@ export interface IProductService {
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
+
+	readonly experimentsUrl?: string;
+	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
+	readonly extensionAllowedBadgeProviders?: readonly string[];
 }
 
 export interface IProductConfiguration {
