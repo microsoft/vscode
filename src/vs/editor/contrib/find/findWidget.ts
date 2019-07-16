@@ -1218,4 +1218,9 @@ registerThemingParticipant((theme, collector) => {
 	if (inputActiveBorder) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
 	}
+
+	const inputActiveBackground = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveBackground) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { background-color: ${inputActiveBackground.toString()}; }`);
+	}
 });
