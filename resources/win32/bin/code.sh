@@ -36,7 +36,7 @@ if grep -qi Microsoft /proc/version; then
 		if ! [ -z "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC
 			WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
-			WIN_CODE_CMD=$(wslpath -w "$VSCODE_PATH/bin/$APP_NAME.cmd")
+			WIN_CODE_CMD=$ELECTRON
 			"$WSL_CODE" "$COMMIT" "$QUALITY" "$WIN_CODE_CMD" "$APP_NAME" "$DATAFOLDER" "$@"
 			exit $?
 		else
