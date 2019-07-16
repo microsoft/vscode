@@ -28,7 +28,6 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
-import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -56,28 +55,6 @@ export class SimpleDownloadService implements IDownloadService {
 
 registerSingleton(IDownloadService, SimpleDownloadService, true);
 
-//#endregion
-
-//#endregion IExtensionsWorkbenchService
-export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchService {
-	_serviceBrand: any;
-	onChange: Event<IExtension2 | undefined>;
-	local: IExtension2[];
-	installed: IExtension2[];
-	outdated: IExtension2[];
-	queryLocal: any;
-	queryGallery: any;
-	canInstall: any;
-	install: any;
-	uninstall: any;
-	installVersion: any;
-	reinstall: any;
-	setEnablement: any;
-	open: any;
-	checkForUpdates: any;
-	allowedBadgeProviders: string[];
-}
-registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
 //#endregion
 
 //#region Extension Management
@@ -145,7 +122,7 @@ export class SimpleExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } {
-		return Object.create(null);
+		return { global: [], workspace: [] };
 	}
 }
 
