@@ -13,7 +13,7 @@ import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractUpdateService, createUpdateURL } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService } from 'vs/platform/request/common/request';
 
 export class DarwinUpdateService extends AbstractUpdateService {
@@ -93,10 +93,6 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
-
-		type UpdateNotAvailableClassification = {
-			explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		};
 		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!this.state.context });
 
 		this.setState(State.Idle(UpdateType.Archive));

@@ -10,7 +10,7 @@ import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/up
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -40,11 +40,6 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		this.setState(State.CheckingForUpdates(context));
-
-		type UpdateNotAvailableClassification = {
-			explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		};
-
 		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate>(asJson)
 			.then(update => {
@@ -59,7 +54,6 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			.then(undefined, err => {
 				this.logService.error(err);
 				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
-
 				// only show message when explicitly checking for updates
 				const message: string | undefined = !!context ? (err.message || err) : undefined;
 				this.setState(State.Idle(UpdateType.Archive, message));
