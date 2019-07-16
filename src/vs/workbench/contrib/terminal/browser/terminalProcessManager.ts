@@ -197,6 +197,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? process.env as platform.IProcessEnvironment : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables, baseEnv);
 
