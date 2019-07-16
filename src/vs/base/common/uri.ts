@@ -50,7 +50,6 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 			}
 		} else if (_doubleSlashStart.test(ret.path)) {
 			throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
-
 		}
 	}
 }
@@ -67,7 +66,7 @@ function _schemeFix(scheme: string, _strict: boolean): string {
 		return scheme;
 	}
 	console.trace('BAD uri lacks scheme, falling back to file-scheme.');
-	scheme = 'file';
+	return 'file';
 }
 
 // implements a bit of https://tools.ietf.org/html/rfc3986#section-5
