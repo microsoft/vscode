@@ -19,7 +19,7 @@ class StaticValueReplacePattern {
 }
 
 /**
- * Assigned when the replace pattern has replacemend patterns.
+ * Assigned when the replace pattern has replacement patterns.
  */
 class DynamicPiecesReplacePattern {
 	public readonly kind = ReplacePatternKind.DynamicPieces;
@@ -27,35 +27,40 @@ class DynamicPiecesReplacePattern {
 }
 
 export class ReplacePattern {
-
-	public static fromStaticValue(value: string): ReplacePattern {
-		return new ReplacePattern([ReplacePiece.staticValue(value)]);
+	public static fromStaticValue(value: string, adjustCase: boolean = false): ReplacePattern {
+		return new ReplacePattern([ReplacePiece.staticValue(value)], adjustCase);
 	}
 
-	private readonly _state: StaticValueReplacePattern | DynamicPiecesReplacePattern;
+	private readonly _state: [
+		StaticValueReplacePattern | DynamicPiecesReplacePattern,
+		boolean
+	];
 
 	public get hasReplacementPatterns(): boolean {
-		return (this._state.kind === ReplacePatternKind.DynamicPieces);
+		return this._state[0].kind === ReplacePatternKind.DynamicPieces;
 	}
 
-	constructor(pieces: ReplacePiece[] | null) {
+	constructor(pieces: ReplacePiece[] | null, adjustCase: boolean = false) {
 		if (!pieces || pieces.length === 0) {
-			this._state = new StaticValueReplacePattern('');
+			this._state = [new StaticValueReplacePattern(''), adjustCase];
 		} else if (pieces.length === 1 && pieces[0].staticValue !== null) {
-			this._state = new StaticValueReplacePattern(pieces[0].staticValue);
+			this._state = [
+				new StaticValueReplacePattern(pieces[0].staticValue),
+				adjustCase
+			];
 		} else {
-			this._state = new DynamicPiecesReplacePattern(pieces);
+			this._state = [new DynamicPiecesReplacePattern(pieces), adjustCase];
 		}
 	}
 
-	public buildReplaceString(matches: string[] | null): string {
-		if (this._state.kind === ReplacePatternKind.StaticValue) {
-			return this._state.staticValue;
+	public buildReplaceString(matchedString: string, matches: string[] | null): string {
+		if (this._state[0].kind === ReplacePatternKind.StaticValue) {
+			return this._adjustCase(matchedString, this._state[0].staticValue);
 		}
 
 		let result = '';
-		for (let i = 0, len = this._state.pieces.length; i < len; i++) {
-			let piece = this._state.pieces[i];
+		for (let i = 0, len = this._state[0].pieces.length; i < len; i++) {
+			let piece = this._state[0].pieces[i];
 			if (piece.staticValue !== null) {
 				// static value ReplacePiece
 				result += piece.staticValue;
@@ -64,6 +69,52 @@ export class ReplacePattern {
 
 			// match index ReplacePiece
 			result += ReplacePattern._substitute(piece.matchIndex, matches);
+		}
+
+		return this._adjustCase(matchedString, result);
+	}
+
+	private _toTitleCase(text: string): string {
+		const separators = '\r\n\t ';
+		const excludedChars = separators.split('');
+
+		let title = '';
+		let startUpperCase = true;
+
+		for (let i = 0; i < text.length; i++) {
+			let currentChar = text[i];
+
+			if (excludedChars.indexOf(currentChar) >= 0) {
+				startUpperCase = true;
+
+				title += currentChar;
+			} else if (startUpperCase) {
+				startUpperCase = false;
+
+				title += currentChar.toLocaleUpperCase();
+			} else {
+				title += currentChar.toLocaleLowerCase();
+			}
+		}
+
+		return title;
+	}
+
+	private _adjustCase(matchedString: string, result: string): string {
+		if (!this._state[1]) {
+			return result;
+		}
+
+		if (matchedString.toLowerCase() === matchedString) {
+			return result.toLowerCase();
+		}
+
+		if (matchedString.toUpperCase() === matchedString) {
+			return result.toUpperCase();
+		}
+
+		if (this._toTitleCase(matchedString) === matchedString) {
+			return this._toTitleCase(result);
 		}
 
 		return result;
@@ -156,13 +207,13 @@ class ReplacePieceBuilder {
 	}
 
 
-	public finalize(): ReplacePattern {
+	public finalize(adjustCase: boolean = false): ReplacePattern {
 		this.emitUnchanged(this._source.length);
 		if (this._currentStaticPiece.length !== 0) {
 			this._result[this._resultLen++] = ReplacePiece.staticValue(this._currentStaticPiece);
 			this._currentStaticPiece = '';
 		}
-		return new ReplacePattern(this._result);
+		return new ReplacePattern(this._result, adjustCase);
 	}
 }
 
@@ -177,7 +228,7 @@ class ReplacePieceBuilder {
  *
  * Also see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter
  */
-export function parseReplaceString(replaceString: string): ReplacePattern {
+export function parseReplaceString(replaceString: string, adjustCase: boolean): ReplacePattern {
 	if (!replaceString || replaceString.length === 0) {
 		return new ReplacePattern(null);
 	}
@@ -275,5 +326,5 @@ export function parseReplaceString(replaceString: string): ReplacePattern {
 		}
 	}
 
-	return result.finalize();
+	return result.finalize(adjustCase);
 }

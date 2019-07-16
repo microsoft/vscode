@@ -405,9 +405,9 @@ export class FindModelBoundToEditorModel {
 
 	private _getReplacePattern(): ReplacePattern {
 		if (this._state.isRegex) {
-			return parseReplaceString(this._state.replaceString);
+			return parseReplaceString(this._state.replaceString, this._state.preserveCase);
 		}
-		return ReplacePattern.fromStaticValue(this._state.replaceString);
+		return ReplacePattern.fromStaticValue(this._state.replaceString, this._state.preserveCase);
 	}
 
 	public replace(): void {
@@ -421,7 +421,9 @@ export class FindModelBoundToEditorModel {
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
-				let replaceString = replacePattern.buildReplaceString(nextMatch.matches);
+				const model = this._editor.getModel();
+				const matchedString = model.getValueInRange(nextMatch.range, EndOfLinePreference.LF);
+				let replaceString = replacePattern.buildReplaceString(matchedString, nextMatch.matches);
 
 				let command = new ReplaceCommand(selection, replaceString);
 
@@ -484,11 +486,13 @@ export class FindModelBoundToEditorModel {
 		const replacePattern = this._getReplacePattern();
 		let resultText: string;
 		if (replacePattern.hasReplacementPatterns) {
-			resultText = modelText.replace(searchRegex, function () {
-				return replacePattern.buildReplaceString(<string[]><any>arguments);
+			resultText = modelText.replace(searchRegex, function (matchedString) {
+				return replacePattern.buildReplaceString(matchedString, <string[]>((<any>arguments)));
 			});
 		} else {
-			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null));
+			resultText = modelText.replace(searchRegex, function (matchedString) {
+				return replacePattern.buildReplaceString(matchedString, null);
+			});
 		}
 
 		let command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
@@ -500,9 +504,13 @@ export class FindModelBoundToEditorModel {
 		// Get all the ranges (even more than the highlighted ones)
 		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Constants.MAX_SAFE_SMALL_INTEGER);
 
+		const model = this._editor.getModel();
 		let replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {
-			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches);
+			replaceStrings[i] = replacePattern.buildReplaceString(
+				model.getValueInRange(matches[i].range),
+				matches[i].matches
+			);
 		}
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);

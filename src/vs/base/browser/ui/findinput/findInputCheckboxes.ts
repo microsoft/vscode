@@ -15,6 +15,7 @@ export interface IFindInputCheckboxOpts {
 }
 
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
+const NLS_PRESERVE_CASE_CHECKBOX_LABEL = nls.localize('preserveCaseDescription', "Preseve Case in Replacement");
 const NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Whole Word");
 const NLS_REGEX_CHECKBOX_LABEL = nls.localize('regexDescription', "Use Regular Expression");
 
@@ -23,6 +24,18 @@ export class CaseSensitiveCheckbox extends Checkbox {
 		super({
 			actionClassName: 'monaco-case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + opts.appendTitle,
+			isChecked: opts.isChecked,
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
+		});
+	}
+}
+
+export class PreserveCaseCheckbox extends Checkbox {
+	constructor(opts: IFindInputCheckboxOpts) {
+		super({
+			// TODO: does this need its own icon?
+			actionClassName: 'monaco-case-sensitive',
+			title: NLS_PRESERVE_CASE_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
