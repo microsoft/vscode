@@ -48,10 +48,9 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 			if (!_singleSlashStart.test(ret.path)) {
 				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
 			}
-		} else {
-			if (_doubleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
-			}
+		} else if (_doubleSlashStart.test(ret.path)) {
+			throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
+
 		}
 	}
 }
@@ -64,11 +63,11 @@ function _schemeFix(scheme: string, _strict: boolean): string {
 	if (_strict || _throwOnMissingSchema) {
 		return scheme || _empty;
 	}
-	if (!scheme) {
-		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
-		scheme = 'file';
+	if (scheme) {
+		return scheme;
 	}
-	return scheme;
+	console.trace('BAD uri lacks scheme, falling back to file-scheme.');
+	scheme = 'file';
 }
 
 // implements a bit of https://tools.ietf.org/html/rfc3986#section-5
@@ -116,17 +115,17 @@ export class URI implements UriComponents {
 		if (thing instanceof URI) {
 			return true;
 		}
-		if (!thing) {
-			return false;
+		if (thing) {
+			return typeof (<URI>thing).authority === 'string'
+				&& typeof (<URI>thing).fragment === 'string'
+				&& typeof (<URI>thing).path === 'string'
+				&& typeof (<URI>thing).query === 'string'
+				&& typeof (<URI>thing).scheme === 'string'
+				&& typeof (<URI>thing).fsPath === 'function'
+				&& typeof (<URI>thing).with === 'function'
+				&& typeof (<URI>thing).toString === 'function';
 		}
-		return typeof (<URI>thing).authority === 'string'
-			&& typeof (<URI>thing).fragment === 'string'
-			&& typeof (<URI>thing).path === 'string'
-			&& typeof (<URI>thing).query === 'string'
-			&& typeof (<URI>thing).scheme === 'string'
-			&& typeof (<URI>thing).fsPath === 'function'
-			&& typeof (<URI>thing).with === 'function'
-			&& typeof (<URI>thing).toString === 'function';
+		return false;
 	}
 
 	/**
@@ -281,17 +280,17 @@ export class URI implements UriComponents {
 	 */
 	static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
-		if (!match) {
-			return new _URI(_empty, _empty, _empty, _empty, _empty);
+		if (match) {
+			return new _URI(
+				match[2] || _empty,
+				decodeURIComponent(match[4] || _empty),
+				decodeURIComponent(match[5] || _empty),
+				decodeURIComponent(match[7] || _empty),
+				decodeURIComponent(match[9] || _empty),
+				_strict
+			);
 		}
-		return new _URI(
-			match[2] || _empty,
-			decodeURIComponent(match[4] || _empty),
-			decodeURIComponent(match[5] || _empty),
-			decodeURIComponent(match[7] || _empty),
-			decodeURIComponent(match[9] || _empty),
-			_strict
-		);
+		return new _URI(_empty, _empty, _empty, _empty, _empty);
 	}
 
 	/**
@@ -560,10 +559,8 @@ function encodeURIComponentMinimal(path: string): string {
 				res = path.substr(0, pos);
 			}
 			res += encodeTable[code];
-		} else {
-			if (res !== undefined) {
-				res += path[pos];
-			}
+		} else if (res !== undefined) {
+			res += path[pos];
 		}
 	}
 	return res !== undefined ? res : path;
