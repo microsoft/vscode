@@ -620,8 +620,18 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 
-	public $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): void {
-		(this._terminalProcesses[id] as ExtHostVirtualProcess).startSendingEvents(initialDimensions);
+	public async $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
+		// Processes should be initialized here for normal virtual process terminals, however for
+		// tasks they are responsible for attaching the virtual process to a terminal so this
+		// function may be called before tasks is able to attach to the terminal.
+		let retries = 5;
+		while (retries-- > 0) {
+			if (this._terminalProcesses[id]) {
+				(this._terminalProcesses[id] as ExtHostVirtualProcess).startSendingEvents(initialDimensions);
+				return;
+			}
+			await timeout(50);
+		}
 	}
 
 	private _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {

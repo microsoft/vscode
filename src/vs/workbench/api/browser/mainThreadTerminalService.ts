@@ -34,13 +34,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 		// ITerminalService listeners
 		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
-			// Delay this message so the TerminalInstance constructor has a chance to finish and
-			// return the ID normally to the extension host. The ID that is passed here will be used
-			// to register non-extension API terminals in the extension host.
-			setTimeout(() => {
+			if (instance.shellLaunchConfig.isVirtualProcess) {
+				// Fire events for virtual processes immediately as the extension host already knows
+				// about them
 				this._onTerminalOpened(instance);
 				this._onInstanceDimensionsChanged(instance);
-			}, EXT_HOST_CREATION_DELAY);
+			} else {
+				// Delay this message so the TerminalInstance constructor has a chance to finish and
+				// return the ID normally to the extension host. The ID that is passed here will be
+				// used to register non-extension API terminals in the extension host.
+				setTimeout(() => {
+					this._onTerminalOpened(instance);
+					this._onInstanceDimensionsChanged(instance);
+				}, EXT_HOST_CREATION_DELAY);
+			}
 		}));
 
 		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));

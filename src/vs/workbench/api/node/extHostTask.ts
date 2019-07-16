@@ -588,9 +588,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, execution2);
-			this._terminalService.performTerminalIdAction(terminalId, async terminal => {
-				this._terminalService.attachVirtualProcessToTerminal(terminalId, await execution2.callback());
-			});
+			this._terminalService.attachVirtualProcessToTerminal(terminalId, await execution2.callback());
 		}
 
 		// Once a terminal is spun up for the custom execution task this event will be fired.
