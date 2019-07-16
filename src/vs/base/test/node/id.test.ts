@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as getmac from 'getmac';
 import { getMachineId } from 'vs/base/node/id';
+import { getMac } from 'vs/base/node/macAddress';
 
 suite('ID', () => {
 
@@ -16,9 +16,7 @@ suite('ID', () => {
 	});
 
 	test('getMac', () => {
-		return new Promise<string>((resolve, reject) => {
-			getmac.getMac((err, macAddress) => err ? reject(err) : resolve(macAddress));
-		}).then(macAddress => {
+		return getMac().then(macAddress => {
 			assert.ok(/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(macAddress), `Expected a MAC address, got: ${macAddress}`);
 		});
 	});

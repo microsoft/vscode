@@ -24,10 +24,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class WebviewEditor extends BaseEditor {
 
-	protected _webview: Webview | undefined;
-	protected findWidgetVisible: IContextKey<boolean>;
-
 	public static readonly ID = 'WebviewEditor';
+
+	private _webview: Webview | undefined;
+	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _editorFrame: HTMLElement;
 	private _content?: HTMLElement;
@@ -39,7 +39,7 @@ export class WebviewEditor extends BaseEditor {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private pendingMessages: any[] = [];
+	private _pendingMessages: any[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -53,7 +53,7 @@ export class WebviewEditor extends BaseEditor {
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 		if (_contextKeyService) {
-			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 		}
 	}
 
@@ -78,7 +78,7 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public dispose(): void {
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
@@ -96,18 +96,18 @@ export class WebviewEditor extends BaseEditor {
 		if (this._webview) {
 			this._webview.sendMessage(data);
 		} else {
-			this.pendingMessages.push(data);
+			this._pendingMessages.push(data);
 		}
 	}
 	public showFind() {
 		if (this._webview) {
 			this._webview.showFind();
-			this.findWidgetVisible.set(true);
+			this._findWidgetVisible.set(true);
 		}
 	}
 
 	public hideFind() {
-		this.findWidgetVisible.reset();
+		this._findWidgetVisible.reset();
 		if (this._webview) {
 			this._webview.hideFind();
 		}
@@ -178,7 +178,7 @@ export class WebviewEditor extends BaseEditor {
 
 		this._webview = undefined;
 		this._webviewContent = undefined;
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 
 		super.clearInput();
 	}
@@ -189,7 +189,7 @@ export class WebviewEditor extends BaseEditor {
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 		return super.setInput(input, options, token)
 			.then(() => input.resolve())
 			.then(() => {
@@ -240,7 +240,7 @@ export class WebviewEditor extends BaseEditor {
 		} else {
 			if (input.options.enableFindWidget) {
 				this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
-				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+				this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 			}
 
 			this._webview = this._webviewService.createWebview(input.id,
@@ -263,10 +263,10 @@ export class WebviewEditor extends BaseEditor {
 			this.doUpdateContainer();
 		}
 
-		for (const message of this.pendingMessages) {
+		for (const message of this._pendingMessages) {
 			this._webview.sendMessage(message);
 		}
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 
 		this.trackFocus();
 

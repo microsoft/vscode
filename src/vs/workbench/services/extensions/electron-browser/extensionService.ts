@@ -294,7 +294,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
 				}
 
-				if (this._allRequestedActivateEvents[activationEvent]) {
+				if (this._allRequestedActivateEvents.has(activationEvent)) {
 					// This activation event was fired before the extension was added
 					shouldActivate = true;
 					shouldActivateReason = activationEvent;

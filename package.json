@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "a76f8ddb784119243aa004071cea17c5a74b1e60",
+  "distro": "18f781db7cf104b1156ee97a29d4938296ea4616",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -29,7 +29,6 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "getmac": "1.4.1",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
@@ -108,7 +107,11 @@
     "husky": "^0.13.1",
     "innosetup": "5.6.1",
     "is": "^3.1.0",
-    "istanbul": "^0.3.17",
+    "istanbul-lib-coverage": "^2.0.5",
+    "istanbul-lib-instrument": "^3.3.0",
+    "istanbul-lib-report": "^2.0.8",
+    "istanbul-lib-source-maps": "^3.0.6",
+    "istanbul-reports": "^2.2.6",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
@@ -123,7 +126,6 @@
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
-    "remap-istanbul": "^0.13.0",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",

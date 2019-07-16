@@ -118,16 +118,16 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
 	private readonly _onDidChangeContent: Emitter<URI> = this._register(new Emitter<URI>());
-	get onDidChangeContent(): Event<URI> { return this._onDidChangeContent.event; }
+	readonly onDidChangeContent: Event<URI> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty: Emitter<URI> = this._register(new Emitter<URI>());
-	get onDidChangeDirty(): Event<URI> { return this._onDidChangeDirty.event; }
+	readonly onDidChangeDirty: Event<URI> = this._onDidChangeDirty.event;
 
 	private readonly _onDidChangeEncoding: Emitter<URI> = this._register(new Emitter<URI>());
-	get onDidChangeEncoding(): Event<URI> { return this._onDidChangeEncoding.event; }
+	readonly onDidChangeEncoding: Event<URI> = this._onDidChangeEncoding.event;
 
 	private readonly _onDidDisposeModel: Emitter<URI> = this._register(new Emitter<URI>());
-	get onDidDisposeModel(): Event<URI> { return this._onDidDisposeModel.event; }
+	readonly onDidDisposeModel: Event<URI> = this._onDidDisposeModel.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

@@ -184,19 +184,32 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		if (!shellLaunchConfig.executable) {
 			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs();
 			shellLaunchConfig.executable = defaultConfig.shell;
 			shellLaunchConfig.args = defaultConfig.args;
+		} else {
+			shellLaunchConfig.executable = this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, shellLaunchConfig.executable);
+			if (shellLaunchConfig.args) {
+				if (Array.isArray(shellLaunchConfig.args)) {
+					const resolvedArgs: string[] = [];
+					for (const arg of shellLaunchConfig.args) {
+						resolvedArgs.push(this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, arg));
+					}
+					shellLaunchConfig.args = resolvedArgs;
+				} else {
+					shellLaunchConfig.args = this._configurationResolverService.resolve(lastActiveWorkspace === null ? undefined : lastActiveWorkspace, shellLaunchConfig.args);
+				}
+			}
 		}
 
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
-
-		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? process.env as platform.IProcessEnvironment : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables, baseEnv);
 
