@@ -123,9 +123,7 @@ import 'vs/workbench/services/themes/browser/workbenchThemeService';
 // import 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
 import 'vs/workbench/services/extensions/browser/extensionService';
 // import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-// import 'vs/workbench/services/extensions/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';
-// import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 // import 'vs/workbench/services/window/electron-browser/windowService';
@@ -167,6 +165,10 @@ registerSingleton(ILifecycleService, BrowserLifecycleService);
 // registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
 
+//#endregion
+
+//#region --- Extensions Management
+import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
 //#endregion
 
 
