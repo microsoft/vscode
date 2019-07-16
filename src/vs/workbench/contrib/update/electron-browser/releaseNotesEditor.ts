@@ -48,7 +48,7 @@ function renderBody(
 
 export class ReleaseNotesManager {
 
-	private _releaseNotesCache: { [version: string]: Promise<string>; } = Object.create(null);
+	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
 	private _lastText: string | undefined;
@@ -162,8 +162,8 @@ export class ReleaseNotesManager {
 				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 		};
 
-		if (!this._releaseNotesCache[version]) {
-			this._releaseNotesCache[version] = this._requestService.request({ url }, CancellationToken.None)
+		if (!this._releaseNotesCache.has(version)) {
+			this._releaseNotesCache.set(version, this._requestService.request({ url }, CancellationToken.None)
 				.then(asText)
 				.then(text => {
 					if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
@@ -172,10 +172,10 @@ export class ReleaseNotesManager {
 
 					return Promise.resolve(text);
 				})
-				.then(text => patchKeybindings(text));
+				.then(text => patchKeybindings(text)));
 		}
 
-		return this._releaseNotesCache[version];
+		return this._releaseNotesCache.get(version)!;
 	}
 
 	private onDidClickLink(uri: URI) {
