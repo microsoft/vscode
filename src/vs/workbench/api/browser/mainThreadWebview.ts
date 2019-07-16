@@ -230,7 +230,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				if (!webview || webview.isDisposed()) {
 					return;
 				}
-				(webview as WebviewEditorInput<MainThreadWebviewState>).state.state = newState;
+				(webview as WebviewEditorInput<MainThreadWebviewState>).state!.state = newState;
 			}
 		};
 	}

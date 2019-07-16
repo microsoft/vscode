@@ -70,7 +70,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
-	private _state: State;
+	private _state: State | undefined;
 
 	public readonly extension?: {
 		readonly location: URI;
@@ -178,11 +178,11 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 		}
 	}
 
-	public get state(): State {
+	public get state(): State | undefined {
 		return this._state;
 	}
 
-	public set state(value: State) {
+	public set state(value: State | undefined) {
 		this._state = value;
 	}
 
