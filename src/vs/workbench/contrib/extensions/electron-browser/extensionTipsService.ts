@@ -913,7 +913,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
 					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
 					.replace('%ProgramFiles%', process.env['ProgramFiles']!)
-					.replace('%APPDATA%', process.env['APPDATA']!);
+					.replace('%APPDATA%', process.env['APPDATA']!)
+					.replace('%WINDIR%', process.env['WINDIR']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, join('/usr/local/bin', exeName)));
