@@ -34,7 +34,9 @@ export namespace ErrorEvent {
 	export function compare(a: ErrorEvent, b: ErrorEvent) {
 		if (a.callstack < b.callstack) {
 			return -1;
-		} else if (a.callstack > b.callstack) {
+		}
+
+		if (a.callstack > b.callstack) {
 			return 1;
 		}
 		return 0;
@@ -75,25 +77,21 @@ export default abstract class BaseErrorTelemetry {
 
 	private _onErrorEvent(err: any): void {
 
-		if (!err) {
-			return;
+		if (err) {
+			// unwrap nested errors from loader
+			if (err.detail && err.detail.stack) {
+				err = err.detail;
+			}
+
+			// work around behavior in workerServer.ts that breaks up Error.stack
+			let callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
+			let msg = err.message ? err.message : safeStringify(err);
+
+			// errors without a stack are not useful telemetry
+			if (callstack) {
+				this._enqueue({ msg, callstack });
+			}
 		}
-
-		// unwrap nested errors from loader
-		if (err.detail && err.detail.stack) {
-			err = err.detail;
-		}
-
-		// work around behavior in workerServer.ts that breaks up Error.stack
-		let callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
-		let msg = err.message ? err.message : safeStringify(err);
-
-		// errors without a stack are not useful telemetry
-		if (!callstack) {
-			return;
-		}
-
-		this._enqueue({ msg, callstack });
 	}
 
 	protected _enqueue(e: ErrorEvent): void {
@@ -102,10 +100,10 @@ export default abstract class BaseErrorTelemetry {
 		if (idx < 0) {
 			e.count = 1;
 			this._buffer.splice(~idx, 0, e);
-		} else {
-			if (!this._buffer[idx].count) {
-				this._buffer[idx].count = 0;
-			}
+		} else if (!this._buffer[idx].count) {
+			this._buffer[idx].count = 0;
+		}
+		else {
 			this._buffer[idx].count! += 1;
 		}
 
