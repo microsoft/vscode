@@ -7,6 +7,7 @@ import * as _path from 'path';
 import * as _url from 'url';
 import * as _cp from 'child_process';
 import * as _http from 'http';
+import * as _os from 'os';
 import { parseArgs, buildHelpMessage, buildVersionMessage, asArray, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { OpenCommandPipeArgs, RunCommandPipeArgs, StatusPipeArgs } from 'vs/workbench/api/node/extHostCLIServer';
 
@@ -148,10 +149,9 @@ export function main(desc: ProductDescription, args: string[]): void {
 			if (parsedArgs['verbose']) {
 				console.log(`Invoking: ${cliCommand} ${newCommandline.join(' ')} in ${cwd}`);
 			}
-			_cp.spawn(cliCommand, newCommandline, {
-				stdio: 'inherit',
-				cwd
-			});
+			const child = _cp.spawn(cliCommand, newCommandline, { cwd, stdio: [process.stdin, 'pipe', 'pipe'] });
+			child.stdout.on('data', data => process.stdout.write(data.toString().replace(/\r?\n/g, '\n')));
+			child.stderr.on('data', data => process.stderr.write(data.toString().replace(/\r?\n/g, '\n')));
 		}
 	} else {
 		if (args.length === 0) {
