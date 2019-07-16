@@ -1,23 +1,41 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Licensed under the MIT License. See License.txt in the project root for
+ *license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch } from 'vs/base/common/arrays';
 import * as Errors from 'vs/base/common/errors';
-import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ErrorEventFragment = {
-	callstack: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	file?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	line?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	column?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	uncaught_error_name?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	uncaught_error_msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	count?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	callstack:
+	{ classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	msg?:
+	{ classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	file?:
+	{ classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	line?: {
+		classification: 'CallstackOrException',
+		purpose: 'PerformanceAndHealth',
+		isMeasurement: true
+	};
+	column?: {
+		classification: 'CallstackOrException',
+		purpose: 'PerformanceAndHealth',
+		isMeasurement: true
+	};
+	uncaught_error_name?:
+	{ classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	uncaught_error_msg?:
+	{ classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+	count?: {
+		classification: 'CallstackOrException',
+		purpose: 'PerformanceAndHealth',
+		isMeasurement: true
+	};
 };
 export interface ErrorEvent {
 	callstack: string;
@@ -44,7 +62,6 @@ export namespace ErrorEvent {
 }
 
 export default abstract class BaseErrorTelemetry {
-
 	public static ERROR_FLUSH_TIMEOUT: number = 5 * 1000;
 
 	private _telemetryService: ITelemetryService;
@@ -53,12 +70,15 @@ export default abstract class BaseErrorTelemetry {
 	private _buffer: ErrorEvent[] = [];
 	protected readonly _disposables = new DisposableStore();
 
-	constructor(telemetryService: ITelemetryService, flushDelay = BaseErrorTelemetry.ERROR_FLUSH_TIMEOUT) {
+	constructor(
+		telemetryService: ITelemetryService,
+		flushDelay = BaseErrorTelemetry.ERROR_FLUSH_TIMEOUT) {
 		this._telemetryService = telemetryService;
 		this._flushDelay = flushDelay;
 
 		// (1) check for unexpected but handled errors
-		const unbind = Errors.errorHandler.addListener((err) => this._onErrorEvent(err));
+		const unbind =
+			Errors.errorHandler.addListener((err) => this._onErrorEvent(err));
 		this._disposables.add(toDisposable(unbind));
 
 		// (2) install implementation-specific error listeners
@@ -76,7 +96,6 @@ export default abstract class BaseErrorTelemetry {
 	}
 
 	private _onErrorEvent(err: any): void {
-
 		if (!err) {
 			return;
 		}
@@ -94,11 +113,9 @@ export default abstract class BaseErrorTelemetry {
 		if (callstack) {
 			this._enqueue({ msg, callstack });
 		}
-
 	}
 
 	protected _enqueue(e: ErrorEvent): void {
-
 		const idx = binarySearch(this._buffer, e, ErrorEvent.compare);
 		if (idx < 0) {
 			e.count = 1;
@@ -121,7 +138,9 @@ export default abstract class BaseErrorTelemetry {
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
 			type UnhandledErrorClassification = {} & ErrorEventFragment;
-			this._telemetryService.publicLog2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error, true);
+			this._telemetryService
+				.publicLog2<ErrorEvent, UnhandledErrorClassification>(
+					'UnhandledError', error, true);
 		}
 		this._buffer.length = 0;
 	}
