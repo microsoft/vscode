@@ -332,7 +332,11 @@ export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
-	while (!(fileToPaste.allowOverwrite || targetFolder.root.find(candidate))) {
+	while (true && !fileToPaste.allowOverwrite) {
+		if (!targetFolder.root.find(candidate)) {
+			break;
+		}
+
 		name = incrementFileName(name, !!fileToPaste.isDirectory);
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
@@ -947,42 +951,46 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 let pasteShouldMove = false;
 export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
-	if (listService.lastFocusedList) {
-		const explorerContext = getContext(listService.lastFocusedList);
-		const explorerService = accessor.get(IExplorerService);
-		if (explorerContext.stat) {
-			const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-			explorerService.setToCopy(stats, false);
-			pasteShouldMove = false;
-		}
+	if (!listService.lastFocusedList) {
+		return;
+	}
+	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		explorerService.setToCopy(stats, false);
+		pasteShouldMove = false;
 	}
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
-	if (listService.lastFocusedList) {
-		const explorerContext = getContext(listService.lastFocusedList);
-		const explorerService = accessor.get(IExplorerService);
-		if (explorerContext.stat) {
-			const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-			explorerService.setToCopy(stats, true);
-			pasteShouldMove = true;
-		}
+	if (!listService.lastFocusedList) {
+		return;
+	}
+	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		explorerService.setToCopy(stats, true);
+		pasteShouldMove = true;
 	}
 };
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
-	if (listService.lastFocusedList) {
-		const explorerContext = getContext(listService.lastFocusedList);
-		const textFileService = accessor.get(ITextFileService);
-		if (explorerContext.stat) {
-			const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-			stats.forEach(async s => {
-				await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
-			});
-		}
+	if (!listService.lastFocusedList) {
+		return;
+	}
+	const explorerContext = getContext(listService.lastFocusedList);
+	const textFileService = accessor.get(ITextFileService);
+
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		stats.forEach(async s => {
+			await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
+		});
 	}
 };
 CommandsRegistry.registerCommand({
