@@ -53,6 +53,7 @@ enum Storage {
 
 	PANEL_HIDDEN = 'workbench.panel.hidden',
 	PANEL_POSITION = 'workbench.panel.location',
+	PANEL_SIZE_BEFORE_MAXIMIZED = 'workbench.panel.sizeBeforeMaximized',
 
 	ZEN_MODE_ENABLED = 'workbench.zenmode.active',
 	CENTERED_LAYOUT_ENABLED = 'workbench.centerededitorlayout.active',
@@ -141,6 +142,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		panel: {
 			hidden: false,
+			sizeBeforeMaximize: 0,
 			position: Position.BOTTOM,
 			height: 350,
 			width: 350,
@@ -396,6 +398,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.panel.hidden = true; // we hide panel if there is no panel to restore
 			}
 		}
+
+		// Panel size before maximized
+		this.state.panel.sizeBeforeMaximize = this.storageService.getNumber(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, StorageScope.GLOBAL, 0);
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
@@ -1069,7 +1074,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedPanel(): void {
 		if (this.workbenchGrid instanceof Grid) {
-			this.workbenchGrid.maximizeViewSize(this.panelPartView);
+			const curSize = this.workbenchGrid.getViewSize2(this.panelPartView);
+			const size = { ...curSize };
+
+			if (!this.isPanelMaximized()) {
+				if (this.state.panel.position === Position.BOTTOM) {
+					size.height = this.panelPartView.maximumHeight;
+					this.state.panel.sizeBeforeMaximize = curSize.height;
+				} else {
+					size.width = this.panelPartView.maximumWidth;
+					this.state.panel.sizeBeforeMaximize = curSize.width;
+				}
+
+				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
+			} else {
+				if (this.state.panel.position === Position.BOTTOM) {
+					size.height = this.state.panel.sizeBeforeMaximize;
+				} else {
+					size.width = this.state.panel.sizeBeforeMaximize;
+				}
+			}
+
+			this.workbenchGrid.resizeView(this.panelPartView, size);
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
 		}
@@ -1078,7 +1104,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isPanelMaximized(): boolean {
 		if (this.workbenchGrid instanceof Grid) {
 			try {
-				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.getPart(Parts.PANEL_PART).maximumHeight;
+				// The panel is maximum when the editor is minimum
+				if (this.state.panel.position === Position.BOTTOM) {
+					return this.workbenchGrid.getViewSize2(this.editorPartView).height <= this.editorPartView.minimumHeight;
+				} else {
+					return this.workbenchGrid.getViewSize2(this.editorPartView).width <= this.editorPartView.minimumWidth;
+				}
 			} catch (e) {
 				return false;
 			}
