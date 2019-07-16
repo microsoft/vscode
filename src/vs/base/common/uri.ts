@@ -67,7 +67,7 @@ function _schemeFix(scheme: string, _strict: boolean): string {
 		return scheme;
 	}
 	console.trace('BAD uri lacks scheme, falling back to file-scheme.');
-	scheme = 'file';
+	return 'file';
 }
 
 // implements a bit of https://tools.ietf.org/html/rfc3986#section-5
