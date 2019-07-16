@@ -27,7 +27,7 @@ import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTa
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
+import { IView, orthogonal, LayoutPriority, IViewSize } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -756,12 +756,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region Part
 
-	readonly priority: LayoutPriority = LayoutPriority.High;
-
 	get minimumWidth(): number { return this.centeredLayoutWidget.minimumWidth; }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
 	get minimumHeight(): number { return this.centeredLayoutWidget.minimumHeight; }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
+
+	get onDidChange(): Event<IViewSize | undefined> { return this.centeredLayoutWidget.onDidChange; }
+	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	get preferredSize(): Dimension {
 		if (!this._preferredSize) {
