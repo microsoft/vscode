@@ -51,7 +51,7 @@ export class ReleaseNotesManager {
 	private _releaseNotesCache: { [version: string]: Promise<string>; } = Object.create(null);
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
-	private _lastText: string;
+	private _lastText: string | undefined;
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
