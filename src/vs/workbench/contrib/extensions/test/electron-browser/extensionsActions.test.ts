@@ -39,7 +39,7 @@ import { ExtensionIdentifier, IExtensionContributions, ExtensionType, IExtension
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import { IProductService } from 'vs/platform/product/common/product';
 
 suite('ExtensionsActions Test', () => {
