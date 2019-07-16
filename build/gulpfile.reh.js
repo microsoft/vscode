@@ -50,7 +50,6 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 
-// @ts-ignore
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	// @ts-ignore JSON checking: dependencies property is optional
@@ -58,7 +57,9 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
 
-const vscodeResources = [
+const serverResources = [
+
+	// Bootstrap
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
@@ -85,7 +86,20 @@ const vscodeResources = [
 	'!**/test/**'
 ];
 
-const entryPoints = [
+const serverWithWebResources = [
+
+	// Include all of server
+	...serverResources,
+
+	// Include workbench web
+	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
+	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
+	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
+	'out-build/vs/code/browser/workbench/**',
+	'out-build/vs/**/markdown.css'
+];
+
+const serverEntryPoints = [
 	{
 		name: 'vs/server/remoteExtensionHostAgent',
 		exclude: ['vs/css', 'vs/nls']
@@ -108,67 +122,18 @@ const entryPoints = [
 	}
 ];
 
-const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
-	util.rimraf('out-vscode-reh'),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: _.flatten(entryPoints),
-		otherSources: [],
-		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(nodeModules),
-		out: 'out-vscode-reh',
-		bundleInfo: undefined
-	})
-));
-
-const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
-const minifyVSCodeREHTask = task.define('minify-vscode-reh', task.series(
-	optimizeVSCodeREHTask,
-	util.rimraf('out-vscode-reh-min'),
-	common.minifyTask('out-vscode-reh', baseUrl)
-));
-gulp.task(minifyVSCodeREHTask);
-
-// Web server
-
-const webResources = [
-	...vscodeResources,
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
-	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
-	'out-build/vs/code/browser/workbench/**',
-	'out-build/vs/**/markdown.css'
-];
-
 const buildfile = require('../src/buildfile');
+const serverWithWebEntryPoints = [
 
-const webEntryPoints = [
-	...entryPoints,
+	// Include all of server
+	...serverEntryPoints,
+
+	// Include workbench web
 	buildfile.workbenchWeb,
 	buildfile.serviceWorker,
 	buildfile.keyboardMaps,
 	buildfile.base
 ];
-
-const optimizeVSCodeWebTask = task.define('optimize-vscode-reh-web', task.series(
-	util.rimraf('out-vscode-reh-web'),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: _.flatten(webEntryPoints),
-		otherSources: [],
-		resources: webResources,
-		loaderConfig: common.loaderConfig(nodeModules),
-		out: 'out-vscode-reh-web',
-		bundleInfo: undefined
-	})
-));
-
-const minifyVSCodeWebTask = task.define('minify-vscode-reh-web', task.series(
-	optimizeVSCodeWebTask,
-	util.rimraf('out-vscode-reh-web-min'),
-	common.minifyTask('out-vscode-reh-web', baseUrl)
-));
-gulp.task(minifyVSCodeWebTask);
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
@@ -395,8 +360,28 @@ function packagePkgTask(platform, arch, pkgTarget) {
 	};
 }
 
-BUILD_TARGETS.forEach(buildTarget => {
-	['reh', 'reh-web'].forEach(type => {
+['reh', 'reh-web'].forEach(type => {
+	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
+		util.rimraf(`out-vscode-${type}`),
+		common.optimizeTask({
+			src: 'out-build',
+			entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+			otherSources: [],
+			resources: type === 'reh' ? serverResources : serverWithWebResources,
+			loaderConfig: common.loaderConfig(nodeModules),
+			out: `out-vscode-${type}`,
+			bundleInfo: undefined
+		})
+	));
+
+	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
+		optimizeTask,
+		util.rimraf(`out-vscode-${type}-min`),
+		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+	));
+	gulp.task(minifyTask);
+
+	BUILD_TARGETS.forEach(buildTarget => {
 		const dashed = (str) => (str ? `-${str}` : ``);
 		const platform = buildTarget.platform;
 		const arch = buildTarget.arch;
@@ -416,30 +401,30 @@ BUILD_TARGETS.forEach(buildTarget => {
 			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
-			const vscodeServerTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 				gulp.task(`node-${platform}-${platform === 'darwin' ? 'x64' : arch}`),
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
 			));
-			gulp.task(vscodeServerTaskCI);
+			gulp.task(serverTaskCI);
 
-			const vscodeServerTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildTask,
 				compileExtensionsBuildTask,
-				minified ? (type === 'reh' ? minifyVSCodeREHTask : minifyVSCodeWebTask) : (type === 'reh' ? optimizeVSCodeREHTask : optimizeVSCodeWebTask),
-				vscodeServerTaskCI
+				minified ? minifyTask : optimizeTask,
+				serverTaskCI
 			));
-			gulp.task(vscodeServerTask);
+			gulp.task(serverTask);
 
-			const vscodeREHPkgTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-pkg`, task.series(
+			const serverPkgTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-pkg`, task.series(
 				task.parallel(
-					vscodeServerTask,
+					serverTask,
 					copyPkgConfigTask,
 					copyPkgNativeTask
 				),
 				packagePkgTask(platform, arch, pkgTarget)
 			));
-			gulp.task(vscodeREHPkgTask);
+			gulp.task(serverPkgTask);
 		});
 	});
 });
