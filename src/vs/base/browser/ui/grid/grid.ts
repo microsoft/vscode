@@ -300,12 +300,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 		return this.gridview.getViewSize(location);
 	}
 
-	// TODO@joao cleanup
-	getViewSize2(view: T): { width: number; height: number; } {
-		const location = this.getViewLocation(view);
-		return this.gridview.getViewSize(location);
-	}
-
 	maximizeViewSize(view: T): void {
 		const location = this.getViewLocation(view);
 		this.gridview.maximizeViewSize(location);

@@ -564,7 +564,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Maximize the group if it is currently minimized
 		if (this.gridWidget) {
-			const viewSize = this.gridWidget.getViewSize2(group);
+			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
 				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 			}

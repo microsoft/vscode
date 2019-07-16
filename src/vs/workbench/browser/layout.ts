@@ -1074,7 +1074,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedPanel(): void {
 		if (this.workbenchGrid instanceof Grid) {
-			const curSize = this.workbenchGrid.getViewSize2(this.panelPartView);
+			const curSize = this.workbenchGrid.getViewSize(this.panelPartView);
 			const size = { ...curSize };
 
 			if (!this.isPanelMaximized()) {
@@ -1106,9 +1106,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			try {
 				// The panel is maximum when the editor is minimum
 				if (this.state.panel.position === Position.BOTTOM) {
-					return this.workbenchGrid.getViewSize2(this.editorPartView).height <= this.editorPartView.minimumHeight;
+					return this.workbenchGrid.getViewSize(this.editorPartView).height <= this.editorPartView.minimumHeight;
 				} else {
-					return this.workbenchGrid.getViewSize2(this.editorPartView).width <= this.editorPartView.minimumWidth;
+					return this.workbenchGrid.getViewSize(this.editorPartView).width <= this.editorPartView.minimumWidth;
 				}
 			} catch (e) {
 				return false;
