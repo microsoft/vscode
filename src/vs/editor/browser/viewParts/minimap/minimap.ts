@@ -451,6 +451,7 @@ export class Minimap extends ViewPart {
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
+	private _lastDecorations: ViewModelDecoration[] | undefined;
 	private _renderDecorations: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
@@ -675,6 +676,13 @@ export class Minimap extends ViewPart {
 		return true;
 	}
 
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this._context.model.invalidateMinimapColorCache();
+		// Only bother calling render if decorations are currently shown
+		this._renderDecorations = !!this._lastDecorations;
+		return !!this._lastDecorations;
+	}
+
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -751,6 +759,8 @@ export class Minimap extends ViewPart {
 					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration, layout, line, height, lineHeight, tabSize, characterWidth);
 				}
 			}
+
+			this._lastDecorations = decorations;
 		}
 	}
 
