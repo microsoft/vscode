@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { KeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
-	{ model: 'pc105', layout: 'us', variant: '', options: '', rules: 'evdev', isUSStandard: true },
-	[
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+	layout: { model: 'pc105', layout: 'us', variant: '', options: '', rules: 'evdev', isUSStandard: true },
+	secondaryLayouts: [
 		{ model: 'pc105', layout: 'cn', variant: '', options: '', rules: 'evdev' },
 	],
-	{
+	mapping: {
 		Sleep: [],
 		WakeUp: [],
 		KeyA: ['a', 'A', 'a', 'A', 0],
@@ -187,4 +187,4 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(new KeymapInfo(
 		MailSend: []
 	}
 
-));
+});

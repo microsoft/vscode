@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import { Component } from 'vs/workbench/common/component';
 import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
@@ -51,8 +51,8 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
 	iconPath: {
-		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/arrow-left.svg')),
-		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/arrow-left.svg'))
+		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
+		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
 	},
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
@@ -1512,10 +1512,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
 			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : null;
 			this.ui.inputBox.style(theme);
-			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-			this.ui.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : null;
-			const sideBarForeground = theme.getColor(SIDE_BAR_FOREGROUND);
-			this.ui.container.style.color = sideBarForeground ? sideBarForeground.toString() : null;
+			const quickInputBackground = theme.getColor(QUICK_INPUT_BACKGROUND);
+			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : null;
+			const quickInputForeground = theme.getColor(QUICK_INPUT_FOREGROUND);
+			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : null;
 			const contrastBorderColor = theme.getColor(contrastBorder);
 			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : null;
 			const widgetShadowColor = theme.getColor(widgetShadow);

@@ -7,28 +7,30 @@ import * as nls from 'vs/nls';
 import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 const TERMINAL_MIN_USEFUL_SIZE = 250;
 
-class SplitPaneContainer {
+class SplitPaneContainer extends Disposable {
 	private _height: number;
 	private _width: number;
 	private _splitView: SplitView;
-	private _splitViewDisposables: IDisposable[];
+	private readonly _splitViewDisposables = this._register(new DisposableStore());
 	private _children: SplitPane[] = [];
-
 
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	constructor(
 		private _container: HTMLElement,
-		public orientation: Orientation
+		public orientation: Orientation,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
 	) {
+		super();
 		this._width = this._container.offsetWidth;
 		this._height = this._container.offsetHeight;
 		this._createSplitView();
@@ -37,8 +39,8 @@ class SplitPaneContainer {
 
 	private _createSplitView(): void {
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
-		this._splitViewDisposables = [];
-		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
+		this._splitViewDisposables.clear();
+		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
 	public split(instance: ITerminalInstance, index: number = this._children.length): void {
@@ -46,16 +48,21 @@ class SplitPaneContainer {
 	}
 
 	public resizePane(index: number, direction: Direction, amount: number): void {
-		// TODO: Should resize pane up/down resize the panel?
+		const isHorizontal = (direction === Direction.Left) || (direction === Direction.Right);
 
-		// Only resize the correct dimension
-		const isHorizontal = direction === Direction.Left || direction === Direction.Right;
-		if (isHorizontal && this.orientation !== Orientation.HORIZONTAL ||
-			!isHorizontal && this.orientation !== Orientation.VERTICAL) {
+		if ((isHorizontal && this.orientation !== Orientation.HORIZONTAL) ||
+			(!isHorizontal && this.orientation !== Orientation.VERTICAL)) {
+			// Resize the entire pane as a whole
+			if ((this.orientation === Orientation.HORIZONTAL && direction === Direction.Down) ||
+				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
+				amount *= -1;
+			}
+			this._layoutService.resizePart(Parts.PANEL_PART, amount);
 			return;
 		}
 
-		// Only resize when there is mor ethan one pane
+		// Resize left/right in horizontal or up/down in vertical
+		// Only resize when there is more than one pane
 		if (this._children.length <= 1) {
 			return;
 		}
@@ -143,8 +150,7 @@ class SplitPaneContainer {
 		while (this._container.children.length > 0) {
 			this._container.removeChild(this._container.children[0]);
 		}
-		this._splitViewDisposables.forEach(d => d.dispose());
-		this._splitViewDisposables = [];
+		this._splitViewDisposables.clear();
 		this._splitView.dispose();
 
 		// Create new split view with updated orientation
@@ -216,10 +222,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
-	private readonly _onDisposed: Emitter<ITerminalTab>;
-	public get onDisposed(): Event<ITerminalTab> { return this._onDisposed.event; }
-	private readonly _onInstancesChanged: Emitter<void>;
-	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
+	private readonly _onDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
+	public readonly onDisposed: Event<ITerminalTab> = this._onDisposed.event;
+	private readonly _onInstancesChanged: Emitter<void> = new Emitter<void>();
+	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 
 	constructor(
 		terminalFocusContextKey: IContextKey<boolean>,
@@ -227,11 +233,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		private _container: HTMLElement,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-		this._onDisposed = new Emitter<ITerminalTab>();
-		this._onInstancesChanged = new Emitter<void>();
 
 		let instance: ITerminalInstance;
 		if ('id' in shellLaunchConfigOrInstance) {
@@ -348,7 +353,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const newLocal = new SplitPaneContainer(this._tabElement, orientation);
+			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._tabElement, orientation);
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}

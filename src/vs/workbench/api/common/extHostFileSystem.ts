@@ -8,11 +8,10 @@ import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystem
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
+import { FileChangeType, FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
@@ -104,6 +103,50 @@ class FsLinkProvider {
 	}
 }
 
+class ConsumerFileSystem implements vscode.FileSystem {
+
+	constructor(private _proxy: MainThreadFileSystemShape) { }
+
+	stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+		return this._proxy.$stat(uri).catch(ConsumerFileSystem._handleError);
+	}
+	readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
+		return this._proxy.$readdir(uri).catch(ConsumerFileSystem._handleError);
+	}
+	createDirectory(uri: vscode.Uri): Promise<void> {
+		return this._proxy.$mkdir(uri).catch(ConsumerFileSystem._handleError);
+	}
+	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+		return this._proxy.$readFile(uri).then(buff => buff.buffer).catch(ConsumerFileSystem._handleError);
+	}
+	writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
+		return this._proxy.$writeFile(uri, VSBuffer.wrap(content)).catch(ConsumerFileSystem._handleError);
+	}
+	delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean; }): Promise<void> {
+		return this._proxy.$delete(uri, { ...{ recursive: false, useTrash: false }, ...options }).catch(ConsumerFileSystem._handleError);
+	}
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
+		return this._proxy.$rename(oldUri, newUri, { ...{ overwrite: false }, ...options }).catch(ConsumerFileSystem._handleError);
+	}
+	copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean }): Promise<void> {
+		return this._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ConsumerFileSystem._handleError);
+	}
+	private static _handleError(err: any): never {
+		// generic error
+		if (!(err instanceof Error)) {
+			throw new FileSystemError(String(err));
+		}
+
+		// no provider (unknown scheme) error
+		if (err.name === 'ENOPRO') {
+			throw FileSystemError.Unavailable(err.message);
+		}
+
+		// file system error
+		throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
+	}
+}
+
 export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
@@ -115,18 +158,14 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _linkProviderRegistration: IDisposable;
 	private _handlePool: number = 0;
 
+	readonly fileSystem: vscode.FileSystem;
+
 	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
-		this._usedSchemes.add(Schemas.file);
-		this._usedSchemes.add(Schemas.untitled);
-		this._usedSchemes.add(Schemas.vscode);
-		this._usedSchemes.add(Schemas.inMemory);
-		this._usedSchemes.add(Schemas.internal);
-		this._usedSchemes.add(Schemas.http);
-		this._usedSchemes.add(Schemas.https);
-		this._usedSchemes.add(Schemas.mailto);
-		this._usedSchemes.add(Schemas.data);
-		this._usedSchemes.add(Schemas.command);
+		this.fileSystem = new ConsumerFileSystem(this._proxy);
+
+		// register used schemes
+		Object.keys(Schemas).forEach(scheme => this._usedSchemes.add(scheme));
 	}
 
 	dispose(): void {
@@ -153,23 +192,23 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._usedSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
 
-		let capabilites = files.FileSystemProviderCapabilities.FileReadWrite;
+		let capabilities = files.FileSystemProviderCapabilities.FileReadWrite;
 		if (options.isCaseSensitive) {
-			capabilites += files.FileSystemProviderCapabilities.PathCaseSensitive;
+			capabilities += files.FileSystemProviderCapabilities.PathCaseSensitive;
 		}
 		if (options.isReadonly) {
-			capabilites += files.FileSystemProviderCapabilities.Readonly;
+			capabilities += files.FileSystemProviderCapabilities.Readonly;
 		}
 		if (typeof provider.copy === 'function') {
-			capabilites += files.FileSystemProviderCapabilities.FileFolderCopy;
+			capabilities += files.FileSystemProviderCapabilities.FileFolderCopy;
 		}
 		if (typeof provider.open === 'function' && typeof provider.close === 'function'
 			&& typeof provider.read === 'function' && typeof provider.write === 'function'
 		) {
-			capabilites += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
+			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilites);
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities);
 
 		const subscription = provider.onDidChangeFile(event => {
 			const mapped: IFileChangeDto[] = [];
@@ -204,15 +243,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._usedSchemes.delete(scheme);
 			this._fsProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
-		});
-	}
-
-	registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		const handle = this._handlePool++;
-		this._proxy.$registerResourceLabelFormatter(handle, formatter);
-
-		return toDisposable(() => {
-			this._proxy.$unregisterResourceLabelFormatter(handle);
 		});
 	}
 

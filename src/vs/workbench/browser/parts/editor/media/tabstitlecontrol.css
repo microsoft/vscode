@@ -217,21 +217,24 @@
 }
 
 .vs .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	background: url('close-dirty.svg') center center no-repeat;
+	background: url('close-dirty-light.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	background: url('close-dirty-inverse.svg') center center no-repeat;
+	background: url('close-dirty-dark.svg') center center no-repeat;
 }
 
 .vs .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
+	background: url('close-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-hc.svg') center center no-repeat;
 }
 
 /* No Tab Close Button */
@@ -252,12 +255,12 @@
 }
 
 .vs .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top) {
-	background-image: url('close-dirty.svg');
+	background-image: url('close-dirty-light.svg');
 }
 
 .vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty:not(.dirty-border-top),
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty {
-	background-image: url('close-dirty-inverse.svg');
+	background-image: url('close-dirty-dark.svg');
 }
 
 /* Editor Actions */

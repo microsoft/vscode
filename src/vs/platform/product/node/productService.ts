@@ -20,13 +20,23 @@ export class ProductService implements IProductService {
 
 	get urlProtocol(): string { return product.urlProtocol; }
 
-	get extensionAllowedProposedApi(): string[] { return product.extensionAllowedProposedApi; }
+	get extensionAllowedProposedApi(): readonly string[] { return product.extensionAllowedProposedApi; }
 
-	get uiExtensions(): string[] | undefined { return product.uiExtensions; }
+	get uiExtensions(): readonly string[] | undefined { return product.uiExtensions; }
 
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
 
 	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } { return product.sendASmile; }
 
 	get extensionsGallery() { return product.extensionsGallery; }
+
+	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
+
+	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
+
+	get experimentsUrl(): string | undefined { return product.experimentsUrl; }
+
+	get extensionKeywords(): { [extension: string]: readonly string[]; } | undefined { return product.extensionKeywords; }
+
+	get extensionAllowedBadgeProviders(): readonly string[] | undefined { return product.extensionAllowedBadgeProviders; }
 }

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { FeedbackDropdown, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/browser/feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Themable, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IStatusbarService, StatusbarAlignment, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class TwitterFeedbackService implements IFeedbackDelegate {
 
@@ -47,76 +46,50 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 	}
 }
 
-export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
-	private dropdown: FeedbackDropdown | undefined;
-	private container: HTMLElement;
+export class FeedbackStatusbarConribution extends Disposable implements IWorkbenchContribution {
+	private dropdown: FeedbackDropdown;
+	private entry: IStatusbarEntryAccessor;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService,
-		@IProductService private productService: IProductService
+		@IStatusbarService statusbarService: IStatusbarService,
+		@IProductService productService: IProductService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextViewService private contextViewService: IContextViewService
 	) {
-		super(themeService);
+		super();
 
-		this.registerListeners();
+		if (productService.sendASmile) {
+			this.entry = this._register(statusbarService.addEntry(this.getStatusEntry(), 'status.feedback', localize('status.feedback', "Tweet Feedback"), StatusbarAlignment.RIGHT, -100 /* towards the end of the right hand side */));
+
+			CommandsRegistry.registerCommand('_feedback.open', () => this.toggleFeedback());
+		}
 	}
 
-	private registerListeners(): void {
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
-	}
-
-	render(element: HTMLElement): IDisposable {
-		this.container = element;
-
-		// Prevent showing dropdown on anything but left click
-		this._register(addDisposableListener(this.container, 'mousedown', (e: MouseEvent) => {
-			if (e.button !== 0) {
-				EventHelper.stop(e, true);
-			}
-		}, true));
-
-		return this.update();
-	}
-
-	private update(): IDisposable {
-
-		// Create
-		if (this.productService.sendASmile) {
-			if (!this.dropdown) {
-				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, this.container, {
+	private toggleFeedback(): void {
+		if (!this.dropdown) {
+			const statusContainr = document.getElementById('status.feedback');
+			if (statusContainr) {
+				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, statusContainr.getElementsByClassName('octicon').item(0), {
 					contextViewProvider: this.contextViewService,
 					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
-					onFeedbackVisibilityChange: (visible: boolean) => {
-						if (visible) {
-							addClass(this.container, 'has-beak');
-						} else {
-							removeClass(this.container, 'has-beak');
-						}
-					}
+					onFeedbackVisibilityChange: visible => this.entry.update(this.getStatusEntry(visible))
 				}));
-
-				this.updateStyles();
-
-				return this.dropdown;
 			}
 		}
 
-		// Dispose
-		else {
-			dispose(this.dropdown);
-			this.dropdown = undefined;
-			clearNode(this.container);
+		if (!this.dropdown.isVisible()) {
+			this.dropdown.show();
+		} else {
+			this.dropdown.hide();
 		}
-
-		return Disposable.None;
 	}
+
+	private getStatusEntry(showBeak?: boolean): IStatusbarEntry {
+		return {
+			text: '$(smiley)',
+			command: '_feedback.open',
+			showBeak
+		};
+	}
+
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
-	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item .monaco-dropdown.send-feedback:hover { background-color: ${statusBarItemHoverBackground}; }`);
-	}
-});

@@ -8,16 +8,14 @@ import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -231,9 +229,16 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private sort(): void {
+		const mapEntryToIndex = new Map<IStatusbarViewModelEntry, number>();
+		this._entries.forEach((entry, index) => mapEntryToIndex.set(entry, index));
+
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority !== entryB.priority) {
+					return entryB.priority - entryA.priority; // higher priority towards the left
+				}
+
+				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!; // otherwise maintain stable order
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -397,7 +402,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
 		// Create item
-		const itemContainer = this.doCreateStatusItem(id, name, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
+		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
 		// Append to parent
@@ -450,20 +455,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private createInitialStatusbarEntries(): void {
-		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
-
-		// Create initial items that were contributed from the registry
-		for (const { id, name, alignment, priority, syncDescriptor } of registry.items) {
-
-			// Create item
-			const item = this.instantiationService.createInstance(syncDescriptor);
-			const itemContainer = this.doCreateStatusItem(id, name, alignment, priority);
-			this._register(item.render(itemContainer));
-
-			// Add to view model
-			const viewModelEntry: IStatusbarViewModelEntry = { id, name, alignment, priority, container: itemContainer };
-			this.viewModel.add(viewModelEntry);
-		}
 
 		// Add items in order according to alignment
 		this.appendAllStatusbarEntries();
@@ -601,9 +592,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
-	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
+	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
-		itemContainer.title = name;
+		itemContainer.id = id;
 
 		addClass(itemContainer, 'statusbar-item');
 		if (extraClasses) {
@@ -660,6 +651,7 @@ class StatusbarEntryItem extends Disposable {
 
 		// Label Container
 		this.labelContainer = document.createElement('a');
+		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
 		// Label
 		this.label = new OcticonLabel(this.labelContainer);
@@ -681,12 +673,12 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
-		// Update: Tooltip
+		// Update: Tooltip (on the container, because label can be disabled)
 		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
 			if (entry.tooltip) {
-				this.labelContainer.title = entry.tooltip;
+				this.container.title = entry.tooltip;
 			} else {
-				delete this.labelContainer.title;
+				delete this.container.title;
 			}
 		}
 
@@ -717,7 +709,7 @@ class StatusbarEntryItem extends Disposable {
 			this.applyColor(this.labelContainer, entry.color);
 		}
 
-		// Update: Backgroud
+		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
 			if (entry.backgroundColor) {
 				this.applyColor(this.container, entry.backgroundColor, true);
@@ -740,13 +732,7 @@ class StatusbarEntryItem extends Disposable {
 			activeTextEditorWidget.focus();
 		}
 
-		/* __GDPR__
-			"workbenchActionExecuted" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
 		try {
 			await this.commandService.executeCommand(id, ...args);
 		} catch (error) {

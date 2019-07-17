@@ -33,6 +33,9 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateHistoryDelayer: Delayer<void>;
+	private prevBtn: SimpleButton;
+	private nextBtn: SimpleButton;
+	private foundMatch: boolean;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -54,6 +57,8 @@ export abstract class SimpleFindWidget extends Widget {
 					new RegExp(value);
 					return null;
 				} catch (e) {
+					this.foundMatch = false;
+					this._updateButtons();
 					return { content: e.message };
 				}
 			}
@@ -63,7 +68,8 @@ export abstract class SimpleFindWidget extends Widget {
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
-			this.onInputChanged();
+			this.foundMatch = this.onInputChanged();
+			this._updateButtons();
 			this._delayedUpdateHistory();
 		});
 
@@ -99,7 +105,7 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		const prevBtn = this._register(new SimpleButton({
+		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			className: 'previous',
 			onTrigger: () => {
@@ -107,7 +113,7 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		const nextBtn = this._register(new SimpleButton({
+		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
 			className: 'next',
 			onTrigger: () => {
@@ -126,8 +132,8 @@ export abstract class SimpleFindWidget extends Widget {
 		this._innerDomNode = document.createElement('div');
 		this._innerDomNode.classList.add('simple-find-part');
 		this._innerDomNode.appendChild(this._findInput.domNode);
-		this._innerDomNode.appendChild(prevBtn.domNode);
-		this._innerDomNode.appendChild(nextBtn.domNode);
+		this._innerDomNode.appendChild(this.prevBtn.domNode);
+		this._innerDomNode.appendChild(this.nextBtn.domNode);
 		this._innerDomNode.appendChild(closeBtn.domNode);
 
 		// _domNode wraps _innerDomNode, ensuring that
@@ -156,7 +162,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 	}
 
-	protected abstract onInputChanged(): void;
+	protected abstract onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
 	protected abstract onFocusTrackerFocus(): void;
 	protected abstract onFocusTrackerBlur(): void;
@@ -213,6 +219,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
+		this._updateButtons();
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
@@ -243,6 +250,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
+				this._updateButtons();
 				dom.removeClass(this._innerDomNode, 'visible');
 			}, 200);
 		}
@@ -266,6 +274,12 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected _getCaseSensitiveValue(): boolean {
 		return this._findInput.getCaseSensitive();
+	}
+
+	private _updateButtons() {
+		let hasInput = this.inputValue.length > 0;
+		this.prevBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
+		this.nextBtn.setEnabled(this._isVisible && hasInput && this.foundMatch);
 	}
 }
 

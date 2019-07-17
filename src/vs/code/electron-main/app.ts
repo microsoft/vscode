@@ -81,10 +81,16 @@ import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFacto
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 
 export class CodeApplication extends Disposable {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
+	private static readonly TRUE_MACHINE_ID_KEY = 'telemetry.trueMachineId';
 
 	private windowsMainService: IWindowsMainService | undefined;
 
@@ -133,8 +139,38 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Security related measures (https://electronjs.org/docs/tutorial/security)
-		// DO NOT CHANGE without consulting the documentation
-		app.on('web-contents-created', (event: Electron.Event, contents) => {
+		//
+		// !!! DO NOT CHANGE without consulting the documentation !!!
+		//
+		// app.on('remote-get-guest-web-contents', event => event.preventDefault()); // TODO@Ben TODO@Matt revisit this need for <webview>
+		app.on('remote-require', (event, sender, module) => {
+			this.logService.trace('App#on(remote-require): prevented');
+
+			event.preventDefault();
+		});
+		app.on('remote-get-global', (event, sender, module) => {
+			this.logService.trace(`App#on(remote-get-global): prevented on ${module}`);
+
+			event.preventDefault();
+		});
+		app.on('remote-get-builtin', (event, sender, module) => {
+			this.logService.trace(`App#on(remote-get-builtin): prevented on ${module}`);
+
+			if (module !== 'clipboard') {
+				event.preventDefault();
+			}
+		});
+		app.on('remote-get-current-window', event => {
+			this.logService.trace(`App#on(remote-get-current-window): prevented`);
+
+			event.preventDefault();
+		});
+		app.on('remote-get-current-web-contents', event => {
+			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+
+			event.preventDefault();
+		});
+		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string): boolean => {
@@ -328,8 +364,8 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await this.resolveMachineId();
-		this.logService.trace(`Resolved machine identifier: ${machineId}`);
+		const { machineId, trueMachineId } = await this.resolveMachineId();
+		this.logService.trace(`Resolved machine identifier: ${machineId} (trueMachineId: ${trueMachineId})`);
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
@@ -343,7 +379,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Services
-		const appInstantiationService = await this.createServices(machineId, sharedProcess, sharedProcessClient);
+		const appInstantiationService = await this.createServices(machineId, trueMachineId, sharedProcess, sharedProcessClient);
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
@@ -369,7 +405,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private async resolveMachineId(): Promise<string> {
+	private async resolveMachineId(): Promise<{ machineId: string, trueMachineId?: string }> {
 
 		// We cache the machineId for faster lookups on startup
 		// and resolve it only once initially if not cached
@@ -380,11 +416,29 @@ export class CodeApplication extends Disposable {
 			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
 		}
 
-		return machineId;
+		// Check if machineId is hashed iBridge Device
+		let trueMachineId: string | undefined;
+		if (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead') {
+			trueMachineId = this.stateService.getItem<string>(CodeApplication.TRUE_MACHINE_ID_KEY);
+			if (!trueMachineId) {
+				trueMachineId = await getMachineId();
+
+				this.stateService.setItem(CodeApplication.TRUE_MACHINE_ID_KEY, trueMachineId);
+			}
+		}
+
+		return { machineId, trueMachineId };
 	}
 
-	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
+	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
+
+		// Files
+		const fileService = this._register(new FileService(this.logService));
+		services.set(IFileService, fileService);
+
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(this.logService));
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		switch (process.platform) {
 			case 'win32':
@@ -407,6 +461,10 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+
+		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
+		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
+
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
@@ -427,7 +485,7 @@ export class CodeApplication extends Disposable {
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {

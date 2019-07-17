@@ -12,7 +12,7 @@ import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -38,6 +38,7 @@ export class SharedProcess implements ISharedProcess {
 				images: false,
 				webaudio: false,
 				webgl: false,
+				nodeIntegration: true,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
@@ -66,10 +67,10 @@ export class SharedProcess implements ISharedProcess {
 
 		this.window.on('close', onClose);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		this.lifecycleService.onWillShutdown(() => {
-			dispose(disposables);
+			disposables.dispose();
 
 			// Shut the shared process down when we are quitting
 			//
@@ -103,7 +104,7 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
+				disposables.add(toDisposable(() => sender.send('handshake:goodbye')));
 				ipcMain.once('handshake:im ready', () => c(undefined));
 			});
 		});

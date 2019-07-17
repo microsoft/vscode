@@ -17,7 +17,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	_serviceBrand: any;
 
 	private _onDidContextMenu = this._register(new Emitter<void>());
-	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
+	readonly onDidContextMenu: Event<void> = this._onDidContextMenu.event;
 
 	private contextMenuHandler: ContextMenuHandler;
 

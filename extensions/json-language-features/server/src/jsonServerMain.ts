@@ -6,7 +6,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic, TextDocumentSyncKind
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -106,7 +106,7 @@ let languageService = getLanguageService({
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
+const documents: TextDocuments = new TextDocuments();
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events

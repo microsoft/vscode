@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { join } from 'vs/base/common/path';
 import { forEach } from 'vs/base/common/collections';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import {
@@ -18,7 +18,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -31,9 +31,8 @@ import { flatten, distinct, shuffle, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getHashedRemotesFromUri } from 'vs/workbench/contrib/stats/node/workspaceStats';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { asJson } from 'vs/base/node/request';
+import { getHashedRemotesFromUri } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { isNumber } from 'vs/base/common/types';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -41,7 +40,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/node/experimentService';
+import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
@@ -83,7 +82,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _globallyIgnoredRecommendations: string[] = [];
 	private _workspaceIgnoredRecommendations: string[] = [];
 	private _extensionsRecommendationsUrl: string;
-	private _disposables: IDisposable[] = [];
 	public loadWorkspaceConfigPromise: Promise<void>;
 	private proactiveRecommendationsFetched: boolean = false;
 
@@ -135,7 +133,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		this.loadWorkspaceConfigPromise = this.getWorkspaceRecommendations().then(() => {
 			this.promptWorkspaceRecommendations();
-			this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this, this._disposables);
+			this._register(this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this));
 			this._modelService.getModels().forEach(model => this.promptFiletypeBasedRecommendations(model));
 		});
 
@@ -596,8 +594,39 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
 		setImmediate(async () => {
+
+			let recommendationsToSuggest: string[] = [];
+			const now = Date.now();
+			forEach(this._availableRecommendations, entry => {
+				let { key: pattern, value: ids } = entry;
+				if (match(pattern, model.uri.path)) {
+					for (let id of ids) {
+						if (caseInsensitiveGet(product.extensionImportantTips, id)) {
+							recommendationsToSuggest.push(id);
+						}
+						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
+						filedBasedRecommendation.recommendedTime = now;
+						if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === model.uri.toString())) {
+							filedBasedRecommendation.sources.push(model.uri);
+						}
+						this._fileBasedRecommendations[id.toLowerCase()] = filedBasedRecommendation;
+					}
+				}
+			});
+
+			this.storageService.store(
+				'extensionsAssistant/recommendations',
+				JSON.stringify(Object.keys(this._fileBasedRecommendations).reduce((result, key) => { result[key] = this._fileBasedRecommendations[key].recommendedTime; return result; }, {} as { [key: string]: any })),
+				StorageScope.GLOBAL
+			);
+
+			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+			if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
+				return;
+			}
+
 			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-			if (await this.promptRecommendedExtensionForFileType(model, installed)) {
+			if (await this.promptRecommendedExtensionForFileType(recommendationsToSuggest, installed)) {
 				return;
 			}
 
@@ -618,37 +647,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private async promptRecommendedExtensionForFileType(model: ITextModel, installed: ILocalExtension[]): Promise<boolean> {
-		let recommendationsToSuggest: string[] = [];
-		const now = Date.now();
-		forEach(this._availableRecommendations, entry => {
-			let { key: pattern, value: ids } = entry;
-			if (match(pattern, model.uri.path)) {
-				for (let id of ids) {
-					if (caseInsensitiveGet(product.extensionImportantTips, id)) {
-						recommendationsToSuggest.push(id);
-					}
-					const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
-					filedBasedRecommendation.recommendedTime = now;
-					if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === model.uri.toString())) {
-						filedBasedRecommendation.sources.push(model.uri);
-					}
-					this._fileBasedRecommendations[id.toLowerCase()] = filedBasedRecommendation;
-				}
-			}
-		});
-
-		this.storageService.store(
-			'extensionsAssistant/recommendations',
-			JSON.stringify(Object.keys(this._fileBasedRecommendations).reduce((result, key) => { result[key] = this._fileBasedRecommendations[key].recommendedTime; return result; }, {})),
-			StorageScope.GLOBAL
-		);
-
-		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-		if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
-			return false;
-		}
-
+	private async promptRecommendedExtensionForFileType(recommendationsToSuggest: string[], installed: ILocalExtension[]): Promise<boolean> {
 		const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
 		recommendationsToSuggest = recommendationsToSuggest.filter(id => {
@@ -914,7 +913,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
 					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
 					.replace('%ProgramFiles%', process.env['ProgramFiles']!)
-					.replace('%APPDATA%', process.env['APPDATA']!);
+					.replace('%APPDATA%', process.env['APPDATA']!)
+					.replace('%WINDIR%', process.env['WINDIR']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, join('/usr/local/bin', exeName)));
@@ -934,7 +934,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
-		let storedRecommendationsJson = {};
+		let storedRecommendationsJson: { [key: string]: any } = {};
 		try {
 			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
 		} catch (e) {
@@ -979,7 +979,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (context.res.statusCode !== 200) {
 					return Promise.resolve(undefined);
 				}
-				return asJson(context).then((result) => {
+				return asJson(context).then((result: { [key: string]: any }) => {
 					if (!result) {
 						return;
 					}
@@ -1033,9 +1033,5 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
 		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
 	}
 }

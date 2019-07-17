@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { sep } from 'vs/base/common/path';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
@@ -45,10 +45,14 @@ export async function loadLocalResource(
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ): Promise<LocalResourceResponse> {
-	const requestPath = requestUri.path;
-	const normalizedPath = URI.file(requestPath);
+	const normalizedPath = requestUri.with({
+		scheme: 'file',
+		fragment: '',
+		query: '',
+	});
+
 	for (const root of getRoots()) {
-		if (!startsWith(normalizedPath.fsPath, root.fsPath + sep)) {
+		if (!containsResource(root, normalizedPath)) {
 			continue;
 		}
 
@@ -68,4 +72,9 @@ export async function loadLocalResource(
 	}
 
 	return AccessDenied;
+}
+
+function containsResource(root: URI, resource: URI): boolean {
+	const rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+	return startsWith(resource.fsPath, rootPath);
 }

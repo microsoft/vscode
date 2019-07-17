@@ -311,11 +311,6 @@ declare module 'xterm' {
 	 */
 	export interface ILocalizableStrings {
 		/**
-		 * Announcement for a blank line when `screenReaderMode` is enabled.
-		 */
-		blankLine: string;
-
-		/**
 		 * The aria label for the underlying input textarea for the terminal.
 		 */
 		promptLabel: string;

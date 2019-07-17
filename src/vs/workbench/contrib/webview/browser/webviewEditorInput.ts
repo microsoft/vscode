@@ -3,50 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
+import { memoize } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
-export class WebviewEditorInput extends EditorInput {
-	private static handlePool = 0;
+class WebviewIconsManager {
+	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
 
-	private static _styleElement?: HTMLStyleElement;
+	@memoize
+	private get _styleElement(): HTMLStyleElement {
+		const element = dom.createStyleSheet();
+		element.className = 'webview-icons';
+		return element;
+	}
 
-	private static _icons = new Map<number, { light: URI, dark: URI }>();
-
-	private static updateStyleElement(
-		id: number,
+	public setIcons(
+		webviewId: string,
 		iconPath: { light: URI, dark: URI } | undefined
 	) {
-		if (!this._styleElement) {
-			this._styleElement = dom.createStyleSheet();
-			this._styleElement.className = 'webview-icons';
-		}
-
-		if (!iconPath) {
-			this._icons.delete(id);
+		if (iconPath) {
+			this._icons.set(webviewId, iconPath);
 		} else {
-			this._icons.set(id, iconPath);
+			this._icons.delete(webviewId);
 		}
 
+		this.updateStyleSheet();
+	}
+
+	private updateStyleSheet() {
 		const cssRules: string[] = [];
 		this._icons.forEach((value, key) => {
 			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 			if (URI.isUri(value)) {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.toString()}); }`);
-			} else {
-				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
-				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${value.dark.toString()}); }`);
+				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value).toString()}); }`);
+			}
+			else {
+				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value.light).toString()}); }`);
+				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value.dark).toString()}); }`);
 			}
 		});
 		this._styleElement.innerHTML = cssRules.join('\n');
 	}
+}
+
+export class WebviewEditorInput<State = any> extends EditorInput {
+
+	private readonly iconsManager = new WebviewIconsManager();
 
 	public static readonly typeId = 'workbench.editors.webviewInput';
 
@@ -62,19 +71,19 @@ export class WebviewEditorInput extends EditorInput {
 	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
-	private _state: any;
+	private _state: State;
 
 	public readonly extension?: {
 		readonly location: URI;
 		readonly id: ExtensionIdentifier;
 	};
-	private readonly _id: number;
 
 	constructor(
+		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
 		options: WebviewInputOptions,
-		state: any,
+		state: State,
 		events: WebviewEvents,
 		extension: undefined | {
 			readonly location: URI;
@@ -83,8 +92,6 @@ export class WebviewEditorInput extends EditorInput {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-
-		this._id = WebviewEditorInput.handlePool++;
 
 		this._name = name;
 		this._options = options;
@@ -120,7 +127,7 @@ export class WebviewEditorInput extends EditorInput {
 	public getResource(): URI {
 		return URI.from({
 			scheme: 'webview-panel',
-			path: `webview-panel/webview-${this._id}`
+			path: `webview-panel/webview-${this.id}`
 		});
 	}
 
@@ -133,7 +140,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public getDescription() {
-		return null;
+		return undefined;
 	}
 
 	public setName(value: string): void {
@@ -147,7 +154,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.updateStyleElement(this._id, value);
+		this.iconsManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -175,16 +182,12 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public get state(): any {
+	public get state(): State {
 		return this._state;
 	}
 
-	public set state(value: any) {
+	public set state(value: State) {
 		this._state = value;
-	}
-
-	public get webviewState() {
-		return this._state.state;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -217,7 +220,7 @@ export class WebviewEditorInput extends EditorInput {
 	public get container(): HTMLElement {
 		if (!this._container) {
 			this._container = document.createElement('div');
-			this._container.id = `webview-${this._id}`;
+			this._container.id = `webview-${this.id}`;
 			const part = this._layoutService.getContainer(Parts.EDITOR_PART);
 			part.appendChild(this._container);
 		}
@@ -253,7 +256,9 @@ export class WebviewEditorInput extends EditorInput {
 		}, null, this._webviewDisposables);
 
 		this._webview.onDidUpdateState(newState => {
-			this._state.state = newState;
+			if (this._events && this._events.onDidUpdateWebviewState) {
+				this._events.onDidUpdateWebviewState(newState);
+			}
 		}, null, this._webviewDisposables);
 	}
 
@@ -262,7 +267,6 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public claimWebview(owner: any) {
-
 		this._webviewOwner = owner;
 	}
 
@@ -304,6 +308,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 	private _revived: boolean = false;
 
 	constructor(
+		id: string,
 		viewType: string,
 		name: string,
 		options: WebviewInputOptions,
@@ -316,7 +321,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		@IWorkbenchLayoutService partService: IWorkbenchLayoutService,
 	) {
-		super(viewType, name, options, state, events, extension, partService);
+		super(id, viewType, name, options, state, events, extension, partService);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

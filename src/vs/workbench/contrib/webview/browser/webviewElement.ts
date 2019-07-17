@@ -32,16 +32,15 @@ export class IFrameWebview extends Disposable implements Webview {
 	private content: WebviewContent;
 	private _focused = false;
 
-	private readonly id: string;
-
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	constructor(
+		private readonly id: string,
 		private _options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITunnelService tunnelService: ITunnelService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -62,11 +61,9 @@ export class IFrameWebview extends Disposable implements Webview {
 			state: undefined
 		};
 
-		this.id = `webview-${Date.now()}`;
-
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`);
+		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -84,7 +81,7 @@ export class IFrameWebview extends Disposable implements Webview {
 					return;
 
 				case 'did-click-link':
-					const [uri] = e.data.data;
+					const uri = e.data.data;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
@@ -114,8 +111,9 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const uri = URI.file(e.data.data.path);
-						this.loadResource(uri);
+						const requestPath = e.data.data.path;
+						const uri = URI.file(decodeURIComponent(requestPath));
+						this.loadResource(requestPath, uri);
 						return;
 					}
 
@@ -141,6 +139,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this.style(themeService.getTheme());
 		this._register(themeService.onThemeChange(this.style, this));
+	}
+
+	private get endpoint(): string {
+		const endpoint = this.environmentService.webviewEndpoint!.replace('{{uuid}}', this.id);
+		if (endpoint[endpoint.length - 1] === '/') {
+			return endpoint.slice(0, endpoint.length - 1);
+		}
+		return endpoint;
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -172,7 +178,8 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private preprocessHtml(value: string): string {
-		return value.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/vscode-resource$1');
+		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
+			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -245,29 +252,13 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	reload(): void {
-		throw new Error('Method not implemented.');
+		this.doUpdateContent();
 	}
-	selectAll(): void {
-		throw new Error('Method not implemented.');
-	}
-	copy(): void {
-		throw new Error('Method not implemented.');
-	}
-	paste(): void {
-		throw new Error('Method not implemented.');
-	}
-	cut(): void {
-		throw new Error('Method not implemented.');
-	}
-	undo(): void {
-		throw new Error('Method not implemented.');
-	}
-	redo(): void {
-		throw new Error('Method not implemented.');
-	}
+
 	showFind(): void {
 		throw new Error('Method not implemented.');
 	}
+
 	hideFind(): void {
 		throw new Error('Method not implemented.');
 	}
@@ -299,7 +290,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._send('styles', { styles, activeTheme });
 	}
 
-	private async loadResource(uri: URI) {
+	private async loadResource(requestPath: string, uri: URI) {
 		try {
 			const result = await loadLocalResource(uri, this.fileService, this._options.extension ? this._options.extension.location : undefined,
 				() => (this.content.options.localResourceRoots || []));
@@ -307,7 +298,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			if (result.type === 'success') {
 				return this._send('did-load-resource', {
 					status: 200,
-					path: uri.path,
+					path: requestPath,
 					mime: result.mimeType,
 					data: result.data.buffer
 				});
@@ -330,4 +321,3 @@ export class IFrameWebview extends Disposable implements Webview {
 		});
 	}
 }
-

@@ -8,7 +8,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionKind } from 'vs/workbench/api/common/extHostTypes';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
@@ -28,7 +27,6 @@ export interface IExtensionContext {
 	asAbsolutePath(relativePath: string): string;
 	readonly logPath: string;
 	executionContext: number;
-	extensionKind: ExtensionKind;
 }
 
 /**
@@ -46,14 +44,13 @@ export interface IExtensionAPI {
 	// _extensionAPIBrand: any;
 }
 
-/* __GDPR__FRAGMENT__
-	"ExtensionActivationTimes" : {
-		"startup": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"codeLoadingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"activateCallTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"activateResolvedTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-	}
-*/
+export type ExtensionActivationTimesFragment = {
+	startup?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	codeLoadingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	activateCallTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	activateResolvedTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+};
+
 export class ExtensionActivationTimes {
 
 	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);

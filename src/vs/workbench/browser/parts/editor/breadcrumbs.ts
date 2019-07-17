@@ -71,7 +71,6 @@ export abstract class BreadcrumbsConfig<T> {
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
-	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -161,12 +160,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
 				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
-		},
-		// 'breadcrumbs.filterOnType': {
-		// 	description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
-		// 	type: 'boolean',
-		// 	default: false
-		// },
+		}
 	}
 });
 

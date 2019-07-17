@@ -127,7 +127,7 @@ suite('Workbench base editor', () => {
 		let oldEditorsCnt = EditorRegistry.getEditors().length;
 		let oldInputCnt = (<any>EditorRegistry).getEditorInputs().length;
 
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyInput));
+		EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyInput)]);
 		EditorRegistry.registerEditor(d2, [new SyncDescriptor(MyInput), new SyncDescriptor(MyOtherInput)]);
 
 		assert.equal(EditorRegistry.getEditors().length, oldEditorsCnt + 2);
@@ -148,8 +148,8 @@ suite('Workbench base editor', () => {
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
 
-		EditorRegistry.registerEditor(d2, new SyncDescriptor(ResourceEditorInput));
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyResourceInput));
+		EditorRegistry.registerEditor(d2, [new SyncDescriptor(ResourceEditorInput)]);
+		EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceInput)]);
 
 		let inst = new TestInstantiationService();
 
@@ -168,7 +168,7 @@ suite('Workbench base editor', () => {
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
 
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(ResourceEditorInput));
+		EditorRegistry.registerEditor(d1, [new SyncDescriptor(ResourceEditorInput)]);
 
 		let inst = new TestInstantiationService();
 

@@ -34,7 +34,7 @@ import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiat
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -64,10 +64,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onShow: Emitter<void> = this._register(new Emitter<void>());
-	get onShow(): Event<void> { return this._onShow.event; }
+	readonly onShow: Event<void> = this._onShow.event;
 
 	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
-	get onHide(): Event<void> { return this._onHide.event; }
+	readonly onHide: Event<void> = this._onHide.event;
 
 	private preserveInput: boolean;
 	private isQuickOpen: boolean;
@@ -188,7 +188,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			));
-			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
+			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: QUICK_INPUT_BACKGROUND, foreground: QUICK_INPUT_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			addClass(quickOpenContainer, 'show-file-icons');
@@ -745,7 +745,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
 			this.label = types.withNullAsUndefined(input.getName());
-			this.description = types.withNullAsUndefined(input.getDescription());
+			this.description = input.getDescription();
 			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;

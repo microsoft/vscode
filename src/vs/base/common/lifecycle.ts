@@ -23,7 +23,7 @@ function markTracked<T extends IDisposable>(x: T): void {
 
 	if (x && x !== Disposable.None) {
 		try {
-			x[__is_disposable_tracked__] = true;
+			(x as any)[__is_disposable_tracked__] = true;
 		} catch {
 			// noop
 		}
@@ -35,9 +35,9 @@ function trackDisposable<T extends IDisposable>(x: T): T {
 		return x;
 	}
 
-	const stack = new Error().stack!;
+	const stack = new Error('Potentially leaked disposable').stack!;
 	setTimeout(() => {
-		if (!x[__is_disposable_tracked__]) {
+		if (!(x as any)[__is_disposable_tracked__]) {
 			console.log(stack);
 		}
 	}, 3000);
@@ -81,7 +81,13 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 }
 
 export function toDisposable(fn: () => void): IDisposable {
-	return trackDisposable({ dispose: fn });
+	const self = trackDisposable({
+		dispose: () => {
+			markTracked(self);
+			fn();
+		}
+	});
+	return self;
 }
 
 export class DisposableStore implements IDisposable {
@@ -207,9 +213,7 @@ export interface IReference<T> extends IDisposable {
 
 export abstract class ReferenceCollection<T> {
 
-	private references: Map<string, { readonly object: T; counter: number; }> = new Map();
-
-	constructor() { }
+	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
 	acquire(key: string): IReference<T> {
 		let reference = this.references.get(key);

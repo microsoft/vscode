@@ -3,28 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .margin-view-overlays .review {
-	background-image: url('comment.svg');
-	cursor: pointer;
-	background-repeat: no-repeat;
-	background-position: center center;
-}
-
-.monaco-editor .comment-hint {
-	height: 20px;
-	width: 20px;
-	padding-left: 2px;
-	background: url('comment.svg') center center no-repeat;
-}
-
-.monaco-editor .comment-hint.commenting-disabled {
-	opacity: 0.5;
-}
-
-.monaco-editor .comment-hint:hover {
-	cursor: pointer;
-}
-
 .monaco-editor .review-widget {
 	width: 100%;
 	position: absolute;
@@ -92,7 +70,6 @@
 	border-radius: 3px;
 	border-style: none;
 }
-
 
 .monaco-editor .review-widget .body .comment-reactions .monaco-text-button {
 	margin: 0 7px 0 0;
@@ -175,10 +152,49 @@
 	display: inline-block;
 }
 
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+	background-image: url("./close-light.svg");
+	background-size: 16px;
+}
+
+.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+	background-image: url("./close-dark.svg");
+}
+
+.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+	background-image: url("./close-hc.svg");
+}
+
+.monaco-editor .review-widget .body .review-comment .comment-title .icon.edit {
+	background-image: url("./edit-light.svg");
+	background-size: 16px;
+}
+
+.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .icon.edit {
+	background-image: url("./edit-dark.svg");
+}
+
+.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .icon.edit {
+	background-image: url("./edit-hc.svg");
+}
+
+.monaco-editor .review-widget .body .review-comment .comment-title .icon.delete {
+	background-image: url("./delete-light.svg");
+	background-size: 16px;
+}
+
+.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .icon.delete {
+	background-image: url("./delete-dark.svg");
+}
+
+.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .icon.delete {
+	background-image: url("./delete-hc.svg");
+}
+
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
-	background-image: url(./reaction.svg);
-	background-size: 24px;
+	background-image: url("./reaction-light.svg");
+	background-size: 16px;
 	width: 26px;
 	height: 16px;
 	background-repeat: no-repeat;
@@ -189,21 +205,21 @@
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: inline-block;
-	background-size: 24px;
+	background-size: 16px;
 }
 
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	background-image: url(./reaction-dark.svg);
+	background-image: url("./reaction-dark.svg");
 }
 
 .monaco-editor.hc-black .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	background-image: url(./reaction-hc.svg);
+	background-image: url("./reaction-hc.svg");
 }
 
 .monaco-editor .review-widget .body .review-comment .comment-title .action-label {
 	display: block;
-	height: 18px;
-	line-height: 18px;
+	height: 16px;
+	line-height: 16px;
 	min-width: 28px;
 	background-size: 16px;
 	background-position: center center;
@@ -211,23 +227,23 @@
 }
 
 .monaco-editor .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url(./reaction.svg);
-	width: 18px;
-	height: 18px;
-	background-size: 24px;
+	background-image: url("./reaction-light.svg");
+	width: 16px;
+	height: 16px;
+	background-size: 16px;
 	background-position: center;
 	background-repeat: no-repeat;
 }
 
 .monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url(./reaction-dark.svg);
+	background-image: url("./reaction-dark.svg");
 }
 
 .monaco-editor.hc-black .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url(./reaction-hc.svg);
+	background-image: url("./reaction-hc.svg");
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label{
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
 	border: 1px solid transparent;
 }
 
@@ -254,7 +270,7 @@
 }
 
 .monaco-editor .review-widget .body .comment-body p:last-child,
-.monaco-editor .review-widget .body.comment-body  ul:last-child {
+.monaco-editor .review-widget .body.comment-body ul:last-child {
 	margin-bottom: 0;
 }
 
@@ -262,11 +278,11 @@
 	padding-left: 20px;
 }
 
-.monaco-editor .review-widget .body .comment-body li>p {
+.monaco-editor .review-widget .body .comment-body li > p {
 	margin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body li>ul {
+.monaco-editor .review-widget .body .comment-body li > ul {
 	margin-top: 0;
 }
 
@@ -292,11 +308,11 @@
 	overflow: hidden;
 	text-align: left;
 	width: 100%;
-	box-sizing:	border-box;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-o-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-ms-box-sizing: border-box;
 	padding: 0.4em;
 	font-size: 12px;
 	line-height: 17px;
@@ -408,20 +424,20 @@
 	padding-right: 2px;
 }
 
-.monaco-editor .review-widget .head .review-actions>.monaco-action-bar {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar {
 	display: inline-block;
 }
 
-.monaco-editor .review-widget .head .review-actions>.monaco-action-bar,
-.monaco-editor .review-widget .head .review-actions>.monaco-action-bar>.actions-container {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar,
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar > .actions-container {
 	height: 100%;
 }
 
-.monaco-editor .review-widget .head .review-actions>.monaco-action-bar .action-item {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-item {
 	margin-left: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions>.monaco-action-bar .action-label {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label {
 	width: 16px;
 	height: 100%;
 	margin: 0;
@@ -430,15 +446,15 @@
 	background-position: center center;
 }
 
-.monaco-editor .review-widget .head .review-actions>.monaco-action-bar .action-label.octicon {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.octicon {
 	margin: 0;
 }
 
 .monaco-editor .review-widget .head .review-actions .action-label.icon.close-review-action {
-	background: url('close.svg') center center no-repeat;
+	background: url("./close.svg") center center no-repeat;
 }
 
-.monaco-editor .review-widget>.body {
+.monaco-editor .review-widget > .body {
 	border-top: 1px solid;
 	position: relative;
 }
@@ -452,14 +468,14 @@
 
 .monaco-editor .comment-range-glyph:before {
 	position: absolute;
-	content: '';
+	content: "";
 	height: 100%;
 	width: 0;
 	left: -2px;
 	transition: width 80ms linear, left 80ms linear;
 }
 
-.monaco-editor .margin-view-overlays>div:hover>.comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
 	height: 100%;
@@ -474,8 +490,8 @@
 	justify-content: center;
 }
 
-.monaco-editor .margin-view-overlays>div:hover>.comment-range-glyph.comment-diff-added:before {
-	content: '+';
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before {
+	content: "+";
 }
 
 .monaco-editor .comment-range-glyph.comment-thread {
@@ -483,7 +499,7 @@
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
-	content: '◆';
+	content: "◆";
 	font-size: 10px;
 	line-height: 100%;
 	z-index: 20;

@@ -21,7 +21,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
@@ -306,13 +306,14 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
 	}
 
-	async openExtensionDevelopmentHostWindow(args: ParsedArgs): Promise<void> {
+	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
 
 		if (args.extensionDevelopmentPath) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
 				context: OpenContext.API,
-				cli: args
+				cli: args,
+				userEnv: Object.keys(env).length > 0 ? env : undefined
 			});
 		}
 	}
@@ -333,14 +334,28 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	}
 
 	async log(severity: string, ...messages: string[]): Promise<void> {
-		console[severity].apply(console, ...messages);
+		let consoleFn = console.log;
+
+		switch (severity) {
+			case 'error':
+				consoleFn = console.error;
+				break;
+			case 'warn':
+				consoleFn = console.warn;
+				break;
+			case 'info':
+				consoleFn = console.info;
+				break;
+		}
+
+		consoleFn(...messages);
 	}
 
-	async showItemInFolder(path: URI): Promise<void> {
+	async showItemInFolder(resource: URI): Promise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 
-		if (path.scheme === Schemas.file) {
-			shell.showItemInFolder(path.fsPath);
+		if (resource.scheme === Schemas.file) {
+			shell.showItemInFolder(resource.fsPath);
 		}
 	}
 
@@ -351,7 +366,8 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async openExternal(url: string): Promise<boolean> {
 		this.logService.trace('windowsService#openExternal');
 
-		return shell.openExternal(url);
+		shell.openExternal(url);
+		return true;
 	}
 
 	async startCrashReporter(config: Electron.CrashReporterStartOptions): Promise<void> {

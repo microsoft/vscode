@@ -154,20 +154,15 @@ suite('Debug - Model', () => {
 			}]
 		});
 
-		model.rawUpdate({
-			sessionId: session.getId(),
-			threads: [{
-				id: threadId2,
-				name: threadName2
-			}]
-		});
-
 		// Stopped event with all threads stopped
 		model.rawUpdate({
 			sessionId: session.getId(),
 			threads: [{
 				id: threadId1,
 				name: threadName1
+			}, {
+				id: threadId2,
+				name: threadName2
 			}],
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -243,20 +238,15 @@ suite('Debug - Model', () => {
 			}]
 		});
 
-		model.rawUpdate({
-			sessionId: session.getId(),
-			threads: [{
-				id: runningThreadId,
-				name: runningThreadName
-			}]
-		});
-
 		// Stopped event with only one thread stopped
 		model.rawUpdate({
 			sessionId: session.getId(),
 			threads: [{
 				id: 1,
 				name: stoppedThreadName
+			}, {
+				id: runningThreadId,
+				name: runningThreadName
 			}],
 			stoppedDetails: {
 				reason: stoppedReason,

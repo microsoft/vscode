@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/style';
-import 'vs/css!./media/icons';
 
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -96,6 +95,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (focusOutline) {
 		collector.addRule(`
 		.monaco-workbench [tabindex="0"]:focus,
+		.monaco-workbench [tabindex="-1"]:focus,
 		.monaco-workbench .synthetic-focus,
 		.monaco-workbench select:focus,
 		.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
@@ -115,6 +115,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (theme.type === HIGH_CONTRAST) {
 		collector.addRule(`
 		.hc-black [tabindex="0"]:focus,
+		.hc-black [tabindex="-1"]:focus,
 		.hc-black .synthetic-focus,
 		.hc-black select:focus,
 		.hc-black input[type="button"]:focus,

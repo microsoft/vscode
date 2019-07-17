@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -437,12 +437,12 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
 
 	private readonly _onHiddenAreasChanged = this._register(new Emitter<void>());
-	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; }
+	readonly onHiddenAreasChanged: Event<void> = this._onHiddenAreasChanged.event;
 
 	private settingsGroups: ISettingsGroup[];
 	private hiddenGroups: ISettingsGroup[] = [];
 	private settingsGroupTitleWidgets: SettingsGroupTitleWidget[];
-	private renderDisposables: IDisposable[] = [];
+	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -474,8 +474,8 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 			const settingsGroupTitleWidget = this.instantiationService.createInstance(SettingsGroupTitleWidget, this.editor, group);
 			settingsGroupTitleWidget.render();
 			this.settingsGroupTitleWidgets.push(settingsGroupTitleWidget);
-			this.renderDisposables.push(settingsGroupTitleWidget);
-			this.renderDisposables.push(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
+			this.renderDisposables.add(settingsGroupTitleWidget);
+			this.renderDisposables.add(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
 		}
 		this.settingsGroupTitleWidgets.reverse();
 	}
@@ -515,7 +515,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 
 	private disposeWidgets() {
 		this.hiddenGroups = [];
-		this.renderDisposables = dispose(this.renderDisposables);
+		this.renderDisposables.clear();
 	}
 
 	dispose() {
@@ -820,6 +820,8 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<IIndexedSetting>, e: IEditorMouseEvent): void {
+		EventHelper.stop(e.event, true);
+
 		const anchor = { x: e.event.posx, y: e.event.posy + 10 };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
@@ -916,8 +918,8 @@ class SettingHighlighter extends Disposable {
 		super();
 		this.fixedHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
 		this.volatileHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
-		this.fixedHighlighter.onHighlghtRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
-		this.volatileHighlighter.onHighlghtRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
+		this.fixedHighlighter.onHighlightRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
+		this.volatileHighlighter.onHighlightRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
 	}
 
 	highlight(setting: ISetting, fix: boolean = false) {

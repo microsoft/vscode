@@ -26,6 +26,7 @@ export interface IWebviewService {
 	_serviceBrand: any;
 
 	createWebview(
+		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 	): Webview;
@@ -72,14 +73,7 @@ export interface Webview extends IDisposable {
 	layout(): void;
 	mountTo(parent: HTMLElement): void;
 	focus(): void;
-
 	reload(): void;
-	selectAll(): void;
-	copy(): void;
-	paste(): void;
-	cut(): void;
-	undo(): void;
-	redo(): void;
 
 	showFind(): void;
 	hideFind(): void;
