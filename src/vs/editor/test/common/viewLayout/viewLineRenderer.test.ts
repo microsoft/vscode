@@ -12,6 +12,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
+import { Range } from 'vs/editor/common/core/range';
 
 function createViewLineTokens(viewLineTokens: ViewLineToken[]): IViewLineTokens {
 	return new ViewLineTokens(viewLineTokens);
@@ -41,7 +42,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
@@ -90,7 +92,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span>' + expected + '</span>');
@@ -142,7 +145,8 @@ suite('viewLineRenderer.renderLine', () => {
 			6,
 			'boundary',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expectedOutput = [
@@ -233,7 +237,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'boundary',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
@@ -295,7 +300,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
@@ -357,7 +363,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
@@ -396,7 +403,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
@@ -426,7 +434,8 @@ suite('viewLineRenderer.renderLine', () => {
 				-1,
 				'none',
 				false,
-				false
+				false,
+				undefined
 			));
 			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -526,7 +535,8 @@ suite('viewLineRenderer.renderLine', () => {
 				-1,
 				'none',
 				false,
-				true
+				true,
+				undefined
 			));
 			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -564,7 +574,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 		let expectedOutput = [
 			'<span class="mtk1">a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
@@ -593,7 +604,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
 		assert.equal(actual.containsRTL, true);
@@ -639,7 +651,8 @@ suite('viewLineRenderer.renderLine', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
@@ -704,7 +717,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'all', selections: Range[] | undefined, expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -720,7 +733,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			renderWhitespace,
 			false,
-			false
+			false,
+			selections
 		));
 
 		assert.deepEqual(actual.html, expected);
@@ -745,7 +759,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -784,7 +799,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -811,6 +827,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'none',
+			undefined,
 			[
 				'<span>',
 				'<span class="mtk1">Hello\u00a0world!</span>',
@@ -828,6 +845,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'none',
+			undefined,
 			[
 				'<span>',
 				'<span class="mtk1">Hello\u00a0</span>',
@@ -847,6 +865,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
@@ -868,6 +887,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
@@ -891,6 +911,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
@@ -913,6 +934,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
@@ -940,6 +962,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			2,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
@@ -966,6 +989,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			2,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
@@ -989,6 +1013,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'boundary',
+			undefined,
 			[
 				'<span>',
 				'<span class="mtk1">it</span>',
@@ -1014,6 +1039,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			],
 			0,
 			'all',
+			undefined,
 			[
 				'<span>',
 				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
@@ -1022,6 +1048,76 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
 				'<span class="mtk2">world!</span>',
 				'<span class="vs-whitespace" style="width:30px">\u2192\u00a0\u00a0</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for selection with no selections', () => {
+		testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			undefined,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for selection with whole line selection', () => {
+		testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			[new Range(0, 0, 0, 14)],
+			[
+				'<span>',
+				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
+				'<span class="mtk0">Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
+				'<span class="mtk2">world!</span>',
+				'<span class="vs-whitespace" style="width:30px">\u2192\u00a0\u00a0</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for selection with selection spanning part of whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world!\t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'selection',
+			[new Range(0, 0, 0, 5)],
+			[
+				'<span>',
+				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
+				'<span class="mtk0">Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!\u00a0\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1047,7 +1143,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		// 01234567890
@@ -1087,7 +1184,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'all',
 			false,
-			true
+			true,
+			undefined
 		));
 
 		let expected = [
@@ -1119,7 +1217,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'all',
 			false,
-			true
+			true,
+			undefined
 		));
 
 		let expected = [
@@ -1152,7 +1251,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'all',
 			false,
-			true
+			true,
+			undefined
 		));
 
 		let expected = [
@@ -1181,7 +1281,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1214,7 +1315,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1246,7 +1348,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1276,7 +1379,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1305,7 +1409,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'all',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1340,7 +1445,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1369,7 +1475,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1400,7 +1507,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1430,7 +1538,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'boundary',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		let expected = [
@@ -1458,7 +1567,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			true
+			true,
+			undefined
 		));
 
 		let expected = [
@@ -1490,7 +1600,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			10000,
 			'none',
 			false,
-			true
+			true,
+			undefined
 		));
 
 		let expected = [
@@ -1518,7 +1629,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			-1,
 			'none',
 			false,
-			false
+			false,
+			undefined
 		));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {

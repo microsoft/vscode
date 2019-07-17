@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 
 export const enum RenderWhitespace {
 	None = 0,
 	Boundary = 1,
-	All = 2
+	Selection = 2,
+	All = 3
 }
 
 class LinePart {
@@ -48,6 +52,7 @@ export class RenderLineInput {
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
+	public readonly selectionsOnLine?: Range[];
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -62,9 +67,10 @@ export class RenderLineInput {
 		tabSize: number,
 		spaceWidth: number,
 		stopRenderingLineAfter: number,
-		renderWhitespace: 'none' | 'boundary' | 'all',
+		renderWhitespace: 'none' | 'boundary' | 'selection' | 'all',
 		renderControlCharacters: boolean,
-		fontLigatures: boolean
+		fontLigatures: boolean,
+		selectionsOnLine: Range[] | undefined // NOTE this will only be defined when renderWhitespace is 'selection'
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -83,10 +89,25 @@ export class RenderLineInput {
 				? RenderWhitespace.All
 				: renderWhitespace === 'boundary'
 					? RenderWhitespace.Boundary
-					: RenderWhitespace.None
+					: renderWhitespace === 'selection'
+						? RenderWhitespace.Selection
+						: RenderWhitespace.None
 		);
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
+		this.selectionsOnLine = selectionsOnLine;
+	}
+
+	private sameSelection(otherSelections?: Range[]): boolean {
+		if (this.selectionsOnLine === undefined) {
+			return otherSelections === undefined;
+		}
+
+		if (otherSelections === undefined) {
+			return false;
+		}
+
+		return arrays.equals(this.selectionsOnLine, otherSelections, (a, b) => a.equalsRange(b));
 	}
 
 	public equals(other: RenderLineInput): boolean {
@@ -106,6 +127,7 @@ export class RenderLineInput {
 			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
+			&& this.sameSelection(other.selectionsOnLine)
 		);
 	}
 }
@@ -338,8 +360,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	}
 
 	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
-	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
-		tokens = _applyRenderWhitespace(lineContent, len, input.continuesWithWrappedLine, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
+	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary || (input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine)) {
+		tokens = _applyRenderWhitespace(lineContent, len, input.continuesWithWrappedLine, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.selectionsOnLine, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
 	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
@@ -481,7 +503,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(lineContent: string, len: number, continuesWithWrappedLine: boolean, tokens: LinePart[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, onlyBoundary: boolean): LinePart[] {
+function _applyRenderWhitespace(lineContent: string, len: number, continuesWithWrappedLine: boolean, tokens: LinePart[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, selections: Range[] | undefined, onlyBoundary: boolean): LinePart[] {
 
 	let result: LinePart[] = [], resultLen = 0;
 	let tokenIndex = 0;
@@ -538,6 +560,11 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 			}
 		} else {
 			isInWhitespace = false;
+		}
+
+		// If rendering whitespace on selection, check that the charIndex falls within a selection
+		if (isInWhitespace && selections) {
+			isInWhitespace = selections.some(selection => selection.containsPosition(new Position(selection.startLineNumber, charIndex + 1)));
 		}
 
 		if (wasInWhitespace) {
