@@ -357,7 +357,7 @@
 		},
 		"wsl": {
 			"friendlyName": "Remote WSL",
-			"windowsPath": "%SYSTEM32%\\wsl.exe",
+			"windowsPath": "%WINDIR%\\system32\\wsl.exe",
 			"recommendations": [
 				"ms-vscode-remote.remote-wsl"
 			]
