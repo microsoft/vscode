@@ -154,9 +154,9 @@
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
-    "vscode-windows-registry": "1.0.1",
+    "vscode-windows-registry": "microsoft/vscode-windows-registry#n-api",
     "windows-foreground-love": "0.1.0",
-    "windows-mutex": "0.2.1",
+    "windows-mutex": "microsoft/node-windows-mutex#0262bf00dbf28ffa18e2734acd9585c35eac8d16",
     "windows-process-tree": "0.2.4"
   }
 }
