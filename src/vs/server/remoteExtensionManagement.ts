@@ -19,7 +19,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { RemoteAgentEnvironmentChannel } from 'vs/server/remoteAgentEnvironmentImpl';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IPCServer, ClientConnectionEvent, StaticRouter, IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
