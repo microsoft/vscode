@@ -61,7 +61,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		if (!server) {
 			return Promise.reject(`Invalid location ${extension.location.toString()}`);
 		}
-		if (this.servers.length > 1) {
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			if (isLanguagePackExtension(extension.manifest)) {
 				return this.uninstallEverywhere(extension);
 			}
