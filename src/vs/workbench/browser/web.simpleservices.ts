@@ -38,12 +38,10 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-// tslint:disable-next-line: import-patterns
-import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
-//import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-//import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+// tslint:disable-next-line: import-patterns
+import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 
 //#region Download
 
