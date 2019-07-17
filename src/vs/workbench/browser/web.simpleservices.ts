@@ -14,7 +14,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -35,7 +34,6 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -272,38 +270,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 }
-
-//#endregion
-
-//#region Telemetry
-
-export class SimpleTelemetryService implements ITelemetryService {
-
-	_serviceBrand: undefined;
-
-	isOptedIn: true;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-
-	setEnabled(value: boolean): void {
-	}
-
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
-		});
-	}
-}
-
-registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#endregion
 

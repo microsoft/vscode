@@ -37,6 +37,10 @@ export interface IProductService {
 	readonly experimentsUrl?: string;
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly extensionAllowedBadgeProviders?: readonly string[];
+
+	readonly aiConfig?: {
+		readonly asimovKey: string;
+	};
 }
 
 export interface IProductConfiguration {
