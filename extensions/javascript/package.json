@@ -113,6 +113,10 @@
         "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
+        "fileMatch": "cosmos.config.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/cosmos-config.json"
+      },
+      {
         "fileMatch": "jsconfig.json",
         "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
       },
