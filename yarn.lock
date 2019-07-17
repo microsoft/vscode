@@ -7975,6 +7975,11 @@ semver-greatest-satisfied-range@^1.1.0:
   dependencies:
     sver-compat "^1.5.0"
 
+semver-umd@^5.5.0:
+  version "5.5.1"
+  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.1.tgz#ad0211c4addc9d93b22c807ef5166a3d0581c79b"
+  integrity sha512-BogOfRyzUCjHU3dENRlf3HxliVcQRjQRy+mx+1/ILZSV6WCOGniAxcg45Rol3CGFfKaCiodeTgfaGAswWBOU+g==
+
 "semver@2 || 3 || 4 || 5", semver@^5.1.0, semver@^5.3.0:
   version "5.4.1"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.4.1.tgz#e059c09d8571f0540823733433505d3a2f00b18e"
