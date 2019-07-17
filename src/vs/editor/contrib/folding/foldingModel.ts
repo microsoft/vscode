@@ -29,9 +29,9 @@ export class FoldingModel {
 	private _isInitialized: boolean;
 
 	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
+	public readonly onDidChange: Event<FoldingModelChangeEvent> = this._updateEventEmitter.event;
 
 	public get regions(): FoldingRegions { return this._regions; }
-	public get onDidChange(): Event<FoldingModelChangeEvent> { return this._updateEventEmitter.event; }
 	public get textModel() { return this._textModel; }
 	public get isInitialized() { return this._isInitialized; }
 
@@ -47,7 +47,7 @@ export class FoldingModel {
 		if (!regions.length) {
 			return;
 		}
-		let processed = {};
+		let processed: { [key: string]: boolean | undefined } = {};
 		this._decorationProvider.changeDecorations(accessor => {
 			for (let region of regions) {
 				let index = region.regionIndex;

@@ -11,7 +11,7 @@ import {
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import * as URL from 'url';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
@@ -105,9 +105,9 @@ let languageService = getLanguageService({
 	contributions: [],
 });
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
+// Create a text document manager.
 const documents: TextDocuments = new TextDocuments();
+
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);

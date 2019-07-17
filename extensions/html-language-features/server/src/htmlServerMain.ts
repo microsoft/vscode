@@ -15,7 +15,7 @@ import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
-import uri from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
@@ -38,8 +38,7 @@ process.on('uncaughtException', (e: any) => {
 	console.error(formatError(`Unhandled exception`, e));
 });
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
+// Create a text document manager.
 const documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
@@ -85,7 +84,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (!Array.isArray(workspaceFolders)) {
 		workspaceFolders = [];
 		if (params.rootPath) {
-			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+			workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 		}
 	}
 

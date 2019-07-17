@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { isThenable } from 'vs/base/common/async';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -29,7 +29,7 @@ export interface BeforeShutdownEvent {
 	/**
 	 * The reason why the application will be shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface WillShutdownEvent {
 	/**
 	 * The reason why the application is shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 export const enum ShutdownReason {
@@ -123,7 +123,7 @@ export function LifecyclePhaseToString(phase: LifecyclePhase) {
  */
 export interface ILifecycleService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Value indicates how this window got loaded.
@@ -166,12 +166,16 @@ export interface ILifecycleService {
 }
 
 export const NullLifecycleService: ILifecycleService = {
-	_serviceBrand: null,
+
+	_serviceBrand: null as any,
+
 	onBeforeShutdown: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None,
+
 	phase: LifecyclePhase.Restored,
 	startupKind: StartupKind.NewWindow,
+
 	when() { return Promise.resolve(); }
 };
 

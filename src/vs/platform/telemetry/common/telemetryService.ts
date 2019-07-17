@@ -13,11 +13,13 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
+	trueMachineId?: string;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -56,12 +58,13 @@ export class TelemetryService implements ITelemetryService {
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
-			/* __GDPR__
-				"optInStatus" : {
-					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
-				}
-			*/
-			this.publicLog('optInStatus', { optIn: this._userOptIn });
+			type OptInClassification = {
+				optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+			};
+			type OptInEvent = {
+				optIn: boolean;
+			};
+			this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._userOptIn });
 
 			this._commonProperties.then(values => {
 				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
@@ -72,6 +75,15 @@ export class TelemetryService implements ITelemetryService {
 					}
 				*/
 				this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
+
+				if (config.trueMachineId) {
+					/* __GDPR__
+						"machineIdDisambiguation" : {
+							"correctedMachineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.publicLog('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
+				}
 			});
 		}
 	}
@@ -89,15 +101,15 @@ export class TelemetryService implements ITelemetryService {
 		return this._userOptIn && this._enabled;
 	}
 
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return this._commonProperties.then(values => {
-			// well known properties
-			let sessionId = values['sessionID'];
-			let instanceId = values['common.instanceId'];
-			let machineId = values['common.machineId'];
+	async getTelemetryInfo(): Promise<ITelemetryInfo> {
+		const values = await this._commonProperties;
 
-			return { sessionId, instanceId, machineId };
-		});
+		// well known properties
+		let sessionId = values['sessionID'];
+		let instanceId = values['common.instanceId'];
+		let machineId = values['common.machineId'];
+
+		return { sessionId, instanceId, machineId };
 	}
 
 	dispose(): void {
@@ -129,6 +141,10 @@ export class TelemetryService implements ITelemetryService {
 			// unsure what to do now...
 			console.error(err);
 		});
+	}
+
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
+		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 
 	private _cleanupInfo(stack: string, anonymizeFilePaths?: boolean): string {

@@ -85,7 +85,6 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	private _onDidClose = new Emitter<PeekViewWidget>();
 
 	protected _headElement: HTMLDivElement;
-	protected _headingIcon: HTMLElement;
 	protected _primaryHeading: HTMLElement;
 	protected _secondaryHeading: HTMLElement;
 	protected _metaHeading: HTMLElement;
@@ -155,23 +154,26 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		dom.append(this._headElement, titleElement);
 		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
 
-		this._headingIcon = dom.$('span');
+		this._fillTitleIcon(titleElement);
 		this._primaryHeading = dom.$('span.filename');
 		this._secondaryHeading = dom.$('span.dirname');
 		this._metaHeading = dom.$('span.meta');
-		dom.append(titleElement, this._headingIcon, this._primaryHeading, this._secondaryHeading, this._metaHeading);
+		dom.append(titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
 
 		const actionsContainer = dom.$('.peekview-actions');
 		dom.append(this._headElement, actionsContainer);
 
 		const actionBarOptions = this._getActionBarOptions();
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
-		this._disposables.push(this._actionbarWidget);
+		this._disposables.add(this._actionbarWidget);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();
 			return Promise.resolve();
 		}), { label: false, icon: true });
+	}
+
+	protected _fillTitleIcon(container: HTMLElement): void {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
@@ -180,10 +182,6 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected _onTitleClick(event: IMouseEvent): void {
 		// implement me
-	}
-
-	public setTitleIcon(iconClassName: string): void {
-		this._headingIcon.className = iconClassName ? `icon ${iconClassName}` : '';
 	}
 
 	public setTitle(primaryHeading: string, secondaryHeading?: string): void {

@@ -1,0 +1,138 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Splitview</title>
+	<style>
+		#container {
+			width: 800px;
+			height: 600px;
+			border: 1px solid black;
+		}
+
+		.view {
+			width: 100%;
+			height: 100%;
+			text-align: center;
+			vertical-align: middle;
+			color: white;
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+			font-weight: bold;
+			font-size: 30px;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="buttons"></div>
+	<div id="container"></div>
+
+	<script src="/static/vs/loader.js"></script>
+	<script>
+		require.config({ baseUrl: '/static' });
+
+		switch (location.search) {
+			case '?grid': {
+				require(['vs/base/browser/ui/grid/grid', 'vs/base/common/event'], ({ Grid, Sizing, Direction }, { Event }) => {
+					const buttons = document.getElementById('buttons');
+
+					class View {
+						static ID = 0;
+
+						constructor(label, minimumWidth, maximumWidth, minimumHeight, maximumHeight, snap) {
+							const id = View.ID++;
+							this.label = label;
+							this.minimumWidth = minimumWidth;
+							this.maximumWidth = maximumWidth;
+							this.minimumHeight = minimumHeight;
+							this.maximumHeight = maximumHeight;
+							this.snap = snap;
+							this.onDidChange = Event.None;
+
+							this.element = document.createElement('div');
+							this.element.className = 'view';
+							this.element.style.backgroundColor = `hsl(${(id * 41) % 360}, 50%, 70%)`;
+							this.element.textContent = this.label;
+
+							this.button = document.createElement('button');
+							this.button.onclick = () => grid.setViewVisible(this, !grid.isViewVisible(this));
+							buttons.appendChild(this.button);
+							this.setVisible(true);
+						}
+
+						layout(width, height, orientation) {
+							this.element.style.lineHeight = `${height}px`;
+						}
+
+						setVisible(visible) {
+							this.button.textContent = visible ? `hide ${this.label}` : `show ${this.label}`;
+						}
+					}
+
+					const editor = new View('editor', 200, Number.POSITIVE_INFINITY, 200, Number.POSITIVE_INFINITY);
+					const statusbar = new View('status', 0, Number.POSITIVE_INFINITY, 20, 20);
+					const activitybar = new View('activity', 50, 50, 0, Number.POSITIVE_INFINITY);
+					const sidebar = new View('sidebar', 200, Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY, true);
+					const panel = new View('panel', 0, Number.POSITIVE_INFINITY, 200, Number.POSITIVE_INFINITY, true);
+
+					const grid = new Grid(editor, {});
+					const container = document.getElementById('container');
+					container.appendChild(grid.element);
+					grid.layout(800, 600);
+
+					grid.addView(statusbar, Sizing.Distribute, editor, Direction.Down);
+					grid.addView(activitybar, Sizing.Distribute, editor, Direction.Left);
+					grid.addView(sidebar, 250, editor, Direction.Left);
+					grid.addView(panel, 200, editor, Direction.Down);
+				});
+				break;
+			}
+			default: {
+				require(['vs/base/browser/ui/splitview/splitview', 'vs/base/common/event'], ({ SplitView, Sizing }, { Event }) => {
+					const buttons = document.getElementById('buttons');
+
+					class View {
+						static ID = 0;
+
+						constructor(minimumSize, maximumSize) {
+							this.id = View.ID++;
+							this.element = document.createElement('div');
+							this.element.className = 'view';
+							this.element.style.backgroundColor = `hsl(${(this.id * 41) % 360}, 50%, 70%)`;
+							this.element.textContent = `${this.id}`;
+							this.minimumSize = typeof minimumSize === 'number' ? minimumSize : 100;
+							this.maximumSize = typeof maximumSize === 'number' ? maximumSize : Number.POSITIVE_INFINITY;
+							this.onDidChange = Event.None;
+							this.snap = !minimumSize && !maximumSize;
+
+							this.button = document.createElement('button');
+							this.button.onclick = () => splitview.setViewVisible(this.id, !splitview.isViewVisible(this.id));
+							buttons.appendChild(this.button);
+							this.setVisible(true);
+						}
+
+						layout(size, orientation) {
+							this.element.style.lineHeight = `${size}px`;
+						}
+
+						setVisible(visible) {
+							this.button.textContent = visible ? `hide ${this.id}` : `show ${this.id}`;
+						}
+					}
+
+					const container = document.getElementById('container');
+					const splitview = new SplitView(container, {});
+					splitview.layout(600);
+
+					splitview.addView(new View(100, 100), Sizing.Distribute);
+					splitview.addView(new View(), Sizing.Distribute);
+					splitview.addView(new View(), Sizing.Distribute);
+					splitview.addView(new View(), Sizing.Distribute);
+					splitview.addView(new View(), Sizing.Distribute);
+				});
+			}
+		}
+	</script>
+</body>
+
+</html>

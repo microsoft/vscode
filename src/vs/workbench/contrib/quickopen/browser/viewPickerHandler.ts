@@ -21,6 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -101,7 +102,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
-		const entryToCategory = {};
+		const entryToCategory: IStringDictionary<string> = {};
 		entries.forEach(e => {
 			if (!entryToCategory[e.getLabel()]) {
 				entryToCategory[e.getLabel()] = e.getCategory();

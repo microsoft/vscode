@@ -68,10 +68,10 @@ suite('Command Tests', function () {
 			}
 		});
 
-		CommandsRegistry.getCommands()['test'].handler.apply(undefined, [undefined!, 'string']);
-		CommandsRegistry.getCommands()['test2'].handler.apply(undefined, [undefined!, 'string']);
-		assert.throws(() => CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined!, 'string']));
-		assert.equal(CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined!, 1]), true);
+		CommandsRegistry.getCommands().get('test')!.handler.apply(undefined, [undefined!, 'string']);
+		CommandsRegistry.getCommands().get('test2')!.handler.apply(undefined, [undefined!, 'string']);
+		assert.throws(() => CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 'string']));
+		assert.equal(CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 1]), true);
 
 	});
 });

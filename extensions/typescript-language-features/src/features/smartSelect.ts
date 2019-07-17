@@ -27,7 +27,7 @@ class SmartSelection implements vscode.SelectionRangeProvider {
 			return undefined;
 		}
 
-		const args: Proto.FileRequestArgs & { locations: Proto.Location[] } = {
+		const args: Proto.SelectionRangeRequestArgs = {
 			file,
 			locations: positions.map(typeConverters.Position.toLocation)
 		};

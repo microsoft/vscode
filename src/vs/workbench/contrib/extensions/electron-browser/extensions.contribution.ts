@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensions';
+import 'vs/css!../browser/media/extensions';
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -22,11 +22,11 @@ import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, OpenExtensionsFolderAction, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction
-} from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { ExtensionEditor } from 'vs/workbench/contrib/extensions/electron-browser/extensionEditor';
-import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker, ExtensionsViewletViewsContribution } from 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
+import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
+import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker, ExtensionsViewletViewsContribution } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -44,11 +44,12 @@ import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/ele
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';
+import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
+import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -191,13 +192,13 @@ const disableAllWorkspaceAction = new SyncActionDescriptor(DisableAllWorkpsaceAc
 actionRegistry.registerWorkbenchAction(disableAllWorkspaceAction, 'Extensions: Disable All Installed Extensions for this Workspace', ExtensionsLabel);
 
 const enableAllAction = new SyncActionDescriptor(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL);
-actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All Installed Extensions', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All Extensions', ExtensionsLabel);
 
 const enableAllWorkspaceAction = new SyncActionDescriptor(EnableAllWorkpsaceAction, EnableAllWorkpsaceAction.ID, EnableAllWorkpsaceAction.LABEL);
-actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All Installed Extensions for this Workspace', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All Extensions for this Workspace', ExtensionsLabel);
 
 const checkForUpdatesAction = new SyncActionDescriptor(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL);
-actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Updates`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Extension Updates`, ExtensionsLabel);
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
@@ -300,13 +301,22 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_keybindings',
+	command: {
+		id: ShowRecommendedKeymapExtensionsAction.ID,
+		title: localize('miOpenKeymapExtensions2', "Keymaps")
+	},
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '1_settings',
 	command: {
 		id: VIEWLET_ID,
 		title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 	},
-	order: 2
+	order: 3
 });
 
 // View menu
@@ -327,8 +337,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/start.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -340,8 +350,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-start.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -353,8 +363,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/profile-stop.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
 		}
 	},
 	group: 'navigation',
@@ -366,8 +376,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
 		iconLocation: {
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save-inverse.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/electron-browser/media/save.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
 		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},
@@ -407,4 +417,44 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 		}
 	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.uninstallExtension',
+	description: {
+		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				schema: {
+					'type': 'string'
+				}
+			}
+		]
+	},
+	handler: async (accessor, id: string) => {
+		if (!id) {
+			throw new Error(localize('id required', "Extension id required."));
+		}
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		try {
+			const installed = await extensionManagementService.getInstalled(ExtensionType.User);
+			const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+			if (!extensionToUninstall) {
+				return Promise.reject(new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id)));
+			}
+			await extensionManagementService.uninstall(extensionToUninstall, true);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: VIEWLET_ID,
+		title: localize('showExtensions', "Extensions")
+	},
+	order: 3
 });

@@ -5,8 +5,8 @@
 
 import 'vs/css!./contextMenuHandler';
 
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ActionRunner, IRunEvent } from 'vs/base/common/actions';
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -67,19 +67,19 @@ export class ContextMenuHandler {
 					this.block = container.appendChild($('.context-view-block'));
 				}
 
-				const menuDisposables: IDisposable[] = [];
+				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
-					actionItemProvider: delegate.getActionItem,
+					actionViewItemProvider: delegate.getActionViewItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
 				});
 
-				menuDisposables.push(attachMenuStyler(menu, this.themeService));
+				menuDisposables.add(attachMenuStyler(menu, this.themeService));
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
@@ -104,7 +104,7 @@ export class ContextMenuHandler {
 					this.contextViewService.hideContextView(true);
 				}, null, menuDisposables);
 
-				return combinedDisposable([...menuDisposables, menu]);
+				return combinedDisposable(menuDisposables, menu);
 			},
 
 			focus: () => {
@@ -132,13 +132,7 @@ export class ContextMenuHandler {
 
 	private onActionRun(e: IRunEvent): void {
 		if (this.telemetryService) {
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 		}
 
 		this.contextViewService.hideContextView(false);

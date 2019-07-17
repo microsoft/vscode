@@ -46,30 +46,30 @@
 }
 
 .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence {
-	background: url('sort_precedence.svg') center center no-repeat;
+	background: url('sort-precedence-light.svg') center center no-repeat;
 }
 
 .hc-black .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence,
 .vs-dark .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence {
-	background: url('sort_precedence_inverse.svg') center center no-repeat;
+	background: url('sort-precedence-dark.svg') center center no-repeat;
 }
 
 .keybindings-editor .monaco-action-bar .action-item > .record-keys {
-	background: url('record-keys.svg') center center no-repeat;
+	background: url('record-keys-light.svg') center center no-repeat;
 }
 
 .hc-black .keybindings-editor .monaco-action-bar .action-item > .record-keys,
 .vs-dark .keybindings-editor .monaco-action-bar .action-item > .record-keys {
-	background: url('record-keys-inverse.svg') center center no-repeat;
+	background: url('record-keys-dark.svg') center center no-repeat;
 }
 
 .keybindings-editor .monaco-action-bar .action-item > .clear-input {
-	background: url('clear.svg') center center no-repeat;
+	background: url('clear-light.svg') center center no-repeat;
 }
 
 .hc-black .keybindings-editor .monaco-action-bar .action-item > .clear-input,
 .vs-dark .keybindings-editor .monaco-action-bar .action-item > .clear-input {
-	background: url('clear-inverse.svg') center center no-repeat;
+	background: url('clear-dark.svg') center center no-repeat;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
@@ -208,20 +208,20 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit {
-	background: url('edit.svg') center center no-repeat;
+	background: url('edit-light.svg') center center no-repeat;
 	transform: rotate(-90deg);
 }
 
 .hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit,
 .vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit {
-	background: url('edit_inverse.svg') center center no-repeat;
+	background: url('edit-dark.svg') center center no-repeat;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add {
-	background: url('add.svg') center center no-repeat;
+	background: url('add-light.svg') center center no-repeat;
 }
 
 .hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add,
 .vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add {
-	background: url('add_inverse.svg') center center no-repeat;
+	background: url('add-dark.svg') center center no-repeat;
 }

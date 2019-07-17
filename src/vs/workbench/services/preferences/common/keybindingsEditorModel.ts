@@ -160,7 +160,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	resolve(editorActionsLabels: { [id: string]: string; }): Promise<EditorModel> {
+	resolve(editorActionsLabels: Map<string, string>): Promise<EditorModel> {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		this._keybindingItemsSortedByPrecedence = [];
@@ -174,7 +174,7 @@ export class KeybindingsEditorModel extends EditorModel {
 
 		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 		for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
-			const keybindingItem = new ResolvedKeybindingItem(null, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1);
+			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1);
 			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActionsLabels));
 		}
 		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
@@ -209,9 +209,9 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: { [id: string]: string; }): IKeybindingItem {
-		const menuCommand = MenuRegistry.getCommand(command);
-		const editorActionLabel = editorActions[command];
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: Map<string, string>): IKeybindingItem {
+		const menuCommand = MenuRegistry.getCommand(command)!;
+		const editorActionLabel = editorActions.get(command)!;
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,

@@ -2052,7 +2052,7 @@ suite('Editor Controller - Regression tests', () => {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(null!, state);
+				return new TokenizationResult2(new Uint32Array(0), state);
 			}
 		};
 

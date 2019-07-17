@@ -9,7 +9,7 @@ export const enum DiagnosticLanguage {
 	TypeScript
 }
 
-export const allDiagnosticLangauges = [DiagnosticLanguage.JavaScript, DiagnosticLanguage.TypeScript];
+export const allDiagnosticLanguages = [DiagnosticLanguage.JavaScript, DiagnosticLanguage.TypeScript];
 
 export interface LanguageDescription {
 	readonly id: string;

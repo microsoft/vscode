@@ -55,8 +55,8 @@ export class DataUriEditorInput extends EditorInput {
 		return withUndefinedAsNull(this.name);
 	}
 
-	getDescription(): string | null {
-		return withUndefinedAsNull(this.description);
+	getDescription(): string | undefined {
+		return this.description;
 	}
 
 	resolve(): Promise<BinaryEditorModel> {
@@ -68,11 +68,9 @@ export class DataUriEditorInput extends EditorInput {
 			return true;
 		}
 
+		// Compare by resource
 		if (otherInput instanceof DataUriEditorInput) {
-			const otherDataUriEditorInput = <DataUriEditorInput>otherInput;
-
-			// Compare by resource
-			return otherDataUriEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

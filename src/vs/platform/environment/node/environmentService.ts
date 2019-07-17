@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
+import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
@@ -21,7 +22,9 @@ import { URI } from 'vs/base/common/uri';
 const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
-	if (xdgRuntimeDir) {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+
+	if (xdgRuntimeDir && !vscodePortable) {
 		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
 		return path.join(xdgRuntimeDir, `vscode-${scope}-${pkg.version}-${type}.sock`);
 	}
@@ -93,6 +96,7 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get userDataPath(): string {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
+
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'user-data');
 		}
@@ -100,45 +104,51 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
+	@memoize
+	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
+
 	get appNameLong(): string { return product.nameLong; }
 
 	get appQuality(): string | undefined { return product.quality; }
 
 	@memoize
-	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
+	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
-	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
-	get machineSettingsHome(): string { return path.join(this.userDataPath, 'Machine'); }
+	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get machineSettingsPath(): string { return path.join(this.machineSettingsHome, 'settings.json'); }
+	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
 
 	@memoize
-	get globalStorageHome(): string { return path.join(this.appSettingsHome, 'globalStorage'); }
+	get machineSettingsResource(): URI { return resources.joinPath(this.machineSettingsHome, 'settings.json'); }
 
 	@memoize
-	get workspaceStorageHome(): string { return path.join(this.appSettingsHome, 'workspaceStorage'); }
+	get globalStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'globalStorage'); }
 
 	@memoize
-	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
+	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
 
 	@memoize
-	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
+	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
-	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
+	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+
+	@memoize
+	get localeResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'locale.json'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
+	get backupHome(): URI { return URI.file(path.join(this.userDataPath, BACKUPS)); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
+	get backupWorkspacesPath(): string { return path.join(this.backupHome.fsPath, 'workspaces.json'); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
@@ -170,6 +180,7 @@ export class EnvironmentService implements IEnvironmentService {
 		}
 
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
+
 		if (vscodePortable) {
 			return path.join(vscodePortable, 'extensions');
 		}
@@ -261,6 +272,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
+	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
+	readonly webviewCspSource = 'vscode-resource:';
+
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
@@ -279,10 +293,11 @@ export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParam
 	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
 }
 
-export function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
 	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
 	const brk = port ? Boolean(!!debugBrkArg) : false;
+
 	return { port, break: brk, debugId };
 }
 
@@ -297,9 +312,9 @@ function parsePathArg(arg: string | undefined, process: NodeJS.Process): string 
 
 	if (path.normalize(arg) === resolved) {
 		return resolved;
-	} else {
-		return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
 	}
+
+	return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
 }
 
 export function parseUserDataDir(args: ParsedArgs, process: NodeJS.Process): string {

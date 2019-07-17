@@ -174,13 +174,13 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				params[param].forEach((item: TransferQuickPickItems) => {
 					handlesToItems.set(item.handle, item);
 				});
-				input[param] = params[param];
+				(input as any)[param] = params[param];
 			} else if (param === 'activeItems' || param === 'selectedItems') {
-				input[param] = params[param]
+				(input as any)[param] = params[param]
 					.filter((handle: number) => handlesToItems.has(handle))
 					.map((handle: number) => handlesToItems.get(handle));
 			} else if (param === 'buttons') {
-				input[param] = params.buttons!.map(button => {
+				(input as any)[param] = params.buttons!.map(button => {
 					if (button.handle === -1) {
 						return this._quickInputService.backButton;
 					}
@@ -195,7 +195,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					};
 				});
 			} else {
-				input[param] = params[param];
+				(input as any)[param] = params[param];
 			}
 		}
 		return Promise.resolve(undefined);

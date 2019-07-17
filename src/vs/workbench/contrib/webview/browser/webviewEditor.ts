@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -17,29 +17,29 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 export class WebviewEditor extends BaseEditor {
 
-	protected _webview: Webview | undefined;
-	protected findWidgetVisible: IContextKey<boolean>;
-
 	public static readonly ID = 'WebviewEditor';
+
+	private _webview: Webview | undefined;
+	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _editorFrame: HTMLElement;
 	private _content?: HTMLElement;
 	private _webviewContent: HTMLElement | undefined;
 
-	private _webviewFocusTrackerDisposables: IDisposable[] = [];
-	private _onFocusWindowHandler?: IDisposable;
+	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
+	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private pendingMessages: any[] = [];
+	private _pendingMessages: any[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -53,7 +53,7 @@ export class WebviewEditor extends BaseEditor {
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 		if (_contextKeyService) {
-			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 		}
 	}
 
@@ -78,7 +78,7 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public dispose(): void {
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
@@ -89,12 +89,6 @@ export class WebviewEditor extends BaseEditor {
 			this._content = undefined;
 		}
 
-		this._webviewFocusTrackerDisposables = dispose(this._webviewFocusTrackerDisposables);
-
-		if (this._onFocusWindowHandler) {
-			this._onFocusWindowHandler.dispose();
-		}
-
 		super.dispose();
 	}
 
@@ -102,18 +96,18 @@ export class WebviewEditor extends BaseEditor {
 		if (this._webview) {
 			this._webview.sendMessage(data);
 		} else {
-			this.pendingMessages.push(data);
+			this._pendingMessages.push(data);
 		}
 	}
 	public showFind() {
 		if (this._webview) {
 			this._webview.showFind();
-			this.findWidgetVisible.set(true);
+			this._findWidgetVisible.set(true);
 		}
 	}
 
 	public hideFind() {
-		this.findWidgetVisible.reset();
+		this._findWidgetVisible.reset();
 		if (this._webview) {
 			this._webview.hideFind();
 		}
@@ -136,10 +130,10 @@ export class WebviewEditor extends BaseEditor {
 
 	public focus(): void {
 		super.focus();
-		if (!this._onFocusWindowHandler) {
+		if (!this._onFocusWindowHandler.value) {
 
 			// Make sure we restore focus when switching back to a VS Code window
-			this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
+			this._onFocusWindowHandler.value = this._windowService.onDidChangeFocus(focused => {
 				if (focused && this._editorService.activeControl === this) {
 					this.focus();
 				}
@@ -148,31 +142,7 @@ export class WebviewEditor extends BaseEditor {
 		this.withWebview(webview => webview.focus());
 	}
 
-	public selectAll(): void {
-		this.withWebview(webview => webview.selectAll());
-	}
-
-	public copy(): void {
-		this.withWebview(webview => webview.copy());
-	}
-
-	public paste(): void {
-		this.withWebview(webview => webview.paste());
-	}
-
-	public cut(): void {
-		this.withWebview(webview => webview.cut());
-	}
-
-	public undo(): void {
-		this.withWebview(webview => webview.undo());
-	}
-
-	public redo(): void {
-		this.withWebview(webview => webview.redo());
-	}
-
-	private withWebview(f: (element: Webview) => void): void {
+	public withWebview(f: (element: Webview) => void): void {
 		if (this._webview) {
 			f(this._webview);
 		}
@@ -208,7 +178,7 @@ export class WebviewEditor extends BaseEditor {
 
 		this._webview = undefined;
 		this._webviewContent = undefined;
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 
 		super.clearInput();
 	}
@@ -219,7 +189,7 @@ export class WebviewEditor extends BaseEditor {
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 		return super.setInput(input, options, token)
 			.then(() => input.resolve())
 			.then(() => {
@@ -270,10 +240,10 @@ export class WebviewEditor extends BaseEditor {
 		} else {
 			if (input.options.enableFindWidget) {
 				this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
-				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+				this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 			}
 
-			this._webview = this._webviewService.createWebview(
+			this._webview = this._webviewService.createWebview(input.id,
 				{
 					allowSvgs: true,
 					extension: input.extension,
@@ -286,17 +256,17 @@ export class WebviewEditor extends BaseEditor {
 				this._webview.initialScrollProgress = input.scrollYPercentage;
 			}
 
-			this._webview.state = input.webviewState;
+			this._webview.state = input.state ? input.state.state : undefined;
 
 			this._content!.setAttribute('aria-flowto', this._webviewContent.id);
 
 			this.doUpdateContainer();
 		}
 
-		for (const message of this.pendingMessages) {
+		for (const message of this._pendingMessages) {
 			this._webview.sendMessage(message);
 		}
-		this.pendingMessages = [];
+		this._pendingMessages = [];
 
 		this.trackFocus();
 
@@ -304,14 +274,14 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	private trackFocus() {
-		this._webviewFocusTrackerDisposables = dispose(this._webviewFocusTrackerDisposables);
+		this._webviewFocusTrackerDisposables.clear();
 
 		// Track focus in webview content
 		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent!);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker);
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.push(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }

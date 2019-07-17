@@ -33,16 +33,16 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
-const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
+const MAX_URL_LENGTH = 2045;
 
 interface SearchResult {
 	html_url: string;
@@ -300,7 +300,7 @@ export class IssueReporter extends Disposable {
 		serviceCollection.set(IWindowsService, new WindowsService(mainProcessService));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
-		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
+		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
 		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
 		this.logService = new FollowerLogService(logLevelClient, logService);
 
@@ -336,7 +336,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'].forEach(elementId => {
+		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -346,7 +346,7 @@ export class IssueReporter extends Disposable {
 		const showInfoElements = document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
 			const showInfo = showInfoElements.item(i);
-			showInfo!.addEventListener('click', (e) => {
+			showInfo!.addEventListener('click', (e: MouseEvent) => {
 				e.preventDefault();
 				const label = (<HTMLDivElement>e.target);
 				if (label) {
@@ -440,11 +440,11 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		document.onkeydown = (e: KeyboardEvent) => {
+		document.onkeydown = async (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
-				if (this.createIssue()) {
+				if (await this.createIssue()) {
 					ipcRenderer.send('vscode:closeIssueReporter');
 				}
 			}
@@ -676,12 +676,14 @@ export class IssueReporter extends Disposable {
 
 	private logSearchError(error: Error) {
 		this.logService.warn('issueReporter#search ', error.message);
-		/* __GDPR__
-		"issueReporterSearchError" : {
-				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-			}
-		*/
-		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
+		type IssueReporterSearchErrorClassification = {
+			message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' }
+		};
+
+		type IssueReporterSearchError = {
+			message: string;
+		};
+		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {
@@ -843,7 +845,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private createIssue(): boolean {
+	private async createIssue(): Promise<boolean> {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -873,13 +875,15 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		/* __GDPR__
-			"issueReporterSubmit" : {
-				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
+		type IssueReporterSubmitClassification = {
+			issueType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			numSimilarIssuesDisplayed: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+		type IssueReporterSubmitEvent = {
+			issueType: any;
+			numSimilarIssuesDisplayed: number;
+		};
+		this.telemetryService.publicLog2<IssueReporterSubmitEvent, IssueReporterSubmitClassification>('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 		this.hasBeenSubmitted = true;
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
@@ -887,12 +891,30 @@ export class IssueReporter extends Disposable {
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
-			clipboard.writeText(issueBody);
-			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+			try {
+				url = await this.writeToClipboard(baseUrl, issueBody);
+			} catch (_) {
+				return false;
+			}
 		}
 
 		ipcRenderer.send('vscode:openExternal', url);
 		return true;
+	}
+
+	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
+		return new Promise((resolve, reject) => {
+			ipcRenderer.once('vscode:issueReporterClipboardResponse', (_: unknown, shouldWrite: boolean) => {
+				if (shouldWrite) {
+					clipboard.writeText(issueBody);
+					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
+				} else {
+					reject();
+				}
+			});
+
+			ipcRenderer.send('vscode:issueReporterClipboard');
+		});
 	}
 
 	private getExtensionGitHubUrl(): string {
@@ -1088,11 +1110,7 @@ export class IssueReporter extends Disposable {
 		// Exclude right click
 		if (event.which < 3) {
 			shell.openExternal((<HTMLAnchorElement>event.target).href);
-
-			/* __GDPR__
-				"issueReporterViewSimilarIssue" : { }
-			*/
-			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
+			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}
 
@@ -1103,12 +1121,13 @@ export class IssueReporter extends Disposable {
 		} else {
 			const error = new Error(`${elementId} not found.`);
 			this.logService.error(error);
-			/* __GDPR__
-				"issueReporterGetElementError" : {
-						"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-					}
-				*/
-			this.telemetryService.publicLog('issueReporterGetElementError', { message: error.message });
+			type IssueReporterGetElementErrorClassification = {
+				message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+			};
+			type IssueReporterGetElementErrorEvent = {
+				message: string;
+			};
+			this.telemetryService.publicLog2<IssueReporterGetElementErrorEvent, IssueReporterGetElementErrorClassification>('issueReporterGetElementError', { message: error.message });
 
 			return undefined;
 		}

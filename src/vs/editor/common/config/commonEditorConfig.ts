@@ -153,8 +153,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return true;
 	}
 
-	private static _subsetEquals(base: object, subset: object): boolean {
-		for (let key in subset) {
+	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
+		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
 				const subsetValue = subset[key];
 				const baseValue = base[key];
@@ -839,7 +839,7 @@ const editorConfiguration: IConfigurationNode = {
 			enumDescriptions: [
 				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
 				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
-				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and ignore others')
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
 			]
 		},
 		'editor.selectionHighlight': {
