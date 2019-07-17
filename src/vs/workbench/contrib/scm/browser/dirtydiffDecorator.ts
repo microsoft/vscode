@@ -1158,7 +1158,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	private enabled = false;
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
-	private transientDisposables: IDisposable[] = [];
+	private readonly transientDisposables = this._register(new DisposableStore());
 	private stylesheet: HTMLStyleElement;
 
 	constructor(
@@ -1204,7 +1204,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			this.disable();
 		}
 
-		this.transientDisposables.push(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
+		this.transientDisposables.add(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
 		this.enabled = true;
 	}
@@ -1214,7 +1214,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			return;
 		}
 
-		this.transientDisposables = dispose(this.transientDisposables);
+		this.transientDisposables.clear();
 		this.models.forEach(m => this.items[m.id].dispose());
 		this.models = [];
 		this.items = Object.create(null);

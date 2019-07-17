@@ -57,7 +57,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 	}
 
 	private _onDidChangeLabel = new Emitter<string>();
-	get onDidChangeLabel(): Event<string> { return this._onDidChangeLabel.event; }
+	readonly onDidChangeLabel: Event<string> = this._onDidChangeLabel.event;
 
 	private _comments: modes.Comment[] | undefined;
 

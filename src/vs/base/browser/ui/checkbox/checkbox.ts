@@ -72,10 +72,10 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 export class Checkbox extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
+	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
+	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private readonly _opts: ICheckboxOpts;
 	readonly domNode: HTMLElement;

@@ -18,7 +18,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -40,7 +40,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
+import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
@@ -913,7 +913,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
 					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
 					.replace('%ProgramFiles%', process.env['ProgramFiles']!)
-					.replace('%APPDATA%', process.env['APPDATA']!);
+					.replace('%APPDATA%', process.env['APPDATA']!)
+					.replace('%WINDIR%', process.env['WINDIR']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, join('/usr/local/bin', exeName)));

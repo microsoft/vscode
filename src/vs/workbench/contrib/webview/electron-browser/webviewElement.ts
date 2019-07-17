@@ -296,7 +296,7 @@ export class WebviewElement extends Disposable implements Webview {
 	private _focused = false;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	constructor(
 		private readonly _options: WebviewOptions,

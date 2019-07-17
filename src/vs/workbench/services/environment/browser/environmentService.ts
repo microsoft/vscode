@@ -143,6 +143,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 	webviewEndpoint?: string;
+	galleryMachineIdResource?: URI;
 
 	get webviewResourceRoot(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';

@@ -69,7 +69,7 @@ export class FindReplaceState implements IDisposable {
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _currentMatch: Range | null;
-	private readonly _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
+	private readonly _onFindReplaceStateChange = new Emitter<FindReplaceStateChangedEvent>();
 
 	public get searchString(): string { return this._searchString; }
 	public get replaceString(): string { return this._replaceString; }
@@ -87,7 +87,7 @@ export class FindReplaceState implements IDisposable {
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
 	public get currentMatch(): Range | null { return this._currentMatch; }
-	public get onFindReplaceStateChange(): Event<FindReplaceStateChangedEvent> { return this._onFindReplaceStateChange.event; }
+	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
 
 	constructor() {
 		this._searchString = '';
@@ -104,7 +104,6 @@ export class FindReplaceState implements IDisposable {
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
 		this._currentMatch = null;
-		this._onFindReplaceStateChange = new Emitter<FindReplaceStateChangedEvent>();
 	}
 
 	public dispose(): void {

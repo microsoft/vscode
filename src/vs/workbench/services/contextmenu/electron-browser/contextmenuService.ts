@@ -66,7 +66,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	_serviceBrand: any;
 
 	private _onDidContextMenu = this._register(new Emitter<void>());
-	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
+	readonly onDidContextMenu: Event<void> = this._onDidContextMenu.event;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,

@@ -122,6 +122,7 @@ export interface ITerminalConfigHelper {
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export interface ITerminalFont {

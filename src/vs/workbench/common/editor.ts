@@ -295,7 +295,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display description of this input.
 	 */
-	getDescription(verbosity?: Verbosity): string | null;
+	getDescription(verbosity?: Verbosity): string | undefined;
 
 	/**
 	 * Returns the display title of this input.
@@ -330,13 +330,13 @@ export interface IEditorInput extends IDisposable {
 export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeDirty(): Event<void> { return this._onDidChangeDirty.event; }
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
 	protected readonly _onDidChangeLabel: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeLabel(): Event<void> { return this._onDidChangeLabel.event; }
+	readonly onDidChangeLabel: Event<void> = this._onDidChangeLabel.event;
 
 	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private disposed: boolean = false;
 
@@ -364,8 +364,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the description of this input that can be shown to the user. Examples include showing the description of
 	 * the input above the editor area to the side of the name of the input.
 	 */
-	getDescription(verbosity?: Verbosity): string | null {
-		return null;
+	getDescription(verbosity?: Verbosity): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -380,12 +380,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the preferred editor for this input. A list of candidate editors is passed in that whee registered
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
-	getPreferredEditorId(candidates: string[]): string | null {
-		if (candidates && candidates.length > 0) {
+	getPreferredEditorId(candidates: string[]): string | undefined {
+		if (candidates.length > 0) {
 			return candidates[0];
 		}
 
-		return null;
+		return undefined;
 	}
 
 	/**
@@ -552,7 +552,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	constructor(
 		private readonly name: string,
-		private readonly description: string | null,
+		private readonly description: string | undefined,
 		private readonly _details: EditorInput,
 		private readonly _master: EditorInput
 	) {
@@ -625,7 +625,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.name;
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -658,7 +658,7 @@ export interface ITextEditorModel extends IEditorModel {
 export class EditorModel extends Disposable implements IEditorModel {
 
 	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	readonly onDispose: Event<void> = this._onDispose.event;
 
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
