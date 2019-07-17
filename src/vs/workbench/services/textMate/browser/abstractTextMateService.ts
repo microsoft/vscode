@@ -200,6 +200,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private async _registerDefinitionIfAvailable(modeId: string): Promise<void> {
+		if (modeId === 'typescript') {
+			return;
+		}
 		const languageIdentifier = this._modeService.getLanguageIdentifier(modeId);
 		if (!languageIdentifier) {
 			return;

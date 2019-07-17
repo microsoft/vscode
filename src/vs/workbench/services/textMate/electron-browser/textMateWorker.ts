@@ -10,6 +10,7 @@ import { IValidEmbeddedLanguagesMap, IValidTokenTypeMap, IValidGrammarDefinition
 import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextMateWorkerHost } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
@@ -34,11 +35,13 @@ export interface IRawModelData {
 
 class TextMateWorkerModel extends MirrorTextModel {
 
+	private readonly _tokenizationStateStore: TokenizationStateStore;
 	private readonly _worker: TextMateWorker;
 	private _languageId: LanguageId;
 
 	constructor(uri: URI, lines: string[], eol: string, versionId: number, worker: TextMateWorker, languageId: LanguageId) {
 		super(uri, lines, eol, versionId);
+		this._tokenizationStateStore = new TokenizationStateStore();
 		this._worker = worker;
 		this._languageId = languageId;
 		this._resetTokenization();

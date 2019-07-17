@@ -21,7 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
 
-const RUN_TEXTMATE_IN_WORKER = false;
+const RUN_TEXTMATE_IN_WORKER = true;
 
 class ModelWorkerTextMateTokenizer extends Disposable {
 

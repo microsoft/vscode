@@ -26,7 +26,7 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
-const RUN_TEXTMATE_IN_WORKER = false;
+const RUN_TEXTMATE_IN_WORKER = true;
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
