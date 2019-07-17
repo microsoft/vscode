@@ -169,7 +169,9 @@ export function getDefaultShell(
 	defaultShell: string,
 	isWoW64: boolean,
 	windir: string | undefined,
-	platformOverride: platform.Platform = platform.platform
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
+	platformOverride: platform.Platform = platform.platform,
 ): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
@@ -190,17 +192,33 @@ export function getDefaultShell(
 		executable = executable.replace(/\//g, '\\');
 	}
 
+	if (configurationResolverService) {
+		executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
+	}
+
 	return executable;
 }
 
 export function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
-	platformOverride: platform.Platform = platform.platform
-): string[] {
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
+	platformOverride: platform.Platform = platform.platform,
+): string | string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	const args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	let args = <string[] | string>((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default);
+	if (typeof args === 'string' && platformOverride === platform.Platform.Windows) {
+		return configurationResolverService ? configurationResolverService.resolve(lastActiveWorkspace, args) : args;
+	}
+	if (configurationResolverService) {
+		const resolvedArgs: string[] = [];
+		for (const arg of args) {
+			resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
+		}
+		args = resolvedArgs;
+	}
 	return args;
 }
 
@@ -237,13 +255,13 @@ export function createTerminalEnvironment(
 			}
 		}
 
-		// Merge config (settings) and ShellLaunchConfig environments
-		mergeEnvironments(env, allowedEnvFromConfig);
-		mergeEnvironments(env, shellLaunchConfig.env);
-
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
 		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+
+		// Merge config (settings) and ShellLaunchConfig environments
+		mergeEnvironments(env, allowedEnvFromConfig);
+		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
 		addTerminalEnvironmentKeys(env, version, platform.locale, setLocaleVariables);

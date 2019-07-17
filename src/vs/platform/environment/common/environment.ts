@@ -170,4 +170,6 @@ export interface IEnvironmentService {
 	webviewEndpoint?: string;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
+
+	readonly galleryMachineIdResource?: URI;
 }

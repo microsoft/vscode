@@ -49,13 +49,13 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
-	get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> { return this._onAutoSaveConfigurationChange.event; }
+	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration> = this._onAutoSaveConfigurationChange.event;
 
 	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
-	get onFilesAssociationChange(): Event<void> { return this._onFilesAssociationChange.event; }
+	readonly onFilesAssociationChange: Event<void> = this._onFilesAssociationChange.event;
 
 	private readonly _onWillMove = this._register(new Emitter<IWillMoveEvent>());
-	get onWillMove(): Event<IWillMoveEvent> { return this._onWillMove.event; }
+	readonly onWillMove: Event<IWillMoveEvent> = this._onWillMove.event;
 
 	private _models: TextFileEditorModelManager;
 	get models(): ITextFileEditorModelManager { return this._models; }

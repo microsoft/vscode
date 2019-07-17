@@ -108,7 +108,7 @@ class TitleMenus extends Disposable {
 	private titleSecondaryActions: IAction[] = [];
 
 	private _onDidChangeTitle = this._register(new Emitter<void>());
-	get onDidChangeTitle(): Event<void> { return this._onDidChangeTitle.event; }
+	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
 	constructor(
 		id: string,

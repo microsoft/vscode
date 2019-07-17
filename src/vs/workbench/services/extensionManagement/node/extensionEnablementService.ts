@@ -138,7 +138,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		if (Array.isArray(disabledExtensions)) {
 			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 		}
-		if (this.environmentService.configuration.remoteAuthority) {
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const server = isUIExtension(extension.manifest, this.productService, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
 			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
 		}

@@ -3,49 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
+import { memoize } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { WebviewEvents, WebviewInputOptions } from './webviewEditorService';
-import { Webview, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
-export class WebviewEditorInput<State = any> extends EditorInput {
+class WebviewIconsManager {
+	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
 
-	private static _styleElement?: HTMLStyleElement;
+	@memoize
+	private get _styleElement(): HTMLStyleElement {
+		const element = dom.createStyleSheet();
+		element.className = 'webview-icons';
+		return element;
+	}
 
-	private static _icons = new Map<string, { light: URI, dark: URI }>();
-
-	private static updateStyleElement(
-		id: string,
+	public setIcons(
+		webviewId: string,
 		iconPath: { light: URI, dark: URI } | undefined
 	) {
-		if (!this._styleElement) {
-			this._styleElement = dom.createStyleSheet();
-			this._styleElement.className = 'webview-icons';
-		}
-
-		if (!iconPath) {
-			this._icons.delete(id);
+		if (iconPath) {
+			this._icons.set(webviewId, iconPath);
 		} else {
-			this._icons.set(id, iconPath);
+			this._icons.delete(webviewId);
 		}
 
+		this.updateStyleSheet();
+	}
+
+	private updateStyleSheet() {
 		const cssRules: string[] = [];
 		this._icons.forEach((value, key) => {
 			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 			if (URI.isUri(value)) {
 				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value).toString()}); }`);
-			} else {
+			}
+			else {
 				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value.light).toString()}); }`);
 				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${dom.asDomUri(value.dark).toString()}); }`);
 			}
 		});
 		this._styleElement.innerHTML = cssRules.join('\n');
 	}
+}
+
+export class WebviewEditorInput<State = any> extends EditorInput {
+
+	private readonly iconsManager = new WebviewIconsManager();
 
 	public static readonly typeId = 'workbench.editors.webviewInput';
 
@@ -130,7 +140,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 	}
 
 	public getDescription() {
-		return null;
+		return undefined;
 	}
 
 	public setName(value: string): void {
@@ -144,7 +154,7 @@ export class WebviewEditorInput<State = any> extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.updateStyleElement(this.id, value);
+		this.iconsManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {

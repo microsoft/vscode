@@ -55,8 +55,6 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
 
@@ -96,7 +94,6 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		this.registerViews();
 	}
@@ -116,7 +113,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push(this.createOtherRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createWorkspaceRecommendedExtensionsListViewDescriptor());
 
-		viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.localExtensionManagementServer));
+		if (this.extensionManagementServerService.localExtensionManagementServer) {
+			viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.localExtensionManagementServer));
+		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.remoteExtensionManagementServer));
 		}
@@ -183,15 +182,15 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 	private createExtensionsViewDescriptorsForServer(server: IExtensionManagementServer): IViewDescriptor[] {
 		const getViewName = (viewTitle: string, server: IExtensionManagementServer): string => {
-			const serverLabel = this.workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? this.labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
-			if (viewTitle && this.workbenchEnvironmentService.configuration.remoteAuthority) {
+			const serverLabel = server.label;
+			if (viewTitle && this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 				return `${serverLabel} - ${viewTitle}`;
 			}
 			return viewTitle ? viewTitle : serverLabel;
 		};
 		const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
 		const getOutdatedViewName = (): string => getViewName(localize('outdated', "Outdated"), server);
-		const onDidChangeServerLabel: EventOf<void> = this.workbenchEnvironmentService.configuration.remoteAuthority ? EventOf.map(this.labelService.onDidChangeFormatters, () => undefined) : EventOf.None;
+		const onDidChangeServerLabel: EventOf<void> = EventOf.map(this.labelService.onDidChangeFormatters, () => undefined);
 		return [{
 			id: `extensions.${server.authority}.installed`,
 			get name() { return getInstalledViewName(); },

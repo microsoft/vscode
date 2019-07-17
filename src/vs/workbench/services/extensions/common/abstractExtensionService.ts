@@ -51,7 +51,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _installedExtensionsReady: Barrier;
 	protected readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
-	protected readonly _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
+	protected readonly _allRequestedActivateEvents = new Set<string>();
 	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
 	protected readonly _isExtensionDevTestFromCli: boolean;
@@ -82,7 +82,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
-		this._allRequestedActivateEvents = Object.create(null);
 		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
 
 		this._extensionHostProcessManagers = [];
@@ -168,11 +167,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public restartExtensionHost(): void {
 		this._stopExtensionHostProcess();
-		this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents));
+		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
 	public startExtensionHost(): void {
-		this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents));
+		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
 	public stopExtensionHost(): void {
@@ -184,7 +183,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Extensions have been scanned and interpreted
 
 			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents[activationEvent] = true;
+			this._allRequestedActivateEvents.add(activationEvent);
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
 				// There is no extension that is interested in this activation event
@@ -196,7 +195,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Extensions have not been scanned yet.
 
 			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents[activationEvent] = true;
+			this._allRequestedActivateEvents.add(activationEvent);
 
 			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
 		}
