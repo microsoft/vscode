@@ -719,25 +719,25 @@ export class ExtensionEditor extends BaseEditor {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
 
-		if (contrib.length) {
-
-			const details = $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', undefined, localize('debuggers', "Debuggers ({0})", contrib.length)),
-				$('table', undefined,
-					$('tr', undefined,
-						$('th', undefined, localize('debugger name', "Name")),
-						$('th', undefined, localize('debugger type', "Type")),
-					),
-					...contrib.map(d => $('tr', undefined,
-						$('td', undefined, d.label!),
-						$('td', undefined, d.type)))
-				)
-			);
-
-			append(container, details);
-			return true;
+		if (!contrib.length) {
+			return false;
 		}
-		return false;
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', undefined, localize('debuggers', "Debuggers ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('debugger name', "Name")),
+					$('th', undefined, localize('debugger type', "Type")),
+				),
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.label!),
+					$('td', undefined, d.type)))
+			)
+		);
+
+		append(container, details);
+		return true;
 	}
 
 	private renderViewContainers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
@@ -750,21 +750,20 @@ export class ExtensionEditor extends BaseEditor {
 			return result;
 		}, [] as Array<{ id: string, title: string, location: string }>);
 
-		if (viewContainers.length) {
-
-
-			const details = $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', undefined, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
-				$('table', undefined,
-					$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
-					...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
-				)
-			);
-
-			append(container, details);
-			return true;
+		if (!viewContainers.length) {
+			return false;
 		}
-		return false;
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', undefined, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
+			$('table', undefined,
+				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
+				...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
+			)
+		);
+
+		append(container, details);
+		return true;
 	}
 
 	private renderViews(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
@@ -777,49 +776,49 @@ export class ExtensionEditor extends BaseEditor {
 			return result;
 		}, [] as Array<{ id: string, name: string, location: string }>);
 
-		if (views.length) {
-
-			const details = $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', undefined, localize('views', "Views ({0})", views.length)),
-				$('table', undefined,
-					$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
-					...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
-				)
-			);
-
-			append(container, details);
-			return true;
+		if (!views.length) {
+			return false;
 		}
-		return false;
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', undefined, localize('views', "Views ({0})", views.length)),
+			$('table', undefined,
+				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
+				...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
+			)
+		);
+
+		append(container, details);
+		return true;
 	}
 
 	private renderLocalizations(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const localizations = contributes && contributes.localizations || [];
 
-		if (localizations.length) {
-
-
-			const details = $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', undefined, localize('localizations', "Localizations ({0})", localizations.length)),
-				$('table', undefined,
-					$('tr', undefined, $('th', undefined, localize('localizations language id', "Language Id")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
-					...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
-				)
-			);
-
-			append(container, details);
-			return true;
+		if (!localizations.length) {
+			return false;
 		}
-		return false;
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', undefined, localize('localizations', "Localizations ({0})", localizations.length)),
+			$('table', undefined,
+				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language Id")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
+				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
+			)
+		);
+
+		append(container, details);
+		return true;
 	}
 
 	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
-		if (contrib.length) {
-
+		if (!contrib.length) {
+			return false;
+		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', undefined, localize('colorThemes', "Color Themes ({0})", contrib.length)),
@@ -828,15 +827,15 @@ export class ExtensionEditor extends BaseEditor {
 
 		append(container, details);
 		return true;
-		} return false;
 	}
 
 	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.iconThemes || [];
 
-		if (contrib.length) {
-
+		if (!contrib.length) {
+			return false;
+		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', undefined, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
@@ -845,15 +844,13 @@ export class ExtensionEditor extends BaseEditor {
 
 		append(container, details);
 		return true;
-		}
-		return false;
 	}
 
 	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const colors = contributes && contributes.colors;
 
-		if (!(colors && colors.length)) {
+		if (!colors || !colors.length) {
 			return false;
 		}
 
@@ -957,18 +954,18 @@ export class ExtensionEditor extends BaseEditor {
 
 			let command = byId[rawKeybinding.command];
 
-			if (command) {
-				command.keybindings.push(keybinding);
-
-			} else {
+			if (!command) {
 				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
 				byId[command.id] = command;
 				commands.push(command);
+			} else {
+				command.keybindings.push(keybinding);
 			}
 		});
 
-		if (commands.length) {
-
+		if (!commands.length) {
+			return false;
+		}
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
@@ -996,7 +993,6 @@ export class ExtensionEditor extends BaseEditor {
 
 		append(container, details);
 		return true;
-	} return false;
 	}
 
 	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
@@ -1040,8 +1036,9 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		if (languages.length) {
-
+		if (!languages.length) {
+			return false;
+		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', undefined, localize('languages', "Languages ({0})", languages.length)),
@@ -1065,7 +1062,6 @@ export class ExtensionEditor extends BaseEditor {
 
 		append(container, details);
 		return true;
-		} return false;
 	}
 
 	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | null {
@@ -1078,13 +1074,11 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = KeybindingParser.parseKeybinding(key || rawKeyBinding.key, OS);
-		if (keyBinding) {
-			return this.keybindingService.resolveKeybinding(keyBinding)[0];
+		if (!keyBinding) {
+			return null;
 		}
 
-		return null;
-
-
+		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 
 	private loadContents<T>(loadingTask: () => CacheResult<T>): Promise<T> {
