@@ -70,6 +70,11 @@ suite('ExtensionEnablementService Test', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, onDidInstallExtension: didInstallEvent.event, getInstalled: () => Promise.resolve([] as ILocalExtension[]) } as IExtensionManagementService);
+		instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{
+			localExtensionManagementServer: {
+				extensionManagementService: instantiationService.get(IExtensionManagementService)
+			}
+		});
 		testObject = new TestExtensionEnablementService(instantiationService);
 	});
 
