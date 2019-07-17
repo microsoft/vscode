@@ -18,6 +18,10 @@ export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
 }
 
+export type UpdateNotAvailableClassification = {
+	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
+
 export abstract class AbstractUpdateService implements IUpdateService {
 
 	_serviceBrand: any;

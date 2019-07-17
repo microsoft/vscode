@@ -135,13 +135,11 @@ export class ElectronWindow extends Disposable {
 			try {
 				await this.commandService.executeCommand(request.id, ...args);
 
-				/* __GDPR__
-					"commandExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
+				type CommandExecutedClassifcation = {
+					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				};
+				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
 			} catch (error) {
 				this.notificationService.error(error);
 			}

@@ -356,43 +356,33 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
+					type WalkThroughSnippetInteractionClassification = {
+						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WalkThroughSnippetInteractionEvent = {
+						from?: string,
+						type: string,
+						snippet: number
+					};
+
 					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
 							snippet: i
