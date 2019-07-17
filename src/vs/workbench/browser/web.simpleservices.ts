@@ -40,6 +40,10 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
+//import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+//import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 //#region Download
 
@@ -649,20 +653,61 @@ registerSingleton(IWindowService, SimpleWindowService);
 export class SimpleExtensionHostDebugService implements IExtensionHostDebugService {
 	_serviceBrand: any;
 
-	reload(sessionId: string): void { }
-	onReload: Event<IReloadSessionEvent> = Event.None;
+	private channel: IChannel;
 
-	close(sessionId: string): void { }
-	onClose: Event<ICloseSessionEvent> = Event.None;
+	constructor(
+		@IRemoteAgentService private remoteAgentService: IRemoteAgentService
+	) {
+		const connection = this.remoteAgentService.getConnection();
+		if (connection) {
+			this.channel = connection.getChannel('extensionhostdebugservice');
+		}
+	}
 
-	attachSession(sessionId: string, port: number, subId?: string): void { }
-	onAttachSession: Event<IAttachSessionEvent> = Event.None;
+	reload(sessionId: string): void {
+		if (this.channel) {
+			this.channel.call('reload', [sessionId]);
+		}
+	}
+	get onReload(): Event<IReloadSessionEvent> {
+		return this.channel ? this.channel.listen('reload') : Event.None;
+	}
 
-	logToSession(sessionId: string, log: IRemoteConsoleLog): void { }
-	onLogToSession: Event<ILogToSessionEvent> = Event.None;
+	close(sessionId: string): void {
+		if (this.channel) {
+			this.channel.call('close', [sessionId]);
+		}
+	}
+	get onClose(): Event<ICloseSessionEvent> {
+		return this.channel ? this.channel.listen('close') : Event.None;
+	}
 
-	terminateSession(sessionId: string, subId?: string): void { }
-	onTerminateSession: Event<ITerminateSessionEvent> = Event.None;
+	attachSession(sessionId: string, port: number, subId?: string): void {
+		if (this.channel) {
+			this.channel.call('attach', [sessionId, port, subId]);
+		}
+	}
+	get onAttachSession(): Event<IAttachSessionEvent> {
+		return this.channel ? this.channel.listen('attach') : Event.None;
+	}
+
+	logToSession(sessionId: string, log: IRemoteConsoleLog): void {
+		if (this.channel) {
+			this.channel.call('log', [sessionId, log]);
+		}
+	}
+	get onLogToSession(): Event<ILogToSessionEvent> {
+		return this.channel ? this.channel.listen('log') : Event.None;
+	}
+
+	terminateSession(sessionId: string, subId?: string): void {
+		if (this.channel) {
+			this.channel.call('terminate', [sessionId, subId]);
+		}
+	}
+	get onTerminateSession(): Event<ITerminateSessionEvent> {
+		return this.channel ? this.channel.listen('terminate') : Event.None;
+	}
 }
 registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
 
@@ -807,6 +852,53 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+
+		// we pass the "ParsedArgs" as query parameters of the URL
+
+		let newAddress = `${document.location.origin}/?`;
+
+		const f = args['folder-uri'];
+		if (f) {
+			let u: URI | undefined;
+			if (Array.isArray(f)) {
+				if (f.length > 0) {
+					u = URI.parse(f[0]);
+				}
+			} else {
+				u = URI.parse(f);
+			}
+			if (u) {
+				newAddress += `folder=${encodeURIComponent(u.path)}`;
+			}
+		}
+
+		const ep = args['extensionDevelopmentPath'];
+		if (ep) {
+			let u: string | undefined;
+			if (Array.isArray(ep)) {
+				if (ep.length > 0) {
+					u = ep[0];
+				}
+			} else {
+				u = ep;
+			}
+			if (u) {
+				newAddress += `&edp=${encodeURIComponent(u)}`;
+			}
+		}
+
+		const di = args['debugId'];
+		if (di) {
+			newAddress += `&di=${encodeURIComponent(di)}`;
+		}
+
+		const ibe = args['inspect-brk-extensions'];
+		if (ibe) {
+			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
+		}
+
+		window.open(newAddress);
+
 		return Promise.resolve();
 	}
 

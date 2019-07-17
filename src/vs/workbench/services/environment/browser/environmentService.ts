@@ -91,6 +91,36 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 
 		this.webviewEndpoint = configuration.webviewEndpoint;
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
+
+		if (document && document.location && document.location.search) {
+
+			const map = new Map<string, string>();
+			const query = document.location.search.substring(1);
+			const vars = query.split('&');
+			for (let p of vars) {
+				const pair = p.split('=');
+				if (pair.length >= 2) {
+					map.set(decodeURIComponent(pair[0]), decodeURIComponent(pair[1]));
+				}
+			}
+
+			const edp = map.get('edp');
+			if (edp) {
+				this.extensionDevelopmentLocationURI = [URI.parse(edp)];
+				this.isExtensionDevelopment = true;
+			}
+
+			const di = map.get('di');
+			if (di) {
+				this.debugExtensionHost.debugId = di;
+			}
+
+			const ibe = map.get('ibe');
+			if (ibe) {
+				this.debugExtensionHost.port = parseInt(ibe);
+				this.debugExtensionHost.break = false;
+			}
+		}
 	}
 
 	untitledWorkspacesHome: URI;
