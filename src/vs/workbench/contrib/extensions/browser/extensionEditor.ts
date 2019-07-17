@@ -821,13 +821,13 @@ export class ExtensionEditor extends BaseEditor {
 		if (contrib.length) {
 
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('colorThemes', "Color Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
-		);
+			const details = $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', undefined, localize('colorThemes', "Color Themes ({0})", contrib.length)),
+				$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			);
 
-		append(container, details);
-		return true;
+			append(container, details);
+			return true;
 		} return false;
 	}
 
@@ -838,13 +838,13 @@ export class ExtensionEditor extends BaseEditor {
 		if (contrib.length) {
 
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
-		);
+			const details = $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', undefined, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+				$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			);
 
-		append(container, details);
-		return true;
+			append(container, details);
+			return true;
 		}
 		return false;
 	}
@@ -970,33 +970,33 @@ export class ExtensionEditor extends BaseEditor {
 		if (commands.length) {
 
 
-		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
-			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding);
-			return element;
-		};
+			const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
+				const element = $('');
+				new KeybindingLabel(element, OS).set(keybinding);
+				return element;
+			};
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('commands', "Commands ({0})", commands.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('command name', "Name")),
-					$('th', undefined, localize('description', "Description")),
-					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
-					$('th', undefined, localize('menuContexts', "Menu Contexts"))
-				),
-				...commands.map(c => $('tr', undefined,
-					$('td', undefined, $('code', undefined, c.id)),
-					$('td', undefined, c.title),
-					$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
-					$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
-				))
-			)
-		);
+			const details = $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', undefined, localize('commands', "Commands ({0})", commands.length)),
+				$('table', undefined,
+					$('tr', undefined,
+						$('th', undefined, localize('command name', "Name")),
+						$('th', undefined, localize('description', "Description")),
+						$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
+						$('th', undefined, localize('menuContexts', "Menu Contexts"))
+					),
+					...commands.map(c => $('tr', undefined,
+						$('td', undefined, $('code', undefined, c.id)),
+						$('td', undefined, c.title),
+						$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
+						$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
+					))
+				)
+			);
 
-		append(container, details);
-		return true;
-	} return false;
+			append(container, details);
+			return true;
+		} return false;
 	}
 
 	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
@@ -1043,28 +1043,28 @@ export class ExtensionEditor extends BaseEditor {
 		if (languages.length) {
 
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('languages', "Languages ({0})", languages.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('language id', "ID")),
-					$('th', undefined, localize('language name', "Name")),
-					$('th', undefined, localize('file extensions', "File Extensions")),
-					$('th', undefined, localize('grammar', "Grammar")),
-					$('th', undefined, localize('snippets', "Snippets"))
-				),
-				...languages.map(l => $('tr', undefined,
-					$('td', undefined, l.id),
-					$('td', undefined, l.name),
-					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
-					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
-				))
-			)
-		);
+			const details = $('details', { open: true, ontoggle: onDetailsToggle },
+				$('summary', undefined, localize('languages', "Languages ({0})", languages.length)),
+				$('table', undefined,
+					$('tr', undefined,
+						$('th', undefined, localize('language id', "ID")),
+						$('th', undefined, localize('language name', "Name")),
+						$('th', undefined, localize('file extensions', "File Extensions")),
+						$('th', undefined, localize('grammar', "Grammar")),
+						$('th', undefined, localize('snippets', "Snippets"))
+					),
+					...languages.map(l => $('tr', undefined,
+						$('td', undefined, l.id),
+						$('td', undefined, l.name),
+						$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
+						$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
+						$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
+					))
+				)
+			);
 
-		append(container, details);
-		return true;
+			append(container, details);
+			return true;
 		} return false;
 	}
 
@@ -1083,7 +1083,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		return null;
-
 
 	}
 
