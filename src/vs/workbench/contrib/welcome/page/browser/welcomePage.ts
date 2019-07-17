@@ -311,7 +311,7 @@ class WelcomePage extends Disposable {
 				return;
 			}
 			const moreRecent = ul.querySelector('.moreRecent')!;
-			const workspacesToShow = workspaces.slice(0, 5);
+			const workspacesToShow = workspaces.slice(0, this.configurationService.getValue<number>('welcome.numOpenRecentEntries') || 5);
 			const updateEntries = () => {
 				const listEntries = this.createListEntries(workspacesToShow);
 				while (ul.firstChild) {
