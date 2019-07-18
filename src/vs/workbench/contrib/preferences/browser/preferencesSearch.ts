@@ -15,7 +15,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';

@@ -158,7 +158,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 
 			telemetryService = new TelemetryService(config, configurationService);

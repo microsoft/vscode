@@ -9,7 +9,7 @@ import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, Extension
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';

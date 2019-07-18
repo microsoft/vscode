@@ -844,8 +844,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const cli = openConfig.cli;
-		const parseOptions: IPathParseOptions = { gotoLineMode: cli && cli.goto };
+		const parseOptions: IPathParseOptions = { gotoLineMode: openConfig.gotoLineMode };
 		for (const pathToOpen of openConfig.urisToOpen || []) {
 			if (!pathToOpen) {
 				continue;

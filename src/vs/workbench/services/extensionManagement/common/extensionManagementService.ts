@@ -5,9 +5,9 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
-	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
+	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';

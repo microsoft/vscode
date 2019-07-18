@@ -86,6 +86,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc'
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 export class CodeApplication extends Disposable {
 
@@ -240,6 +241,7 @@ export class CodeApplication extends Disposable {
 						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 						cli: this.environmentService.args,
 						urisToOpen: macOpenFileURIs,
+						gotoLineMode: false,
 						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 					});
 
@@ -276,12 +278,6 @@ export class CodeApplication extends Disposable {
 				}
 
 				this.logService.error('Error fetching shell env', error);
-			}
-		});
-
-		ipc.on('vscode:extensionHostDebug', (_: Event, windowId: number, broadcast: any) => {
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:extensionHostDebug', broadcast, [windowId]); // Send to all windows (except sender window)
 			}
 		});
 
@@ -484,7 +480,7 @@ export class CodeApplication extends Disposable {
 			const channel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, this.environmentService.installSourcePath);
-			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
+			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -577,6 +573,9 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('loglevel', logLevelChannel);
 		sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
 
+		// ExtensionHost Debug broadcast service
+		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
+
 		// Signal phase: ready (services set)
 		this.lifecycleService.phase = LifecycleMainPhase.Ready;
 
@@ -597,8 +596,8 @@ export class CodeApplication extends Disposable {
 			urlService.registerHandler({
 				async handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
-						const cli = { ...environmentService.args, goto: true };
-						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
+						const cli = { ...environmentService.args };
+						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });
 
 						await window.ready();
 
@@ -649,6 +648,7 @@ export class CodeApplication extends Disposable {
 				urisToOpen: macOpenFiles.map(file => this.getURIToOpenFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
+				gotoLineMode: false,
 				initialStartup: true
 			});
 		}
@@ -661,6 +661,7 @@ export class CodeApplication extends Disposable {
 			diffMode: args.diff,
 			noRecentEntry,
 			waitMarkerFileURI,
+			gotoLineMode: args.goto,
 			initialStartup: true
 		});
 	}

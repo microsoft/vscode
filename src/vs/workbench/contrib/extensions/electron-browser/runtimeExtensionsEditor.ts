@@ -23,7 +23,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
-import { EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';

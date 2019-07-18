@@ -228,7 +228,8 @@ export class LaunchService implements ILaunchService {
 				diffMode: args.diff,
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
-				waitMarkerFileURI
+				waitMarkerFileURI,
+				gotoLineMode: args.goto
 			});
 		}
 

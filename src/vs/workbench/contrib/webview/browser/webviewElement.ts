@@ -155,7 +155,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 	}
 
-	public set options(options: WebviewContentOptions) {
+	public set contentOptions(options: WebviewContentOptions) {
 		if (areWebviewInputOptionsEqual(options, this.content.options)) {
 			return;
 		}

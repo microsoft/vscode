@@ -10,9 +10,10 @@ import { IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/c
 import * as ExtensionsActions from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';

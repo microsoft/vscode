@@ -10,9 +10,9 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import {
-	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier,
-	IExtensionEnablementService, ILocalExtension
+	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';

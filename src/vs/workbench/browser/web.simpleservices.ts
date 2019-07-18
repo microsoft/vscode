@@ -11,10 +11,10 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 // tslint:disable-next-line: import-patterns no-standalone-editor
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -25,8 +25,7 @@ import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -35,13 +34,12 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 //#region Download
 
@@ -56,40 +54,6 @@ export class SimpleDownloadService implements IDownloadService {
 }
 
 registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
-
-//#region Extension Management
-
-//#region Extension Enablement
-
-export class SimpleExtensionEnablementService implements IExtensionEnablementService {
-
-	_serviceBrand: any;
-
-	readonly onEnablementChanged = Event.None;
-
-	readonly allUserExtensionsDisabled = false;
-
-	getEnablementState(extension: IExtension): EnablementState {
-		return EnablementState.Enabled;
-	}
-
-	canChangeEnablement(extension: IExtension): boolean {
-		return false;
-	}
-
-	setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
-		throw new Error('not implemented');
-	}
-
-	isEnabled(extension: IExtension): boolean {
-		return true;
-	}
-
-}
-
-registerSingleton(IExtensionEnablementService, SimpleExtensionEnablementService, true);
 
 //#endregion
 
@@ -272,38 +236,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 }
-
-//#endregion
-
-//#region Telemetry
-
-export class SimpleTelemetryService implements ITelemetryService {
-
-	_serviceBrand: undefined;
-
-	isOptedIn: true;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-
-	setEnabled(value: boolean): void {
-	}
-
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
-		});
-	}
-}
-
-registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#endregion
 
@@ -648,63 +580,18 @@ registerSingleton(IWindowService, SimpleWindowService);
 
 //#region ExtensionHostDebugService
 
-export class SimpleExtensionHostDebugService implements IExtensionHostDebugService {
-	_serviceBrand: any;
-
-	private channel: IChannel;
+export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	constructor(
-		@IRemoteAgentService private remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		const connection = this.remoteAgentService.getConnection();
-		if (connection) {
-			this.channel = connection.getChannel('extensionhostdebugservice');
-		}
-	}
+		const connection = remoteAgentService.getConnection();
 
-	reload(sessionId: string): void {
-		if (this.channel) {
-			this.channel.call('reload', [sessionId]);
+		if (!connection) {
+			throw new Error('Missing agent connection');
 		}
-	}
-	get onReload(): Event<IReloadSessionEvent> {
-		return this.channel ? this.channel.listen('reload') : Event.None;
-	}
 
-	close(sessionId: string): void {
-		if (this.channel) {
-			this.channel.call('close', [sessionId]);
-		}
-	}
-	get onClose(): Event<ICloseSessionEvent> {
-		return this.channel ? this.channel.listen('close') : Event.None;
-	}
-
-	attachSession(sessionId: string, port: number, subId?: string): void {
-		if (this.channel) {
-			this.channel.call('attach', [sessionId, port, subId]);
-		}
-	}
-	get onAttachSession(): Event<IAttachSessionEvent> {
-		return this.channel ? this.channel.listen('attach') : Event.None;
-	}
-
-	logToSession(sessionId: string, log: IRemoteConsoleLog): void {
-		if (this.channel) {
-			this.channel.call('log', [sessionId, log]);
-		}
-	}
-	get onLogToSession(): Event<ILogToSessionEvent> {
-		return this.channel ? this.channel.listen('log') : Event.None;
-	}
-
-	terminateSession(sessionId: string, subId?: string): void {
-		if (this.channel) {
-			this.channel.call('terminate', [sessionId, subId]);
-		}
-	}
-	get onTerminateSession(): Event<ITerminateSessionEvent> {
-		return this.channel ? this.channel.listen('terminate') : Event.None;
+		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
 	}
 }
 registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);

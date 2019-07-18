@@ -35,7 +35,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqualOrParent } from 'vs/base/common/resources';
 

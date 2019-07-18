@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

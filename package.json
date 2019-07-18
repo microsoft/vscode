@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "3b7db3f93b5efe73eedab147ee9eb72a9abadc9d",
+  "distro": "02f64b63759f873b1fe125ef9e4f3d20e73d30e5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -42,14 +42,13 @@
     "node-pty": "0.9.0-beta19",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
-    "semver": "^5.5.0",
-    "semver-umd": "^5.5.0",
+    "semver-umd": "^5.5.3",
     "spdlog": "^0.9.0",
     "sudo-prompt": "9.0.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "2.1.7",
     "vscode-proxy-agent": "0.4.0",
-    "vscode-ripgrep": "^1.3.1",
+    "vscode-ripgrep": "^1.5.4",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
     "xterm": "3.15.0-beta71",
@@ -84,7 +83,7 @@
     "fast-plist": "0.1.2",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "deepak1556/gulp-atom-electron#update_setuid_helper_perm",
+    "gulp-atom-electron": "^1.21.1",
     "gulp-azure-storage": "^0.10.0",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
@@ -155,8 +154,8 @@
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
     "vscode-windows-registry": "microsoft/vscode-windows-registry#n-api",
-    "windows-foreground-love": "0.1.0",
-    "windows-mutex": "microsoft/node-windows-mutex#0262bf00dbf28ffa18e2734acd9585c35eac8d16",
+    "windows-foreground-love": "0.2.0",
+    "windows-mutex": "0.3.0",
     "windows-process-tree": "0.2.4"
   }
 }

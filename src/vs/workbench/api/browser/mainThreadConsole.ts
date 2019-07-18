@@ -9,7 +9,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)
 export class MainThreadConsole implements MainThreadConsoleShape {
