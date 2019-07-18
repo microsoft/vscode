@@ -81,9 +81,8 @@ class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOve
 		}
 
 		this._owner = undefined;
-		if (this.options.retainContextWhenHidden) {
-			this.container.style.visibility = 'hidden';
-		} else {
+		this.container.style.visibility = 'hidden';
+		if (!this.options.retainContextWhenHidden) {
 			this._webview.clear();
 			this._webviewEvents.clear();
 		}
