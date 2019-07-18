@@ -12,7 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
