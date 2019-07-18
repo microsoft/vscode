@@ -36,6 +36,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/product';
+import { asDomUri } from 'vs/base/browser/dom';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -130,7 +131,7 @@ class Extension implements IExtension {
 
 	private get localIconUrl(): string | null {
 		if (this.local && this.local.manifest.icon) {
-			return resources.joinPath(this.local.location, this.local.manifest.icon).toString();
+			return asDomUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString();
 		}
 		return null;
 	}
