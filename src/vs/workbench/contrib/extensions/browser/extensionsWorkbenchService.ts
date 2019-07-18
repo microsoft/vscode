@@ -775,10 +775,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return false;
 	}
 
-	install(extension: string | IExtension): Promise<IExtension> {
-		if (typeof extension === 'string') {
+	install(extension: URI | IExtension): Promise<IExtension> {
+		if (extension instanceof URI) {
 			return this.installWithProgress(async () => {
-				const { identifier } = await this.extensionService.install(URI.file(extension));
+				const { identifier } = await this.extensionService.install(extension);
 				this.checkAndEnableDisabledDependencies(identifier);
 				return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
 			});

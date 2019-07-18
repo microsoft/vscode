@@ -2862,7 +2862,7 @@ export class InstallVSIXAction extends Action {
 				return Promise.resolve();
 			}
 
-			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))
+			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(URI.file(vsix))))
 				.then(extensions => {
 					for (const extension of extensions) {
 						const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
