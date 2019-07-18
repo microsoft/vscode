@@ -53,6 +53,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { ProductService } from 'vs/platform/product/node/productService';
 import { IProductService } from 'vs/platform/product/common/product';
+import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -153,6 +155,9 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 	private async _createServices(server: SocketServer<RemoteAgentConnectionContext>): Promise<void> {
 		const services = new ServiceCollection();
+
+		// ExtensionHost Debug broadcast service
+		server.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
 
 		// TODO: @Sandy @Joao need dynamic context based router
 		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
