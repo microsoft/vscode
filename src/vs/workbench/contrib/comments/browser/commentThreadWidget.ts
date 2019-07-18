@@ -247,9 +247,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
 	}
 
+	private deleteCommentThread(): void {
+		this.dispose();
+		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
+	}
+
 	public collapse(): Promise<void> {
 		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-			this.dispose();
+			this.deleteCommentThread();
 			return Promise.resolve();
 		}
 
@@ -268,7 +273,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._isExpanded) {
 			this.hide();
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this.dispose();
+				this.deleteCommentThread();
 			}
 		} else {
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);

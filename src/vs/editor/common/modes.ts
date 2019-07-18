@@ -1285,7 +1285,7 @@ export interface CommentThread {
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
-	threadId: string | null;
+	threadId: string;
 	resource: string | null;
 	range: IRange;
 	label: string;
