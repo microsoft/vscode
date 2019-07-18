@@ -44,7 +44,7 @@ interface IExtensionStateProvider<T> {
 
 class Extension implements IExtension {
 
-	public enablementState: EnablementState = EnablementState.Enabled;
+	public enablementState: EnablementState = EnablementState.EnabledGlobally;
 
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
@@ -887,16 +887,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private checkAndEnableDisabledDependencies(extensionIdentifier: IExtensionIdentifier): Promise<void> {
 		const extension = this.local.filter(e => (e.local || e.gallery) && areSameExtensions(extensionIdentifier, e.identifier))[0];
 		if (extension) {
-			const disabledDepencies = this.getExtensionsRecursively([extension], this.local, EnablementState.Enabled, { dependencies: true, pack: false });
+			const disabledDepencies = this.getExtensionsRecursively([extension], this.local, EnablementState.EnabledGlobally, { dependencies: true, pack: false });
 			if (disabledDepencies.length) {
-				return this.setEnablement(disabledDepencies, EnablementState.Enabled);
+				return this.setEnablement(disabledDepencies, EnablementState.EnabledGlobally);
 			}
 		}
 		return Promise.resolve();
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {
-		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
+		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (enable) {
 			const allDependenciesAndPackedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: true });
 			return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState);
@@ -911,7 +911,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
 		const allExtensions = [...extensions, ...otherExtensions];
-		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
+		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (!enable) {
 			for (const extension of extensions) {
 				let dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
@@ -936,7 +936,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				if (i.enablementState === enablementState) {
 					return false;
 				}
-				const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
+				const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 				return (enable || i.type === ExtensionType.User) // Include all Extensions for enablement and only user extensions for disablement
 					&& (options.dependencies || options.pack)
 					&& extensions.some(extension =>
@@ -960,7 +960,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (i === extension) {
 				return false;
 			}
-			if (i.enablementState === EnablementState.WorkspaceDisabled || i.enablementState === EnablementState.Disabled) {
+			if (!(i.enablementState === EnablementState.EnabledWorkspace || i.enablementState === EnablementState.EnabledGlobally)) {
 				return false;
 			}
 			if (extensionsToDisable.indexOf(i) !== -1) {
@@ -1010,7 +1010,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					]
 				}
 				*/
-				this.telemetryService.publicLog(enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled ? 'extension:enable' : 'extension:disable', extensions[i].telemetryData);
+				this.telemetryService.publicLog(enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace ? 'extension:enable' : 'extension:disable', extensions[i].telemetryData);
 			}
 		}
 		return changed;

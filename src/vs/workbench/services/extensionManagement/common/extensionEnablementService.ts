@@ -56,30 +56,34 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 	}
 
 	getEnablementState(extension: IExtension): EnablementState {
-		if (this._isSystemDisabled(extension)) {
-			return EnablementState.Disabled;
+		if (this._isDisabledInEnv(extension)) {
+			return EnablementState.DisabledByEnvironemt;
+		}
+		if (this._isDisabledByExtensionKind(extension)) {
+			return EnablementState.DisabledByExtensionKind;
 		}
 		const identifier = extension.identifier;
 		if (this.hasWorkspace) {
 			if (this._getEnabledExtensions(StorageScope.WORKSPACE).filter(e => areSameExtensions(e, identifier))[0]) {
-				return EnablementState.WorkspaceEnabled;
+				return EnablementState.EnabledWorkspace;
 			}
 
 			if (this._getDisabledExtensions(StorageScope.WORKSPACE).filter(e => areSameExtensions(e, identifier))[0]) {
-				return EnablementState.WorkspaceDisabled;
+				return EnablementState.DisabledWorkspace;
 			}
 		}
 		if (this._getDisabledExtensions(StorageScope.GLOBAL).filter(e => areSameExtensions(e, identifier))[0]) {
-			return EnablementState.Disabled;
+			return EnablementState.DisabledGlobally;
 		}
-		return EnablementState.Enabled;
+		return EnablementState.EnabledGlobally;
 	}
 
 	canChangeEnablement(extension: IExtension): boolean {
 		if (extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 			return false;
 		}
-		if (this._isSystemDisabled(extension)) {
+		const enablementState = this.getEnablementState(extension);
+		if (enablementState === EnablementState.DisabledByEnvironemt || enablementState === EnablementState.DisabledByExtensionKind) {
 			return false;
 		}
 		return true;
@@ -87,7 +91,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	async setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
 
-		const workspace = newState === EnablementState.WorkspaceDisabled || newState === EnablementState.WorkspaceEnabled;
+		const workspace = newState === EnablementState.DisabledWorkspace || newState === EnablementState.EnabledWorkspace;
 		if (workspace && !this.hasWorkspace) {
 			return Promise.reject(new Error(localize('noWorkspace', "No workspace.")));
 		}
@@ -109,16 +113,16 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		}
 
 		switch (newState) {
-			case EnablementState.Enabled:
+			case EnablementState.EnabledGlobally:
 				this._enableExtension(extension.identifier);
 				break;
-			case EnablementState.Disabled:
+			case EnablementState.DisabledGlobally:
 				this._disableExtension(extension.identifier);
 				break;
-			case EnablementState.WorkspaceEnabled:
+			case EnablementState.EnabledWorkspace:
 				this._enableExtensionInWorkspace(extension.identifier);
 				break;
-			case EnablementState.WorkspaceDisabled:
+			case EnablementState.DisabledWorkspace:
 				this._disableExtensionInWorkspace(extension.identifier);
 				break;
 		}
@@ -128,10 +132,10 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	isEnabled(extension: IExtension): boolean {
 		const enablementState = this.getEnablementState(extension);
-		return enablementState === EnablementState.WorkspaceEnabled || enablementState === EnablementState.Enabled;
+		return enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
 	}
 
-	private _isSystemDisabled(extension: IExtension): boolean {
+	private _isDisabledInEnv(extension: IExtension): boolean {
 		if (this.allUserExtensionsDisabled) {
 			return extension.type === ExtensionType.User;
 		}
@@ -139,6 +143,10 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		if (Array.isArray(disabledExtensions)) {
 			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 		}
+		return false;
+	}
+
+	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const server = isUIExtension(extension.manifest, this.productService, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
 			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
@@ -149,17 +157,17 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
 		if (this.hasWorkspace) {
 			if (this._getEnabledExtensions(StorageScope.WORKSPACE).filter(e => areSameExtensions(e, identifier))[0]) {
-				return EnablementState.WorkspaceEnabled;
+				return EnablementState.EnabledWorkspace;
 			}
 
 			if (this._getDisabledExtensions(StorageScope.WORKSPACE).filter(e => areSameExtensions(e, identifier))[0]) {
-				return EnablementState.WorkspaceDisabled;
+				return EnablementState.DisabledWorkspace;
 			}
 		}
 		if (this._getDisabledExtensions(StorageScope.GLOBAL).filter(e => areSameExtensions(e, identifier))[0]) {
-			return EnablementState.Disabled;
+			return EnablementState.DisabledGlobally;
 		}
-		return EnablementState.Enabled;
+		return EnablementState.EnabledGlobally;
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): void {
