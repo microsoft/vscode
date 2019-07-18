@@ -33,12 +33,12 @@ suite('keyboard layout loader', () => {
 	let commandService = instantiationService.stub(ICommandService, {});
 	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
 
-	test('load default US keyboard layout', () => {
+	test.skip('load default US keyboard layout', () => {
 		assert.notEqual(instance.activeKeyboardLayout, null);
 		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 
-	test('isKeyMappingActive', () => {
+	test.skip('isKeyMappingActive', () => {
 		assert.equal(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',
