@@ -9730,10 +9730,10 @@ wide-align@^1.1.0:
   dependencies:
     string-width "^1.0.2 || 2"
 
-windows-foreground-love@0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz#948e4beac0733cd58624710cc09432b7e8bf3521"
-  integrity sha1-lI5L6sBzPNWGJHEMwJQyt+i/NSE=
+windows-foreground-love@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.2.0.tgz#b291832d8a02a966bc046ba0e498cc789809076b"
+  integrity sha512-72ZDshnt8Q3/ImLMt4wxsY8eVnUd1KDb5QfvZX09AxJJJa0hGdyzPfd/ms0pKSYYwKlEhB1ri+WDKNvdIpJknQ==
 
 windows-mutex@0.2.1:
   version "0.2.1"
