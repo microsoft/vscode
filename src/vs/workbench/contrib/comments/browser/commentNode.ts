@@ -318,18 +318,18 @@ export class CommentNode extends Disposable {
 			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
 			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
 		} else {
-			let reactionGroup = this.commentService.getReactionGroup(this.owner);
-			if (reactionGroup && reactionGroup.length) {
-				let toggleReactionAction = this.createReactionPicker2(reactionGroup || []);
-				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-			}
+			// let reactionGroup = this.commentService.getReactionGroup(this.owner);
+			// if (reactionGroup && reactionGroup.length) {
+			// 	let toggleReactionAction = this.createReactionPicker2(reactionGroup || []);
+			// 	this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+			// }
 		}
 	}
 
 	private createCommentEditor(): void {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
-		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
+		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);

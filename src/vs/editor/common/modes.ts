@@ -1333,8 +1333,7 @@ export enum CommentMode {
  * @internal
  */
 export interface Comment {
-	readonly commentId: string;
-	readonly uniqueIdInThread?: number;
+	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;

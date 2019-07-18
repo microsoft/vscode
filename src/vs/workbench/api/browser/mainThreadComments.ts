@@ -308,10 +308,6 @@ export class MainThreadCommentController {
 		return commentingRanges || [];
 	}
 
-	getReactionGroup(): modes.CommentReaction[] | undefined {
-		return this._features.reactionGroup;
-	}
-
 	async toggleReaction(uri: URI, thread: modes.CommentThread, comment: modes.Comment, reaction: modes.CommentReaction, token: CancellationToken): Promise<void> {
 		return this._proxy.$toggleReaction(this._handle, thread.commentThreadHandle, uri, comment, reaction);
 	}
