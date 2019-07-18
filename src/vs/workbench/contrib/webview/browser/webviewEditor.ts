@@ -23,7 +23,7 @@ export class WebviewEditor extends BaseEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private _webview: WebviewEditorOverlay | undefined;
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _editorFrame?: HTMLElement;
@@ -38,15 +38,14 @@ export class WebviewEditor extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
-		if (_contextKeyService) {
-			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
-		}
+
+		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 	}
 
 	public get isWebviewEditor() {
@@ -85,16 +84,15 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public layout(_dimension: DOM.Dimension): void {
-		if (this._webview) {
-			this.doUpdateContainer(this._webview);
-			this._webview.layout();
+		if (this.input && this.input instanceof WebviewEditorInput) {
+			this.synchronizeWebviewContainerDimensions(this.input.webview);
+			this.input.webview.layout();
 		}
 	}
 
 	public focus(): void {
 		super.focus();
 		if (!this._onFocusWindowHandler.value) {
-
 			// Make sure we restore focus when switching back to a VS Code window
 			this._onFocusWindowHandler.value = this._windowService.onDidChangeFocus(focused => {
 				if (focused && this._editorService.activeControl === this) {
@@ -106,13 +104,13 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public withWebview(f: (element: Webview) => void): void {
-		if (this._webview) {
-			f(this._webview);
+		if (this.input && this.input instanceof WebviewEditorInput) {
+			f(this.input.webview);
 		}
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
-		const webview = (this.input && (this.input as WebviewEditorInput).webview) || this._webview;
+		const webview = this.input && (this.input as WebviewEditorInput).webview;
 		if (webview) {
 			if (visible) {
 				webview.claim(this);
@@ -130,14 +128,12 @@ export class WebviewEditor extends BaseEditor {
 			this.input.webview.release(this);
 		}
 
-		this._webview = undefined;
 		super.clearInput();
 	}
 
 	public async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		if (this.input && (this.input as WebviewEditorInput).webview) {
-			(this.input as WebviewEditorInput).webview!.release(this);
-			this._webview = undefined;
+		if (this.input && this.input instanceof WebviewEditorInput) {
+			this.input.webview.release(this);
 		}
 
 		await super.setInput(input, options, token);
@@ -149,32 +145,27 @@ export class WebviewEditor extends BaseEditor {
 		if (this.group) {
 			input.updateGroup(this.group.id);
 		}
+
 		this.claimWebview(input);
 	}
 
 	private claimWebview(input: WebviewEditorInput): void {
-		if (this._webview) {
-			this._webview.claim(this);
-			return;
-		}
+		input.webview.claim(this);
 
-		this._webview = input.webview;
-		this._webview.claim(this);
-
-		if (this._webview.options.enableFindWidget) {
-			this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webview.container));
-			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+		if (input.webview.options.enableFindWidget) {
+			this._scopedContextKeyService.value = this._contextKeyService.createScoped(input.webview.container);
+			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._scopedContextKeyService.value);
 		}
 
 		if (this._content) {
-			this._content.setAttribute('aria-flowto', this._webview.container.id);
+			this._content.setAttribute('aria-flowto', input.webview.container.id);
 		}
 
-		this.doUpdateContainer(this._webview);
-		this.trackFocus(this._webview);
+		this.synchronizeWebviewContainerDimensions(input.webview);
+		this.trackFocus(input.webview);
 	}
 
-	private doUpdateContainer(webview: WebviewEditorOverlay) {
+	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay) {
 		const webviewContainer = webview.container;
 		if (webviewContainer && webviewContainer.parentElement && this._editorFrame) {
 			const frameRect = this._editorFrame.getBoundingClientRect();

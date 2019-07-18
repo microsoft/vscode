@@ -59,7 +59,6 @@ export class WebviewEditorInput extends EditorInput {
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
 
-
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
@@ -123,8 +122,8 @@ export class WebviewEditorInput extends EditorInput {
 		return this._group;
 	}
 
-	public resolve(): Promise<IEditorModel> {
-		return Promise.resolve(new EditorModel());
+	public async resolve(): Promise<IEditorModel> {
+		return new EditorModel();
 	}
 
 	public supportsSplitEditor() {
