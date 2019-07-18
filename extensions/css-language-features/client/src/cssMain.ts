@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, TextDocument, SelectionRange } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
 
@@ -78,26 +78,6 @@ export function activate(context: ExtensionContext) {
 
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
-
-		documentSelector.forEach(selector => {
-			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
-					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
-					if (Array.isArray(rawResult)) {
-						return rawResult.map(rawSelectionRanges => {
-							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
-								return {
-									range: client.protocol2CodeConverter.asRange(selectionRange.range),
-									parent
-								};
-							}, undefined)!;
-						});
-					}
-					return [];
-				}
-			}));
-		});
 	});
 
 	function initCompletionProvider(): Disposable {
