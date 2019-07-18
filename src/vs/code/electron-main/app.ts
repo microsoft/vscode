@@ -86,6 +86,7 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc'
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 export class CodeApplication extends Disposable {
 
@@ -276,12 +277,6 @@ export class CodeApplication extends Disposable {
 				}
 
 				this.logService.error('Error fetching shell env', error);
-			}
-		});
-
-		ipc.on('vscode:extensionHostDebug', (_: Event, windowId: number, broadcast: any) => {
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:extensionHostDebug', broadcast, [windowId]); // Send to all windows (except sender window)
 			}
 		});
 
@@ -576,6 +571,9 @@ export class CodeApplication extends Disposable {
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('loglevel', logLevelChannel);
 		sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
+
+		// ExtensionHost Debug broadcast service
+		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
 
 		// Signal phase: ready (services set)
 		this.lifecycleService.phase = LifecycleMainPhase.Ready;
