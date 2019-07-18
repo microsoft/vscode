@@ -241,6 +241,7 @@ export class CodeApplication extends Disposable {
 						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 						cli: this.environmentService.args,
 						urisToOpen: macOpenFileURIs,
+						gotoLineMode: false,
 						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 					});
 
@@ -595,8 +596,8 @@ export class CodeApplication extends Disposable {
 			urlService.registerHandler({
 				async handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
-						const cli = { ...environmentService.args, goto: true };
-						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
+						const cli = { ...environmentService.args };
+						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true, gotoLineMode: true });
 
 						await window.ready();
 
@@ -647,6 +648,7 @@ export class CodeApplication extends Disposable {
 				urisToOpen: macOpenFiles.map(file => this.getURIToOpenFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
+				gotoLineMode: false,
 				initialStartup: true
 			});
 		}
@@ -659,6 +661,7 @@ export class CodeApplication extends Disposable {
 			diffMode: args.diff,
 			noRecentEntry,
 			waitMarkerFileURI,
+			gotoLineMode: args.goto,
 			initialStartup: true
 		});
 	}
