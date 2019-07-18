@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, UnownedDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -144,7 +144,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): WebviewEditorInput {
 		const webview = this.createWebiew(id, extension, options);
 
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, webview);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, new UnownedDisposable(webview));
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
@@ -191,7 +191,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 			const promise = new Promise<void>(r => { resolve = r; });
 			this._revivalPool.add(webview, resolve!);
 			return promise;
-		}, webview);
+		}, new UnownedDisposable(webview));
 
 		webviewInput.iconPath = iconPath;
 
