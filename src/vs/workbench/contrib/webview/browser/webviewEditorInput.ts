@@ -53,7 +53,8 @@ export class WebviewEditorInput extends EditorInput {
 
 	public static readonly typeId = 'workbench.editors.webviewInput';
 
-	private readonly iconsManager = new WebviewIconsManager();
+	private static readonly iconsManager = new WebviewIconsManager();
+
 	private _name: string;
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
@@ -111,7 +112,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		this.iconsManager.setIcons(this.id, value);
+		WebviewEditorInput.iconsManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
