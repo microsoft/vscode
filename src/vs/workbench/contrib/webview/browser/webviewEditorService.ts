@@ -7,13 +7,14 @@ import { equals } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { IWebviewOptions, IWebviewPanelOptions } from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -35,7 +36,6 @@ export interface IWebviewEditorService {
 			location: URI,
 			id: ExtensionIdentifier
 		},
-		events: WebviewEvents
 	): WebviewEditorInput;
 
 	reviveWebview(
@@ -77,25 +77,20 @@ export interface WebviewReviver {
 	): Promise<void>;
 }
 
-export interface WebviewEvents {
-	onMessage?(message: any): void;
-	onDispose?(): void;
-	onDidClickLink?(link: URI, options: IWebviewOptions): void;
-	onDidUpdateWebviewState?(newState: any): void;
-}
-
-export interface WebviewInputOptions extends IWebviewOptions, IWebviewPanelOptions {
-	tryRestoreScrollPosition?: boolean;
+export interface WebviewInputOptions extends WebviewOptions, WebviewContentOptions {
+	readonly tryRestoreScrollPosition?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+	readonly enableCommandUris?: boolean;
 }
 
 export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewInputOptions): boolean {
 	return a.enableCommandUris === b.enableCommandUris
 		&& a.enableFindWidget === b.enableFindWidget
-		&& a.enableScripts === b.enableScripts
+		&& a.allowScripts === b.allowScripts
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
 		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())))
-		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
+		&& (a.portMappings === b.portMappings || (Array.isArray(a.portMappings) && Array.isArray(b.portMappings) && equals(a.portMappings, b.portMappings, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
 }
 
 function canRevive(reviver: WebviewReviver, webview: WebviewEditorInput): boolean {
@@ -132,6 +127,8 @@ export class WebviewEditorService implements IWebviewEditorService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) { }
 
 	public createWebview(
@@ -139,14 +136,15 @@ export class WebviewEditorService implements IWebviewEditorService {
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		options: IWebviewOptions,
+		options: WebviewInputOptions,
 		extension: undefined | {
 			location: URI,
 			id: ExtensionIdentifier
 		},
-		events: WebviewEvents
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, options, undefined, events, extension);
+		const webview = this.createWebiew(id, extension, options);
+
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, webview);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
@@ -175,11 +173,14 @@ export class WebviewEditorService implements IWebviewEditorService {
 		options: WebviewInputOptions,
 		extension: undefined | {
 			readonly location: URI,
-			readonly id?: ExtensionIdentifier
+			readonly id: ExtensionIdentifier
 		},
 		group: number | undefined,
 	): WebviewEditorInput {
-		const webviewInput = this._instantiationService.createInstance(RevivedWebviewEditorInput, id, viewType, title, options, state, {}, extension, async (webview: WebviewEditorInput): Promise<void> => {
+		const webview = this.createWebiew(id, extension, options);
+		webview.state = state;
+
+		const webviewInput = new RevivedWebviewEditorInput(id, viewType, title, extension, async (webview: WebviewEditorInput): Promise<void> => {
 			const didRevive = await this.tryRevive(webview);
 			if (didRevive) {
 				return Promise.resolve(undefined);
@@ -190,8 +191,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 			const promise = new Promise<void>(r => { resolve = r; });
 			this._revivalPool.add(webview, resolve!);
 			return promise;
-		});
+		}, webview);
+
 		webviewInput.iconPath = iconPath;
+
 		if (typeof group === 'number') {
 			webviewInput.updateGroup(group);
 		}
@@ -213,7 +216,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		webview: WebviewEditorInput
 	): boolean {
 		// Has no state, don't persist
-		if (!webview.state) {
+		if (!webview.webview.state) {
 			return false;
 		}
 
@@ -236,5 +239,28 @@ export class WebviewEditorService implements IWebviewEditorService {
 			}
 		}
 		return false;
+	}
+
+	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
+		return this._webviewService.createWebviewEditorOverlay(id, {
+			allowSvgs: true,
+			extension: extension,
+			enableFindWidget: options.enableFindWidget,
+			retainContextWhenHidden: options.retainContextWhenHidden
+		}, {
+				...options,
+				localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
+			});
+	}
+
+	private getDefaultLocalResourceRoots(extension: undefined | {
+		location: URI,
+		id: ExtensionIdentifier
+	}): URI[] {
+		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
+		if (extension) {
+			rootPaths.push(extension.location);
+		}
+		return rootPaths;
 	}
 }

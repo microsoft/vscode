@@ -45,10 +45,10 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const data: SerializedWebview = {
 			viewType: input.viewType,
 			title: input.getName(),
-			options: input.options,
+			options: input.webview.options,
 			extensionLocation: input.extension ? input.extension.location : undefined,
 			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
-			state: input.state,
+			state: input.webview.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 			group: input.group
 		};

@@ -71,7 +71,7 @@ export class ReleaseNotesManager {
 			}
 			const html = await this.renderBody(this._lastText);
 			if (this._currentReleaseNotes) {
-				this._currentReleaseNotes.html = html;
+				this._currentReleaseNotes.webview.html = html;
 			}
 		});
 	}
@@ -88,7 +88,7 @@ export class ReleaseNotesManager {
 		const activeControl = this._editorService.activeControl;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.html = html;
+			this._currentReleaseNotes.webview.html = html;
 			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
@@ -103,17 +103,17 @@ export class ReleaseNotesManager {
 						URI.parse(require.toUrl('./media'))
 					]
 				},
-				undefined, {
-					onDidClickLink: uri => this.onDidClickLink(uri),
-					onDispose: () => { this._currentReleaseNotes = undefined; }
-				});
+				undefined);
+
+			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(uri));
+			this._currentReleaseNotes.onDispose(() => { this._currentReleaseNotes = undefined; });
 
 			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
 			this._currentReleaseNotes.iconPath = {
 				light: iconPath,
 				dark: iconPath
 			};
-			this._currentReleaseNotes.html = html;
+			this._currentReleaseNotes.webview.html = html;
 		}
 
 		return true;
