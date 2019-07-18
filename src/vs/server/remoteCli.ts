@@ -43,6 +43,7 @@ const isSupportedForPipe = (id: string) => {
 		case 'file-uri':
 		case 'diff':
 		case 'wait':
+		case 'goto':
 		case 'reuse-window':
 		case 'new-window':
 		case 'status':
@@ -187,6 +188,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			folderURIs,
 			diffMode: parsedArgs.diff,
 			addMode: parsedArgs.add,
+			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],
 			waitMarkerFilePath
