@@ -374,7 +374,7 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
+connection.onSelectionRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		const positions: Position[] = params.positions;
@@ -383,8 +383,8 @@ connection.onRequest('$/textDocument/selectionRanges', async (params, token) => 
 			const stylesheet = stylesheets.get(document);
 			return getLanguageService(document).getSelectionRanges(document, positions, stylesheet);
 		}
-		return Promise.resolve(null);
-	}, null, `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+		return [];
+	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 
