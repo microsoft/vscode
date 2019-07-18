@@ -44,7 +44,7 @@ steps:
     yarn download-builtin-extensions
   displayName: Download Built-in Extensions
 - script: |
-    DISPLAY=:10 ./scripts/test.sh --no-sandbox --tfs "Unit Tests"
+    DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
   displayName: Run Unit Tests
 - task: PublishTestResults@2
   displayName: Publish Tests Results
