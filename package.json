@@ -84,7 +84,7 @@
     "fast-plist": "0.1.2",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.20.0",
+    "gulp-atom-electron": "^1.21.1",
     "gulp-azure-storage": "^0.10.0",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
