@@ -10,7 +10,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { language } from 'vs/base/common/platform';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -60,7 +60,6 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	private _experiments: IExperiment[] = [];
 	private _loadExperimentsPromise: Promise<void>;
 	private _curatedMapping = Object.create(null);
-	private _disposables: IDisposable[] = [];
 
 	private readonly _onExperimentEnabled = this._register(new Emitter<IExperiment>());
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
@@ -392,13 +391,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				}
 			});
-			this._disposables.push(onSaveHandler);
+			this._register(onSaveHandler);
 			return ExperimentState.Evaluating;
 		});
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
 	}
 }
 
