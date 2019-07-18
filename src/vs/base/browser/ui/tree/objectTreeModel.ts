@@ -53,7 +53,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
-	): Iterator<ITreeElement<T | null>> {
+	): Iterator<ITreeElement<T>> {
 		const location = this.getElementLocation(element);
 		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
 	}
@@ -63,7 +63,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
-	): Iterator<ITreeElement<T | null>> {
+	): Iterator<ITreeElement<T>> {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
@@ -107,7 +107,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			_onDidDeleteNode
 		);
 
-		return result;
+		return result as Iterator<ITreeElement<T>>;
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { CompressedObjectTreeModel } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { CompressedObjectTreeModel, compress } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
@@ -21,57 +21,48 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 	return list.map(i => i.element);
 }
 
+interface Node<T> {
+	element: T;
+	children?: Node<T>[];
+}
+
+// function asTreeElement(node: Node): ITreeElement<Node> {
+// 	if (Array.isArray(node)) {
+// 		return { element: node, children: Iterator.map(Iterator.from(node), asTreeElement) };
+// 	} else {
+// 		return { element: node };
+// 	}
+}
+
 suite('CompressedObjectTreeModel', function () {
 
 	test('ctor', () => {
 		const list: ITreeNode<string[]>[] = [];
 		const model = new CompressedObjectTreeModel<string>(toSpliceable(list));
 
+		assert(model);
 		assert.deepEqual(toArray(list), []);
-		assert.equal(model.size, 0);
 	});
 
-	test('no compression', () => {
-		const list: ITreeNode<string[]>[] = [];
-		const model = new CompressedObjectTreeModel<string>(toSpliceable(list));
+	test('compress', () => {
 
-		model.setChildren(null, [
-			{ element: 'a' },
-			{ element: 'b' },
-			{ element: 'c' }
-		]);
-
-		assert.deepEqual(toArray(list), [['a'], ['b'], ['c']]);
-		assert.equal(model.size, 3);
-
-		model.setChildren(null, Iterator.empty());
-		assert.deepEqual(toArray(list), []);
-		assert.equal(model.size, 0);
-	});
-
-	test('simple compression', () => {
-		const list: ITreeNode<string[]>[] = [];
-		const model = new CompressedObjectTreeModel<string>(toSpliceable(list));
-
-		model.setChildren(null, [
+		const rootChildren: Node<number>[] = [
 			{
-				element: 'foo', children: [
-					{
-						element: 'bar', children: [
-							{ element: 'hello' }
-						]
-					}
+				element: 1, children: [
+					{ element: 11 },
+					{ element: 12 },
 				]
 			},
-			{ element: 'b' },
-			{ element: 'c' }
-		]);
+			{ element: 2 },
+			{ element: 3 },
+		];
 
-		assert.deepEqual(toArray(list), [['foo', 'bar', 'hello'], ['b'], ['c']]);
-		assert.equal(model.size, 3);
+		const actual = [0, [[100]], 2, [[[3000, 3001]], 31, 32], 4];
+		const expected = [0, [100], 2, [[3000, 3001], 31, 32], 4];
 
-		model.setChildren(null, Iterator.empty());
-		assert.deepEqual(toArray(list), []);
-		assert.equal(model.size, 0);
+		const element = asTreeElement(root);
+		const iterator = Iterator.from([element]);
+
+		const result = Iterator.collect(compress(iterator));
 	});
 });

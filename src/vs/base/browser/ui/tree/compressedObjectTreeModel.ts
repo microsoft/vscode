@@ -4,34 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence, getSequenceIterator, IteratorResult } from 'vs/base/common/iterator';
-import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { Iterator, ISequence } from 'vs/base/common/iterator';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { IObjectTreeModelOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+
+export function compress<T>(iterator: Iterator<ITreeElement<T>>): Iterator<ITreeElement<T[]>> {
+	throw new Error('todo');
+}
+
+export function decompress<T>(sequence: Iterator<ITreeElement<T[]>>): Iterator<ITreeElement<T>> {
+	throw new Error('todo');
+}
 
 export interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<T[], TFilterData> { }
 
 export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
 
+	readonly rootRef = null;
+
+	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<T | null, TFilterData>>();
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>> = this._onDidSplice.event;
+
+	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this._onDidChangeCollapseState.event;
+
+	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this._onDidChangeRenderNodeCount.event;
+
 	private model: ObjectTreeModel<T[], TFilterData>;
-	private compressionMap = new Map<T, T[]>();
-
-	get rootRef(): any {
-		return this.model.rootRef;
-	}
-
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> {
-		throw new Error('not implemented');
-	}
-
-	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> {
-		throw new Error('not implemented');
-	}
-
-	get size(): number {
-		throw new Error('not implemented');
-	}
+	private map = new Map<T, T[]>();
 
 	constructor(list: ISpliceable<ITreeNode<T[], TFilterData>>, options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new ObjectTreeModel(list, options);
@@ -39,174 +41,72 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	setChildren(
 		element: T | null,
-		children: ISequence<ITreeElement<T>> | undefined,
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
-		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+		children: ISequence<ITreeElement<T>> | undefined
 	): Iterator<ITreeElement<T | null>> {
-		const compressedChildren = this.compressSequence(children);
-		// todo@ connect element with children and update compressed map
-
-		const deleted = this.model.setChildren(this.compressionMap.get(element), compressedChildren, undefined, undefined);
-		return this.decompressSequence(deleted);
-	}
-
-	private compressSequence(sequence: ISequence<ITreeElement<T>>): ISequence<ITreeElement<T[]>> {
-		const iterator = getSequenceIterator(sequence);
-		const compressedModel = this;
-
-		return {
-			next() {
-				const element = iterator.next();
-				if (element.done) {
-					return element;
-				}
-
-				const compressed = [element.value.element];
-				compressedModel.compressionMap.set(element.value.element, compressed);
-
-				let childIterator: Iterator<ITreeElement<T>>;
-				let first: IteratorResult<ITreeElement<T>>;
-				let second: IteratorResult<ITreeElement<T>>;
-				let child = element.value;
-				let last: ITreeElement<T>;
-
-				while (true) {
-					childIterator = getSequenceIterator(child.children);
-					first = childIterator.next();
-					second = undefined;
-					if (!first.done) {
-						second = childIterator.next();
-					}
-					last = child;
-					child = second && second.done && first.value.collapsible ? first.value : undefined;
-
-					if (!child) {
-						break;
-					}
-					compressed.push(child.element);
-					compressedModel.compressionMap.set(child.element, compressed);
-				}
-
-				let nextCalled = 0;
-				return {
-					done: false,
-					value: {
-						element: compressed,
-						children: compressedModel.compressSequence({
-							next() {
-								if (nextCalled > 1) {
-									return childIterator.next();
-								} else {
-									nextCalled++;
-									if (nextCalled === 1) {
-										return first;
-									}
-									return second;
-								}
-							}
-						}),
-						collapsed: last.collapsed,
-						collapsible: last.collapsible
-					}
-				};
-			}
-		};
-	}
-
-	private decompressSequence(sequence: ISequence<ITreeElement<T[]>>): Iterator<ITreeElement<T>> {
-		const iterator = getSequenceIterator(sequence);
-		const compressedModel = this;
-		let currentArray: ITreeElement<T[]>;
-		let index: number;
-
-		return {
-			next(): IteratorResult<ITreeElement<T>> {
-				if (!currentArray) {
-					const element = iterator.next();
-					if (element.done) {
-						return element;
-					}
-					currentArray = element.value;
-					index = currentArray.element.length - 1;
-				}
-
-				const result: IteratorResult<ITreeElement<T>> = {
-					done: false,
-					value: {
-						element: currentArray[index],
-						children: compressedModel.decompressSequence(currentArray.children), // todo returning same children for all the elements
-						collapsed: currentArray.collapsed,
-						collapsible: currentArray.collapsible
-					}
-				};
-
-				if (--index === 0) {
-					currentArray = undefined;
-				}
-
-				return result;
-			}
-		};
-	}
-
-	getParentElement(ref: T | null = null): T | null {
-		const parentElements = this.model.getParentElement(this.compressionMap.get(ref));
-		if (isUndefinedOrNull(parentElements)) {
-			return parentElements;
+		if (element !== null && !this.map.has(element)) {
+			throw new Error('missing element');
 		}
 
-		return parentElements[parentElements.length - 1];
+		const compressedElement = element === null ? null : this.map.get(element)!;
+		const compressedChildren = this.compress(Iterator.from(children));
+		const deleted = this.model.setChildren(compressedElement, compressedChildren);
+		return this.decompress(deleted);
 	}
 
-	getFirstElementChild(ref: T | null = null): T | null | undefined {
-		const childElements = this.model.getFirstElementChild(this.compressionMap.get(ref));
-		if (isUndefinedOrNull(childElements)) {
-			return childElements;
-		}
-
-		return childElements[childElements.length - 1];
+	private compress(iterator: Iterator<ITreeElement<T>>): Iterator<ITreeElement<T[]>> {
+		throw new Error('todo');
 	}
 
-	getLastElementAncestor(ref: T | null = null): T | null | undefined {
-		const ancestors = this.model.getLastElementAncestor(this.compressionMap.get(ref));
-		if (isUndefinedOrNull(ancestors)) {
-			return ancestors;
-		}
-
-		return ancestors[ancestors.length - 1];
+	private decompress(sequence: Iterator<ITreeElement<T[]>>): Iterator<ITreeElement<T>> {
+		throw new Error('todo');
 	}
 
-	getListIndex(element: T): number {
-		return this.model.getListIndex(this.compressionMap.get(element));
+	getListIndex(location: T | null): number {
+		throw new Error('Method not implemented.');
 	}
 
-	isCollapsible(element: T): boolean {
-		return this.model.isCollapsible(this.compressionMap.get(element));
+	getListRenderCount(location: T | null): number {
+		throw new Error('Method not implemented.');
 	}
 
-	isCollapsed(element: T): boolean {
-		return this.model.isCollapsed(this.compressionMap.get(element));
+	getNode(location?: T | null | undefined): ITreeNode<T | null, any> {
+		throw new Error('Method not implemented.');
 	}
 
-	setCollapsed(element: T, collapsed?: boolean, recursive?: boolean): boolean {
-		return this.model.setCollapsed(this.compressionMap.get(element), collapsed, recursive);
+	getNodeLocation(node: ITreeNode<T | null, any>): T | null {
+		throw new Error('Method not implemented.');
 	}
 
-	getNode(element: T | null = null): ITreeNode<T | null, TFilterData> {
-		throw new Error('not implemented');
+	getParentNodeLocation(location: T | null): T | null {
+		throw new Error('Method not implemented.');
 	}
 
-	getNodeLocation(node: ITreeNode<T, TFilterData>): T {
-		throw new Error('not implemented');
+	getParentElement(location: T | null): T | null {
+		throw new Error('Method not implemented.');
 	}
 
-	getParentNodeLocation(element: T): T | null {
-		const parentNodes = this.model.getParentNodeLocation(this.compressionMap.get(element));
-		if (isUndefinedOrNull(parentNodes)) {
-			return parentNodes;
-		}
+	getFirstElementChild(location: T | null): T | null | undefined {
+		throw new Error('Method not implemented.');
+	}
 
-		return parentNodes[parentNodes.length - 1];
+	getLastElementAncestor(location?: T | null | undefined): T | null | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	isCollapsible(location: T | null): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	isCollapsed(location: T | null): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	setCollapsed(location: T | null, collapsed?: boolean | undefined, recursive?: boolean | undefined): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	expandTo(location: T | null): void {
+		throw new Error('Method not implemented.');
 	}
 
 	refilter(): void {
