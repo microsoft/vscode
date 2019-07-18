@@ -2815,18 +2815,22 @@ export class OpenExtensionsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const extensionsHome = URI.file(this.environmentService.extensionsPath);
+		if (this.environmentService.extensionsPath) {
 
-		return Promise.resolve(this.fileService.resolve(extensionsHome)).then(file => {
-			let itemToShow: URI;
-			if (file.children && file.children.length > 0) {
-				itemToShow = file.children[0].resource;
-			} else {
-				itemToShow = extensionsHome;
-			}
+			const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
-			return this.windowsService.showItemInFolder(itemToShow);
-		});
+			return Promise.resolve(this.fileService.resolve(extensionsHome)).then(file => {
+				let itemToShow: URI;
+				if (file.children && file.children.length > 0) {
+					itemToShow = file.children[0].resource;
+				} else {
+					itemToShow = extensionsHome;
+				}
+
+				return this.windowsService.showItemInFolder(itemToShow);
+			});
+		}
+		return Promise.resolve();
 	}
 }
 
@@ -2858,7 +2862,7 @@ export class InstallVSIXAction extends Action {
 				return Promise.resolve();
 			}
 
-			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))
+			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(URI.file(vsix))))
 				.then(extensions => {
 					for (const extension of extensions) {
 						const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));

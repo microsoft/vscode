@@ -3763,10 +3763,10 @@ growl@1.9.2:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.9.2.tgz#0ea7743715db8d8de2c5ede1775e1b45ac85c02f"
   integrity sha1-Dqd0NxXbjY3ixe3hd14bRayFwC8=
 
-gulp-atom-electron@^1.20.0:
-  version "1.20.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.20.0.tgz#10b01f6a4c0257a8468c4da4ec9c67ecb28a32ed"
-  integrity sha512-gs7xvZvq8Mq60+DmbfCeXZnhqhOaJa/wrctix0RP/lCfSgusJnBTBssC6er1JIiqdHmQ8zFiYaYZh41mdG36kQ==
+gulp-atom-electron@^1.21.1:
+  version "1.21.1"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.21.1.tgz#4017144bf659fbbf7d0644664fcc47c64efac0f0"
+  integrity sha512-UHEf2pZrJD/u+AAzKCbhdPXaKrReFDa+OEJjBCAdN2SHnD+dfZqSJAz/u2OD6YR/eREuUbQOCw+VWUwex20klQ==
   dependencies:
     event-stream "3.3.4"
     github-releases-ms "^0.5.0"
@@ -9734,10 +9734,10 @@ wide-align@^1.1.0:
   dependencies:
     string-width "^1.0.2 || 2"
 
-windows-foreground-love@0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz#948e4beac0733cd58624710cc09432b7e8bf3521"
-  integrity sha1-lI5L6sBzPNWGJHEMwJQyt+i/NSE=
+windows-foreground-love@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.2.0.tgz#b291832d8a02a966bc046ba0e498cc789809076b"
+  integrity sha512-72ZDshnt8Q3/ImLMt4wxsY8eVnUd1KDb5QfvZX09AxJJJa0hGdyzPfd/ms0pKSYYwKlEhB1ri+WDKNvdIpJknQ==
 
 windows-mutex@0.2.1:
   version "0.2.1"

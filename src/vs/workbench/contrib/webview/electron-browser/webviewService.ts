@@ -4,23 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWebviewService, Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
-import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { WebviewService as BrowserWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
+import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
-export class WebviewService implements IWebviewService {
+export class WebviewService extends BrowserWebviewService implements IWebviewService {
 	_serviceBrand: any;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) { }
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(instantiationService);
+	}
 
 	createWebview(
 		_id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
-	): Webview {
-		return this._instantiationService.createInstance(WebviewElement,
-			options,
-			contentOptions);
+	): WebviewElement {
+		return this.instantiationService.createInstance(ElectronWebviewBasedWebview, options, contentOptions);
 	}
 }

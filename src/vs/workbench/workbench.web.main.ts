@@ -73,8 +73,6 @@ import { DialogService } from 'vs/platform/dialogs/browser/dialogService';
 // import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 // import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 // import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-// import { IProductService } from 'vs/platform/product/common/product';
-// import { ProductService } from 'vs/platform/product/node/productService';
 // import { IWindowsService } from 'vs/platform/windows/common/windows';
 // import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 // import { IUpdateService } from 'vs/platform/update/common/update';
@@ -128,7 +126,7 @@ import 'vs/workbench/services/extensionManagement/common/extensionManagementServ
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 // import 'vs/workbench/services/window/electron-browser/windowService';
-// import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
+import 'vs/workbench/services/telemetry/browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';

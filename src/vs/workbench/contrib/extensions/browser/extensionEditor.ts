@@ -483,6 +483,13 @@ export class ExtensionEditor extends BaseEditor {
 		}));
 	}
 
+	clearInput(): void {
+		this.contentDisposables.clear();
+		this.transientDisposables.clear();
+
+		super.clearInput();
+	}
+
 	focus(): void {
 		if (this.activeElement) {
 			this.activeElement.focus();
@@ -843,7 +850,7 @@ export class ExtensionEditor extends BaseEditor {
 		const contributes = manifest.contributes;
 		const colors = contributes && contributes.colors;
 
-		if (!colors || !colors.length) {
+		if (!(colors && colors.length)) {
 			return false;
 		}
 
@@ -926,12 +933,12 @@ export class ExtensionEditor extends BaseEditor {
 			menus[context].forEach(menu => {
 				let command = byId[menu.command];
 
-				if (!command) {
+				if (command) {
+					command.menus.push(context);
+				} else {
 					command = { id: menu.command, title: '', keybindings: [], menus: [context] };
 					byId[command.id] = command;
 					commands.push(command);
-				} else {
-					command.menus.push(context);
 				}
 			});
 		});
@@ -947,12 +954,12 @@ export class ExtensionEditor extends BaseEditor {
 
 			let command = byId[rawKeybinding.command];
 
-			if (!command) {
+			if (command) {
+				command.keybindings.push(keybinding);
+			} else {
 				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
 				byId[command.id] = command;
 				commands.push(command);
-			} else {
-				command.keybindings.push(keybinding);
 			}
 		});
 
@@ -1006,12 +1013,12 @@ export class ExtensionEditor extends BaseEditor {
 		grammars.forEach(grammar => {
 			let language = byId[grammar.language];
 
-			if (!language) {
+			if (language) {
+				language.hasGrammar = true;
+			} else {
 				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true, hasSnippets: false };
 				byId[language.id] = language;
 				languages.push(language);
-			} else {
-				language.hasGrammar = true;
 			}
 		});
 
@@ -1020,12 +1027,12 @@ export class ExtensionEditor extends BaseEditor {
 		snippets.forEach(snippet => {
 			let language = byId[snippet.language];
 
-			if (!language) {
+			if (language) {
+				language.hasSnippets = true;
+			} else {
 				language = { id: snippet.language, name: snippet.language, extensions: [], hasGrammar: false, hasSnippets: true };
 				byId[language.id] = language;
 				languages.push(language);
-			} else {
-				language.hasSnippets = true;
 			}
 		});
 
@@ -1067,11 +1074,11 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = KeybindingParser.parseKeybinding(key || rawKeyBinding.key, OS);
-		if (!keyBinding) {
-			return null;
-		}
+		if (keyBinding) {
+			return this.keybindingService.resolveKeybinding(keyBinding)[0];
 
-		return this.keybindingService.resolveKeybinding(keyBinding)[0];
+		}
+		return null;
 	}
 
 	private loadContents<T>(loadingTask: () => CacheResult<T>): Promise<T> {

@@ -411,13 +411,15 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		let text = options.text || '';
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
-		/* __GDPR__
-			"galleryService:query" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"text": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('galleryService:query', { type, text });
+		type GalleryServiceQueryClassification = {
+			type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			text: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+		};
+		type GalleryServiceQueryEvent = {
+			type: string;
+			text: string;
+		};
+		this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', { type, text });
 
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)

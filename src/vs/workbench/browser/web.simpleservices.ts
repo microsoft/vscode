@@ -14,7 +14,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -25,8 +24,7 @@ import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -35,11 +33,12 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 //#region Download
 
@@ -270,38 +269,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 		return Promise.resolve(undefined);
 	}
 }
-
-//#endregion
-
-//#region Telemetry
-
-export class SimpleTelemetryService implements ITelemetryService {
-
-	_serviceBrand: undefined;
-
-	isOptedIn: true;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-
-	setEnabled(value: boolean): void {
-	}
-
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
-		});
-	}
-}
-
-registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#endregion
 
@@ -646,23 +613,19 @@ registerSingleton(IWindowService, SimpleWindowService);
 
 //#region ExtensionHostDebugService
 
-export class SimpleExtensionHostDebugService implements IExtensionHostDebugService {
-	_serviceBrand: any;
+export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
-	reload(sessionId: string): void { }
-	onReload: Event<IReloadSessionEvent> = Event.None;
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	) {
+		const connection = remoteAgentService.getConnection();
 
-	close(sessionId: string): void { }
-	onClose: Event<ICloseSessionEvent> = Event.None;
+		if (!connection) {
+			throw new Error('Missing agent connection');
+		}
 
-	attachSession(sessionId: string, port: number, subId?: string): void { }
-	onAttachSession: Event<IAttachSessionEvent> = Event.None;
-
-	logToSession(sessionId: string, log: IRemoteConsoleLog): void { }
-	onLogToSession: Event<ILogToSessionEvent> = Event.None;
-
-	terminateSession(sessionId: string, subId?: string): void { }
-	onTerminateSession: Event<ITerminateSessionEvent> = Event.None;
+		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
+	}
 }
 registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
 
@@ -807,6 +770,53 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+
+		// we pass the "ParsedArgs" as query parameters of the URL
+
+		let newAddress = `${document.location.origin}/?`;
+
+		const f = args['folder-uri'];
+		if (f) {
+			let u: URI | undefined;
+			if (Array.isArray(f)) {
+				if (f.length > 0) {
+					u = URI.parse(f[0]);
+				}
+			} else {
+				u = URI.parse(f);
+			}
+			if (u) {
+				newAddress += `folder=${encodeURIComponent(u.path)}`;
+			}
+		}
+
+		const ep = args['extensionDevelopmentPath'];
+		if (ep) {
+			let u: string | undefined;
+			if (Array.isArray(ep)) {
+				if (ep.length > 0) {
+					u = ep[0];
+				}
+			} else {
+				u = ep;
+			}
+			if (u) {
+				newAddress += `&edp=${encodeURIComponent(u)}`;
+			}
+		}
+
+		const di = args['debugId'];
+		if (di) {
+			newAddress += `&di=${encodeURIComponent(di)}`;
+		}
+
+		const ibe = args['inspect-brk-extensions'];
+		if (ibe) {
+			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
+		}
+
+		window.open(newAddress);
+
 		return Promise.resolve();
 	}
 

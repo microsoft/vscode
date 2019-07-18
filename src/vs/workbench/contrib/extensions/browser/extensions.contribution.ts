@@ -9,9 +9,9 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/contrib/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -42,18 +42,10 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -66,17 +58,6 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		'ext ',
 		undefined,
 		localize('extensionsCommands', "Manage Extensions"),
-		true
-	)
-);
-
-Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		GalleryExtensionsHandler,
-		GalleryExtensionsHandler.ID,
-		'ext install ',
-		undefined,
-		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
 		true
 	)
 );
@@ -144,9 +125,6 @@ actionRegistry.registerWorkbenchAction(builtinActionDescriptor, 'Extensions: Sho
 
 const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
 actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, 'Extensions: Update All Extensions', ExtensionsLabel);
-
-const openExtensionsFolderActionDescriptor = new SyncActionDescriptor(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
-actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
 
 const installVSIXActionDescriptor = new SyncActionDescriptor(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
 actionRegistry.registerWorkbenchAction(installVSIXActionDescriptor, 'Extensions: Install from VSIX...', ExtensionsLabel);
@@ -350,3 +328,45 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	},
 	order: 3
 });
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+
+class ExtensionsContributions implements IWorkbenchContribution {
+
+	constructor(
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
+	) {
+
+		const canManageExtensions = extensionManagementServerService.localExtensionManagementServer || extensionManagementServerService.remoteExtensionManagementServer;
+
+		if (canManageExtensions) {
+			Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
+				new QuickOpenHandlerDescriptor(
+					GalleryExtensionsHandler,
+					GalleryExtensionsHandler.ID,
+					'ext install ',
+					undefined,
+					localize('galleryExtensionsCommands', "Install Gallery Extensions"),
+					true
+				)
+			);
+		}
+
+		if (workbenchEnvironmentService.extensionsPath) {
+			const openExtensionsFolderActionDescriptor = new SyncActionDescriptor(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
+			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
+		}
+
+	}
+
+}
+
+workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
