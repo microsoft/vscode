@@ -190,7 +190,7 @@ export class ExtHostComments implements ExtHostCommentsShape, IDisposable {
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentController || commentController.reactionHandler) {
+		if (!commentController || !commentController.reactionHandler) {
 			return Promise.resolve(undefined);
 		}
 
