@@ -478,7 +478,8 @@ export class Menubar {
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
 					urisToOpen: [uriToOpen],
-					forceNewWindow: openInNewWindow
+					forceNewWindow: openInNewWindow,
+					gotoLineMode: false
 				}).length > 0;
 
 				if (!success) {

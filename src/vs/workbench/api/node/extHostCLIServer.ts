@@ -18,6 +18,7 @@ export interface OpenCommandPipeArgs {
 	forceNewWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
 }
@@ -93,7 +94,7 @@ export class CLIServer {
 	}
 
 	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
-		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFilePath } = data;
+		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath } = data;
 		const urisToOpen: IURIToOpen[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
@@ -125,7 +126,7 @@ export class CLIServer {
 		}
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFileURI };
+			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);
