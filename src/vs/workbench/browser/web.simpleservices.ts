@@ -12,8 +12,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -54,40 +54,6 @@ export class SimpleDownloadService implements IDownloadService {
 }
 
 registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
-
-//#region Extension Management
-
-//#region Extension Enablement
-
-export class SimpleExtensionEnablementService implements IExtensionEnablementService {
-
-	_serviceBrand: any;
-
-	readonly onEnablementChanged = Event.None;
-
-	readonly allUserExtensionsDisabled = false;
-
-	getEnablementState(extension: IExtension): EnablementState {
-		return EnablementState.Enabled;
-	}
-
-	canChangeEnablement(extension: IExtension): boolean {
-		return false;
-	}
-
-	setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
-		throw new Error('not implemented');
-	}
-
-	isEnabled(extension: IExtension): boolean {
-		return true;
-	}
-
-}
-
-registerSingleton(IExtensionEnablementService, SimpleExtensionEnablementService, true);
 
 //#endregion
 
