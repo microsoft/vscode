@@ -74,7 +74,7 @@ export interface Webview extends IDisposable {
 
 	sendMessage(data: any): void;
 	update(
-		value: string,
+		html: string,
 		options: WebviewContentOptions,
 		retainContextWhenHidden: boolean
 	): void;
