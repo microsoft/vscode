@@ -166,7 +166,7 @@ export class CommentNode extends Disposable {
 			secondaryActions.push(...secondary);
 		}
 
-		if (actions.length) {
+		if (actions.length || secondaryActions.length) {
 			this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
 				actionViewItemProvider: action => {
 					if (action.id === ToggleReactionsAction.ID) {
