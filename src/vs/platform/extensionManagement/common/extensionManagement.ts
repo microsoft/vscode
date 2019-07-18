@@ -206,67 +206,6 @@ export interface IExtensionManagementService {
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 }
 
-export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
-
-export interface IExtensionManagementServer {
-	extensionManagementService: IExtensionManagementService;
-	authority: string;
-	label: string;
-}
-
-export interface IExtensionManagementServerService {
-	_serviceBrand: any;
-	readonly localExtensionManagementServer: IExtensionManagementServer | null;
-	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
-	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
-}
-
-export const enum EnablementState {
-	Disabled,
-	WorkspaceDisabled,
-	Enabled,
-	WorkspaceEnabled
-}
-
-export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
-
-export interface IExtensionEnablementService {
-	_serviceBrand: any;
-
-	readonly allUserExtensionsDisabled: boolean;
-
-	/**
-	 * Event to listen on for extension enablement changes
-	 */
-	onEnablementChanged: Event<IExtension[]>;
-
-	/**
-	 * Returns the enablement state for the given extension
-	 */
-	getEnablementState(extension: IExtension): EnablementState;
-
-	/**
-	 * Returns `true` if the enablement can be changed.
-	 */
-	canChangeEnablement(extension: IExtension): boolean;
-
-	/**
-	 * Returns `true` if the given extension identifier is enabled.
-	 */
-	isEnabled(extension: IExtension): boolean;
-
-	/**
-	 * Enable or disable the given extension.
-	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
-	 *
-	 * Returns a promise that resolves to boolean value.
-	 * if resolves to `true` then requires restart for the change to take effect.
-	 *
-	 * Throws error if enablement is requested for workspace and there is no workspace
-	 */
-	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
-}
-
 export interface IExtensionsConfigContent {
 	recommendations: string[];
 	unwantedRecommendations: string[];
