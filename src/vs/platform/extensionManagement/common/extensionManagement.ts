@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
@@ -204,49 +203,6 @@ export interface IExtensionManagementService {
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
-}
-
-export interface IExtensionsConfigContent {
-	recommendations: string[];
-	unwantedRecommendations: string[];
-}
-
-export type RecommendationChangeNotification = {
-	extensionId: string,
-	isRecommended: boolean
-};
-
-export type DynamicRecommendation = 'dynamic';
-export type ExecutableRecommendation = 'executable';
-export type CachedRecommendation = 'cached';
-export type ApplicationRecommendation = 'application';
-export type ExtensionRecommendationSource = IWorkspace | IWorkspaceFolder | URI | DynamicRecommendation | ExecutableRecommendation | CachedRecommendation | ApplicationRecommendation;
-
-export interface IExtensionRecommendation {
-	extensionId: string;
-	sources: ExtensionRecommendationSource[];
-}
-
-export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
-
-export interface IExtensionTipsService {
-	_serviceBrand: any;
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
-	getFileBasedRecommendations(): IExtensionRecommendation[];
-	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
-	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
-	getKeymapRecommendations(): IExtensionRecommendation[];
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
-	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
-	onRecommendationChange: Event<RecommendationChangeNotification>;
-}
-
-export const enum ExtensionRecommendationReason {
-	Workspace,
-	File,
-	Executable,
-	DynamicWorkspace,
-	Experimental
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
