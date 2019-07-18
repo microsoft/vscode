@@ -217,8 +217,12 @@ suite('ExtensionsTipsService Test', () => {
 				'name': 'Python',
 				'pattern': '{**/*.py}'
 			},
-			'ms-vscode.PowerShell': {
+			'ms-vscode.powershell': {
 				'name': 'PowerShell',
+				'pattern': '{**/*.ps,**/*.ps1}'
+			},
+			'ms-vscode.powershell-preview': {
+				'name': 'PowerShell Preview',
 				'pattern': '{**/*.ps,**/*.ps1}'
 			}
 		};
