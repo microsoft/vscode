@@ -157,32 +157,6 @@
 	background-image: url("./close-hc.svg");
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .icon.edit {
-	background-image: url("./edit-light.svg");
-	background-size: 16px;
-}
-
-.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .icon.edit {
-	background-image: url("./edit-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .icon.edit {
-	background-image: url("./edit-hc.svg");
-}
-
-.monaco-editor .review-widget .body .review-comment .comment-title .icon.delete {
-	background-image: url("./delete-light.svg");
-	background-size: 16px;
-}
-
-.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .icon.delete {
-	background-image: url("./delete-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .icon.delete {
-	background-image: url("./delete-hc.svg");
-}
-
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
 	background-image: url("./reaction-light.svg");
