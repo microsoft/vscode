@@ -63,7 +63,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
@@ -73,8 +73,6 @@ import { DialogService } from 'vs/platform/dialogs/browser/dialogService';
 // import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 // import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 // import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-// import { IProductService } from 'vs/platform/product/common/product';
-// import { ProductService } from 'vs/platform/product/node/productService';
 // import { IWindowsService } from 'vs/platform/windows/common/windows';
 // import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 // import { IUpdateService } from 'vs/platform/update/common/update';
@@ -120,24 +118,25 @@ import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
-// import 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
 import 'vs/workbench/services/extensions/browser/extensionService';
 // import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-// import 'vs/workbench/services/extensions/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';
-// import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 // import 'vs/workbench/services/window/electron-browser/windowService';
-// import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
+import 'vs/workbench/services/telemetry/browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 
 import 'vs/workbench/browser/web.simpleservices';
 
+registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IDialogService, DialogService, true);
 registerSingleton(IMenuService, MenuService, true);
@@ -262,9 +261,9 @@ registerSingleton(IWebviewService, WebviewService, true);
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 // Extensions Management
-// import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
-// import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
-// import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
+import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
+import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
+import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output Panel
 import 'vs/workbench/contrib/output/browser/output.contribution';

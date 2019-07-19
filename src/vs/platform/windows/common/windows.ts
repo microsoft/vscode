@@ -183,6 +183,7 @@ export interface IOpenSettings {
 	forceReuseWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	noRecentEntry?: boolean;
 	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;

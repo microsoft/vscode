@@ -19,6 +19,11 @@ oniguruma@^7.2.0:
   dependencies:
     nan "^2.14.0"
 
+semver-umd@^5.5.3:
+  version "5.5.3"
+  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.3.tgz#b64d7a2d4f5a717b369d56e31940a38e47e34d1e"
+  integrity sha512-HOnQrn2iKnVe/xlqCTzMXQdvSz3rPbD0DmQXYuQ+oK1dpptGFfPghonQrx5JHl2O7EJwDqtQnjhE7ME23q6ngw==
+
 vscode-textmate@^4.1.1:
   version "4.2.2"
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.2.2.tgz#0b4dabc69a6fba79a065cb6b615f66eac07c8f4c"

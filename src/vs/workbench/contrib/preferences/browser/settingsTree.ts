@@ -70,6 +70,10 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 }
 
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
+	if (!element.value || !isArray(element.value)) {
+		return [];
+	}
+
 	return element.value.map((key: string) => {
 		return {
 			value: key

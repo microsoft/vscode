@@ -8,7 +8,7 @@ import * as modes from 'vs/editor/common/modes';
 import { MainContext, MainThreadEditorInsetsShape, IExtHostContext, ExtHostEditorInsetsShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/common/webview';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -33,7 +33,7 @@ class EditorWebviewZone implements IViewZone {
 		readonly editor: IActiveCodeEditor,
 		readonly line: number,
 		readonly height: number,
-		readonly webview: Webview,
+		readonly webview: WebviewElement,
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.style.zIndex = '10'; // without this, the webview is not interactive
@@ -124,12 +124,11 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 	$setHtml(handle: number, value: string): void {
 		const inset = this.getInset(handle);
 		inset.webview.html = value;
-
 	}
 
 	$setOptions(handle: number, options: modes.IWebviewOptions): void {
 		const inset = this.getInset(handle);
-		inset.webview.options = options;
+		inset.webview.contentOptions = options;
 	}
 
 	async $postMessage(handle: number, value: any): Promise<boolean> {

@@ -8,7 +8,8 @@ import { Action } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EnablementState, IExtensionEnablementService, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -190,7 +191,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					return;
 				}
 
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.Enabled);
+				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
 				await this.reloadAndHandle(uri);
 			}
 		}

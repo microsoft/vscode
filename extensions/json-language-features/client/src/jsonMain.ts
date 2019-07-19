@@ -10,7 +10,7 @@ import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange } from 'vscode';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -215,26 +215,6 @@ export function activate(context: ExtensionContext) {
 
 		extensions.onDidChange(_ => {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
-		});
-
-		documentSelector.forEach(selector => {
-			toDispose.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
-					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
-					if (Array.isArray(rawResult)) {
-						return rawResult.map(rawSelectionRanges => {
-							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
-								return {
-									range: client.protocol2CodeConverter.asRange(selectionRange.range),
-									parent,
-								};
-							}, undefined)!;
-						});
-					}
-					return [];
-				}
-			}));
 		});
 	});
 

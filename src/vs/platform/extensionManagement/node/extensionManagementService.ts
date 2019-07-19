@@ -26,7 +26,7 @@ import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter, createCancelablePromise, CancelablePromise, Queue } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import { URI } from 'vs/base/common/uri';
 import pkg from 'vs/platform/product/node/package';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -135,7 +135,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	) {
 		super();
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
-		this.extensionsPath = environmentService.extensionsPath;
+		this.extensionsPath = environmentService.extensionsPath!;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.uninstalledFileLimiter = new Queue();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));

@@ -18,7 +18,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 export class RemoteExtensionManagementChannelClient extends ExtensionManagementChannelClient {
 
