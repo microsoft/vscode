@@ -33,6 +33,7 @@ import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -663,23 +664,21 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		try {
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
 
-			// Support the old resolver interface, TODO remove after awhile
-			const authority = typeof (<any>result).host === 'string' ?
-				{
-					authority: remoteAuthority,
-					host: (<any>result).host,
-					port: (<any>result).port
-				} :
-				{
-					authority: remoteAuthority,
-					host: result.authority.host,
-					port: result.authority.port
-				};
+			// Split merged API result into separate authority/options
+			const authority: ResolvedAuthority = {
+				authority: remoteAuthority,
+				host: result.host,
+				port: result.port
+			};
+			const options: ResolvedOptions = {
+				extensionHostEnv: result.extensionHostEnv
+			};
+
 			return {
 				type: 'ok',
 				value: {
 					authority,
-					options: result.options
+					options
 				}
 			};
 		} catch (err) {

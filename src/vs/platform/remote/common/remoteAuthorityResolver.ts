@@ -14,7 +14,7 @@ export interface ResolvedAuthority {
 }
 
 export interface ResolvedOptions {
-	readonly remoteEnv?: { [key: string]: string | null };
+	readonly extensionHostEnv?: { [key: string]: string | null };
 }
 
 export interface ResolverResult {

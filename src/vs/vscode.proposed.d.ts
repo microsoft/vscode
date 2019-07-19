@@ -95,13 +95,10 @@ declare module 'vscode' {
 	}
 
 	export interface ResolvedOptions {
-		remoteEnv?: { [key: string]: string | null };
+		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export interface ResolverResult {
-		authority: ResolvedAuthority;
-		options?: ResolvedOptions;
-	}
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;

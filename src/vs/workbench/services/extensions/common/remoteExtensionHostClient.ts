@@ -89,7 +89,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 				debugId: this._environmentService.debugExtensionHost.debugId,
 				break: this._environmentService.debugExtensionHost.break,
 				port: this._environmentService.debugExtensionHost.port,
-				env: resolverResult.options && resolverResult.options.remoteEnv
+				env: resolverResult.options && resolverResult.options.extensionHostEnv
 			};
 
 			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
