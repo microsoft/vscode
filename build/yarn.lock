@@ -2309,9 +2309,9 @@ vsce@1.48.0:
     yazl "^2.2.2"
 
 vscode-ripgrep@^1.4.0:
-  version "1.5.4"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.4.tgz#dae1c3eef350513299341cdf96e622c00b548eff"
-  integrity sha512-Bs8SvFAkR0QHf09J46VgNo19yRikOtj/f0zHzK3AM3ICjCGNN/BNoG9of6zGVHUTO+6Mk1RbKglyOHLKr8D1lg==
+  version "1.5.5"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.5.tgz#24c0e9cb356cf889c98e15ecb58f9cf654a1d961"
+  integrity sha512-OrPrAmcun4+uZAuNcQvE6CCPskh+5AsjANod/Q3zRcJcGNxgoOSGlQN9RPtatkUNmkN8Nn8mZBnS1jMylu/dKg==
 
 vscode-telemetry-extractor@1.4.3:
   version "1.4.3"

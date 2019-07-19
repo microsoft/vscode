@@ -112,7 +112,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	test('test gallery extension', async () => {
 		const expected = aGalleryExtension('expectedName', {
 			displayName: 'expectedDisplayName',
-			version: '1.5',
+			version: '1.5.0',
 			publisherId: 'expectedPublisherId',
 			publisher: 'expectedPublisher',
 			publisherDisplayName: 'expectedPublisherDisplayName',
@@ -140,14 +140,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.equal(1, pagedResponse.firstPage.length);
 			const actual = pagedResponse.firstPage[0];
 
-			assert.equal(null, actual.type);
+			assert.equal(ExtensionType.User, actual.type);
 			assert.equal('expectedName', actual.name);
 			assert.equal('expectedDisplayName', actual.displayName);
 			assert.equal('expectedpublisher.expectedname', actual.identifier.id);
 			assert.equal('expectedPublisher', actual.publisher);
 			assert.equal('expectedPublisherDisplayName', actual.publisherDisplayName);
-			assert.equal('1.5', actual.version);
-			assert.equal('1.5', actual.latestVersion);
+			assert.equal('1.5.0', actual.version);
+			assert.equal('1.5.0', actual.latestVersion);
 			assert.equal('expectedDescription', actual.description);
 			assert.equal('uri:icon', actual.iconUrl);
 			assert.equal('fallback:icon', actual.iconUrlFallback);
