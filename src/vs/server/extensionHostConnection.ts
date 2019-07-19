@@ -109,6 +109,7 @@ export class ExtensionHostConnection {
 			} else {
 				PATH = binFolder;
 			}
+			console.log('Got start params:', startParams);
 			const opts = {
 				env: {
 					...processEnv,
@@ -122,11 +123,13 @@ export class ExtensionHostConnection {
 						VSCODE_LOG_STACK: 'false',
 						VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0),
 						PATH
-					}
+					},
+					...(startParams.env || {})
 				},
 				execArgv,
 				silent: true
 			};
+			removeNulls(opts.env);
 
 			// Run Extension Host as fork of current process
 			this._extensionHostProcess = cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`], opts);
@@ -183,6 +186,15 @@ export class ExtensionHostConnection {
 			if (error) {
 				console.error(error);
 			}
+		}
+	}
+}
+
+function removeNulls(env: { [key: string]: string | null }): void {
+	// Don't delete while iterating the object itself
+	for (let key of Object.keys(env)) {
+		if (env[key] === null) {
+			delete env[key];
 		}
 	}
 }
