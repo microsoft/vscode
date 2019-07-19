@@ -72,13 +72,11 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 
 	private logAction(action: string) {
-		/* __GDPR__
-			"activityBarAction" : {
-				"viewletId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('activityBarAction', { viewletId: this.activity.id, action });
+		type ActivityBarActionClassification = {
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
