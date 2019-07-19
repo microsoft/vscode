@@ -42,7 +42,7 @@ import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalDimensions, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
@@ -404,6 +404,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
+	$sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void;
 
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;

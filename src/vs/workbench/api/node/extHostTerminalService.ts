@@ -617,6 +617,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// TODO: Support conpty on remote, it doesn't seem to work for some reason?
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
+		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 

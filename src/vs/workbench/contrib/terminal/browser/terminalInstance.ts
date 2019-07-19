@@ -223,6 +223,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
+	public set shellLaunchConfig(shellLaunchConfig: IShellLaunchConfig) { this._shellLaunchConfig = shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
 	private readonly _onExit = new Emitter<number>();

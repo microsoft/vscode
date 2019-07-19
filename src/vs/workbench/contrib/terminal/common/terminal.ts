@@ -468,7 +468,7 @@ export interface ITerminalInstance {
 	/**
 	 * The shell launch config used to launch the shell.
 	 */
-	readonly shellLaunchConfig: IShellLaunchConfig;
+	shellLaunchConfig: IShellLaunchConfig;
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
