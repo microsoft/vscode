@@ -263,11 +263,11 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private toggleViewVisibility(viewId: string): void {
 		const visible = !this.viewsModel.isVisible(viewId);
-		type ViewsToggledVisibilityClassification = {
+		type ViewsToggleVisibilityClassification = {
 			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 			visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		};
-		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggledVisibilityClassification>('views.toggledVisibility', { viewId, visible });
+		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 		this.viewsModel.setVisible(viewId, visible);
 	}
 
