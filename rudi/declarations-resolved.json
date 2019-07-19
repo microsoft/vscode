@@ -1,0 +1,2754 @@
+{
+	"events": {
+		"monacoworkbench/packagemetrics": {
+			"commit": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"size": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"editorActionInvoked": {
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"snippet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"suggestWidget": {
+			"wasautomaticallytriggered": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"suggestioncount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"snippetcount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"textcount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"snippet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"suggestWidget:toggleDetailsFocus": {
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"snippet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"suggestWidget:collapseDetails": {
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"snippet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"suggestWidget:expandDetails": {
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"snippet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"update:win32SetupTarget": {
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"update:win<NUMBER>SetupTarget": {
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"update:notAvailable": {
+			"explicit": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"extensionActivationTimes": {
+			"outcome": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"id": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionversion": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"activationevents": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"isbuiltin": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"startup": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"codeloadingtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"activatecalltime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"activateresolvedtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			}
+		},
+		"webviews:createWebviewPanel": {
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"machineIdFallback": {
+			"usingfallbackguid": {
+				"classification": "SystemMetaData",
+				"purpose": "BusinessInsight",
+				"isMeasurement": true
+			}
+		},
+		"machineIdDisambiguation": {
+			"correctedmachineid": {
+				"classification": "EndUserPseudonymizedInformation",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"galleryService:downloadVSIX": {
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionGallery:install": {
+			"success": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"errorcode": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"recommendationreason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionGallery:uninstall": {
+			"success": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"errorcode": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionGallery:update": {
+			"success": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"errorcode": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"startupTimeVaried": {
+			"version": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"ellapsed": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"islatestversion": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"didusecacheddata": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"windowkind": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"windowcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"viewletid": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"panelid": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"editorids": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"timers.ellapsedappready": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedwindowload": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedwindowloadtorequire": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedextensions": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedextensionsready": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedrequire": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedworkspacestorageinit": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedworkspaceserviceinit": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedviewletrestore": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedpanelrestore": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsededitorrestore": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedworkbench": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsedtimerstotimerscomputed": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"timers.ellapsednlsgeneration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"platform": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"release": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"arch": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"totalmem": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"freemem": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"cpus.count": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"cpus.speed": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"cpus.model": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"initialstartup": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"hasaccessibilitysupport": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"isvmlikelyhood": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"emptyworkbench": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"loadavg": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"meminfo.workingsetsize": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"meminfo.privatebytes": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"meminfo.sharedbytes": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			}
+		},
+		"startupRawTimers": {
+			"entries": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"replaceAll.started": {
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			}
+		},
+		"searchResultsFirstRender": {
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			}
+		},
+		"searchResultsFinished": {
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			}
+		},
+		"searchResultsShown": {
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"filecount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"scheme": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"options.pattern": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"options.isregexp": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"options.iswordmatch": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"options.wordseparators": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"options.ismultiline": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"options.iscasesensitive": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"options.issmartcase": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"workspce.tags": {
+			"workbench.filestoopenorcreate": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workbench.filestodiff": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"workspace.roots": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.empty": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.grunt": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.gulp": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.jake": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.tsconfig": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.jsconfig": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.config.xml": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.vsc.extension": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.asp<NUMBER>": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.sln": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.unity": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.express": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.sails": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.koa": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.hapi": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.socket.io": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.restify": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.rnpm-plugin-windows": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.react": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.@angular/core": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.vue": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.aws-sdk": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.aws-amplify-sdk": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.azure": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.azure-storage": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.@google-cloud/common": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.firebase": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.npm.heroku-cli": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.bower": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.yeoman.code.ext": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.cordova.high": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.cordova.low": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.xamarin.android": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.xamarin.ios": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.android.cpp": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.reactnative": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.ionic": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": "true"
+			},
+			"workspace.nativescript": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": "true"
+			},
+			"workspace.java.pom": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.requirements": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.requirements.star": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.pipfile": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.conda": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.any-azure": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-storage-common": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-storage-blob": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-storage-file": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-storage-queue": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-mgmt": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-shell": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.pulumi-azure": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-cosmos": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-devtools": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-elasticluster": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-eventgrid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-functions": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-graphrbac": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-keyvault": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-loganalytics": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-monitor": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-servicebus": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-servicefabric": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-storage": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-translator": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-iothub-device-client": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-ml": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.azure-cognitiveservices": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.adal": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.pydocumentdb": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.botbuilder-core": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.botbuilder-schema": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"workspace.py.botframework-connector": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"workspace.remotes": {
+			"domains": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"workspace.hashedRemotes": {
+			"remotes": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"workspace.azure": {
+			"node": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"java": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"resolveProxy.stats": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"keyboardLayout": {
+			"currentkeyboardlayout.name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.text": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.model": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.layout": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.variant": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.options": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.rules": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.lang": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"currentkeyboardlayout.localizedname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"disableOtherKeymaps": {
+			"oldkeymaps": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"confirmed": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"newkeymap.id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"newkeymap.uuid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionGallery:install:recommendations": {
+			"recommendationreason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionsRecommendations:ignoreRecommendation": {
+			"recommendationreason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"extensionid": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionWorkspaceRecommendations:popup": {
+			"userreaction": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionRecommendations:popup": {
+			"userreaction": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"fileExtensionSuggestion:popup": {
+			"userreaction": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"fileextension": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"dynamicWorkspaceRecommendations": {
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"cache": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"exthostunresponsive": {
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"isMeasurement": true
+			},
+			"data": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"extensionGallery:openExtension": {
+			"recommendationreason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionEditor:navbarChange": {
+			"navitem": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionAllRecommendations:open": {
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"recommendations": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionRecommendations:open": {
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"recommendations": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extensionWorkspaceRecommendations:open": {
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"extension:enable": {
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"extension:disable": {
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"galleryid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publishername": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"dependencies": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"index": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"searchtext": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"querysource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"debug/addLaunchConfiguration": {},
+		"debugSessionStart": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"breakpointcount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"exceptionbreakpoints": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"watchexpressionscount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"extensionname": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"isbuiltin": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"launchjsonexists": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"debugSessionStop": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"success": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"sessionlengthinseconds": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"breakpointcount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"watchexpressionscount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"debugMisconfiguration": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"error": {
+				"classification": "CallstackOrException",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"debugAddBreakpoint": {
+			"context": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"hascondition": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"hashitcondition": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"haslogmessage": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"debugProtocolErrorResponse": {
+			"error": {
+				"classification": "CallstackOrException",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"taskService": {
+			"trigger": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"runner": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"taskkind": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"command": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"success": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"exitcode": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"taskService.customize": {
+			"properties": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"problems.filter": {
+			"errors": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"warnings": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"infos": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"problems.selectDiagnostic": {
+			"source": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"code": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"problems.selectRelatedInformation": {
+			"source": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"code": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"problems.expandRelatedInformation": {
+			"source": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"code": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"experimentalPrompts": {
+			"experimentid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"commandtext": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"cancelled": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"keybindings.filter": {
+			"filter": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"emptyfilters": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"defaultSettings.filter": {
+			"filter": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"durations.nlpresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"counts.nlpresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"durations.filterresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"counts.filterresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"requestcount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"defaultSettings.searchError": {
+			"message": {
+				"classification": "CallstackOrException",
+				"purpose": "FeatureInsight"
+			},
+			"filter": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"defaultSettingsActions.copySetting": {
+			"userconfigurationkeys": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"query": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"nlpindex": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"groupid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"displayidx": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"editableside": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"settingsEditor.settingModified": {
+			"key": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"query": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"groupid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"nlpindex": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"displayindex": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"showconfiguredonly": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"isreset": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"settingsEditor.filter": {
+			"query": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			},
+			"durations.nlpresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"counts.nlpresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"counts.filterresult": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			},
+			"requestcount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"isMeasurement": true
+			}
+		},
+		"settingsEditor.searchError": {
+			"message": {
+				"classification": "CallstackOrException",
+				"purpose": "FeatureInsight"
+			},
+			"filter": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"breadcrumbs/select": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"breadcrumbs/open": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"editorOpened": {
+			"typeid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.mimetype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.scheme": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.ext": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.path": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"editorClosed": {
+			"typeid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"target": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.mimetype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.scheme": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.ext": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"resource.path": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"views.toggleVisibility": {
+			"viewid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"visible": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"activityBarAction": {
+			"viewletid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"action": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"languagePackSuggestion:popup": {
+			"userreaction": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"language": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"installExtension": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"installedExtension": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"outcome": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"error": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"detailsExtension": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"installKeymap": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"installedKeymap": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"outcome": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"error": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"detailsKeymap": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"workbenchActionExecuted": {
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"walkThroughSnippetInteraction": {
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"snippet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"experiments:optout": {
+			"optout": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"experiments": {
+			"experiments": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"taskService.template": {
+			"templateid": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"autodetect": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"workspaceLoad": {
+			"useragent": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"emptyworkbench": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"windowsize.innerheight": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"windowsize.innerwidth": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"windowsize.outerheight": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"windowsize.outerwidth": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"workbench.filestoopenorcreate": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"workbench.filestodiff": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"customkeybindingscount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"theme": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"language": {
+				"classification": "SystemMetaData",
+				"purpose": "BusinessInsight"
+			},
+			"pinnedviewlets": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"restoredviewlet": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"restorededitors": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"startupkind": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"openKeybindings": {
+			"textual": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"extensionsMessage": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"extensionid": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"extensionpointid": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"message": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"resolveProxy": {
+			"count": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"duration": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"errorcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cachecount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cachesize": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cacherolls": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"envcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"settingscount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"localhostcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"envnoproxycount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"results": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"output.channel.creation.error": {},
+		"customKeybindingsChanged": {
+			"keycount": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"settingsRead": {
+			"settingstype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"fileGet": {
+			"mimetype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"ext": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"path": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"whitelistedjson": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"settingsWritten": {
+			"settingstype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"filePUT": {
+			"mimetype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"ext": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"path": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"whitelistedjson": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"cachedSearchComplete": {
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"resultcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"workspacefoldercount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"endtoendtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"sortingtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cachewasresolved": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"cachelookuptime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cachefiltertime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cacheentrycount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"scheme": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"searchComplete": {
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"resultcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"workspacefoldercount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"endtoendtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"sortingtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"filewalktime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"directorieswalked": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"fileswalked": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cmdtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"cmdresultcount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"scheme": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"textSearchComplete": {
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"workspacefoldercount": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"endtoendtime": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"scheme": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"error": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			},
+			"usepcre2": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"activatePlugin": {
+			"id": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"name": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"isbuiltin": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"publisherdisplayname": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"themeid": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"extensionversion": {
+				"classification": "PublicNonPersonalData",
+				"purpose": "FeatureInsight"
+			},
+			"activationevents": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"reason": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"issueReporterSearchError": {
+			"message": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"issueReporterSubmit": {
+			"issuetype": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"numsimilarissuesdisplayed": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"issueReporterViewSimilarIssue": {},
+		"issueReporterGetElementError": {
+			"message": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			}
+		},
+		"shimming.open": {
+			"extension": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"shimming.open.call.noForward": {
+			"extension": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"galleryService:query": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"text": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"galleryService:requestError": {
+			"url": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"cdn": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"message": {
+				"classification": "CallstackOrException",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"galleryService:cdnFallback": {
+			"url": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"message": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"updateConfiguration": {
+			"configurationsource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"configurationkeys": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"updateConfigurationValues": {
+			"configurationsource": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"configurationvalues": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"updateKeybindings": {
+			"bindings": {
+				"classification": "CustomerContent",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"optInStatus": {
+			"optin": {
+				"classification": "SystemMetaData",
+				"purpose": "BusinessInsight",
+				"ismeasurement": true
+			}
+		},
+		"UnhandledError": {
+			"callstack": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"msg": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"file": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"line": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"column": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			},
+			"uncaught_error_name": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"uncaught_error_msg": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth"
+			},
+			"count": {
+				"classification": "CallstackOrException",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			}
+		},
+		"workspace.stats": {
+			"filetypes.name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"filetypes.count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"configtypes.name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"configtypes.count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"launchconfigs.name": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			},
+			"launchconfigs.count": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight",
+				"ismeasurement": true
+			}
+		},
+		"update:downloaded": {
+			"version": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		},
+		"windowerror": {
+			"type": {
+				"classification": "SystemMetaData",
+				"purpose": "PerformanceAndHealth",
+				"ismeasurement": true
+			}
+		},
+		"commandExecuted": {
+			"id": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			},
+			"from": {
+				"classification": "SystemMetaData",
+				"purpose": "FeatureInsight"
+			}
+		}
+	},
+	"commonProperties": {
+		"pluginhosttelemetry": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight",
+			"isMeasurement": true
+		},
+		"common.firstsessiondate": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.lastsessiondate": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.isnewsession": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.instanceid": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.remoteauthority": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		},
+		"common.machineid": {
+			"classification": "EndUserPseudonymizedInformation",
+			"purpose": "FeatureInsight"
+		},
+		"sessionid": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"commithash": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		},
+		"version": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.platform": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.product": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		},
+		"common.useragent": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"timestamp": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.timesincesessionstart": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight",
+			"isMeasurement": true
+		},
+		"common.sequence": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight",
+			"isMeasurement": true
+		},
+		"common.platformversion": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.nodeplatform": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		},
+		"common.nodearch": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		},
+		"common.snap": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.source": {
+			"classification": "SystemMetaData",
+			"purpose": "FeatureInsight"
+		},
+		"common.version.shell": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		},
+		"common.version.renderer": {
+			"classification": "SystemMetaData",
+			"purpose": "PerformanceAndHealth"
+		}
+	}
+}
