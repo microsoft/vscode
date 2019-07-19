@@ -314,7 +314,7 @@ export class InstallInOtherServerAction extends ExtensionAction {
 		}
 
 		if (
-			this.extension && this.extension.local && this.server
+			this.extension && this.extension.local && this.server && this.extension.state === ExtensionState.Installed
 			// disabled by extension kind or it is a language pack extension
 			&& (this.extension.enablementState === EnablementState.DisabledByExtensionKind || isLanguagePackExtension(this.extension.local.manifest))
 			// Not installed in other server and can install in other server
