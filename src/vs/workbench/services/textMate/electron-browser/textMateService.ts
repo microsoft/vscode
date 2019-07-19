@@ -14,12 +14,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IOnigLib } from 'vscode-textmate';
+import { IOnigLib, IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
+import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
+import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 
 const RUN_TEXTMATE_IN_WORKER = true;
 
@@ -83,17 +85,30 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 		super.dispose();
 		this._endSync();
 	}
+
+	public setTokens(tokens: ArrayBuffer): void {
+		console.log(`setTokens!!!`);
+		this._model.setTokens(MultilineTokensBuilder.deserialize(new Uint8Array(tokens)));
+	}
 }
 
 export class TextMateWorkerHost {
 
-	constructor(@IFileService private readonly _fileService: IFileService) {
+	constructor(
+		private readonly textMateService: TextMateService,
+		@IFileService private readonly _fileService: IFileService
+	) {
 	}
 
 	async readFile(_resource: UriComponents): Promise<string> {
 		const resource = URI.revive(_resource);
 		const content = await this._fileService.readFile(resource);
 		return content.value.toString();
+	}
+
+	async setTokens(_resource: UriComponents, tokens: Uint8Array): Promise<void> {
+		const resource = URI.revive(_resource);
+		this.textMateService.setTokens(resource, tokens);
 	}
 }
 
@@ -153,7 +168,7 @@ export class TextMateService extends AbstractTextMateService {
 		this._killWorker();
 
 		if (RUN_TEXTMATE_IN_WORKER) {
-			const workerHost = new TextMateWorkerHost(this._fileService);
+			const workerHost = new TextMateWorkerHost(this, this._fileService);
 			const worker = createWebWorker<TextMateWorker>(this._modelService, {
 				createData: {
 					grammarDefinitions
@@ -170,8 +185,18 @@ export class TextMateService extends AbstractTextMateService {
 					return;
 				}
 				this._workerProxy = proxy;
+				if (this._currentTheme) {
+					this._workerProxy.acceptTheme(this._currentTheme);
+				}
 				this._modelService.getModels().forEach((model) => this._onModelAdded(model));
 			});
+		}
+	}
+
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
+		super._doUpdateTheme(grammarFactory, theme);
+		if (this._currentTheme && this._workerProxy) {
+			this._workerProxy.acceptTheme(this._currentTheme);
 		}
 	}
 
@@ -190,6 +215,14 @@ export class TextMateService extends AbstractTextMateService {
 			this._worker = null;
 		}
 		this._workerProxy = null;
+	}
+
+	setTokens(resource: URI, tokens: ArrayBuffer): void {
+		const key = resource.toString();
+		if (!this._tokenizers[key]) {
+			return;
+		}
+		this._tokenizers[key].setTokens(tokens);
 	}
 }
 

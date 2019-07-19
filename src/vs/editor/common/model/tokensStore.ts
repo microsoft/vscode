@@ -8,6 +8,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (
@@ -39,7 +40,41 @@ export class MultilineTokensBuilder {
 				return;
 			}
 		}
-		this.tokens.push(new MultilineTokens(lineNumber, lineTokens));
+		this.tokens.push(new MultilineTokens(lineNumber, [lineTokens]));
+	}
+
+	public static deserialize(buff: Uint8Array): MultilineTokens[] {
+		let offset = 0;
+		const count = readUInt32BE(buff, offset); offset += 4;
+		let result: MultilineTokens[] = [];
+		for (let i = 0; i < count; i++) {
+			offset = MultilineTokens.deserialize(buff, offset, result);
+		}
+		return result;
+	}
+
+	public serialize(): Uint8Array {
+		const size = this._serializeSize();
+		const result = new Uint8Array(size);
+		this._serialize(result);
+		return result;
+	}
+
+	private _serializeSize(): number {
+		let result = 0;
+		result += 4; // 4 bytes for the count
+		for (let i = 0; i < this.tokens.length; i++) {
+			result += this.tokens[i].serializeSize();
+		}
+		return result;
+	}
+
+	private _serialize(destination: Uint8Array): void {
+		let offset = 0;
+		writeUInt32BE(destination, this.tokens.length, offset); offset += 4;
+		for (let i = 0; i < this.tokens.length; i++) {
+			offset = this.tokens[i].serialize(destination, offset);
+		}
 	}
 }
 
@@ -48,14 +83,57 @@ export class MultilineTokens {
 	public readonly startLineNumber: number;
 	public readonly tokens: Uint32Array[];
 
-	constructor(lineNumber: number, tokens: Uint32Array) {
-		this.startLineNumber = lineNumber;
-		this.tokens = [tokens];
+	constructor(startLineNumber: number, tokens: Uint32Array[]) {
+		this.startLineNumber = startLineNumber;
+		this.tokens = tokens;
+	}
+
+	public static deserialize(buff: Uint8Array, offset: number, result: MultilineTokens[]): number {
+		const view32 = new Uint32Array(buff.buffer);
+		const startLineNumber = readUInt32BE(buff, offset); offset += 4;
+		const count = readUInt32BE(buff, offset); offset += 4;
+		let tokens: Uint32Array[] = [];
+		for (let i = 0; i < count; i++) {
+			const byteCount = readUInt32BE(buff, offset); offset += 4;
+			tokens.push(view32.subarray(offset / 4, offset / 4 + byteCount / 4));
+			offset += byteCount;
+		}
+		result.push(new MultilineTokens(startLineNumber, tokens));
+		return offset;
+	}
+
+	public serializeSize(): number {
+		let result = 0;
+		result += 4; // 4 bytes for the start line number
+		result += 4; // 4 bytes for the line count
+		for (let i = 0; i < this.tokens.length; i++) {
+			result += 4; // 4 bytes for the byte count
+			result += this.tokens[i].byteLength;
+		}
+		return result;
+	}
+
+	public serialize(destination: Uint8Array, offset: number): number {
+		writeUInt32BE(destination, this.startLineNumber, offset); offset += 4;
+		writeUInt32BE(destination, this.tokens.length, offset); offset += 4;
+		for (let i = 0; i < this.tokens.length; i++) {
+			writeUInt32BE(destination, this.tokens[i].byteLength, offset); offset += 4;
+			destination.set(new Uint8Array(this.tokens[i].buffer), offset); offset += this.tokens[i].byteLength;
+		}
+		return offset;
+	}
+}
+
+function toUint32Array(arr: Uint32Array | ArrayBuffer): Uint32Array {
+	if (arr instanceof Uint32Array) {
+		return arr;
+	} else {
+		return new Uint32Array(arr);
 	}
 }
 
 export class TokensStore {
-	private _lineTokens: (ArrayBuffer | null)[];
+	private _lineTokens: (Uint32Array | ArrayBuffer | null)[];
 	private _len: number;
 
 	constructor() {
@@ -69,13 +147,13 @@ export class TokensStore {
 	}
 
 	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
-		let rawLineTokens: ArrayBuffer | null = null;
+		let rawLineTokens: Uint32Array | ArrayBuffer | null = null;
 		if (lineIndex < this._len) {
 			rawLineTokens = this._lineTokens[lineIndex];
 		}
 
 		if (rawLineTokens !== null && rawLineTokens !== EMPTY_LINE_TOKENS) {
-			return new LineTokens(new Uint32Array(rawLineTokens), lineText);
+			return new LineTokens(toUint32Array(rawLineTokens), lineText);
 		}
 
 		let lineTokens = new Uint32Array(2);
@@ -84,7 +162,7 @@ export class TokensStore {
 		return new LineTokens(lineTokens, lineText);
 	}
 
-	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, tokens: Uint32Array): ArrayBuffer {
+	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, tokens: Uint32Array): Uint32Array | ArrayBuffer {
 		if (lineTextLength === 0) {
 			let hasDifferentLanguageId = false;
 			if (tokens && tokens.length > 1) {
@@ -102,7 +180,11 @@ export class TokensStore {
 			tokens[1] = getDefaultMetadata(topLevelLanguageId);
 		}
 
-		return tokens.buffer;
+		if (tokens.byteOffset === 0 && tokens.byteLength === tokens.buffer.byteLength) {
+			// Store directly the ArrayBuffer pointer to save an object
+			return tokens.buffer;
+		}
+		return tokens;
 	}
 
 	private _ensureLine(lineIndex: number): void {
@@ -127,7 +209,7 @@ export class TokensStore {
 		if (insertCount === 0) {
 			return;
 		}
-		let lineTokens: (ArrayBuffer | null)[] = [];
+		let lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
 		for (let i = 0; i < insertCount; i++) {
 			lineTokens[i] = null;
 		}
@@ -135,14 +217,10 @@ export class TokensStore {
 		this._len += insertCount;
 	}
 
-	private _setTokens(lineIndex: number, tokens: ArrayBuffer | null): void {
-		this._ensureLine(lineIndex);
-		this._lineTokens[lineIndex] = tokens;
-	}
-
 	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array): void {
 		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
-		this._setTokens(lineIndex, tokens);
+		this._ensureLine(lineIndex);
+		this._lineTokens[lineIndex] = tokens;
 	}
 
 	//#region Editing
@@ -172,7 +250,7 @@ export class TokensStore {
 		this._lineTokens[firstLineIndex] = TokensStore._deleteEnding(this._lineTokens[firstLineIndex], range.startColumn - 1);
 
 		const lastLineIndex = range.endLineNumber - 1;
-		let lastLineTokens: ArrayBuffer | null = null;
+		let lastLineTokens: Uint32Array | ArrayBuffer | null = null;
 		if (lastLineIndex < this._len) {
 			lastLineTokens = TokensStore._deleteBeginning(this._lineTokens[lastLineIndex], range.endColumn - 1);
 		}
@@ -208,29 +286,29 @@ export class TokensStore {
 		this._insertLines(position.lineNumber, eolCount);
 	}
 
-	private static _deleteBeginning(lineTokens: ArrayBuffer | null, toChIndex: number): ArrayBuffer | null {
+	private static _deleteBeginning(lineTokens: Uint32Array | ArrayBuffer | null, toChIndex: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
 			return lineTokens;
 		}
 		return TokensStore._delete(lineTokens, 0, toChIndex);
 	}
 
-	private static _deleteEnding(lineTokens: ArrayBuffer | null, fromChIndex: number): ArrayBuffer | null {
+	private static _deleteEnding(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
 			return lineTokens;
 		}
 
-		const tokens = new Uint32Array(lineTokens);
+		const tokens = toUint32Array(lineTokens);
 		const lineTextLength = tokens[tokens.length - 2];
 		return TokensStore._delete(lineTokens, fromChIndex, lineTextLength);
 	}
 
-	private static _delete(lineTokens: ArrayBuffer | null, fromChIndex: number, toChIndex: number): ArrayBuffer | null {
+	private static _delete(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number, toChIndex: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
 			return lineTokens;
 		}
 
-		const tokens = new Uint32Array(lineTokens);
+		const tokens = toUint32Array(lineTokens);
 		const tokensCount = (tokens.length >>> 1);
 
 		// special case: deleting everything
@@ -282,7 +360,7 @@ export class TokensStore {
 		return tmp.buffer;
 	}
 
-	private static _append(lineTokens: ArrayBuffer | null, _otherTokens: ArrayBuffer | null): ArrayBuffer | null {
+	private static _append(lineTokens: Uint32Array | ArrayBuffer | null, _otherTokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer | null {
 		if (_otherTokens === EMPTY_LINE_TOKENS) {
 			return lineTokens;
 		}
@@ -296,8 +374,8 @@ export class TokensStore {
 			// cannot determine combined line length...
 			return null;
 		}
-		const myTokens = new Uint32Array(lineTokens);
-		const otherTokens = new Uint32Array(_otherTokens);
+		const myTokens = toUint32Array(lineTokens);
+		const otherTokens = toUint32Array(_otherTokens);
 		const otherTokensCount = (otherTokens.length >>> 1);
 
 		let result = new Uint32Array(myTokens.length + otherTokens.length);
@@ -311,13 +389,13 @@ export class TokensStore {
 		return result.buffer;
 	}
 
-	private static _insert(lineTokens: ArrayBuffer | null, chIndex: number, textLength: number): ArrayBuffer | null {
+	private static _insert(lineTokens: Uint32Array | ArrayBuffer | null, chIndex: number, textLength: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
 			// nothing to do
 			return lineTokens;
 		}
 
-		const tokens = new Uint32Array(lineTokens);
+		const tokens = toUint32Array(lineTokens);
 		const tokensCount = (tokens.length >>> 1);
 
 		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
