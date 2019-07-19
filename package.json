@@ -48,7 +48,7 @@
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "2.1.7",
     "vscode-proxy-agent": "0.4.0",
-    "vscode-ripgrep": "^1.5.4",
+    "vscode-ripgrep": "^1.5.5",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
     "xterm": "3.15.0-beta71",
