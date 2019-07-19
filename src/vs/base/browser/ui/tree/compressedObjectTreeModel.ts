@@ -9,11 +9,40 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { IObjectTreeModelOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
-export function compress<T>(iterator: Iterator<ITreeElement<T>>): Iterator<ITreeElement<T[]>> {
-	throw new Error('todo');
+export interface ICompressedTreeElement<T> extends ITreeElement<T> {
+	readonly children?: Iterator<ICompressedTreeElement<T>> | ICompressedTreeElement<T>[];
+	readonly incompressible?: boolean;
 }
 
-export function decompress<T>(sequence: Iterator<ITreeElement<T[]>>): Iterator<ITreeElement<T>> {
+export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<T[]> {
+	const result = [element.element];
+	let childrenIterator: Iterator<ITreeElement<T>>;
+	let children: ITreeElement<T>[];
+
+	while (true) {
+		childrenIterator = Iterator.from(element.children);
+		children = Iterator.collect(childrenIterator, 2);
+
+		if (children.length !== 1) {
+			break;
+		}
+
+		element = children[0];
+
+		if (element.incompressible) {
+			break;
+		}
+
+		result.push(element.element);
+	}
+
+	return {
+		element: result,
+		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress)
+	};
+}
+
+export function decompress<T>(element: ITreeElement<T>): ITreeElement<T[]> {
 	throw new Error('todo');
 }
 

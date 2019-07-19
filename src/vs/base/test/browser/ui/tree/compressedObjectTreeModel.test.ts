@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { CompressedObjectTreeModel, compress } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { CompressedObjectTreeModel, compress, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
@@ -21,24 +21,26 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 	return list.map(i => i.element);
 }
 
-interface Node<T> {
-	element: T;
-	children?: Node<T>[];
+
+interface IResolvedTreeElement<T> extends ITreeElement<T> {
+	readonly element: T;
+	readonly children?: ITreeElement<T>[];
 }
 
-type Node2<T> = [T, Node2<T>[]];
+function resolve<T>(treeElement: ITreeElement<T>): IResolvedTreeElement<T> {
+	const element = treeElement.element;
+	const children = Iterator.collect(Iterator.map(Iterator.from(treeElement.children), resolve));
 
-// function asTreeElement(node: Node): ITreeElement<Node> {
-// 	if (Array.isArray(node)) {
-// 		return { element: node, children: Iterator.map(Iterator.from(node), asTreeElement) };
-// 	} else {
-// 		return { element: node };
-// 	}
-// }
+	if (children.length === 0) {
+		return { element };
+	}
+
+	return { element, children };
+}
 
 suite('CompressedObjectTreeModel', function () {
 
-	test('ctor', () => {
+	test('ctor', function () {
 		const list: ITreeNode<string[]>[] = [];
 		const model = new CompressedObjectTreeModel<string>(toSpliceable(list));
 
@@ -46,9 +48,58 @@ suite('CompressedObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), []);
 	});
 
-	test('compress', () => {
-		const actual: Node<number>[] = [
-			{
+	suite('compress', function () {
+
+		test('small', function () {
+			const actual: ICompressedTreeElement<number> = { element: 1 };
+			const expected: IResolvedTreeElement<number[]> = { element: [1] };
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('no compression', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{ element: 11 },
+					{ element: 12 },
+					{ element: 13 },
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1], children: [
+					{ element: [11] },
+					{ element: [12] },
+					{ element: [13] },
+				]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('single hierarchy', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{
+						element: 11, children: [
+							{
+								element: 111, children: [
+									{ element: 1111 }
+								]
+							}
+						]
+					},
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1, 11, 111, 1111]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('deep compression', function () {
+			const actual: ICompressedTreeElement<number> = {
 				element: 1, children: [
 					{
 						element: 11, children: [
@@ -63,23 +114,172 @@ suite('CompressedObjectTreeModel', function () {
 						]
 					},
 				]
-			}
-		];
+			};
 
-		const expected: Node<number[]>[] = [
-			{
+			const expected: IResolvedTreeElement<number[]> = {
 				element: [1, 11, 111], children: [
 					{ element: [1111] },
 					{ element: [1112] },
 					{ element: [1113] },
 					{ element: [1114] },
 				]
-			}
-		];
+			};
 
-		const element = asTreeElement(root);
-		const iterator = Iterator.from([element]);
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
 
-		const result = Iterator.collect(compress(iterator));
+		test('double deep compression', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{
+						element: 11, children: [
+							{
+								element: 111, children: [
+									{ element: 1112 },
+									{ element: 1113 },
+								]
+							},
+						]
+					},
+					{
+						element: 12, children: [
+							{
+								element: 121, children: [
+									{ element: 1212 },
+									{ element: 1213 },
+								]
+							},
+						]
+					}
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1], children: [
+					{
+						element: [11, 111], children: [
+							{ element: [1112] },
+							{ element: [1113] },
+						]
+					},
+					{
+						element: [12, 121], children: [
+							{ element: [1212] },
+							{ element: [1213] },
+						]
+					}
+				]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('incompressible leaf', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{
+						element: 11, children: [
+							{
+								element: 111, children: [
+									{ element: 1111, incompressible: true }
+								]
+							}
+						]
+					},
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1, 11, 111], children: [
+					{ element: [1111] }
+				]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('incompressible branch', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{
+						element: 11, children: [
+							{
+								element: 111, incompressible: true, children: [
+									{ element: 1111 }
+								]
+							}
+						]
+					},
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1, 11], children: [
+					{ element: [111, 1111] }
+				]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('incompressible chain', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{
+						element: 11, children: [
+							{
+								element: 111, incompressible: true, children: [
+									{ element: 1111, incompressible: true }
+								]
+							}
+						]
+					},
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1, 11], children: [
+					{
+						element: [111], children: [
+							{ element: [1111] }
+						]
+					}
+				]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
+
+		test('incompressible tree', function () {
+			const actual: ICompressedTreeElement<number> = {
+				element: 1, children: [
+					{
+						element: 11, incompressible: true, children: [
+							{
+								element: 111, incompressible: true, children: [
+									{ element: 1111, incompressible: true }
+								]
+							}
+						]
+					},
+				]
+			};
+
+			const expected: IResolvedTreeElement<number[]> = {
+				element: [1], children: [
+					{
+						element: [11], children: [
+							{
+								element: [111], children: [
+									{ element: [1111] }
+								]
+							}
+						]
+					}
+				]
+			};
+
+			assert.deepEqual(resolve(compress(actual)), expected);
+		});
 	});
 });
