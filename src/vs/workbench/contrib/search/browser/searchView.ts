@@ -1151,6 +1151,10 @@ export class SearchView extends ViewletPanel {
 	}
 
 	onQueryChanged(preserveFocus?: boolean): void {
+		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
+			return;
+		}
+
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
