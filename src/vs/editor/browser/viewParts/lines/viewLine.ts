@@ -12,11 +12,10 @@ import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
-import { Range } from 'vs/editor/common/core/range';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -173,7 +172,7 @@ export class ViewLine implements IVisibleLine {
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
 		// Only send selection information when needed for rendering whitespace
-		let selectionsOnLine: Range[] | undefined;
+		let selectionsOnLine: LineRange[] | null = null;
 		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
@@ -194,7 +193,7 @@ export class ViewLine implements IVisibleLine {
 							selectionsOnLine = [];
 						}
 
-						selectionsOnLine.push(new Range(lineNumber, startColumn, lineNumber, endColumn));
+						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
 					}
 				}
 			}

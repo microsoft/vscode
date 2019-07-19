@@ -2028,7 +2028,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			config.viewInfo.renderWhitespace,
 			config.viewInfo.renderControlCharacters,
 			config.viewInfo.fontLigatures,
-			undefined // Send no selections, original line cannot be selected
+			null // Send no selections, original line cannot be selected
 		), sb);
 
 		sb.appendASCIIString('</div>');
