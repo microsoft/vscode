@@ -23,7 +23,7 @@ export class CommentsDataSource implements IDataSource {
 			return element.id;
 		}
 		if (element instanceof CommentNode) {
-			return `${element.resource.toString()}-${element.comment.uniqueIdInThread}`;
+			return `${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}`;
 		}
 		return '';
 	}
