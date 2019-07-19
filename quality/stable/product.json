@@ -62,6 +62,8 @@
 		"shinnn.stylelint": "{**/.stylelintrc,**/stylelint.config.js}",
 		"eg2.vscode-npm-script": "{**/package.json}",
 		"ms-mssql.mssql": "{**/*.sql}",
+		"bajdzis.vscode-database": "{**/*.sql}",
+		"mtxr.sqltools": "{**/*.sql}",
 		"usqlextpublisher.usql-vscode-ext": "{**/*.usql}",
 		"ms-vscode.sublime-keybindings": "{**/.sublime-project,**/.sublime-workspace}",
 		"k--kato.intellij-idea-keybindings": "{**/.idea}",
@@ -105,10 +107,6 @@
 		"ms-azuretools.vscode-docker": {
 			"name": "Docker",
 			"pattern": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml}"
-		},
-		"ms-mssql.mssql": {
-			"name": "mssql",
-			"pattern": "{**/*.sql}"
 		},
 		"octref.vetur": {
 			"name": "Vetur",
@@ -169,17 +167,18 @@
 		},
 		"mysql": {
 			"friendlyName": "MySQL",
-			"windowsPath": "%ProgramFiles%\\MySQL\\MySQL Server 5.7\\bin\\mysqld.exe",
+			"windowsPath": "%ProgramFiles%\\MySQL\\MySQL Server 8.0\\bin\\mysqld.exe",
 			"recommendations": [
-				"ms-mssql.mssql",
-				"bajdzis.vscode-database"
+				"bajdzis.vscode-database",
+				"mtxr.sqltools"
 			]
 		},
 		"postgres": {
 			"friendlyName": "PostgreSQL",
-			"windowsPath": "%ProgramFiles%\\PostgreSQL\\9.6\\bin\\psql.exe",
+			"windowsPath": "%ProgramFiles%\\PostgreSQL\\11\\bin\\psql.exe",
 			"recommendations": [
-				"ms-mssql.mssql",
+				"ms-ossdata.vscode-postgresql",
+				"mtxr.sqltools",
 				"bajdzis.vscode-database"
 			]
 		},
