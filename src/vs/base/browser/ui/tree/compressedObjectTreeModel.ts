@@ -49,8 +49,24 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 	};
 }
 
-export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): ITreeElement<T> {
-	throw new Error('todo');
+export function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
+	let children: Iterator<ICompressedTreeElement<T>>;
+
+	if (index < element.element.elements.length - 1) {
+		children = Iterator.single(_decompress(element, index + 1));
+	} else {
+		children = Iterator.map(Iterator.from(element.children), el => _decompress(el, 0));
+	}
+
+	if (index === 0 && element.element.incompressible) {
+		return { element: element.element.elements[index], children, incompressible: true };
+	}
+
+	return { element: element.element.elements[index], children };
+}
+
+export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): ICompressedTreeElement<T> {
+	return _decompress(element, 0);
 }
 
 export interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<T[], TFilterData> { }

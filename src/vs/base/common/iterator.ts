@@ -29,6 +29,21 @@ export module Iterator {
 		return _empty;
 	}
 
+	export function single<T>(value: T): Iterator<T> {
+		let done = false;
+
+		return {
+			next(): IteratorResult<T> {
+				if (done) {
+					return FIN;
+				}
+
+				done = true;
+				return { done: false, value };
+			}
+		};
+	}
+
 	export function fromArray<T>(array: T[], index = 0, length = array.length): Iterator<T> {
 		return {
 			next(): IteratorResult<T> {
