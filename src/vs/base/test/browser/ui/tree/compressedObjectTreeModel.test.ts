@@ -4,23 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { CompressedObjectTreeModel, compress, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { compress, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
-
-function toSpliceable<T>(arr: T[]): ISpliceable<T> {
-	return {
-		splice(start: number, deleteCount: number, elements: T[]): void {
-			arr.splice(start, deleteCount, ...elements);
-		}
-	};
-}
-
-function toArray<T>(list: ITreeNode<T>[]): T[] {
-	return list.map(i => i.element);
-}
-
 
 interface IResolvedTreeElement<T> extends ITreeElement<T> {
 	readonly element: T;
@@ -40,14 +26,6 @@ function resolve<T>(treeElement: ITreeElement<T>): IResolvedTreeElement<T> {
 
 suite('CompressedObjectTreeModel', function () {
 
-	test('ctor', function () {
-		const list: ITreeNode<string[]>[] = [];
-		const model = new CompressedObjectTreeModel<string>(toSpliceable(list));
-
-		assert(model);
-		assert.deepEqual(toArray(list), []);
-	});
-
 	suite('compress', function () {
 
 		test('small', function () {
@@ -61,7 +39,7 @@ suite('CompressedObjectTreeModel', function () {
 				element: 1, children: [
 					{ element: 11 },
 					{ element: 12 },
-					{ element: 13 },
+					{ element: 13 }
 				]
 			};
 
@@ -69,7 +47,7 @@ suite('CompressedObjectTreeModel', function () {
 				element: [1], children: [
 					{ element: [11] },
 					{ element: [12] },
-					{ element: [13] },
+					{ element: [13] }
 				]
 			};
 
@@ -87,7 +65,7 @@ suite('CompressedObjectTreeModel', function () {
 								]
 							}
 						]
-					},
+					}
 				]
 			};
 
@@ -112,7 +90,7 @@ suite('CompressedObjectTreeModel', function () {
 								]
 							}
 						]
-					},
+					}
 				]
 			};
 
@@ -138,7 +116,7 @@ suite('CompressedObjectTreeModel', function () {
 									{ element: 1112 },
 									{ element: 1113 },
 								]
-							},
+							}
 						]
 					},
 					{
@@ -148,7 +126,7 @@ suite('CompressedObjectTreeModel', function () {
 									{ element: 1212 },
 									{ element: 1213 },
 								]
-							},
+							}
 						]
 					}
 				]
@@ -185,7 +163,7 @@ suite('CompressedObjectTreeModel', function () {
 								]
 							}
 						]
-					},
+					}
 				]
 			};
 
@@ -209,7 +187,7 @@ suite('CompressedObjectTreeModel', function () {
 								]
 							}
 						]
-					},
+					}
 				]
 			};
 
@@ -233,7 +211,7 @@ suite('CompressedObjectTreeModel', function () {
 								]
 							}
 						]
-					},
+					}
 				]
 			};
 
@@ -261,7 +239,7 @@ suite('CompressedObjectTreeModel', function () {
 								]
 							}
 						]
-					},
+					}
 				]
 			};
 
