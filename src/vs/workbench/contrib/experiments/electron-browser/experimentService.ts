@@ -15,12 +15,12 @@ import { match } from 'vs/base/common/glob';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { WorkspaceStats } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ExperimentState, IExperimentAction, IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -74,7 +74,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
 	) {
 		super();
 
@@ -355,7 +356,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					onSaveHandler.dispose();
 					return;
 				}
-				e.forEach(event => {
+				e.forEach(async event => {
 					if (event.kind !== StateChange.SAVED
 						|| latestExperimentState.state !== ExperimentState.Evaluating
 						|| date === latestExperimentState.lastEditedDate
@@ -370,10 +371,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						filePathCheck = match(fileEdits.filePathPattern, event.resource.fsPath);
 					}
 					if (Array.isArray(fileEdits.workspaceIncludes) && fileEdits.workspaceIncludes.length) {
-						workspaceCheck = !!WorkspaceStats.TAGS && fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
+						const tags = await this.workspaceStatsService.getTags();
+						workspaceCheck = !!tags && fileEdits.workspaceIncludes.some(x => !!tags[x]);
 					}
 					if (workspaceCheck && Array.isArray(fileEdits.workspaceExcludes) && fileEdits.workspaceExcludes.length) {
-						workspaceCheck = !!WorkspaceStats.TAGS && !fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
+						const tags = await this.workspaceStatsService.getTags();
+						workspaceCheck = !!tags && !fileEdits.workspaceExcludes.some(x => !!tags[x]);
 					}
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;

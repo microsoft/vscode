@@ -167,6 +167,7 @@ registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);
 
 //#endregion
 
@@ -344,5 +345,6 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { IWorkspaceStatsService, WorkspaceStatsService } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 
 //#endregion
