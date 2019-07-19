@@ -12,6 +12,7 @@ export interface IFindInputCheckboxOpts {
 	readonly appendTitle: string;
 	readonly isChecked: boolean;
 	readonly inputActiveOptionBorder?: Color;
+	readonly inputActiveOptionBackground?: Color;
 }
 
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
@@ -24,7 +25,8 @@ export class CaseSensitiveCheckbox extends Checkbox {
 			actionClassName: 'monaco-case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
@@ -35,7 +37,8 @@ export class WholeWordsCheckbox extends Checkbox {
 			actionClassName: 'monaco-whole-word',
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
@@ -46,7 +49,8 @@ export class RegexCheckbox extends Checkbox {
 			actionClassName: 'monaco-regex',
 			title: NLS_REGEX_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			inputActiveOptionBorder: opts.inputActiveOptionBorder
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
 }
