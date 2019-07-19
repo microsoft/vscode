@@ -21,7 +21,7 @@ import { TestExtensionEnablementService } from 'vs/workbench/services/extensionM
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -42,6 +42,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import { IProductService } from 'vs/platform/product/common/product';
+import { Schemas } from 'vs/base/common/network';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 suite('ExtensionsActions Test', () => {
 
@@ -1351,6 +1353,27 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(!testObject.enabled);
 	});
 
+	test('Test remote install action is enabled for local workspace extension', async () => {
+		// multi server setup
+		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, instantiationService.get(IExtensionManagementService));
+		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		const workbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localWorkspaceExtension]);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction);
+		instantiationService.createInstance(ExtensionContainers, [testObject]);
+
+		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
+		await workbenchService.queryGallery(CancellationToken.None);
+		testObject.extension = extensions[0];
+		assert.ok(testObject.enabled);
+		assert.equal('Install on remote', testObject.label);
+		assert.equal('extension-action prominent install', testObject.class);
+	});
 
 	test(`RecommendToFolderAction`, () => {
 		// TODO: Implement test
@@ -1378,6 +1401,43 @@ suite('ExtensionsActions Test', () => {
 
 	function aPage<T>(...objects: T[]): IPager<T> {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	}
+
+	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IExtensionManagementService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {
+		const localExtensionManagementServer: IExtensionManagementServer = {
+			authority: 'vscode-local',
+			label: 'local',
+			extensionManagementService: localExtensionManagementService || createExtensionManagementService()
+		};
+		const remoteExtensionManagementServer: IExtensionManagementServer = {
+			authority: 'vscode-remote',
+			label: 'remote',
+			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
+		};
+		return {
+			_serviceBrand: {},
+			localExtensionManagementServer,
+			remoteExtensionManagementServer,
+			getExtensionManagementServer: (location: URI) => {
+				if (location.scheme === Schemas.file) {
+					return localExtensionManagementServer;
+				}
+				if (location.scheme === REMOTE_HOST_SCHEME) {
+					return remoteExtensionManagementServer;
+				}
+				return null;
+			}
+		};
+	}
+
+	function createExtensionManagementService(): IExtensionManagementService {
+		return <IExtensionManagementService>{
+			onInstallExtension: Event.None,
+			onDidInstallExtension: Event.None,
+			onUninstallExtension: Event.None,
+			onDidUninstallExtension: Event.None,
+			getInstalled: () => Promise.resolve<ILocalExtension[]>([])
+		};
 	}
 
 });
