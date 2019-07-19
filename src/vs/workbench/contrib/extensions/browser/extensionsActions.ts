@@ -16,7 +16,7 @@ import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -270,60 +270,55 @@ export class InstallAction extends ExtensionAction {
 	}
 }
 
-export class RemoteInstallAction extends ExtensionAction {
+export class InstallInOtherServerAction extends ExtensionAction {
 
-	private static INSTALL_LABEL = localize('install', "Install");
-	private static INSTALLING_LABEL = localize('installing', "Installing");
+	protected static INSTALL_LABEL = localize('install', "Install");
+	protected static INSTALLING_LABEL = localize('installing', "Installing");
 
 	private static readonly Class = 'extension-action prominent install';
 	private static readonly InstallingClass = 'extension-action install installing';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private installing: boolean = false;
+	protected installing: boolean = false;
 
 	constructor(
+		id: string,
+		private readonly server: IExtensionManagementServer | null,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 	) {
-		super(`extensions.remoteinstall`, RemoteInstallAction.INSTALL_LABEL, RemoteInstallAction.Class, false);
-		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
+		super(id, InstallInOtherServerAction.INSTALL_LABEL, InstallInOtherServerAction.Class, false);
 		this.updateLabel();
 		this.update();
 	}
 
 	private updateLabel(): void {
-		if (this.installing) {
-			this.label = RemoteInstallAction.INSTALLING_LABEL;
-			this.tooltip = this.label;
-			return;
-		}
-		const remoteServer = this.extensionManagementServerService.remoteExtensionManagementServer;
-		if (remoteServer) {
-			this.label = `${RemoteInstallAction.INSTALL_LABEL} on ${remoteServer.label}`;
-			this.tooltip = this.label;
-			return;
-		}
+		this.label = this.getLabel();
+		this.tooltip = this.label;
+	}
+
+	protected getLabel(): string {
+		return this.installing ? InstallInOtherServerAction.INSTALLING_LABEL :
+			this.server ? `${InstallInOtherServerAction.INSTALL_LABEL} on ${this.server.label}`
+				: InstallInOtherServerAction.INSTALL_LABEL;
+
 	}
 
 	update(): void {
 		this.enabled = false;
-		this.class = RemoteInstallAction.Class;
+		this.class = InstallInOtherServerAction.Class;
 		if (this.installing) {
 			this.enabled = true;
-			this.class = RemoteInstallAction.InstallingClass;
+			this.class = InstallInOtherServerAction.InstallingClass;
 			this.updateLabel();
 			return;
 		}
-		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer
-			// Installed User Extension
-			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
-			// Local Workspace Extension
-			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || !isUIExtension(this.extension.local.manifest, this.productService, this.configurationService))
-			// Extension does not exist in remote
-			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
+
+		if (
+			this.extension && this.extension.local && this.server
+			// disabled by extension kind or it is a language pack extension
+			&& (this.extension.enablementState === EnablementState.DisabledByExtensionKind || isLanguagePackExtension(this.extension.local.manifest))
+			// Not installed in other server and can install in other server
+			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.server)
 			&& this.extensionsWorkbenchService.canInstall(this.extension)
 		) {
 			this.enabled = true;
@@ -333,13 +328,13 @@ export class RemoteInstallAction extends ExtensionAction {
 	}
 
 	async run(): Promise<void> {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer && !this.installing) {
+		if (this.server && !this.installing) {
 			this.installing = true;
 			this.update();
 			this.extensionsWorkbenchService.open(this.extension);
 			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 			if (this.extension.gallery) {
-				await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(this.extension.gallery);
+				await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
 				this.installing = false;
 				this.update();
 			}
@@ -347,77 +342,30 @@ export class RemoteInstallAction extends ExtensionAction {
 	}
 }
 
-export class LocalInstallAction extends ExtensionAction {
-
-	private static INSTALL_LABEL = localize('install locally', "Install Locally");
-	private static INSTALLING_LABEL = localize('installing', "Installing");
-
-	private static readonly Class = 'extension-action prominent install';
-	private static readonly InstallingClass = 'extension-action install installing';
-
-	updateWhenCounterExtensionChanges: boolean = true;
-	private installing: boolean = false;
+export class RemoteInstallAction extends InstallInOtherServerAction {
 
 	constructor(
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
-		super(`extensions.localinstall`, LocalInstallAction.INSTALL_LABEL, LocalInstallAction.Class, false);
-		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
-		this.updateLabel();
-		this.update();
+		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, extensionsWorkbenchService);
 	}
 
-	private updateLabel(): void {
-		if (this.installing) {
-			this.label = LocalInstallAction.INSTALLING_LABEL;
-			this.tooltip = this.label;
-			return;
-		}
-		this.label = `${LocalInstallAction.INSTALL_LABEL}`;
-		this.tooltip = this.label;
+}
+
+export class LocalInstallAction extends InstallInOtherServerAction {
+
+	constructor(
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
+	) {
+		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, extensionsWorkbenchService);
 	}
 
-	update(): void {
-		this.enabled = false;
-		this.class = LocalInstallAction.Class;
-		if (this.installing) {
-			this.enabled = true;
-			this.class = LocalInstallAction.InstallingClass;
-			this.updateLabel();
-			return;
-		}
-		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer
-			// Installed User Extension
-			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
-			// Remote UI or Language pack Extension
-			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || isUIExtension(this.extension.local.manifest, this.productService, this.configurationService))
-			// Extension does not exist in local
-			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)
-			&& this.extensionsWorkbenchService.canInstall(this.extension)
-		) {
-			this.enabled = true;
-			this.updateLabel();
-			return;
-		}
+	protected getLabel(): string {
+		return this.installing ? InstallInOtherServerAction.INSTALLING_LABEL : localize('install locally', "Install Locally");
 	}
 
-	async run(): Promise<void> {
-		if (this.extensionManagementServerService.localExtensionManagementServer && !this.installing) {
-			this.installing = true;
-			this.update();
-			this.extensionsWorkbenchService.open(this.extension);
-			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
-			if (this.extension.gallery) {
-				await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(this.extension.gallery);
-				this.installing = false;
-				this.update();
-			}
-		}
-	}
 }
 
 export class UninstallAction extends ExtensionAction {
