@@ -54,7 +54,6 @@ export interface ICommentService {
 	disposeCommentThread(ownerId: string, threadId: string): void;
 	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
 	getCommentingRanges(resource: URI): Promise<IRange[]>;
-	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveCommentThread(commentThread: CommentThread | null): void;
@@ -181,22 +180,6 @@ export class CommentService extends Disposable implements ICommentService {
 		} else {
 			throw new Error('Not supported');
 		}
-	}
-
-	getReactionGroup(owner: string): CommentReaction[] | undefined {
-		const commentProvider = this._commentControls.get(owner);
-
-		if (commentProvider) {
-			return commentProvider.getReactionGroup();
-		}
-
-		const commentController = this._commentControls.get(owner);
-
-		if (commentController) {
-			return commentController.getReactionGroup();
-		}
-
-		return undefined;
 	}
 
 	hasReactionHandler(owner: string): boolean {

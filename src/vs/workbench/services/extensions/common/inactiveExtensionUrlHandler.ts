@@ -191,7 +191,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					return;
 				}
 
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.Enabled);
+				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
 				await this.reloadAndHandle(uri);
 			}
 		}

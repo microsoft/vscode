@@ -1285,7 +1285,7 @@ export interface CommentThread {
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
-	threadId: string | null;
+	threadId: string;
 	resource: string | null;
 	range: IRange;
 	label: string;
@@ -1333,8 +1333,7 @@ export enum CommentMode {
  * @internal
  */
 export interface Comment {
-	readonly commentId: string;
-	readonly uniqueIdInThread?: number;
+	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;

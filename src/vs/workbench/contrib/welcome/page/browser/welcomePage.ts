@@ -458,7 +458,7 @@ class WelcomePage extends Disposable {
 						.then(installed => {
 							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement([local], EnablementState.Disabled).then(() => local);
+							return this.extensionEnablementService.setEnablement([local], EnablementState.DisabledGlobally).then(() => local);
 						});
 				});
 
@@ -473,12 +473,12 @@ class WelcomePage extends Disposable {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
 						}, 300);
 						const extensionsToDisable = extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled).map(extension => extension.local);
-						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.Disabled) : Promise.resolve()
+						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.DisabledGlobally) : Promise.resolve()
 							.then(() => {
 								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
 									if (foundExtension) {
-										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.Enabled)
+										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.EnabledGlobally)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {

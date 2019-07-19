@@ -247,18 +247,18 @@ export class ReviewController implements IEditorContribution {
 		return editor.getContribution<ReviewController>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentId: string, fetchOnceIfNotExist: boolean): void {
+	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
-			commentThreadWidget[0].reveal(commentId);
+			commentThreadWidget[0].reveal(commentUniqueId);
 		} else if (fetchOnceIfNotExist) {
 			if (this._computePromise) {
 				this._computePromise.then(_ => {
-					this.revealCommentThread(threadId, commentId, false);
+					this.revealCommentThread(threadId, commentUniqueId, false);
 				});
 			} else {
 				this.beginCompute().then(_ => {
-					this.revealCommentThread(threadId, commentId, false);
+					this.revealCommentThread(threadId, commentUniqueId, false);
 				});
 			}
 		}
