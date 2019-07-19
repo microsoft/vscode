@@ -26,13 +26,15 @@ interface Node<T> {
 	children?: Node<T>[];
 }
 
+type Node2<T> = [T, Node2<T>[]];
+
 // function asTreeElement(node: Node): ITreeElement<Node> {
 // 	if (Array.isArray(node)) {
 // 		return { element: node, children: Iterator.map(Iterator.from(node), asTreeElement) };
 // 	} else {
 // 		return { element: node };
 // 	}
-}
+// }
 
 suite('CompressedObjectTreeModel', function () {
 
@@ -45,20 +47,35 @@ suite('CompressedObjectTreeModel', function () {
 	});
 
 	test('compress', () => {
-
-		const rootChildren: Node<number>[] = [
+		const actual: Node<number>[] = [
 			{
 				element: 1, children: [
-					{ element: 11 },
-					{ element: 12 },
+					{
+						element: 11, children: [
+							{
+								element: 111, children: [
+									{ element: 1111 },
+									{ element: 1112 },
+									{ element: 1113 },
+									{ element: 1114 },
+								]
+							}
+						]
+					},
 				]
-			},
-			{ element: 2 },
-			{ element: 3 },
+			}
 		];
 
-		const actual = [0, [[100]], 2, [[[3000, 3001]], 31, 32], 4];
-		const expected = [0, [100], 2, [[3000, 3001], 31, 32], 4];
+		const expected: Node<number[]>[] = [
+			{
+				element: [1, 11, 111], children: [
+					{ element: [1111] },
+					{ element: [1112] },
+					{ element: [1113] },
+					{ element: [1114] },
+				]
+			}
+		];
 
 		const element = asTreeElement(root);
 		const iterator = Iterator.from([element]);
