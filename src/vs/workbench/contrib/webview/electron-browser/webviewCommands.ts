@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Command, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
@@ -86,11 +86,11 @@ function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | und
 	return activeControl.isWebviewEditor ? activeControl : undefined;
 }
 
-function withActiveWebviewBasedWebview(accessor: ServicesAccessor, f: (webview: WebviewElement) => void): void {
+function withActiveWebviewBasedWebview(accessor: ServicesAccessor, f: (webview: ElectronWebviewBasedWebview) => void): void {
 	const webViewEditor = getActiveWebviewEditor(accessor);
 	if (webViewEditor) {
 		webViewEditor.withWebview(webview => {
-			if (webview instanceof WebviewElement) {
+			if (webview instanceof ElectronWebviewBasedWebview) {
 				f(webview);
 			}
 		});

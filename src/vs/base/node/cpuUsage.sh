@@ -30,7 +30,7 @@ for PID in "$@"; do
   fi
 
   PROCESS_BEFORE_TIMES[$ITER]=$PROCESS_TIME_BEFORE
-  ((ITER++))
+  ((++ITER))
 done
 
 # Wait for a second
@@ -60,5 +60,5 @@ for PID in "$@"; do
 
   # Parent script reads from stdout, so echo result to be read
   echo $CPU_USAGE
-  ((ITER++))
+  ((++ITER))
 done

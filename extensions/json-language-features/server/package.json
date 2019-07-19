@@ -1,7 +1,7 @@
 {
   "name": "vscode-json-languageserver",
   "description": "JSON language server",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {

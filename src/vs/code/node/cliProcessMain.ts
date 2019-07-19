@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -102,7 +102,7 @@ export class Main {
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			await this.locateExtension(ids);
 		} else if (argv['telemetry']) {
-			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath));
+			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath ? this.environmentService.extensionsPath : undefined));
 		}
 	}
 
@@ -293,7 +293,8 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
 
-	await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(p => mkdirp(p)));
+	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath]
+		.map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	disposables.add(configurationService);
@@ -339,7 +340,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));

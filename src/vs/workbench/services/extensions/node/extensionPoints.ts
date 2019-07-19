@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';

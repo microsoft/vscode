@@ -260,7 +260,7 @@ export class Sash extends Disposable {
 			style.innerHTML = `* { cursor: ${cursor} !important; }`;
 		};
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		updateStyle();
 
@@ -284,7 +284,7 @@ export class Sash extends Disposable {
 			removeClass(this.el, 'active');
 			this._onDidEnd.fire();
 
-			dispose(disposables);
+			disposables.dispose();
 
 			for (const iframe of iframes) {
 				iframe.style.pointerEvents = 'auto';

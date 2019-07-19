@@ -14,7 +14,7 @@ import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
@@ -168,12 +168,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			})
 			.then(undefined, err => {
 				this.logService.error(err);
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 				// only show message when explicitly checking for updates
 				const message: string | undefined = !!context ? (err.message || err) : undefined;

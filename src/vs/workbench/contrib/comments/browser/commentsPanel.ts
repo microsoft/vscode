@@ -175,7 +175,7 @@ export class CommentsPanel extends Panel {
 		let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
+			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
@@ -200,7 +200,7 @@ export class CommentsPanel extends Panel {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
+					controller.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
 				}
 			}
 		});

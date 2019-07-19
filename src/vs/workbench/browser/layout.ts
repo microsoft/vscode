@@ -27,13 +27,14 @@ import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, Grid } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -52,6 +53,7 @@ enum Storage {
 
 	PANEL_HIDDEN = 'workbench.panel.hidden',
 	PANEL_POSITION = 'workbench.panel.location',
+	PANEL_SIZE_BEFORE_MAXIMIZED = 'workbench.panel.sizeBeforeMaximized',
 
 	ZEN_MODE_ENABLED = 'workbench.zenmode.active',
 	CENTERED_LAYOUT_ENABLED = 'workbench.centerededitorlayout.active',
@@ -62,22 +64,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
-	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
+	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
 
 	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onZenModeChange(): Event<boolean> { return this._onZenModeChange.event; }
+	readonly onZenModeChange: Event<boolean> = this._onZenModeChange.event;
 
 	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onFullscreenChange(): Event<boolean> { return this._onFullscreenChange.event; }
+	readonly onFullscreenChange: Event<boolean> = this._onFullscreenChange.event;
 
 	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayoutChange.event; }
+	readonly onCenteredLayoutChange: Event<boolean> = this._onCenteredLayoutChange.event;
 
 	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
-	get onPanelPositionChange(): Event<string> { return this._onPanelPositionChange.event; }
+	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
-	get onLayout(): Event<IDimension> { return this._onLayout.event; }
+	readonly onLayout: Event<IDimension> = this._onLayout.event;
 
 	private _dimension: IDimension;
 	get dimension(): IDimension { return this._dimension; }
@@ -87,16 +89,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private parts: Map<string, Part> = new Map<string, Part>();
 
-	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
+	private workbenchGrid: Grid | WorkbenchLegacyLayout;
 
 	private disposed: boolean;
 
-	private titleBarPartView: View;
-	private activityBarPartView: View;
-	private sideBarPartView: View;
-	private panelPartView: View;
-	private editorPartView: View;
-	private statusBarPartView: View;
+	private titleBarPartView: IView;
+	private activityBarPartView: IView;
+	private sideBarPartView: IView;
+	private panelPartView: IView;
+	private editorPartView: IView;
+	private statusBarPartView: IView;
 
 	private environmentService: IWorkbenchEnvironmentService;
 	private configurationService: IConfigurationService;
@@ -140,6 +142,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		panel: {
 			hidden: false,
+			sizeBeforeMaximize: 0,
 			position: Position.BOTTOM,
 			height: 350,
 			width: 350,
@@ -395,6 +398,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.panel.hidden = true; // we hide panel if there is no panel to restore
 			}
 		}
+
+		// Panel size before maximized
+		this.state.panel.sizeBeforeMaximize = this.storageService.getNumber(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, StorageScope.GLOBAL, 0);
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
@@ -701,16 +707,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 
 			// Create view wrappers for all parts
-			this.titleBarPartView = new View(titleBar);
-			this.sideBarPartView = new View(sideBar);
-			this.activityBarPartView = new View(activityBar);
-			this.editorPartView = new View(editorPart);
-			this.panelPartView = new View(panelPart);
-			this.statusBarPartView = new View(statusBar);
+			this.titleBarPartView = titleBar;
+			this.sideBarPartView = sideBar;
+			this.activityBarPartView = activityBar;
+			this.editorPartView = editorPart;
+			this.panelPartView = panelPart;
+			this.statusBarPartView = statusBar;
 
 			this.workbenchGrid = new Grid(this.editorPartView, { proportionalLayout: false });
 
 			this.container.prepend(this.workbenchGrid.element);
+
+			this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
+				this.setSideBarHidden(!visible, true);
+			}));
+
+			this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
+				this.setPanelHidden(!visible, true);
+			}));
 		} else {
 			this.workbenchGrid = instantiationService.createInstance(
 				WorkbenchLegacyLayout,
@@ -789,52 +803,52 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Hide parts
 		if (this.state.panel.hidden) {
-			this.panelPartView.hide();
+			this.workbenchGrid.setViewVisible(this.panelPartView, false);
 		}
 
 		if (this.state.statusBar.hidden) {
-			this.statusBarPartView.hide();
+			this.workbenchGrid.setViewVisible(this.statusBarPartView, false);
 		}
 
-		if (!this.isVisible(Parts.TITLEBAR_PART)) {
-			this.titleBarPartView.hide();
+		if (titlebarInGrid && !this.isVisible(Parts.TITLEBAR_PART)) {
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, false);
 		}
 
 		if (this.state.activityBar.hidden) {
-			this.activityBarPartView.hide();
+			this.workbenchGrid.setViewVisible(this.activityBarPartView, false);
 		}
 
 		if (this.state.sideBar.hidden) {
-			this.sideBarPartView.hide();
+			this.workbenchGrid.setViewVisible(this.sideBarPartView, false);
 		}
 
 		if (this.state.editor.hidden) {
-			this.editorPartView.hide();
+			this.workbenchGrid.setViewVisible(this.editorPartView, false);
 		}
 
 		// Show visible parts
 		if (!this.state.editor.hidden) {
-			this.editorPartView.show();
+			this.workbenchGrid.setViewVisible(this.editorPartView, true);
 		}
 
 		if (!this.state.statusBar.hidden) {
-			this.statusBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.statusBarPartView, true);
 		}
 
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			this.titleBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, true);
 		}
 
 		if (!this.state.activityBar.hidden) {
-			this.activityBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.activityBarPartView, true);
 		}
 
 		if (!this.state.sideBar.hidden) {
-			this.sideBarPartView.show();
+			this.workbenchGrid.setViewVisible(this.sideBarPartView, true);
 		}
 
 		if (!this.state.panel.hidden) {
-			this.panelPartView.show();
+			this.workbenchGrid.setViewVisible(this.panelPartView, true);
 		}
 	}
 
@@ -1060,7 +1074,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedPanel(): void {
 		if (this.workbenchGrid instanceof Grid) {
-			this.workbenchGrid.maximizeViewSize(this.panelPartView);
+			const curSize = this.workbenchGrid.getViewSize(this.panelPartView);
+			const size = { ...curSize };
+
+			if (!this.isPanelMaximized()) {
+				if (this.state.panel.position === Position.BOTTOM) {
+					size.height = this.panelPartView.maximumHeight;
+					this.state.panel.sizeBeforeMaximize = curSize.height;
+				} else {
+					size.width = this.panelPartView.maximumWidth;
+					this.state.panel.sizeBeforeMaximize = curSize.width;
+				}
+
+				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
+			} else {
+				if (this.state.panel.position === Position.BOTTOM) {
+					size.height = this.state.panel.sizeBeforeMaximize;
+				} else {
+					size.width = this.state.panel.sizeBeforeMaximize;
+				}
+			}
+
+			this.workbenchGrid.resizeView(this.panelPartView, size);
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
 		}
@@ -1069,7 +1104,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isPanelMaximized(): boolean {
 		if (this.workbenchGrid instanceof Grid) {
 			try {
-				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.getPart(Parts.PANEL_PART).maximumHeight;
+				// The panel is maximum when the editor is minimum
+				if (this.state.panel.position === Position.BOTTOM) {
+					return this.workbenchGrid.getViewSize(this.editorPartView).height <= this.editorPartView.minimumHeight;
+				} else {
+					return this.workbenchGrid.getViewSize(this.editorPartView).width <= this.editorPartView.minimumWidth;
+				}
 			} catch (e) {
 				return false;
 			}

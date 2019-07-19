@@ -111,7 +111,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	private sortedIndexes: number[] = [];
 
 	private _onChange = new Emitter<ITraitChangeEvent>();
-	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
+	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
 
 	get trait(): string { return this._trait; }
 
@@ -1165,7 +1165,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidBlur: Event<void>;
 
 	private _onDidDispose = new Emitter<void>();
-	get onDidDispose(): Event<void> { return this._onDidDispose.event; }
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(
 		container: HTMLElement,

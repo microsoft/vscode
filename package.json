@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "a76f8ddb784119243aa004071cea17c5a74b1e60",
+  "distro": "53215ea1e983c935e01e95875b9ee9ef65777c7d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -43,13 +43,13 @@
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
     "puppeteer": "^1.17.0",
-    "semver": "^5.5.0",
+    "semver-umd": "^5.5.3",
     "spdlog": "^0.9.0",
     "sudo-prompt": "9.0.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "2.1.7",
     "vscode-proxy-agent": "0.4.0",
-    "vscode-ripgrep": "^1.3.1",
+    "vscode-ripgrep": "^1.5.5",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
     "xterm": "3.15.0-beta71",
@@ -85,7 +85,7 @@
     "fast-plist": "0.1.2",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.20.0",
+    "gulp-atom-electron": "^1.21.1",
     "gulp-azure-storage": "^0.10.0",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
@@ -109,7 +109,11 @@
     "husky": "^0.13.1",
     "innosetup": "5.6.1",
     "is": "^3.1.0",
-    "istanbul": "^0.3.17",
+    "istanbul-lib-coverage": "^2.0.5",
+    "istanbul-lib-instrument": "^3.3.0",
+    "istanbul-lib-report": "^2.0.8",
+    "istanbul-lib-source-maps": "^3.0.6",
+    "istanbul-reports": "^2.2.6",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
@@ -124,7 +128,6 @@
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
-    "remap-istanbul": "^0.13.0",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
@@ -153,8 +156,8 @@
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
     "vscode-windows-registry": "1.0.1",
-    "windows-foreground-love": "0.1.0",
-    "windows-mutex": "0.2.1",
+    "windows-foreground-love": "0.2.0",
+    "windows-mutex": "0.3.0",
     "windows-process-tree": "0.2.4"
   }
 }

@@ -12,6 +12,7 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IViewSize } from 'vs/base/browser/ui/grid/gridview';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -117,8 +118,8 @@ export abstract class Part extends Component implements ISerializableView {
 
 	//#region ISerializableView
 
-	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
-	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+	private _onDidChange = this._register(new Emitter<IViewSize | undefined>());
+	get onDidChange(): Event<IViewSize | undefined> { return this._onDidChange.event; }
 
 	element: HTMLElement;
 

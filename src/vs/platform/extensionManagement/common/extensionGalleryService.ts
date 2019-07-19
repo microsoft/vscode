@@ -9,7 +9,7 @@ import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGallery
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestService, IRequestOptions, IRequestContext, asJson, asText } from 'vs/platform/request/common/request';
+import { IRequestService, IRequestOptions, IRequestContext, asJson, asText, IHeaders } from 'vs/platform/request/common/request';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
@@ -411,13 +411,15 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		let text = options.text || '';
 		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
-		/* __GDPR__
-			"galleryService:query" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"text": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('galleryService:query', { type, text });
+		type GalleryServiceQueryClassification = {
+			type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			text: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+		};
+		type GalleryServiceQueryEvent = {
+			type: string;
+			text: string;
+		};
+		this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', { type, text });
 
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
@@ -774,29 +776,30 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 }
 
 export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService): Promise<{ [key: string]: string; }> {
-	const marketplaceMachineIdFile = joinPath(URI.file(environmentService.userDataPath), 'machineid');
-
-	let uuid: string | null = null;
-
-	try {
-		const contents = await fileService.readFile(marketplaceMachineIdFile);
-		const value = contents.value.toString();
-		uuid = isUUID(value) ? value : null;
-	} catch (e) {
-		uuid = null;
-	}
-
-	if (!uuid) {
-		uuid = generateUuid();
-		try {
-			await fileService.writeFile(marketplaceMachineIdFile, VSBuffer.fromString(uuid));
-		} catch (error) {
-			//noop
-		}
-	}
-	return {
+	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,
-		'User-Agent': `VSCode ${version}`,
-		'X-Market-User-Id': uuid
+		'User-Agent': `VSCode ${version}`
 	};
+	let uuid: string | null = null;
+	if (environmentService.galleryMachineIdResource) {
+		try {
+			const contents = await fileService.readFile(environmentService.galleryMachineIdResource);
+			const value = contents.value.toString();
+			uuid = isUUID(value) ? value : null;
+		} catch (e) {
+			uuid = null;
+		}
+
+		if (!uuid) {
+			uuid = generateUuid();
+			try {
+				await fileService.writeFile(environmentService.galleryMachineIdResource, VSBuffer.fromString(uuid));
+			} catch (error) {
+				//noop
+			}
+		}
+		headers['X-Market-User-Id'] = uuid;
+	}
+	return headers;
+
 }

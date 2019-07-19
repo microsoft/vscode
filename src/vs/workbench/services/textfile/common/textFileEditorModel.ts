@@ -70,10 +70,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
 	private readonly _onDidContentChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
-	get onDidContentChange(): Event<StateChange> { return this._onDidContentChange.event; }
+	readonly onDidContentChange: Event<StateChange> = this._onDidContentChange.event;
 
 	private readonly _onDidStateChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
-	get onDidStateChange(): Event<StateChange> { return this._onDidStateChange.event; }
+	readonly onDidStateChange: Event<StateChange> = this._onDidStateChange.event;
 
 	private resource: URI;
 

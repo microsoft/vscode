@@ -286,6 +286,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	private _variableResolver: ExtHostVariableResolverService | undefined;
+	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -307,9 +309,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		private _extHostConfiguration: ExtHostConfiguration,
 		private _extHostWorkspace: ExtHostWorkspace,
 		private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private _logService: ILogService,
+		private _logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
+		this.updateLastActiveWorkspace();
+		this.updateVariableResolver();
+		this.registerListeners();
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
@@ -366,18 +371,21 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			this._isWorkspaceShellAllowed,
 			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
-			process.env.windir
+			process.env.windir,
+			this._lastActiveWorkspace,
+			this._variableResolver
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string | undefined {
+	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed);
+
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._lastActiveWorkspace, this._variableResolver);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -526,6 +534,24 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return env;
 	}
 
+	private registerListeners(): void {
+		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this.updateLastActiveWorkspace());
+		this._extHostWorkspace.onDidChangeWorkspace(() => this.updateVariableResolver());
+	}
+
+	private updateLastActiveWorkspace(): void {
+		const activeEditor = this._extHostDocumentsAndEditors.activeEditor();
+		if (activeEditor) {
+			this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(activeEditor.document.uri) as IWorkspaceFolder;
+		}
+	}
+
+	private async updateVariableResolver(): Promise<void> {
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
+	}
+
 	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
@@ -541,6 +567,21 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		if (!shellLaunchConfig.executable) {
 			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
 			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
+		} else {
+			if (this._variableResolver) {
+				shellLaunchConfig.executable = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.executable);
+				if (shellLaunchConfig.args) {
+					if (Array.isArray(shellLaunchConfig.args)) {
+						const resolvedArgs: string[] = [];
+						for (const arg of shellLaunchConfig.args) {
+							resolvedArgs.push(this._variableResolver.resolve(this._lastActiveWorkspace, arg));
+						}
+						shellLaunchConfig.args = resolvedArgs;
+					} else {
+						shellLaunchConfig.args = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.args);
+					}
+				}
+			}
 		}
 
 		// Get the initial cwd
@@ -559,14 +600,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			}
 		} as IWorkspaceFolder : null;
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
-		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
 			lastActiveWorkspace,
 			envFromConfig,
-			variableResolver,
+			this._variableResolver,
 			isWorkspaceShellAllowed,
 			pkg.version,
 			terminalConfig.get<boolean>('setLocaleVariables', false),
@@ -726,13 +765,13 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 	private _queueDisposables: IDisposable[] | undefined;
 
 	private readonly _onProcessData = new Emitter<string>();
-	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = new Emitter<number>();
-	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
 	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = new Emitter<string>();
-	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 

@@ -99,6 +99,14 @@ export class Dialog extends Disposable {
 			let focusedButton = 0;
 			const buttonGroup = this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
+
+			// Set focused button to UI index
+			buttonMap.forEach((value, index) => {
+				if (value.index === 0) {
+					focusedButton = index;
+				}
+			});
+
 			buttonGroup.buttons.forEach((button, index) => {
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
@@ -190,11 +198,7 @@ export class Dialog extends Disposable {
 			show(this.element);
 
 			// Focus first element
-			buttonMap.forEach((value, index) => {
-				if (value.index === focusedButton) {
-					buttonGroup.buttons[index].focus();
-				}
-			});
+			buttonGroup.buttons[focusedButton].focus();
 		});
 	}
 
