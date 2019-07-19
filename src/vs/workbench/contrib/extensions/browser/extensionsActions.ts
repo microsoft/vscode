@@ -172,19 +172,22 @@ export class InstallAction extends ExtensionAction {
 	}
 
 	update(): void {
-		if (!this.extension || this.extension.type === ExtensionType.System || this.extension.state === ExtensionState.Installed) {
-			this.enabled = false;
-			this.class = InstallAction.Class;
-			this.label = InstallAction.INSTALL_LABEL;
-			return;
-		}
 		this.enabled = false;
-		if (this.extensionsWorkbenchService.canInstall(this.extension)) {
-			const local = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
-			this.enabled = !local || (!!local.local && isLanguagePackExtension(local.local.manifest));
+		this.class = InstallAction.Class;
+		this.label = InstallAction.INSTALL_LABEL;
+		if (this.extension && this.extension.type === ExtensionType.User) {
+			if (this.extension.state === ExtensionState.Uninstalled && this.extensionsWorkbenchService.canInstall(this.extension)) {
+				this.enabled = true;
+				this.updateLabel();
+				return;
+			}
+			if (this.extension.state === ExtensionState.Installing) {
+				this.enabled = false;
+				this.updateLabel();
+				this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
+				return;
+			}
 		}
-		this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
-		this.updateLabel();
 	}
 
 	private updateLabel(): void {
