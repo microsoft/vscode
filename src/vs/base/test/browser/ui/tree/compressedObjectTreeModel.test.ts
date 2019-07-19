@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { compress, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { compress, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
 
 interface IResolvedTreeElement<T> extends ITreeElement<T> {
@@ -30,7 +30,9 @@ suite('CompressedObjectTreeModel', function () {
 
 		test('small', function () {
 			const actual: ICompressedTreeElement<number> = { element: 1 };
-			const expected: IResolvedTreeElement<number[]> = { element: [1] };
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> =
+				{ element: { elements: [1], incompressible: false } };
+
 			assert.deepEqual(resolve(compress(actual)), expected);
 		});
 
@@ -43,11 +45,12 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1], children: [
-					{ element: [11] },
-					{ element: [12] },
-					{ element: [13] }
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1], incompressible: false },
+				children: [
+					{ element: { elements: [11], incompressible: false } },
+					{ element: { elements: [12], incompressible: false } },
+					{ element: { elements: [13], incompressible: false } }
 				]
 			};
 
@@ -69,8 +72,8 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1, 11, 111, 1111]
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1, 11, 111, 1111], incompressible: false }
 			};
 
 			assert.deepEqual(resolve(compress(actual)), expected);
@@ -94,12 +97,13 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1, 11, 111], children: [
-					{ element: [1111] },
-					{ element: [1112] },
-					{ element: [1113] },
-					{ element: [1114] },
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1, 11, 111], incompressible: false },
+				children: [
+					{ element: { elements: [1111], incompressible: false } },
+					{ element: { elements: [1112], incompressible: false } },
+					{ element: { elements: [1113], incompressible: false } },
+					{ element: { elements: [1114], incompressible: false } },
 				]
 			};
 
@@ -132,18 +136,21 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1], children: [
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1], incompressible: false },
+				children: [
 					{
-						element: [11, 111], children: [
-							{ element: [1112] },
-							{ element: [1113] },
+						element: { elements: [11, 111], incompressible: false },
+						children: [
+							{ element: { elements: [1112], incompressible: false } },
+							{ element: { elements: [1113], incompressible: false } },
 						]
 					},
 					{
-						element: [12, 121], children: [
-							{ element: [1212] },
-							{ element: [1213] },
+						element: { elements: [12, 121], incompressible: false },
+						children: [
+							{ element: { elements: [1212], incompressible: false } },
+							{ element: { elements: [1213], incompressible: false } },
 						]
 					}
 				]
@@ -167,9 +174,10 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1, 11, 111], children: [
-					{ element: [1111] }
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1, 11, 111], incompressible: false },
+				children: [
+					{ element: { elements: [1111], incompressible: true } }
 				]
 			};
 
@@ -191,9 +199,10 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1, 11], children: [
-					{ element: [111, 1111] }
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1, 11], incompressible: false },
+				children: [
+					{ element: { elements: [111, 1111], incompressible: true } }
 				]
 			};
 
@@ -215,11 +224,13 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1, 11], children: [
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1, 11], incompressible: false },
+				children: [
 					{
-						element: [111], children: [
-							{ element: [1111] }
+						element: { elements: [111], incompressible: true },
+						children: [
+							{ element: { elements: [1111], incompressible: true } }
 						]
 					}
 				]
@@ -243,13 +254,16 @@ suite('CompressedObjectTreeModel', function () {
 				]
 			};
 
-			const expected: IResolvedTreeElement<number[]> = {
-				element: [1], children: [
+			const expected: IResolvedTreeElement<ICompressedTreeNode<number>> = {
+				element: { elements: [1], incompressible: false },
+				children: [
 					{
-						element: [11], children: [
+						element: { elements: [11], incompressible: true },
+						children: [
 							{
-								element: [111], children: [
-									{ element: [1111] }
+								element: { elements: [111], incompressible: true },
+								children: [
+									{ element: { elements: [1111], incompressible: true } }
 								]
 							}
 						]

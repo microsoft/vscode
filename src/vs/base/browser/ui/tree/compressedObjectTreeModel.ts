@@ -14,8 +14,15 @@ export interface ICompressedTreeElement<T> extends ITreeElement<T> {
 	readonly incompressible?: boolean;
 }
 
-export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<T[]> {
-	const result = [element.element];
+export interface ICompressedTreeNode<T> {
+	readonly elements: T[];
+	readonly incompressible: boolean;
+}
+
+export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
+	const elements = [element.element];
+	const incompressible = element.incompressible || false;
+
 	let childrenIterator: Iterator<ITreeElement<T>>;
 	let children: ITreeElement<T>[];
 
@@ -33,16 +40,16 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<T[
 			break;
 		}
 
-		result.push(element.element);
+		elements.push(element.element);
 	}
 
 	return {
-		element: result,
+		element: { elements, incompressible },
 		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress)
 	};
 }
 
-export function decompress<T>(element: ITreeElement<T>): ITreeElement<T[]> {
+export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): ITreeElement<T> {
 	throw new Error('todo');
 }
 
