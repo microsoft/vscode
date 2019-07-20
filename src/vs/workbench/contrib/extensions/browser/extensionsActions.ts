@@ -60,6 +60,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -2807,6 +2808,7 @@ export class InstallVSIXAction extends Action {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService private readonly windowService: IWindowService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -2814,17 +2816,17 @@ export class InstallVSIXAction extends Action {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(this.windowService.showOpenDialog({
+		return Promise.resolve(this.fileDialogService.showOpenDialog({
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-			properties: ['openFile'],
-			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
+			canSelectFiles: true,
+			openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		})).then(result => {
 			if (!result) {
 				return Promise.resolve();
 			}
 
-			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(URI.file(vsix))))
+			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))
 				.then(extensions => {
 					for (const extension of extensions) {
 						const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
