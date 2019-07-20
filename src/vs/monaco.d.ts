@@ -2471,6 +2471,7 @@ declare namespace monaco.editor {
 		 */
 		autoFindInSelection: boolean;
 		addExtraSpaceOnTop?: boolean;
+		alwaysUseMaxWidth?: boolean;
 	}
 
 	/**
@@ -3231,6 +3232,7 @@ declare namespace monaco.editor {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
 		readonly addExtraSpaceOnTop: boolean;
+		readonly alwaysUseMaxWidth: boolean;
 	}
 
 	export interface InternalEditorHoverOptions {
