@@ -8,9 +8,6 @@ import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-// tslint:disable-next-line: import-patterns no-standalone-editor
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -40,22 +37,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-
-//#region Download
-
-export class SimpleDownloadService implements IDownloadService {
-
-	_serviceBrand: any;
-
-	download(uri: URI, to?: string, cancellationToken?: CancellationToken): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
 
 //#region Extension Tips
 
