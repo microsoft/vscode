@@ -156,11 +156,11 @@ function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullVa
 	// If whitespace exists, replace until it
 	const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
 	if (whitespaceIndex === -1) {
-		return Range.create(startPos, shiftPosition(startPos, whitespaceIndex));
+		return Range.create(startPos, fullValueRange.end);
+
 	}
 
-	return Range.create(startPos, fullValueRange.end);
-
+	return Range.create(startPos, shiftPosition(startPos, whitespaceIndex));
 }
 
 function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
