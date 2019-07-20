@@ -42,7 +42,7 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 class BufferSynchronizer {
 
 	private _pending: Proto.UpdateOpenRequestArgs = {};
-	private _pendingFiles = new Set<string>();
+	private readonly _pendingFiles = new Set<string>();
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -132,11 +132,14 @@ class BufferSynchronizer {
 	}
 
 	private updatePending(filepath: string, f: (pending: Proto.UpdateOpenRequestArgs) => void): void {
-		if (this.supportsBatching && this._pendingFiles.has(filepath)) {
-			this.flush();
-			this._pendingFiles.clear();
-			f(this._pending);
+		if (this.supportsBatching) {
+			if (this._pendingFiles.has(filepath)) {
+				// we saw this file before, make sure we flush before working with it again
+				this.flush();
+				this._pendingFiles.clear();
+			}
 			this._pendingFiles.add(filepath);
+			f(this._pending);
 		} else {
 			f(this._pending);
 		}
