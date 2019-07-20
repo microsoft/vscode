@@ -480,7 +480,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
-		messageElement.style.whitespace = 'pre-wrap';
+		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;
 
 		if (source || code) {
