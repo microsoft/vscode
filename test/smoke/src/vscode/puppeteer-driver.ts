@@ -314,6 +314,14 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 	};
 }
 
+let args;
+
+export function launch(_args): void {
+	args = _args;
+	// TODO: Move puppeteer launch here
+	console.log(args);
+}
+
 export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
 		const browser = await puppeteer.launch({
@@ -325,7 +333,7 @@ export function connect(outPath: string, handle: string): Promise<{ client: IDis
 		});
 		const page = (await browser.pages())[0];
 		await page.setViewport({ width, height });
-		await page.goto('http://127.0.0.1:9888');
+		await page.goto(`http://127.0.0.1:9888?folder=${args[1]}`);
 		const result = {
 			client: { dispose: () => { } },
 			driver: buildDriver(browser, page)

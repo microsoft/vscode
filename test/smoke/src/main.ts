@@ -14,19 +14,19 @@ import { ncp } from 'ncp';
 import { Application, Quality, ApplicationOptions } from './application';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
-// import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-// import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
-// import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
-// import { setup as setupDataSearchTests } from './areas/search/search.test';
-// import { setup as setupDataCSSTests } from './areas/css/css.test';
-// import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-// import { setup as setupDataDebugTests } from './areas/debug/debug.test';
-// import { setup as setupDataGitTests } from './areas/git/git.test';
-// import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
-// import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
+import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
+import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
+import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
+import { setup as setupDataSearchTests } from './areas/search/search.test';
+import { setup as setupDataCSSTests } from './areas/css/css.test';
+import { setup as setupDataEditorTests } from './areas/editor/editor.test';
+import { setup as setupDataDebugTests } from './areas/debug/debug.test';
+import { setup as setupDataGitTests } from './areas/git/git.test';
+import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
+import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
-// import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
-// import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
+import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
@@ -51,7 +51,8 @@ const opts = minimist(args, {
 	],
 	boolean: [
 		'verbose',
-		'remote'
+		'remote',
+		'web'
 	],
 	default: {
 		verbose: false
@@ -132,13 +133,13 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-// if (!fs.existsSync(electronPath || '')) {
-// 	fail(`Can't find Code at ${electronPath}.`);
-// }
-console.log(stablePath);
-// if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
-// 	fail(`Can't find Stable Code at ${stablePath}.`);
-// }
+if (!fs.existsSync(electronPath || '')) {
+	fail(`Can't find Code at ${electronPath}.`);
+}
+
+if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
+	fail(`Can't find Stable Code at ${stablePath}.`);
+}
 
 const userDataDir = path.join(testDataPath, 'd');
 
@@ -239,7 +240,7 @@ setupDataMigrationTests(stableCodePath, testDataPath);
 describe('Running Code', () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
-		await app!.start(false);
+		await app!.start(opts.web ? false : undefined);
 		this.app = app;
 	});
 
@@ -268,19 +269,24 @@ describe('Running Code', () => {
 		});
 	}
 
-	// setupDataLossTests();
-	// setupDataExplorerTests();
-	// setupDataPreferencesTests();
-	// setupDataSearchTests();
-	// setupDataCSSTests();
-	// setupDataEditorTests();
-	// setupDataDebugTests();
-	// setupDataGitTests();
-	// setupDataStatusbarTests();
-	// setupDataExtensionTests();
+	if (opts.web) {
+		setupTerminalTests();
+		return;
+	}
+
+	setupDataLossTests();
+	setupDataExplorerTests();
+	setupDataPreferencesTests();
+	setupDataSearchTests();
+	setupDataCSSTests();
+	setupDataEditorTests();
+	setupDataDebugTests();
+	setupDataGitTests();
+	setupDataStatusbarTests();
+	setupDataExtensionTests();
 	setupTerminalTests();
-	// setupDataMultirootTests();
-	// setupDataLocalizationTests();
+	setupDataMultirootTests();
+	setupDataLocalizationTests();
 });
 
 setupLaunchTests();

@@ -9,45 +9,46 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
-import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './puppeteer-driver';
+import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
+import { connect as connectPuppeteerDriver, launch } from './puppeteer-driver';
 import { Logger } from '../logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
 
 const repoPath = path.join(__dirname, '../../../..');
 
-// function getDevElectronPath(): string {
-// 	const buildPath = path.join(repoPath, '.build');
-// 	const product = require(path.join(repoPath, 'product.json'));
+function getDevElectronPath(): string {
+	const buildPath = path.join(repoPath, '.build');
+	const product = require(path.join(repoPath, 'product.json'));
 
-// 	switch (process.platform) {
-// 		case 'darwin':
-// 			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-// 		case 'linux':
-// 			return path.join(buildPath, 'electron', `${product.applicationName}`);
-// 		case 'win32':
-// 			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-// 		default:
-// 			throw new Error('Unsupported platform.');
-// 	}
-// }
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+		case 'linux':
+			return path.join(buildPath, 'electron', `${product.applicationName}`);
+		case 'win32':
+			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+		default:
+			throw new Error('Unsupported platform.');
+	}
+}
 
-// function getBuildElectronPath(root: string): string {
-// 	switch (process.platform) {
-// 		case 'darwin':
-// 			return path.join(root, 'Contents', 'MacOS', 'Electron');
-// 		case 'linux': {
-// 			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-// 			return path.join(root, product.applicationName);
-// 		}
-// 		case 'win32': {
-// 			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-// 			return path.join(root, `${product.nameShort}.exe`);
-// 		}
-// 		default:
-// 			throw new Error('Unsupported platform.');
-// 	}
-// }
+function getBuildElectronPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return path.join(root, 'Contents', 'MacOS', 'Electron');
+		case 'linux': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, product.applicationName);
+		}
+		case 'win32': {
+			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+			return path.join(root, `${product.nameShort}.exe`);
+		}
+		default:
+			throw new Error('Unsupported platform.');
+	}
+}
 
 function getDevOutPath(): string {
 	return path.join(repoPath, 'out');
@@ -62,7 +63,7 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
+async function connect(connectDriver: typeof connectElectronDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
@@ -95,7 +96,10 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
+	/** Run in the test resolver */
 	remote?: boolean;
+	/** Run in the web */
+	web?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -109,7 +113,7 @@ async function createDriverHandle(): Promise<string> {
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
 	const codePath = options.codePath;
-	// const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 	const handle = await createDriverHandle();
 
@@ -162,15 +166,21 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.push(...options.extraArgs);
 	}
 
-	// const spawnOptions: cp.SpawnOptions = { env };
+	let child: cp.ChildProcess | undefined;
+	let connectDriver: typeof connectElectronDriver;
 
-	// const child = cp.spawn(electronPath, args, spawnOptions);
+	if (options.web) {
+		launch(args);
+		connectDriver = connectPuppeteerDriver;
+	} else {
+		const spawnOptions: cp.SpawnOptions = { env };
+		child = cp.spawn(electronPath, args, spawnOptions);
+		instances.add(child);
+		child.once('exit', () => instances.delete(child!));
+		connectDriver = connectElectronDriver;
+	}
 
-	// instances.add(child);
-	// child.once('exit', () => instances.delete(child));
-
-	const child = undefined;
-	return connect(child, outPath, handle, options.logger);
+	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 
 async function poll<T>(
@@ -215,7 +225,7 @@ export class Code {
 	private driver: IDriver;
 
 	constructor(
-		private client: IDisposable,
+		private client: IDisposable | undefined,
 		driver: IDriver,
 		readonly logger: Logger
 	) {
@@ -331,7 +341,9 @@ export class Code {
 	}
 
 	dispose(): void {
-		this.client.dispose();
+		if (this.client) {
+			this.client.dispose();
+		}
 	}
 }
 
