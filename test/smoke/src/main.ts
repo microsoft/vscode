@@ -212,7 +212,8 @@ function createOptions(): ApplicationOptions {
 		verbose: opts.verbose,
 		log,
 		screenshotsPath,
-		remote: opts.remote
+		remote: opts.remote,
+		web: opts.web
 	};
 }
 

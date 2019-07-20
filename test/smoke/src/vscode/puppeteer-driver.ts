@@ -319,7 +319,6 @@ let args;
 export function launch(_args): void {
 	args = _args;
 	// TODO: Move puppeteer launch here
-	console.log(args);
 }
 
 export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }> {
