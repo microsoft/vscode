@@ -246,6 +246,10 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setMessage(treeViewId: string, message: string | IMarkdownString): void;
 }
 
+export interface MainThreadDownloadServiceShape extends IDisposable {
+	$download(uri: UriComponents, to: UriComponents): Promise<void>;
+}
+
 export interface MainThreadErrorsShape extends IDisposable {
 	$onUnexpectedError(err: any | SerializedError): void;
 }
@@ -811,6 +815,9 @@ export interface ExtHostTreeViewsShape {
 	$setVisible(treeViewId: string, visible: boolean): void;
 }
 
+export interface ExtHostDownloadServiceShape {
+}
+
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
@@ -1309,6 +1316,7 @@ export const MainContext = {
 	MainThreadEditorInsets: createMainId<MainThreadEditorInsetsShape>('MainThreadEditorInsets'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
+	MainThreadDownloadService: createMainId<MainThreadDownloadServiceShape>('MainThreadDownloadService'),
 	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
@@ -1344,6 +1352,7 @@ export const ExtHostContext = {
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
+	ExtHostDownloadService: createExtId<ExtHostDownloadServiceShape>('ExtHostDownloadService'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
