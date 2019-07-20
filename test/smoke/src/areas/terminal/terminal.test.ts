@@ -8,7 +8,6 @@ import { Application } from '../../application';
 export function setup() {
 	describe('Terminal', () => {
 		it(`opens terminal, runs 'echo' and verifies the output`, async function () {
-			this.timeout(60 * 5000);
 			const app = this.app as Application;
 
 			const expected = new Date().getTime().toString();

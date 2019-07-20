@@ -66,8 +66,8 @@ export class Application {
 
 	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
-		// web doesn't show explorer?
-		// await this.code.waitForElement('.explorer-folders-view');
+		// TODO: web doesn't show explorer?
+		await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
 			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
@@ -138,11 +138,12 @@ export class Application {
 		}
 
 		await this.code.waitForWindowIds(ids => ids.length > 0);
-		// await this.code.waitForElement('.monaco-workbench');
+		// TODO: Remove on web?
+		await this.code.waitForElement('.monaco-workbench');
 
-		// if (this.remote) {
-		// 	await this.code.waitForElement('.monaco-workbench .statusbar-item[title="Editing on TestResolver"]');
-		// }
+		if (this.remote) {
+			await this.code.waitForElement('.monaco-workbench .statusbar-item[title="Editing on TestResolver"]');
+		}
 
 		// wait a bit, since focus might be stolen off widgets
 		// as soon as they open (e.g. quick open)
