@@ -1063,37 +1063,39 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test ReloadAction when extension state is installing', () => {
+	test('Test ReloadAction when extension state is installing', async () => {
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return workbenchService.queryGallery(CancellationToken.None)
-			.then((paged) => {
-				testObject.extension = paged.firstPage[0];
-				installEvent.fire({ identifier: gallery.identifier, gallery });
+		const paged = await workbenchService.queryGallery(CancellationToken.None);
+		testObject.extension = paged.firstPage[0];
+		installEvent.fire({ identifier: gallery.identifier, gallery });
 
-				assert.ok(!testObject.enabled);
-			});
+		assert.ok(!testObject.enabled);
 	});
 
-	test('Test ReloadAction when extension state is uninstalling', () => {
+	test('Test ReloadAction when extension state is uninstalling', async () => {
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
-			.then(extensions => {
-				testObject.extension = extensions[0];
-				uninstallEvent.fire(local.identifier);
-				assert.ok(!testObject.enabled);
-			});
+		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
+		testObject.extension = extensions[0];
+		uninstallEvent.fire(local.identifier);
+		assert.ok(!testObject.enabled);
 	});
 
 	test('Test ReloadAction when extension is newly installed', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }]);
+		const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
+		const runningExtensions = [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }];
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			getExtensions: () => Promise.resolve(runningExtensions),
+			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
+			canAddExtension: (extension) => true
+		});
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const gallery = aGalleryExtension('a');
@@ -1103,15 +1105,32 @@ suite('ExtensionsActions Test', () => {
 		testObject.extension = paged.firstPage[0];
 		assert.ok(!testObject.enabled);
 
-		return new Promise(c => {
-			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to enable this extension.') {
-					c();
-				}
-			});
-			installEvent.fire({ identifier: gallery.identifier, gallery });
-			didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
+		installEvent.fire({ identifier: gallery.identifier, gallery });
+		didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
+		assert.ok(testObject.enabled);
+		assert.equal(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
+	});
+
+	test('Test ReloadAction when extension is newly installed and reload is not required', async () => {
+		const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
+		const runningExtensions = [{ identifier: new ExtensionIdentifier('pub.b'), extensionLocation: URI.file('pub.b') }];
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			getExtensions: () => Promise.resolve(runningExtensions),
+			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
+			canAddExtension: (extension) => true
 		});
+		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
+		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const gallery = aGalleryExtension('a');
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+
+		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
+		testObject.extension = paged.firstPage[0];
+		assert.ok(!testObject.enabled);
+
+		installEvent.fire({ identifier: gallery.identifier, gallery });
+		didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
+		assert.ok(!testObject.enabled);
 	});
 
 	test('Test ReloadAction when extension is installed and uninstalled', () => {
