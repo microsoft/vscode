@@ -31,6 +31,7 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 export interface IFindController {
 	replace(): void;
@@ -372,14 +373,21 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		} else {
 			label = NLS_NO_RESULTS;
 		}
-		const myAlert = document.createElement('div');
-		myAlert.appendChild(document.createTextNode(label));
-		this._matchesCount.appendChild(myAlert);
 
+		this._matchesCount.appendChild(document.createTextNode(label));
+
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions
+
+	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		if (label === NLS_NO_RESULTS) {
+			return nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+		}
+		return nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, (currentMatch ? currentMatch.startLineNumber + ':' + currentMatch.startColumn : ''));
+	}
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
@@ -810,7 +818,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
 
-		this._matchesCount.setAttribute('aria-live', 'assertive');
 
 		this._updateMatchesCount();
 
