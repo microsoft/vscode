@@ -394,6 +394,37 @@ suite('CompressedObjectTree', function () {
 
 			assert.deepEqual(toArray(list), [[1, 11, 111], [1111], [1112], [1113]]);
 			assert.equal(model.size, 6);
+
+			model.setChildren(11, Iterator.fromArray([
+				{ element: 111 },
+				{ element: 112 },
+				{ element: 113 },
+			]));
+
+			assert.deepEqual(toArray(list), [[1, 11], [111], [112], [113]]);
+			assert.equal(model.size, 5);
+
+			model.setChildren(113, Iterator.fromArray([
+				{ element: 1131 }
+			]));
+
+			assert.deepEqual(toArray(list), [[1, 11], [111], [112], [113, 1131]]);
+			assert.equal(model.size, 6);
+
+			model.setChildren(1131, Iterator.fromArray([
+				{ element: 1132 }
+			]));
+
+			assert.deepEqual(toArray(list), [[1, 11], [111], [112], [113, 1131, 1132]]);
+			assert.equal(model.size, 7);
+
+			model.setChildren(1131, Iterator.fromArray([
+				{ element: 1132 },
+				{ element: 1133 },
+			]));
+
+			assert.deepEqual(toArray(list), [[1, 11], [111], [112], [113, 1131], [1132], [1133]]);
+			assert.equal(model.size, 8);
 		});
 	});
 });
