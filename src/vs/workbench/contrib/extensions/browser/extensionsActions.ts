@@ -62,7 +62,7 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
-function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
+export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
 		identifier: new ExtensionIdentifier(local.identifier.id),
 		isBuiltin: local.type === ExtensionType.System,
