@@ -22,6 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -338,11 +339,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, this.environmentService, this.fileService);
+		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, this.environmentService, this.fileService, this.storageService);
 	}
 
 	private api(path = ''): string {
@@ -775,7 +777,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 }
 
-export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService): Promise<{ [key: string]: string; }> {
+export async function resolveMarketplaceHeaders(version: string, environmentService: IEnvironmentService, fileService: IFileService, storageService?: IStorageService): Promise<{ [key: string]: string; }> {
 	const headers: IHeaders = {
 		'X-Market-Client-Id': `VSCode ${version}`,
 		'User-Agent': `VSCode ${version}`
@@ -798,8 +800,20 @@ export async function resolveMarketplaceHeaders(version: string, environmentServ
 				//noop
 			}
 		}
+	}
+
+	if (storageService) {
+		uuid = storageService.get('marketplace.userid', StorageScope.GLOBAL) || null;
+		if (!uuid) {
+			uuid = generateUuid();
+			storageService.store('marketplace.userid', uuid, StorageScope.GLOBAL);
+		}
+	}
+
+	if (uuid) {
 		headers['X-Market-User-Id'] = uuid;
 	}
+
 	return headers;
 
 }
