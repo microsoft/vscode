@@ -817,8 +817,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
-
-
 		this._updateMatchesCount();
 
 		// Previous button
