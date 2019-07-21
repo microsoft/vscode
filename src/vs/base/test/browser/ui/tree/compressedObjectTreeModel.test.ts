@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { compress, ICompressedTreeElement, ICompressedTreeNode, decompress } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { compress, ICompressedTreeElement, ICompressedTreeNode, decompress, CompressedObjectTreeModel } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
+import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 	readonly element: T;
@@ -27,9 +29,9 @@ function resolve<T>(treeElement: ICompressedTreeElement<T>): IResolvedCompressed
 	return result;
 }
 
-suite('CompressedObjectTreeModel', function () {
+suite('CompressedObjectTree', function () {
 
-	suite('compress', function () {
+	suite('compress & decompress', function () {
 
 		test('small', function () {
 			const decompressed: ICompressedTreeElement<number> = { element: 1 };
@@ -284,6 +286,56 @@ suite('CompressedObjectTreeModel', function () {
 
 			assert.deepEqual(resolve(compress(decompressed)), compressed);
 			assert.deepEqual(resolve(decompress(compressed)), decompressed);
+		});
+	});
+
+	function toSpliceable<T>(arr: T[]): ISpliceable<T> {
+		return {
+			splice(start: number, deleteCount: number, elements: T[]): void {
+				arr.splice(start, deleteCount, ...elements);
+			}
+		};
+	}
+
+	function toArray<T>(list: ITreeNode<ICompressedTreeNode<T>>[]): T[][] {
+		return list.map(i => i.element.elements);
+	}
+
+	suite('CompressedObjectTreeModel', function () {
+
+		test('ctor', () => {
+			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
+			const model = new CompressedObjectTreeModel<number>(toSpliceable(list));
+			assert(model);
+			assert.equal(list.length, 0);
+			assert.equal(model.size, 0);
+		});
+
+		test('flat', () => {
+			const list: ITreeNode<ICompressedTreeNode<number>>[] = [];
+			const model = new CompressedObjectTreeModel<number>(toSpliceable(list));
+
+			model.setChildren(null, Iterator.fromArray([
+				{ element: 0 },
+				{ element: 1 },
+				{ element: 2 }
+			]));
+
+			assert.deepEqual(toArray(list), [[0], [1], [2]]);
+			assert.equal(model.size, 3);
+
+			model.setChildren(null, Iterator.fromArray([
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+			]));
+
+			assert.deepEqual(toArray(list), [[3], [4], [5]]);
+			assert.equal(model.size, 3);
+
+			model.setChildren(null, Iterator.empty());
+			assert.deepEqual(toArray(list), []);
+			assert.equal(model.size, 0);
 		});
 	});
 });
