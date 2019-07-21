@@ -82,18 +82,18 @@ export function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, ch
 
 export interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> { }
 
-export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
+export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
 
 	readonly rootRef = null;
 
-	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<T | null, TFilterData>>();
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>> = this._onDidSplice.event;
+	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>>();
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>> = this._onDidSplice.event;
 
-	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
-	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this._onDidChangeCollapseState.event;
+	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>>();
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>> = this._onDidChangeCollapseState.event;
 
-	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<T, TFilterData>>();
-	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>> = this._onDidChangeRenderNodeCount.event;
+	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<ICompressedTreeNode<T>, TFilterData>>();
+	readonly onDidChangeRenderNodeCount: Event<ITreeNode<ICompressedTreeNode<T>, TFilterData>> = this._onDidChangeRenderNodeCount.event;
 
 	private model: ObjectTreeModel<ICompressedTreeNode<T>, TFilterData>;
 	private nodes = new Map<T | null, ICompressedTreeNode<T>>();
@@ -171,19 +171,26 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		return Iterator.empty();
 	}
 
-	getListIndex(location: T | null): number {
-		throw new Error('Method not implemented.');
+	getListIndex(location: T): number {
+		const node = this.getCompressedNode(location);
+		return this.model.getListIndex(node);
 	}
 
-	getListRenderCount(location: T | null): number {
-		throw new Error('Method not implemented.');
+	getListRenderCount(location: T): number {
+		const node = this.getCompressedNode(location);
+		return this.model.getListRenderCount(node);
 	}
 
-	getNode(location?: T | null | undefined): ITreeNode<T | null, TFilterData> {
-		throw new Error('Method not implemented.');
+	getNode(location?: T | null | undefined): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {
+		if (typeof location === 'undefined') {
+			return this.model.getNode();
+		}
+
+		const node = this.getCompressedNode(location);
+		return this.model.getNode(node);
 	}
 
-	getNodeLocation(node: ITreeNode<T | null, TFilterData>): T | null {
+	getNodeLocation(node: ITreeNode<ICompressedTreeNode<T> | null, TFilterData>): T | null {
 		throw new Error('Method not implemented.');
 	}
 
@@ -191,15 +198,15 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		throw new Error('Method not implemented.');
 	}
 
-	getParentElement(location: T | null): T | null {
+	getParentElement(location: T | null): ICompressedTreeNode<T> | null {
 		throw new Error('Method not implemented.');
 	}
 
-	getFirstElementChild(location: T | null): T | null | undefined {
+	getFirstElementChild(location: T | null): ICompressedTreeNode<T> | null | undefined {
 		throw new Error('Method not implemented.');
 	}
 
-	getLastElementAncestor(location?: T | null | undefined): T | null | undefined {
+	getLastElementAncestor(location?: T | null | undefined): ICompressedTreeNode<T> | null | undefined {
 		throw new Error('Method not implemented.');
 	}
 
@@ -221,5 +228,19 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	refilter(): void {
 		this.model.refilter();
+	}
+
+	private getCompressedNode(element: T | null): ICompressedTreeNode<T> | null {
+		if (element === null) {
+			return null;
+		}
+
+		const node = this.nodes.get(element);
+
+		if (!node) {
+			throw new Error(`Tree element not found: ${element}`);
+		}
+
+		return node;
 	}
 }

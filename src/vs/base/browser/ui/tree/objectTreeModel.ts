@@ -190,12 +190,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.getLastElementAncestor(location);
 	}
 
-	getListIndex(element: T): number {
+	getListIndex(element: T | null): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListIndex(location);
 	}
 
-	getListRenderCount(element: T): number {
+	getListRenderCount(element: T | null): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListRenderCount(location);
 	}
