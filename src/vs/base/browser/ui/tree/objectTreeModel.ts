@@ -144,7 +144,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		});
 	}
 
-	rerender(element: T): void {
+	rerender(element: T | null): void {
 		const location = this.getElementLocation(element);
 		this.model.rerender(location);
 	}

@@ -239,11 +239,21 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	expandTo(location: T | null): void {
 		const compressedNode = this.getCompressedNode(location);
-		return this.model.expandTo(compressedNode);
+		this.model.expandTo(compressedNode);
+	}
+
+	rerender(location: T | null): void {
+		const compressedNode = this.getCompressedNode(location);
+		this.model.rerender(compressedNode);
 	}
 
 	refilter(): void {
 		this.model.refilter();
+	}
+
+	resort(location: T | null = null, recursive = true): void {
+		const compressedNode = this.getCompressedNode(location);
+		this.model.resort(compressedNode, recursive);
 	}
 
 	private getCompressedNode(element: T | null): ICompressedTreeNode<T> | null {
