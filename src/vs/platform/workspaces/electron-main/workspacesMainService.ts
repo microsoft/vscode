@@ -17,7 +17,7 @@ import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { originalFSPath, dirname as resourcesDirname, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -31,7 +31,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 
 	private readonly _onUntitledWorkspaceDeleted = this._register(new Emitter<IWorkspaceIdentifier>());
-	get onUntitledWorkspaceDeleted(): Event<IWorkspaceIdentifier> { return this._onUntitledWorkspaceDeleted.event; }
+	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier> = this._onUntitledWorkspaceDeleted.event;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -61,7 +61,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private isWorkspacePath(uri: URI): boolean {
-		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri.path);
+		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri);
 	}
 
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {
@@ -71,7 +71,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return {
 				id: workspaceIdentifier.id,
 				configPath: workspaceIdentifier.configPath,
-				folders: toWorkspaceFolders(workspace.folders, resourcesDirname(path)),
+				folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath),
 				remoteAuthority: workspace.remoteAuthority
 			};
 		} catch (error) {
@@ -103,13 +103,14 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return isEqualOrParent(path, this.environmentService.untitledWorkspacesHome);
 	}
 
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
+	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		return mkdirp(dirname(configPath)).then(() => {
-			return writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
-		});
+		await mkdirp(dirname(configPath));
+		await writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
+
+		return workspace;
 	}
 
 	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): IWorkspaceIdentifier {

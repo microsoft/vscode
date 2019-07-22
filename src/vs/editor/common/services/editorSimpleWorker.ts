@@ -22,7 +22,8 @@ import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkCo
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { getAllPropertyNames } from 'vs/base/common/types';
+import * as types from 'vs/base/common/types';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -30,7 +31,11 @@ export interface IMirrorModel {
 	getValue(): string;
 }
 
-export interface IWorkerContext {
+export interface IWorkerContext<H = undefined> {
+	/**
+	 * A proxy to the main thread host object.
+	 */
+	host: H;
 	/**
 	 * Get all available mirror models in this worker.
 	 */
@@ -322,17 +327,53 @@ declare var require: any;
 /**
  * @internal
  */
-export abstract class BaseEditorSimpleWorker {
+export class EditorSimpleWorker implements IRequestHandler, IDisposable {
+	_requestHandlerBrand: any;
+
+	private readonly _host: EditorWorkerHost;
+	private _models: { [uri: string]: MirrorModel; };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
-	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
+	constructor(host: EditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
+		this._host = host;
+		this._models = Object.create(null);
 		this._foreignModuleFactory = foreignModuleFactory;
 		this._foreignModule = null;
 	}
 
-	protected abstract _getModel(uri: string): ICommonModel;
-	protected abstract _getModels(): ICommonModel[];
+	public dispose(): void {
+		this._models = Object.create(null);
+	}
+
+	protected _getModel(uri: string): ICommonModel {
+		return this._models[uri];
+	}
+
+	private _getModels(): ICommonModel[] {
+		let all: MirrorModel[] = [];
+		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
+		return all;
+	}
+
+	public acceptNewModel(data: IRawModelData): void {
+		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
+	}
+
+	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
+		if (!this._models[strURL]) {
+			return;
+		}
+		let model = this._models[strURL];
+		model.onEvents(e);
+	}
+
+	public acceptRemovedModel(strURL: string): void {
+		if (!this._models[strURL]) {
+			return;
+		}
+		delete this._models[strURL];
+	}
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
@@ -399,7 +440,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN minimal edits ---------------------------------------------------------------
 
-	private static readonly _diffLimit = 10000;
+	private static readonly _diffLimit = 100000;
 
 	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
@@ -432,7 +473,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			const original = model.getValueInRange(range);
-			text = text!.replace(/\r\n|\n|\r/g, model.eol);
+			text = text.replace(/\r\n|\n|\r/g, model.eol);
 
 			if (original === text) {
 				// noop
@@ -440,7 +481,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			// make sure diff won't take too long
-			if (Math.max(text.length, original.length) > BaseEditorSimpleWorker._diffLimit) {
+			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
 				result.push({ range, text });
 				continue;
 			}
@@ -503,7 +544,7 @@ export abstract class BaseEditorSimpleWorker {
 
 		for (
 			let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
-			!e.done && suggestions.length <= BaseEditorSimpleWorker._suggestionsLimit;
+			!e.done && suggestions.length <= EditorSimpleWorker._suggestionsLimit;
 			e = iter.next()
 		) {
 			const word = e.value;
@@ -591,8 +632,15 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
-	public loadForeignModule(moduleId: string, createData: any): Promise<string[]> {
-		let ctx: IWorkerContext = {
+	public loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
+		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
+			return this._host.fhr(method, args);
+		};
+
+		const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
+
+		let ctx: IWorkerContext<any> = {
+			host: foreignHost,
 			getMirrorModels: (): IMirrorModel[] => {
 				return this._getModels();
 			}
@@ -601,27 +649,14 @@ export abstract class BaseEditorSimpleWorker {
 		if (this._foreignModuleFactory) {
 			this._foreignModule = this._foreignModuleFactory(ctx, createData);
 			// static foreing module
-			let methods: string[] = [];
-			for (const prop of getAllPropertyNames(this._foreignModule)) {
-				if (typeof this._foreignModule[prop] === 'function') {
-					methods.push(prop);
-				}
-			}
-			return Promise.resolve(methods);
+			return Promise.resolve(types.getAllMethodNames(this._foreignModule));
 		}
 		// ESM-comment-begin
 		return new Promise<any>((resolve, reject) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
-				let methods: string[] = [];
-				for (const prop of getAllPropertyNames(this._foreignModule)) {
-					if (typeof this._foreignModule[prop] === 'function') {
-						methods.push(prop);
-					}
-				}
-
-				resolve(methods);
+				resolve(types.getAllMethodNames(this._foreignModule));
 
 			}, reject);
 		});
@@ -649,58 +684,11 @@ export abstract class BaseEditorSimpleWorker {
 }
 
 /**
- * @internal
- */
-export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IRequestHandler, IDisposable {
-	_requestHandlerBrand: any;
-
-	private _models: { [uri: string]: MirrorModel; };
-
-	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
-		super(foreignModuleFactory);
-		this._models = Object.create(null);
-	}
-
-	public dispose(): void {
-		this._models = Object.create(null);
-	}
-
-	protected _getModel(uri: string): ICommonModel {
-		return this._models[uri];
-	}
-
-	protected _getModels(): ICommonModel[] {
-		let all: MirrorModel[] = [];
-		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
-		return all;
-	}
-
-	public acceptNewModel(data: IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
-	}
-
-	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		let model = this._models[strURL];
-		model.onEvents(e);
-	}
-
-	public acceptRemovedModel(strURL: string): void {
-		if (!this._models[strURL]) {
-			return;
-		}
-		delete this._models[strURL];
-	}
-}
-
-/**
  * Called on the worker side
  * @internal
  */
-export function create(): IRequestHandler {
-	return new EditorSimpleWorkerImpl(null);
+export function create(host: EditorWorkerHost): IRequestHandler {
+	return new EditorSimpleWorker(host, null);
 }
 
 // This is only available in a Web Worker

@@ -5,7 +5,7 @@
 
 import 'vs/css!./dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -28,12 +28,11 @@ function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	}
 }
 
-export class DragAndDropController implements editorCommon.IEditorContribution {
+export class DragAndDropController extends Disposable implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.dragAndDrop';
 
 	private readonly _editor: ICodeEditor;
-	private _toUnhook: IDisposable[];
 	private _dragSelection: Selection | null;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
@@ -45,15 +44,15 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	constructor(editor: ICodeEditor) {
+		super();
 		this._editor = editor;
-		this._toUnhook = [];
-		this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-		this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
-		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
-		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
-		this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this._toUnhook.push(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
-		this._toUnhook.push(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
+		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
+		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
+		this._register(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
+		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
 		this._modifierPressed = false;
@@ -228,7 +227,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._dragSelection = null;
 		this._mouseDown = false;
 		this._modifierPressed = false;
-		this._toUnhook = dispose(this._toUnhook);
+		super.dispose();
 	}
 }
 

@@ -9,10 +9,13 @@
 }
 
 .vs .monaco-toolbar .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis.svg');
+	background-image: url('ellipsis-light.svg');
 }
 
-.hc-black .monaco-toolbar .action-label.toolbar-toggle-more,
 .vs-dark .monaco-toolbar .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis-inverse.svg');
+	background-image: url('ellipsis-dark.svg');
+}
+
+.hc-black .monaco-toolbar .action-label.toolbar-toggle-more {
+	background-image: url('ellipsis-hc.svg');
 }

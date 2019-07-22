@@ -148,7 +148,7 @@ export function toOverrides(raw: any, conflictReporter: (message: string) => voi
 	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	for (const key of Object.keys(raw)) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw = {};
+			const overrideRaw: any = {};
 			for (const keyInOverrideRaw in raw[key]) {
 				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
 					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];

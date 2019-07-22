@@ -15,28 +15,28 @@ import { ResourceMap } from 'vs/base/common/map';
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
 	private readonly _onModelDisposed: Emitter<URI> = this._register(new Emitter<URI>());
-	get onModelDisposed(): Event<URI> { return this._onModelDisposed.event; }
+	readonly onModelDisposed: Event<URI> = this._onModelDisposed.event;
 
 	private readonly _onModelContentChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelContentChanged(): Event<TextFileModelChangeEvent> { return this._onModelContentChanged.event; }
+	readonly onModelContentChanged: Event<TextFileModelChangeEvent> = this._onModelContentChanged.event;
 
 	private readonly _onModelDirty: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelDirty(): Event<TextFileModelChangeEvent> { return this._onModelDirty.event; }
+	readonly onModelDirty: Event<TextFileModelChangeEvent> = this._onModelDirty.event;
 
 	private readonly _onModelSaveError: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelSaveError(): Event<TextFileModelChangeEvent> { return this._onModelSaveError.event; }
+	readonly onModelSaveError: Event<TextFileModelChangeEvent> = this._onModelSaveError.event;
 
 	private readonly _onModelSaved: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelSaved(): Event<TextFileModelChangeEvent> { return this._onModelSaved.event; }
+	readonly onModelSaved: Event<TextFileModelChangeEvent> = this._onModelSaved.event;
 
 	private readonly _onModelReverted: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelReverted(): Event<TextFileModelChangeEvent> { return this._onModelReverted.event; }
+	readonly onModelReverted: Event<TextFileModelChangeEvent> = this._onModelReverted.event;
 
 	private readonly _onModelEncodingChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelEncodingChanged(): Event<TextFileModelChangeEvent> { return this._onModelEncodingChanged.event; }
+	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent> = this._onModelEncodingChanged.event;
 
 	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelOrphanedChanged(): Event<TextFileModelChangeEvent> { return this._onModelOrphanedChanged.event; }
+	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent> = this._onModelOrphanedChanged.event;
 
 	private _onModelsDirtyEvent: Event<TextFileModelChangeEvent[]>;
 	private _onModelsSaveError: Event<TextFileModelChangeEvent[]>;
@@ -153,7 +153,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model does not exist
 		else {
-			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
+			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
 			modelPromise = model.load(options);
 
 			// Install state change listener
@@ -191,20 +191,25 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToPendingModelLoaders.set(resource, modelPromise);
 
 		try {
-			const model = await modelPromise;
+			const resolvedModel = await modelPromise;
 
 			// Make known to manager (if not already known)
-			this.add(resource, model);
+			this.add(resource, resolvedModel);
 
 			// Model can be dirty if a backup was restored, so we make sure to have this event delivered
-			if (model.isDirty()) {
-				this._onModelDirty.fire(new TextFileModelChangeEvent(model, StateChange.DIRTY));
+			if (resolvedModel.isDirty()) {
+				this._onModelDirty.fire(new TextFileModelChangeEvent(resolvedModel, StateChange.DIRTY));
 			}
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
-			return model;
+			// Apply mode if provided
+			if (options && options.mode) {
+				resolvedModel.setMode(options.mode);
+			}
+
+			return resolvedModel;
 		} catch (error) {
 
 			// Free resources of this invalid model

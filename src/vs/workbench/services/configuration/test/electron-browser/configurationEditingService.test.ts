@@ -10,15 +10,13 @@ import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,21 +32,25 @@ import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
-import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
+import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
-class SettingsTestEnvironmentService extends EnvironmentService {
+class TestEnvironmentService extends WorkbenchEnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome: string) {
-		super(args, _execPath);
+	constructor(private _appSettingsHome: URI) {
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
 	}
 
-	get appSettingsPath(): string { return this.customAppSettingsHome; }
+	get appSettingsHome() { return this._appSettingsHome; }
+
 }
 
 suite('ConfigurationEditingService', () => {
@@ -91,7 +93,7 @@ suite('ConfigurationEditingService', () => {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
-		globalSettingsFile = path.join(workspaceDir, 'config.json');
+		globalSettingsFile = path.join(workspaceDir, 'settings.json');
 		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
 
 		return await mkdirp(workspaceSettingsDir, 493);
@@ -102,23 +104,20 @@ suite('ConfigurationEditingService', () => {
 		clearServices();
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+		const environmentService = new TestEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+		const fileService = new FileService(new NullLogService());
+		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
-			const fileService = new FileService2(new NullLogService());
-			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-			fileService.setLegacyService(new LegacyFileService(
-				fileService,
-				workspaceService,
-				TestEnvironmentService,
-				new TestTextResourceConfigurationService(),
-			));
-			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			instantiationService.stub(ICommandService, CommandService);
@@ -128,7 +127,10 @@ suite('ConfigurationEditingService', () => {
 
 	teardown(() => {
 		clearServices();
-		return clearWorkspace();
+		if (workspaceDir) {
+			return rimraf(workspaceDir, RimRafMode.MOVE);
+		}
+		return undefined;
 	});
 
 	function clearServices(): void {
@@ -139,16 +141,6 @@ suite('ConfigurationEditingService', () => {
 			}
 			instantiationService = null!;
 		}
-	}
-
-	function clearWorkspace(): Promise<void> {
-		return new Promise<void>((c, e) => {
-			if (parentDir) {
-				rimraf(parentDir, RimRafMode.MOVE).then(c, c);
-			} else {
-				c(undefined);
-			}
-		}).then(() => parentDir = null!);
 	}
 
 	test('errors cases - invalid key', () => {
@@ -193,7 +185,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null!, error: null!, info: null!, warn: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
 		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {

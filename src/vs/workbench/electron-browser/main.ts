@@ -19,17 +19,15 @@ import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/n
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
-import { basename } from 'vs/base/common/path';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -41,21 +39,27 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-brow
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
-import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SignService } from 'vs/platform/sign/node/signService';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { basename } from 'vs/base/common/resources';
 
 class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
+	private readonly environmentService: WorkbenchEnvironmentService;
 
-	constructor(private readonly configuration: IWindowConfiguration) {
+	constructor(configuration: IWindowConfiguration) {
 		super();
+		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath);
 
 		this.init();
 	}
@@ -69,29 +73,29 @@ class CodeRendererMain extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		importEntries(this.configuration.perfEntries);
+		importEntries(this.environmentService.configuration.perfEntries);
 
 		// Browser config
 		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
 		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
-		setFullscreen(!!this.configuration.fullscreen);
+		setFullscreen(!!this.environmentService.configuration.fullscreen);
 
 		// Keyboard support
 		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 	}
 
 	private reviveUris() {
-		if (this.configuration.folderUri) {
-			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
+		if (this.environmentService.configuration.folderUri) {
+			this.environmentService.configuration.folderUri = URI.revive(this.environmentService.configuration.folderUri);
 		}
 
-		if (this.configuration.workspace) {
-			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
+		if (this.environmentService.configuration.workspace) {
+			this.environmentService.configuration.workspace = reviveWorkspaceIdentifier(this.environmentService.configuration.workspace);
 		}
 
-		const filesToWait = this.configuration.filesToWait;
+		const filesToWait = this.environmentService.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait && filesToWait.paths;
-		[filesToWaitPaths, this.configuration.filesToOpen, this.configuration.filesToCreate, this.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
@@ -106,42 +110,39 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	open(): Promise<void> {
-		return this.initServices().then(services => {
+	async open(): Promise<void> {
+		const services = await this.initServices();
+		await domContentLoaded();
+		mark('willStartWorkbench');
 
-			return domContentLoaded().then(() => {
-				mark('willStartWorkbench');
+		// Create Workbench
+		this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
-				// Create Workbench
-				this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
 
-				// Layout
-				this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		// Workbench Lifecycle
+		this._register(this.workbench.onShutdown(() => this.dispose()));
+		this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
 
-				// Workbench Lifecycle
-				this._register(this.workbench.onShutdown(() => this.dispose()));
-				this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
+		// Startup
+		const instantiationService = this.workbench.startup();
 
-				// Startup
-				const instantiationService = this.workbench.startup();
+		// Window
+		this._register(instantiationService.createInstance(ElectronWindow));
 
-				// Window
-				this._register(instantiationService.createInstance(ElectronWindow));
+		// Driver
+		if (this.environmentService.configuration.driver) {
+			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor)));
+		}
 
-				// Driver
-				if (this.configuration.driver) {
-					instantiationService.invokeFunction(accessor => registerWindowDriver(accessor).then(disposable => this._register(disposable)));
-				}
+		// Config Exporter
+		if (this.environmentService.configuration['export-default-configuration']) {
+			instantiationService.createInstance(DefaultConfigurationExportHelper);
+		}
 
-				// Config Exporter
-				if (this.configuration['export-default-configuration']) {
-					instantiationService.createInstance(DefaultConfigurationExportHelper);
-				}
-
-				// Logging
-				services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
-			});
-		});
+		// Logging
+		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
 	}
 
 	private onWindowResize(e: Event, retry: boolean): void {
@@ -162,7 +163,7 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -171,30 +172,36 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Main Process
-		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
+		const mainProcessService = this._register(new MainProcessService(this.environmentService.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		const environmentService = new WorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
-		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
+		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 
 		// Log
-		const logService = this._register(this.createLogService(mainProcessService, environmentService));
+		const logService = this._register(this.createLogService(mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService));
+		// Sign
+		const signService = new SignService();
+		serviceCollection.set(ISignService, signService);
+
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService.configuration, this.environmentService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
-		const fileService = this._register(new FileService2(logService));
+		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.backupHome, diskFileSystemProvider, this.environmentService));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -203,8 +210,10 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
+		const payload = await this.resolveWorkspaceInitializationPayload();
+
+		const services = await Promise.all([
+			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -215,54 +224,53 @@ class CodeRendererMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, environmentService, logService, mainProcessService).then(service => {
+			this.createStorageService(payload, logService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
 
 				return service;
 			})
-		]).then(services => ({ serviceCollection, logService, storageService: services[1] })));
+		]);
+
+		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: IWorkbenchEnvironmentService): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
-		if (this.configuration.workspace) {
-			return Promise.resolve(this.configuration.workspace);
+		if (this.environmentService.configuration.workspace) {
+			return this.environmentService.configuration.workspace;
 		}
 
 		// Single-folder workspace
-		let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload | undefined> = Promise.resolve(undefined);
-		if (this.configuration.folderUri) {
-			workspaceInitializationPayload = this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
+		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
+		if (this.environmentService.configuration.folderUri) {
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri);
 		}
 
-		return workspaceInitializationPayload.then(payload => {
-
-			// Fallback to empty workspace if we have no payload yet.
-			if (!payload) {
-				let id: string;
-				if (this.configuration.backupPath) {
-					id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
-				} else if (environmentService.isExtensionDevelopment) {
-					id = 'ext-dev'; // extension development window never stores backups and is a singleton
-				} else {
-					return Promise.reject(new Error('Unexpected window configuration without backupPath'));
-				}
-
-				payload = { id };
+		// Fallback to empty workspace if we have no payload yet.
+		if (!workspaceInitializationPayload) {
+			let id: string;
+			if (this.environmentService.configuration.backupWorkspaceResource) {
+				id = basename(this.environmentService.configuration.backupWorkspaceResource); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			} else if (this.environmentService.isExtensionDevelopment) {
+				id = 'ext-dev'; // extension development window never stores backups and is a singleton
+			} else {
+				throw new Error('Unexpected window configuration without backupPath');
 			}
 
-			return payload;
-		});
+			workspaceInitializationPayload = { id };
+		}
+
+		return workspaceInitializationPayload;
 	}
 
-	private resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 
 		// Return early the folder is not local
 		if (folderUri.scheme !== Schemas.file) {
-			return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
+			return { id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri };
 		}
 
 		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
@@ -285,45 +293,56 @@ class CodeRendererMain extends Disposable {
 		}
 
 		// For local: ensure path is absolute and exists
-		const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
-		return stat(sanitizedFolderPath).then(stat => {
+		try {
+			const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
+			const fileStat = await stat(sanitizedFolderPath);
+
 			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
 			return {
-				id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
+				id: computeLocalDiskFolderId(sanitizedFolderUri, fileStat),
 				folder: sanitizedFolderUri
 			};
-		}, error => onUnexpectedError(error));
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+
+		return;
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService2, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const configurationFileService = new ConfigurationFileService();
-		fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.configuration.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService);
 
-		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
+		try {
+			await workspaceService.initialize(payload);
 
-		return workspaceService.initialize(payload).then(() => workspaceService, error => {
+			return workspaceService;
+		} catch (error) {
 			onUnexpectedError(error);
 			logService.error(error);
 
 			return workspaceService;
-		});
+		}
 	}
 
-	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
 		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
-		const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
+		const storageService = new StorageService(globalStorageDatabase, logService, this.environmentService);
 
-		return storageService.initialize(payload).then(() => storageService, error => {
+		try {
+			await storageService.initialize(payload);
+
+			return storageService;
+		} catch (error) {
 			onUnexpectedError(error);
 			logService.error(error);
 
 			return storageService;
-		});
+		}
 	}
 
 	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
-		const spdlogService = createSpdLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, environmentService.logsPath);
-		const consoleLogService = new ConsoleLogService(this.configuration.logLevel);
+		const spdlogService = new SpdLogService(`renderer${this.environmentService.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel);
+		const consoleLogService = new ConsoleLogService(this.environmentService.configuration.logLevel);
 		const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
 

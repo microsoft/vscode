@@ -11,9 +11,10 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { ITOCEntry, knownAcronyms } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -142,11 +143,15 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
+		if (targetSelector !== 'workspace' && typeof inspected.workspace !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
 
-		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
+		if (targetSelector !== 'userRemote' && typeof inspected.userRemote !== 'undefined') {
+			overriddenScopeList.push(localize('remote', "Remote"));
+		}
+
+		if (targetSelector !== 'userLocal' && typeof inspected.userLocal !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
@@ -188,6 +193,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
+		} else if (this.setting.type === 'array' && this.setting.arrayItemType === 'string') {
+			this.valueType = SettingValueType.ArrayOfString;
 		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
 			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
 				this.valueType = SettingValueType.NullableInteger;
@@ -217,7 +224,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 	}
 
-	matchesScope(scope: SettingsTarget): boolean {
+	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {
 		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
 
 		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
@@ -226,6 +233,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		if (configTarget === ConfigurationTarget.WORKSPACE) {
 			return this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		if (configTarget === ConfigurationTarget.USER_REMOTE) {
+			return this.setting.scope === ConfigurationScope.MACHINE || this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		if (configTarget === ConfigurationTarget.USER_LOCAL && isRemote) {
+			return this.setting.scope !== ConfigurationScope.MACHINE;
 		}
 
 		return true;
@@ -350,8 +365,17 @@ export class SettingsTreeModel {
 
 interface IInspectResult {
 	isConfigured: boolean;
-	inspected: any;
-	targetSelector: string;
+	inspected: {
+		default: any,
+		user: any,
+		userLocal?: any,
+		userRemote?: any,
+		workspace?: any,
+		workspaceFolder?: any,
+		memory?: any,
+		value: any,
+	};
+	targetSelector: 'userLocal' | 'userRemote' | 'workspace' | 'workspaceFolder';
 }
 
 function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
@@ -387,15 +411,21 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 }
 
 function wordifyKey(key: string): string {
-	return key
-		.replace(/\.([a-z])/g, (match, p1) => ` › ${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
-		.replace(/\b\w+\b/g, match => {
+	key = key
+		.replace(/\.([a-z0-9])/g, (_, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
+		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
+		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
 			return knownAcronyms.has(match.toLowerCase()) ?
 				match.toUpperCase() :
 				match;
 		});
+
+	for (let [k, v] of knownTermMappings) {
+		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
+	}
+
+	return key;
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {
@@ -456,7 +486,8 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	constructor(
 		viewState: ISettingsEditorViewState,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(viewState, configurationService);
 		this.update({ id: 'searchResultModel', label: '' });
@@ -514,8 +545,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		});
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		const isRemote = !!this.environmentService.configuration.remoteAuthority;
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget) && child.matchesAnyExtension(this._viewState.extensionFilters));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();

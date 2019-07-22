@@ -24,7 +24,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
-	get onClick(): Event<void> { return this._onClick.event; }
+	readonly onClick: Event<void> = this._onClick.event;
 
 	private _domNode: HTMLElement;
 
@@ -139,7 +139,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a model
 		}
 
-		if (!hasWorkspaceFileExtension(model.uri.fsPath)) {
+		if (!hasWorkspaceFileExtension(model.uri)) {
 			return false; // we need a workspace file
 		}
 

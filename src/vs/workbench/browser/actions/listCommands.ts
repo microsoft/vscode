@@ -303,6 +303,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.collapseAll',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+	},
+	handler: (accessor) => {
+		const focusedTree = accessor.get(IListService).lastFocusedList;
+
+		if (focusedTree && !(focusedTree instanceof List || focusedTree instanceof PagedList)) {
+			focusedTree.collapseAll();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expand',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
@@ -585,7 +603,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const focus = list.getFocus();
 
 			if (focus.length > 0) {
-				list.toggleCollapsed(focus[0]);
+				let toggleCollapsed = true;
+
+				if (list.expandOnlyOnTwistieClick === true) {
+					toggleCollapsed = false;
+				} else if (typeof list.expandOnlyOnTwistieClick !== 'boolean' && list.expandOnlyOnTwistieClick(focus[0])) {
+					toggleCollapsed = false;
+				}
+
+				if (toggleCollapsed) {
+					list.toggleCollapsed(focus[0]);
+				}
 			}
 
 			list.setSelection(focus, fakeKeyboardEvent);

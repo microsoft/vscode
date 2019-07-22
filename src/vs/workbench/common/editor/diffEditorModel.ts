@@ -37,11 +37,13 @@ export class DiffEditorModel extends EditorModel {
 		return this._modifiedModel;
 	}
 
-	load(): Promise<EditorModel> {
-		return Promise.all([
+	async load(): Promise<EditorModel> {
+		await Promise.all([
 			this._originalModel ? this._originalModel.load() : Promise.resolve(undefined),
 			this._modifiedModel ? this._modifiedModel.load() : Promise.resolve(undefined),
-		]).then(() => this);
+		]);
+
+		return this;
 	}
 
 	isResolved(): boolean {

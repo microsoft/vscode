@@ -72,7 +72,9 @@
 			"name": "Class name",
 			"scope": [
 				"entity.name.class",
-				"entity.name.type"
+				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution"
 			],
 			"settings": {
 				"foreground": "#268BD2"
@@ -219,16 +221,14 @@
 				"meta.diff.header"
 			],
 			"settings": {
-				"background": "#b58900",
 				"fontStyle": "italic",
-				"foreground": "#E0EDDD"
+				"foreground": "#268bd2"
 			}
 		},
 		{
 			"name": "diff: deleted",
 			"scope": "markup.deleted",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#dc322f"
 			}
@@ -237,7 +237,6 @@
 			"name": "diff: changed",
 			"scope": "markup.changed",
 			"settings": {
-				"background": "#eee8d5",
 				"fontStyle": "",
 				"foreground": "#cb4b16"
 			}
@@ -246,7 +245,6 @@
 			"name": "diff: inserted",
 			"scope": "markup.inserted",
 			"settings": {
-				"background": "#eee8d5",
 				"foreground": "#219186"
 			}
 		},
@@ -417,7 +415,7 @@
 		"tab.activeBackground": "#FDF6E3",
 		"tab.inactiveForeground": "#586E75",
 		"tab.inactiveBackground": "#D3CBB7",
-		"tab.modifiedBorder": "#cb4b16",
+		"tab.activeModifiedBorder": "#cb4b16",
 		// "tab.activeBackground": "",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
@@ -447,6 +445,7 @@
 		"statusBar.debuggingBackground": "#EEE8D5",
 		"statusBar.noFolderBackground": "#EEE8D5",
 		// "statusBar.foreground": "",
+		"statusBarItem.remoteBackground": "#AC9D57",
 		"statusBarItem.prominentBackground": "#DDD6C1",
 		"statusBarItem.prominentHoverBackground": "#DDD6C199",
 		// "statusBarItem.activeBackground": "",

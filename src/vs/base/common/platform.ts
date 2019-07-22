@@ -13,6 +13,7 @@ let _isWeb = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
+let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
@@ -48,10 +49,10 @@ const isElectronRenderer = (typeof process !== 'undefined' && typeof process.ver
 
 // OS detection
 if (typeof navigator === 'object' && !isElectronRenderer) {
-	const userAgent = navigator.userAgent;
-	_isWindows = userAgent.indexOf('Windows') >= 0;
-	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
-	_isLinux = userAgent.indexOf('Linux') >= 0;
+	_userAgent = navigator.userAgent;
+	_isWindows = _userAgent.indexOf('Windows') >= 0;
+	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
+	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
@@ -108,6 +109,7 @@ export const isLinux = _isLinux;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const platform = _platform;
+export const userAgent = _userAgent;
 
 export function isRootUser(): boolean {
 	return _isNative && !_isWindows && (process.getuid() === 0);

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/git.tmbundle/commit/3f6ad2138200db14b57a090ecb2d2e733275ca3e",
+	"version": "https://github.com/textmate/git.tmbundle/commit/5870cf3f8abad3a6637bdf69250b5d2ded427dc4",
 	"name": "Git Rebase Message",
 	"scopeName": "text.git-rebase",
 	"patterns": [
@@ -46,6 +46,15 @@
 				}
 			},
 			"match": "^\\s*(exec|x)\\s+(.*)$",
+			"name": "meta.commit-command.git-rebase"
+		},
+		{
+			"captures": {
+				"1": {
+					"name": "support.function.git-rebase"
+				}
+			},
+			"match": "^\\s*(break|b)\\s*$",
 			"name": "meta.commit-command.git-rebase"
 		}
 	]

@@ -36,20 +36,3 @@
 .runtime-extensions-editor .monaco-action-bar .actions-container {
 	justify-content: left;
 }
-
-.monaco-workbench .part.statusbar .profileExtHost-statusbar-item .icon {
-	background: url('profile-stop.svg') no-repeat;
-	display: inline-block;
-	padding-right: 2px;
-	padding-bottom: 2px;
-	width: 16px;
-	height: 16px;
-	vertical-align: middle;
-	animation:fade 1000ms infinite;
-}
-
-@keyframes fade {
-	from { opacity: 1.0; }
-	50% { opacity: 0.5; }
-	to { opacity: 1.0; }
-}

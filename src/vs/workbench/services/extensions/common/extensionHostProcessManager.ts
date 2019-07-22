@@ -14,7 +14,7 @@ import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustome
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -35,7 +35,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
 
-	public readonly onDidCrash: Event<[number, string | null]>;
+	public readonly onDidExit: Event<[number, string | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
@@ -51,8 +51,10 @@ export class ExtensionHostProcessManager extends Disposable {
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
 	private _extensionHostProcessProxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
+	private _resolveAuthorityAttempt: number;
 
 	constructor(
+		public readonly isLocal: boolean,
 		extensionHostProcessWorker: IExtensionHostStarter,
 		private readonly _remoteAuthority: string,
 		initialActivationEvents: string[],
@@ -65,7 +67,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessCustomers = [];
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
-		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
+		this.onDidExit = this._extensionHostProcessWorker.onExit;
 		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start()!.then(
 			(protocol) => {
 				return { value: this._createExtensionHostCustomers(protocol) };
@@ -82,6 +84,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				measure: () => this.measure()
 			}));
 		});
+		this._resolveAuthorityAttempt = 0;
 	}
 
 	public dispose(): void {
@@ -244,22 +247,30 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
 			const pieces = remoteAuthority.split(':');
 			return Promise.resolve({
-				authority: remoteAuthority,
-				host: pieces[0],
-				port: parseInt(pieces[1], 10)
+				authority: {
+					authority: remoteAuthority,
+					host: pieces[0],
+					port: parseInt(pieces[1], 10)
+				}
 			});
 		}
 		const proxy = await this._getExtensionHostProcessProxy();
 		if (!proxy) {
 			throw new Error(`Cannot resolve authority`);
 		}
-		return proxy.$resolveAuthority(remoteAuthority);
+		this._resolveAuthorityAttempt++;
+		const result = await proxy.$resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt);
+		if (result.type === 'ok') {
+			return result.value;
+		} else {
+			throw new RemoteAuthorityResolverError(result.error.message, result.error.code, result.error.detail);
+		}
 	}
 
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {

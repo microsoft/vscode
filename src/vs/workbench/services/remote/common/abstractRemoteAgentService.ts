@@ -10,7 +10,7 @@ import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { connectRemoteAgentManagement, IConnectionOptions, IWebSocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
@@ -19,6 +19,7 @@ import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/r
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { Emitter } from 'vs/base/common/event';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -84,7 +85,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		private readonly _commit: string | undefined,
 		private readonly _webSocketFactory: IWebSocketFactory,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		private readonly _signService: ISignService
 	) {
 		super();
 		this.remoteAuthority = remoteAuthority;
@@ -119,10 +121,11 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 					} else {
 						this._onReconnecting.fire(undefined);
 					}
-					const { host, port } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host, port };
+					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
+					return { host: authority.host, port: authority.port };
 				}
-			}
+			},
+			signService: this._signService
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
@@ -138,7 +141,11 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 	) {
 		// Let's cover the case where connecting to fetch the remote extension info fails
 		remoteAgentService.getEnvironment(true)
-			.then(undefined, err => notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : '')));
+			.then(undefined, err => {
+				if (!RemoteAuthorityResolverError.isHandledNotAvailable(err)) {
+					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));
+				}
+			});
 	}
 
 }

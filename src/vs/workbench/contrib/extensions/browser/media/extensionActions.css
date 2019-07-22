@@ -1,0 +1,122 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item .action-label.extension-action {
+	padding: 0 5px;
+	outline-offset: 2px;
+	line-height: initial;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-action-bar .action-item .action-label.clear-extensions {
+	background: url('clear-light.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-action-bar .action-item .action-label.clear-extensions {
+	background: url('clear-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-action-bar .action-item .action-label.clear-extensions {
+	background: url('clear-hc.svg') center center no-repeat;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
+.monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after,
+.monaco-action-bar .action-item .action-label.extension-action.extension-editor-dropdown-action.dropdown:after {
+	content: '▼';
+	padding-left: 2px;
+	font-size: 80%;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.update,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.extension-editor-dropdown-action,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
+.monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.system-disable.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
+.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
+	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
+	content: '✓';
+	padding-right: 4px;
+}
+
+.monaco-action-bar .action-item .action-label.disable-status,
+.monaco-action-bar .action-item .action-label.malicious-status,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label {
+	opacity: 0.9;
+	line-height: initial;
+	padding: 0 5px;
+}
+
+.monaco-action-bar .action-item .action-label.disable-status,
+.monaco-action-bar .action-item .action-label.malicious-status {
+	border-radius: 4px;
+	color: inherit;
+	background-color: transparent;
+	font-style: italic;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.disable-status {
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable,
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.system-disable {
+	margin: 0.15em;
+}
+
+.monaco-action-bar .action-item .action-label.system-disable.icon {
+	opacity: 1;
+	height: 18px;
+	width: 10px;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
+	font-weight: normal;
+}
+
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
+	opacity: 0.9;
+}
+
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
+	display: none;
+}
+
+.extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
+	height: 18px;
+	width: 10px;
+	border: none;
+	background: url('configure-light.svg') center center no-repeat;
+	outline-offset: 0px;
+	margin-top: 0.15em
+}
+
+.vs-dark .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
+	background: url('configure-dark.svg') center center no-repeat;
+}
+
+.hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
+	background: url('configure-hc.svg') center center no-repeat;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}

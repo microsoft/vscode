@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/node/experimentService';
+import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -90,13 +90,13 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 					return undefined;
 				}
 				const extensionToFetchTranslationsFrom = tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0] || tagResult.firstPage[0];
-				if (!extensionToFetchTranslationsFrom.assets || !extensionToFetchTranslationsFrom.assets.coreTranslations) {
+				if (!extensionToFetchTranslationsFrom.assets || !extensionToFetchTranslationsFrom.assets.coreTranslations.length) {
 					return undefined;
 				}
 
 				return this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale!)
 					.then(translation => {
-						const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
+						const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
 						if (!!translationsFromPack[promptMessageKey] && !!translationsFromPack[yesLabelKey] && !!translationsFromPack[noLabelKey]) {
 							promptMessage = translationsFromPack[promptMessageKey].replace('{0}', this.privacyUrl) + ' (Please help Microsoft improve Visual Studio Code by allowing the collection of usage data.)';
 							yesLabel = translationsFromPack[yesLabelKey] + ' (Yes)';
@@ -109,12 +109,14 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		}
 
 		const logTelemetry = (optout?: boolean) => {
-			/* __GDPR__
-				"experiments:optout" : {
-					"optOut": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('experiments:optout', typeof optout === 'boolean' ? { optout } : {});
+			type ExperimentsOptOutClassification = {
+				optout?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			};
+
+			type ExperimentsOptOutEvent = {
+				optout?: boolean;
+			};
+			this.telemetryService.publicLog2<ExperimentsOptOutEvent, ExperimentsOptOutClassification>('experiments:optout', typeof optout === 'boolean' ? { optout } : {});
 		};
 
 		queryPromise.then(() => {

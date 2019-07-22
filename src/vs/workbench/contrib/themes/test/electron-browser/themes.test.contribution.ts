@@ -214,7 +214,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(fileName);
+		const modeId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(fileName));
 		return this.textMateService.createGrammar(modeId!).then((grammar) => {
 			let lines = content.split(/\r\n|\r|\n/);
 
@@ -234,8 +234,8 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 		let fileName = basename(resource);
 		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
-		return fileService.resolveContent(resource).then(content => {
-			return snapper.captureSyntaxTokens(fileName, content.value);
+		return fileService.readFile(resource).then(content => {
+			return snapper.captureSyntaxTokens(fileName, content.value.toString());
 		});
 	};
 

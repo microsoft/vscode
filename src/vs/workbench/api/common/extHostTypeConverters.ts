@@ -237,8 +237,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		const renderer = new marked.Renderer();
-		renderer.image = renderer.link = (href: string): string => {
+		const collectUri = (href: string): string => {
 			try {
 				let uri = URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
@@ -248,6 +247,10 @@ export namespace MarkdownString {
 			}
 			return '';
 		};
+		const renderer = new marked.Renderer();
+		renderer.link = collectUri;
+		renderer.image = href => collectUri(htmlContent.parseHrefAndDimensions(href).href);
+
 		marked(res.value, { renderer });
 
 		return res;
@@ -808,7 +811,8 @@ export namespace DocumentLink {
 	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
 			range: Range.from(link.range),
-			url: link.target
+			url: link.target,
+			tooltip: link.tooltip
 		};
 	}
 
@@ -858,10 +862,7 @@ export namespace Color {
 
 export namespace SelectionRange {
 	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
-		return {
-			kind: '',
-			range: Range.from(obj.range)
-		};
+		return { range: Range.from(obj.range) };
 	}
 
 	export function to(obj: modes.SelectionRange): vscode.SelectionRange {

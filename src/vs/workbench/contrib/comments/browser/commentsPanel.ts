@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,11 +19,12 @@ import { ReviewController } from 'vs/workbench/contrib/comments/browser/comments
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -41,7 +42,6 @@ export class CommentsPanel extends Panel {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommentService private readonly commentService: ICommentService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -175,7 +175,7 @@ export class CommentsPanel extends Panel {
 		let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
+			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
@@ -188,55 +188,22 @@ export class CommentsPanel extends Panel {
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
 
-		if (commentToReveal.selectCommand) {
-			this.commandService.executeCommand(commentToReveal.selectCommand.id, ...(commentToReveal.selectCommand.arguments || [])).then(_ => {
-				let activeWidget = this.editorService.activeTextEditorWidget;
-				if (isDiffEditor(activeWidget)) {
-					const originalEditorWidget = activeWidget.getOriginalEditor();
-					const modifiedEditorWidget = activeWidget.getModifiedEditor();
-
-					let controller;
-					if (originalEditorWidget.getModel()!.uri.toString() === element.resource.toString()) {
-						controller = ReviewController.get(originalEditorWidget);
-					} else if (modifiedEditorWidget.getModel()!.uri.toString() === element.resource.toString()) {
-						controller = ReviewController.get(modifiedEditorWidget);
-					}
-
-					if (controller) {
-						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
-					}
-				} else {
-					let activeEditor = this.editorService.activeEditor;
-					let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
-					if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
-						const control = this.editorService.activeTextEditorWidget;
-						if (threadToReveal && isCodeEditor(control)) {
-							const controller = ReviewController.get(control);
-							controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
-						}
-					}
+		this.editorService.openEditor({
+			resource: element.resource,
+			options: {
+				pinned: pinned,
+				preserveFocus: preserveFocus,
+				selection: range
+			}
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
+			if (editor) {
+				const control = editor.getControl();
+				if (threadToReveal && isCodeEditor(control)) {
+					const controller = ReviewController.get(control);
+					controller.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
 				}
-
-				return true;
-			});
-		} else {
-			this.editorService.openEditor({
-				resource: element.resource,
-				options: {
-					pinned: pinned,
-					preserveFocus: preserveFocus,
-					selection: range
-				}
-			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (editor) {
-					const control = editor.getControl();
-					if (threadToReveal && isCodeEditor(control)) {
-						const controller = ReviewController.get(control);
-						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
-					}
-				}
-			});
-		}
+			}
+		});
 
 		return true;
 	}
@@ -266,3 +233,14 @@ export class CommentsPanel extends Panel {
 		}
 	}
 }
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.focusCommentsPanel',
+	handler: (accessor) => {
+		const panelService = accessor.get(IPanelService);
+		const panels = panelService.getPanels();
+		if (panels.some(panelIdentifier => panelIdentifier.id === COMMENTS_PANEL_ID)) {
+			panelService.openPanel(COMMENTS_PANEL_ID, true);
+		}
+	}
+});

@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/contrib/termin
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
@@ -161,12 +161,12 @@ export class TerminalPanel extends Panel {
 		return this._contextMenuActions;
 	}
 
-	public getActionItem(action: Action): IActionItem | undefined {
+	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchTerminalAction.ID) {
-			return this._instantiationService.createInstance(SwitchTerminalActionItem, action);
+			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	public focus(): void {
@@ -203,7 +203,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
-		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -222,7 +222,7 @@ export class TerminalPanel extends Panel {
 						return;
 					}
 					if (terminal.hasSelection()) {
-						terminal.copySelection();
+						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
 						terminal.paste();
@@ -240,7 +240,7 @@ export class TerminalPanel extends Panel {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._parentDomElement, 'mouseup', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'mouseup', async (event: MouseEvent) => {
 			if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
 				if (this._terminalService.terminalInstances.length === 0) {
 					return;
@@ -249,7 +249,7 @@ export class TerminalPanel extends Panel {
 				if (event.which === 1) {
 					const terminal = this._terminalService.getActiveInstance();
 					if (terminal && terminal.hasSelection()) {
-						terminal.copySelection();
+						await terminal.copySelection();
 					}
 				}
 			}

@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
@@ -36,7 +36,7 @@ export class ExplorerService implements IExplorerService {
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
@@ -88,26 +88,27 @@ export class ExplorerService implements IExplorerService {
 			(root?: URI) => getFileEventsExcludes(this.configurationService, root),
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
 		);
-		this.disposables.push(fileEventsFilter);
+		this.disposables.add(fileEventsFilter);
 
 		return fileEventsFilter;
 	}
 
 	@memoize get model(): ExplorerModel {
 		const model = new ExplorerModel(this.contextService);
-		this.disposables.push(model);
-		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+		this.disposables.add(model);
+		this.disposables.add(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.disposables.add(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
+		this.disposables.add(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
 				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+				this.model.roots.forEach(r => r.forgetChildren());
 				this._onDidChangeItem.fire({ recursive: true });
 			} else {
 				this.fileSystemProviderSchemes.add(e.scheme);
 			}
 		}));
-		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
+		this.disposables.add(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
 	}
@@ -147,7 +148,7 @@ export class ExplorerService implements IExplorerService {
 		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
-	select(resource: URI, reveal?: boolean): Promise<void> {
+	async select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
 			this._onDidSelectResource.fire({ resource: fileStat.resource, reveal });
@@ -155,11 +156,13 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: false };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
-		return this.fileService.resolve(rootUri, options).then(stat => {
+
+		try {
+			const stat = await this.fileService.resolve(rootUri, options);
 
 			// Convert to model
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
@@ -170,17 +173,19 @@ export class ExplorerService implements IExplorerService {
 
 			// Select and Reveal
 			this._onDidSelectResource.fire({ resource: item ? item.resource : undefined, reveal });
-		}, () => {
+		} catch (error) {
 			root.isError = true;
 			this._onDidChangeItem.fire({ item: root, recursive: false });
-		});
+		}
 	}
 
 	refresh(): void {
 		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire({ recursive: true });
 		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
-		if (resource) {
+		const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
+
+		if (resource && autoReveal) {
 			// We did a top level refresh, reveal the active file #67118
 			this.select(resource, true);
 		}
@@ -281,7 +286,7 @@ export class ExplorerService implements IExplorerService {
 				if (added.length) {
 
 					// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-					const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
+					const ignoredPaths: Set<string> = new Set();
 					for (let i = 0; i < added.length; i++) {
 						const change = added[i];
 
@@ -289,7 +294,7 @@ export class ExplorerService implements IExplorerService {
 						const parent = dirname(change.resource);
 
 						// Continue if parent was already determined as to be ignored
-						if (ignoredPaths[parent.toString()]) {
+						if (ignoredPaths.has(parent.toString())) {
 							continue;
 						}
 
@@ -301,7 +306,7 @@ export class ExplorerService implements IExplorerService {
 
 						// Keep track of path that can be ignored for faster lookup
 						if (!parentStat || !parentStat.isDirectoryResolved) {
-							ignoredPaths[parent.toString()] = true;
+							ignoredPaths.add(parent.toString());
 						}
 					}
 				}
@@ -375,6 +380,6 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }

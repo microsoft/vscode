@@ -515,11 +515,27 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'vscode';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		let res = [resourceA, resourceB].sort((r1, r2) => {
+			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
+				if (r1 as any /* TS fail */ === resourceA) {
+					return -1;
+				}
+
+				return 1;
+			});
+		});
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		res = [resourceB, resourceA].sort((r1, r2) => {
+			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
+				if (r1 as any /* TS fail */ === resourceB) {
+					return -1;
+				}
+
+				return 1;
+			});
+		});
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});

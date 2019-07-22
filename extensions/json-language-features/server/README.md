@@ -21,6 +21,8 @@ The server implements the following capabilities of the language server protocol
 - [Document Symbols](https://microsoft.github.io/language-server-protocol/specification#textDocument_documentSymbol) for quick navigation to properties in the document.
 - [Document Colors](https://microsoft.github.io/language-server-protocol/specification#textDocument_documentColor) for showing color decorators on values representing colors and [Color Presentation](https://microsoft.github.io/language-server-protocol/specification#textDocument_colorPresentation) for color presentation information to support color pickers. The location of colors is defined by the document's [JSON schema](http://json-schema.org/). All values marked with `"format": "color-hex"` (VSCode specific, non-standard JSON Schema extension) are considered color values. The supported color formats are `#rgb[a]` and `#rrggbb[aa]`.
 - [Code Formatting](https://microsoft.github.io/language-server-protocol/specification#textDocument_rangeFormatting) supporting ranges and formatting the whole document.
+- [Folding Ranges](https://microsoft.github.io/language-server-protocol/specification#textDocument_foldingRange) for all folding ranges in the document.
+- Semantic Selection for semantic selection for one or multiple cursor positions.
 - [Diagnostics (Validation)](https://microsoft.github.io/language-server-protocol/specification#textDocument_publishDiagnostics) are pushed for all open documents
    - syntax errors
    - structural validation based on the document's [JSON schema](http://json-schema.org/).
@@ -90,10 +92,39 @@ To find the schema for a given JSON document, the server uses the following mech
 - The settings define a schema association based on the documents URL. Settings can either associate a schema URL to a file or path pattern, and they can directly provide a schema.
 - Additionally, schema associations can also be provided by a custom 'schemaAssociations' configuration call.
 
-Schemas are identified by URLs. To load the content of a schema, the JSON language server tries to load from that URL or path. The following URL schemas are supported:
+Schemas are identified by URLs. To load the content of a schema, the JSON language server either tries to load from that URI or path itself, or delegates to the client.
+
+The `initializationOptions.handledSchemaProtocols` initialization option defines which URLs are handled by the server. Requests for all other URIs are send to the client.
+
+`handledSchemaProtocols` is part of the initialization options and can't be changed while the server is running.
+
+```ts
+let clientOptions: LanguageClientOptions = {
+		initializationOptions: {
+			handledSchemaProtocols: ['file'] // language server should only try to load file URLs
+		}
+        ...
+}
+```
+
+If `handledSchemaProtocols` is not set, the JSON language server will load the following URLs itself:
+
 - `http`, `https`: Loaded using NodeJS's HTTP support. Proxies can be configured through the settings.
 - `file`: Loaded using NodeJS's `fs` support.
-- `vscode`: Loaded by an LSP call to the client.
+
+#### Schema content request
+
+Requests for schemas with URLs not handled by the server are forwarded to the client through an LSP request. This request is a JSON language server specific, non-standardized, extension to the LSP.
+
+Request:
+- method: 'vscode/content'
+- params: `string` - The schema URL to request.
+- response: `string` - The content of the schema with the given URL
+
+#### Schema content change notification
+
+When the client is aware that a schema content has changed, it will notify the server through a notification. This notification is a JSON language server specific, non-standardized, extension to the LSP.
+The server will, as a response, clear the schema content from the cache and reload the schema content when required again.
 
 #### Schema associations notification
 
@@ -110,20 +141,6 @@ interface ISchemaAssociations {
 ```
   - keys: a file names or file path (separated by `/`). `*` can be used as a wildcard.
   - values: An array of schema URLs
-
-#### Schema content request
-
-The schema content for schema URLs that start with `vscode://` will be requested from the client through an LSP request. This request is a JSON language server specific, non-standardized, extension to the LSP.
-
-Request:
-- method: 'vscode/content'
-- params: `string` - The schema URL to request. The server will only ask for URLs that start with `vscode://`
-- response: `string` - The content of the schema with the given URL
-
-#### Schema content change notification
-
-When the client is aware that a schema content has changed, it will notify the server through a notification. This notification is a JSON language server specific, non-standardized, extension to the LSP.
-The server will, as a response, clear the schema content from the cache and reload the schema content when required again.
 
 Notification:
 - method: 'json/schemaContent'
@@ -154,7 +171,8 @@ To connect to the server from NodeJS, see Remy Suen's great write-up on [how to 
 
 ## Participate
 
-The source code of the JSON language server can be found [VSCode repository](https://github.com/Microsoft/vscode) at [extensions/json-language-features/server](https://github.com/Microsoft/vscode/tree/master/extensions/json-language-features/server).
+The source code of the JSON language server can be found in the [VSCode repository](https://github.com/Microsoft/vscode) at [extensions/json-language-features/server](https://github.com/Microsoft/vscode/tree/master/extensions/json-language-features/server).
+
 File issues and pull requests in the [VSCode GitHub Issues](https://github.com/Microsoft/vscode/issues). See the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
 
 Most of the functionality of the server is located in libraries:
@@ -164,10 +182,12 @@ Most of the functionality of the server is located in libraries:
 
 Help on any of these projects is very welcome.
 
-Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
+## Code of Conduct
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## License
 
 Copyright (c) Microsoft Corporation. All rights reserved.
 
-Licensed under the [MIT](LICENSE.txt) License.
+Licensed under the [MIT](https://github.com/microsoft/vscode/blob/master/LICENSE.txt) License.

@@ -18,6 +18,7 @@ export interface OpenCommandPipeArgs {
 	forceNewWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
 }
@@ -29,7 +30,7 @@ export interface StatusPipeArgs {
 export interface RunCommandPipeArgs {
 	type: 'command';
 	command: string;
-	args: string[];
+	args: any[];
 }
 
 export class CLIServer {
@@ -81,7 +82,7 @@ export class CLIServer {
 					break;
 				default:
 					res.writeHead(404);
-					res.write(`Unkown message type: ${data.type}`, err => {
+					res.write(`Unknown message type: ${data.type}`, err => {
 						if (err) {
 							console.error(err);
 						}
@@ -93,13 +94,15 @@ export class CLIServer {
 	}
 
 	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
-		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFilePath } = data;
+		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath } = data;
 		const urisToOpen: IURIToOpen[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
 				try {
 					urisToOpen.push({ folderUri: URI.parse(s) });
-					forceNewWindow = true;
+					if (!addMode && !forceReuseWindow) {
+						forceNewWindow = true;
+					}
 				} catch (e) {
 					// ignore
 				}
@@ -110,7 +113,9 @@ export class CLIServer {
 				try {
 					if (hasWorkspaceFileExtension(s)) {
 						urisToOpen.push({ workspaceUri: URI.parse(s) });
-						forceNewWindow = true;
+						if (!forceReuseWindow) {
+							forceNewWindow = true;
+						}
 					} else {
 						urisToOpen.push({ fileUri: URI.parse(s) });
 					}
@@ -121,7 +126,7 @@ export class CLIServer {
 		}
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFileURI };
+			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);

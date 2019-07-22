@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
+import { EditorInput, ITextEditorModel, IModeSupport } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -13,16 +13,18 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
  * code editor model.
  */
-export class ResourceEditorInput extends EditorInput {
+export class ResourceEditorInput extends EditorInput implements IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
+	private cachedModel: ResourceEditorModel | null;
 	private modelReference: Promise<IReference<ITextEditorModel>> | null;
 
 	constructor(
 		private name: string,
-		private description: string | null,
+		private description: string | undefined,
 		private readonly resource: URI,
+		private preferredMode: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
@@ -51,7 +53,7 @@ export class ResourceEditorInput extends EditorInput {
 		}
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -62,23 +64,43 @@ export class ResourceEditorInput extends EditorInput {
 		}
 	}
 
-	resolve(): Promise<ITextEditorModel> {
+	setMode(mode: string): void {
+		this.setPreferredMode(mode);
+
+		if (this.cachedModel) {
+			this.cachedModel.setMode(mode);
+		}
+	}
+
+	setPreferredMode(mode: string): void {
+		this.preferredMode = mode;
+	}
+
+	async resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
 
-		return this.modelReference.then(ref => {
-			const model = ref.object;
+		const ref = await this.modelReference;
 
-			if (!(model instanceof ResourceEditorModel)) {
-				ref.dispose();
-				this.modelReference = null;
+		const model = ref.object;
 
-				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
-			}
+		// Ensure the resolved model is of expected type
+		if (!(model instanceof ResourceEditorModel)) {
+			ref.dispose();
+			this.modelReference = null;
 
-			return model;
-		});
+			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
+		}
+
+		this.cachedModel = model;
+
+		// Set mode if we have a preferred mode configured
+		if (this.preferredMode) {
+			model.setMode(this.preferredMode);
+		}
+
+		return model;
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -86,11 +108,9 @@ export class ResourceEditorInput extends EditorInput {
 			return true;
 		}
 
+		// Compare by properties
 		if (otherInput instanceof ResourceEditorInput) {
-			let otherResourceEditorInput = <ResourceEditorInput>otherInput;
-
-			// Compare by properties
-			return otherResourceEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;
@@ -101,6 +121,8 @@ export class ResourceEditorInput extends EditorInput {
 			this.modelReference.then(ref => ref.dispose());
 			this.modelReference = null;
 		}
+
+		this.cachedModel = null;
 
 		super.dispose();
 	}

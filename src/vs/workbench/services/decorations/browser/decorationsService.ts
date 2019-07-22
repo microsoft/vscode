@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -95,20 +95,20 @@ class DecorationRule {
 	}
 }
 
-class DecorationStyles {
+class DecorationStyles extends Disposable {
 
-	private readonly _disposables: IDisposable[];
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._disposables = [this._themeService.onThemeChange(this._onThemeChange, this)];
+		super();
+		this._register(this._themeService.onThemeChange(this._onThemeChange, this));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		super.dispose();
 
 		const parent = this._styleElement.parentElement;
 		if (parent) {
@@ -334,15 +334,14 @@ class DecorationProviderWrapper {
 	}
 }
 
-export class FileDecorationsService implements IDecorationsService {
+export class FileDecorationsService extends Disposable implements IDecorationsService {
 
 	_serviceBrand: any;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
-	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
+	private readonly _onDidChangeDecorationsDelayed = this._register(new Emitter<URI | URI[]>());
+	private readonly _onDidChangeDecorations = this._register(new Emitter<IResourceDecorationChangeEvent>());
 	private readonly _decorationStyles: DecorationStyles;
-	private readonly _disposables: IDisposable[];
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
 		this._onDidChangeDecorations.event,
@@ -356,27 +355,17 @@ export class FileDecorationsService implements IDecorationsService {
 	constructor(
 		@IThemeService themeService: IThemeService
 	) {
-		this._decorationStyles = new DecorationStyles(themeService);
+		super();
+		this._decorationStyles = this._register(new DecorationStyles(themeService));
 
 		// every so many events we check if there are
 		// css styles that we don't need anymore
 		let count = 0;
-		let reg = this.onDidChangeDecorations(() => {
+		this._register(this.onDidChangeDecorations(() => {
 			if (++count % 17 === 0) {
 				this._decorationStyles.cleanUp(this._data.iterator());
 			}
-		});
-
-		this._disposables = [
-			reg,
-			this._decorationStyles
-		];
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._onDidChangeDecorations);
-		dispose(this._onDidChangeDecorationsDelayed);
+		}));
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {

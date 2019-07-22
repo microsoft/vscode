@@ -21,7 +21,7 @@ import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorksp
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
-import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
+import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
@@ -307,11 +307,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const handle = this._trackerFactoryHandleCounter++;
 		this._trackerFactories.push({ type, handle, factory });
 
-		this._debugServiceProxy.$registerDebugAdapterTrackerFactory(type, handle);
-
 		return new Disposable(() => {
 			this._trackerFactories = this._trackerFactories.filter(p => p.factory !== factory);		// remove
-			this._debugServiceProxy.$unregisterDebugAdapterTrackerFactory(handle);
 		});
 	}
 
@@ -360,10 +357,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		} else if (args.kind === 'external') {
 
-			const terminalLauncher = getTerminalLauncher();
-			if (terminalLauncher) {
-				return terminalLauncher.runInTerminal(args, config);
-			}
+			runInExternalTerminal(args, config);
 		}
 		return Promise.resolve(undefined);
 	}

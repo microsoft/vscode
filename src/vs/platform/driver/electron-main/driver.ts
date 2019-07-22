@@ -210,5 +210,5 @@ export async function serve(
 	const channel = new DriverChannel(driver);
 	server.registerChannel('driver', channel);
 
-	return combinedDisposable([server, windowServer]);
+	return combinedDisposable(server, windowServer);
 }

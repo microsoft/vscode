@@ -112,7 +112,6 @@ class MonacoGenerator {
         this._executeSoonTimer = null;
         this._isWatch = isWatch;
         this.stream = es.through();
-        this._watchers = [];
         this._watchedFiles = {};
         let onWillReadFile = (moduleId, filePath) => {
             if (!this._isWatch) {
@@ -122,26 +121,10 @@ class MonacoGenerator {
                 return;
             }
             this._watchedFiles[filePath] = true;
-            const watcher = fs.watch(filePath);
-            watcher.addListener('change', () => {
+            fs.watchFile(filePath, () => {
                 this._declarationResolver.invalidateCache(moduleId);
                 this._executeSoon();
             });
-            watcher.addListener('error', (err) => {
-                console.error(`Encountered error while watching ${filePath}.`);
-                console.log(err);
-                delete this._watchedFiles[filePath];
-                for (let i = 0; i < this._watchers.length; i++) {
-                    if (this._watchers[i] === watcher) {
-                        this._watchers.splice(i, 1);
-                        break;
-                    }
-                }
-                watcher.close();
-                this._declarationResolver.invalidateCache(moduleId);
-                this._executeSoon();
-            });
-            this._watchers.push(watcher);
         };
         this._fsProvider = new class extends monacodts.FSProvider {
             readFileSync(moduleId, filePath) {
@@ -151,11 +134,9 @@ class MonacoGenerator {
         };
         this._declarationResolver = new monacodts.DeclarationResolver(this._fsProvider);
         if (this._isWatch) {
-            const recipeWatcher = fs.watch(monacodts.RECIPE_PATH);
-            recipeWatcher.addListener('change', () => {
+            fs.watchFile(monacodts.RECIPE_PATH, () => {
                 this._executeSoon();
             });
-            this._watchers.push(recipeWatcher);
         }
     }
     _executeSoon() {
@@ -167,9 +148,6 @@ class MonacoGenerator {
             this._executeSoonTimer = null;
             this.execute();
         }, 20);
-    }
-    dispose() {
-        this._watchers.forEach(watcher => watcher.close());
     }
     _run() {
         let r = monacodts.run3(this._declarationResolver);

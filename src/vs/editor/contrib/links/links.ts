@@ -9,7 +9,7 @@ import * as async from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -27,26 +27,26 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.mac', "Cmd + click to follow link")
-		: nls.localize('links.navigate', "Ctrl + click to follow link")
+		? nls.localize('links.navigate.mac', "Follow link (cmd + click)")
+		: nls.localize('links.navigate', "Follow link (ctrl + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.mac', "Cmd + click to execute command")
-		: nls.localize('links.command', "Ctrl + click to execute command")
+		? nls.localize('links.command.mac', "Execute command (cmd + click)")
+		: nls.localize('links.command', "Execute command (ctrl + click)")
 );
 
 const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.navigate.al.mac', "Option + click to follow link")
-		: nls.localize('links.navigate.al', "Alt + click to follow link")
+		? nls.localize('links.navigate.al.mac', "Follow link (option + click)")
+		: nls.localize('links.navigate.al', "Follow link (alt + click)")
 );
 
 const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 	platform.isMacintosh
-		? nls.localize('links.command.al.mac', "Option + click to execute command")
-		: nls.localize('links.command.al', "Alt + click to execute command")
+		? nls.localize('links.command.al.mac', "Execute command (option + click)")
+		: nls.localize('links.command.al', "Execute command (alt + click)")
 );
 
 const decoration = {
@@ -111,6 +111,23 @@ class LinkOccurrence {
 	}
 
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
+		const options = { ...this._getBaseOptions(link, useMetaKey, isActive) };
+		if (typeof link.tooltip === 'string') {
+			const message = new MarkdownString().appendText(
+				platform.isMacintosh
+					? useMetaKey
+						? nls.localize('links.custom.mac', "{0} (cmd + click)", link.tooltip)
+						: nls.localize('links.custom.mac.al', "{0} (option + click)", link.tooltip)
+					: useMetaKey
+						? nls.localize('links.custom', "{0} (ctrl + click)", link.tooltip)
+						: nls.localize('links.custom.al', "{0} (alt + click)", link.tooltip)
+			);
+			options.hoverMessage = message;
+		}
+		return options;
+	}
+
+	private static _getBaseOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
 		if (link.url && /^command:/i.test(link.url.toString())) {
 			if (useMetaKey) {
 				return (isActive ? decoration.metaCommandActive : decoration.metaCommand);
@@ -155,7 +172,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private readonly editor: ICodeEditor;
 	private enabled: boolean;
-	private listenersToRemove: IDisposable[];
+	private readonly listenersToRemove = new DisposableStore();
 	private readonly timeout: async.TimeoutTimer;
 	private computePromise: async.CancelablePromise<LinksList> | null;
 	private activeLinksList: LinksList | null;
@@ -172,22 +189,21 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.editor = editor;
 		this.openerService = openerService;
 		this.notificationService = notificationService;
-		this.listenersToRemove = [];
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
-		this.listenersToRemove.push(clickLinkGesture);
-		this.listenersToRemove.push(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+		this.listenersToRemove.add(clickLinkGesture);
+		this.listenersToRemove.add(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this._onEditorMouseMove(mouseEvent, keyboardEvent);
 		}));
-		this.listenersToRemove.push(clickLinkGesture.onExecute((e) => {
+		this.listenersToRemove.add(clickLinkGesture.onExecute((e) => {
 			this.onEditorMouseUp(e);
 		}));
-		this.listenersToRemove.push(clickLinkGesture.onCancel((e) => {
+		this.listenersToRemove.add(clickLinkGesture.onCancel((e) => {
 			this.cleanUpActiveLinkDecoration();
 		}));
 
 		this.enabled = editor.getConfiguration().contribInfo.links;
-		this.listenersToRemove.push(editor.onDidChangeConfiguration((e) => {
+		this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
 			let enabled = editor.getConfiguration().contribInfo.links;
 			if (this.enabled === enabled) {
 				// No change in our configuration option
@@ -204,10 +220,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			// Start computing (for the getting enabled case)
 			this.beginCompute();
 		}));
-		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
-		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
-		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+		this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
+		this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
+		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
+		this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
 
 		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
@@ -397,7 +413,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.listenersToRemove = dispose(this.listenersToRemove);
+		this.listenersToRemove.dispose();
 		this.stop();
 		this.timeout.dispose();
 	}
@@ -410,7 +426,7 @@ class OpenLinkAction extends EditorAction {
 			id: 'editor.action.openLink',
 			label: nls.localize('label', "Open Link"),
 			alias: 'Open Link',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
