@@ -108,7 +108,8 @@ function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: strin
 		// Find the last slash before cursor, and calculate the start of replace range from there
 		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
 		const startPos = shiftPosition(range.end, -1 - valueAfterLastSlash.length);
-		// If whitespace exists, replace until it
+
+		// If whitespace exists, replace until there is no more remaining.
 		const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
 		if (whitespaceIndex === -1) {
 			replaceRange = Range.create(startPos, shiftPosition(range.end, -1));

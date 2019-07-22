@@ -153,7 +153,8 @@ function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullVa
 	// Find the last slash before cursor, and calculate the start of replace range from there
 	const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
 	const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
-	// If whitespace exists, replace until it
+
+	// If whitespace exists, replace until there is no more remaining.
 	const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
 	if (whitespaceIndex === -1) {
 		return Range.create(startPos, fullValueRange.end);
