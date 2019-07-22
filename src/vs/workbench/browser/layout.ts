@@ -755,8 +755,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setPanelHidden(!visible, true);
 			}));
 
-			this._register(this.lifecycleService.onWillShutdown(willShutdownEvent => {
-				willShutdownEvent.join(new Promise((resolve) => {
+			this._register(this.lifecycleService.onBeforeShutdown(beforeShutdownEvent => {
+				beforeShutdownEvent.veto(new Promise((resolve) => {
 					const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
 					const serializedGrid = grid.serialize();
 
