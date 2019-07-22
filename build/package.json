@@ -29,7 +29,7 @@
     "@types/uglify-es": "^3.0.0",
     "@types/underscore": "^1.8.9",
     "@types/xml2js": "0.0.33",
-    "applicationinsights": "1.0.6",
+    "applicationinsights": "1.0.8",
     "azure-storage": "^2.1.0",
     "documentdb": "1.13.0",
     "github-releases": "^0.4.1",
