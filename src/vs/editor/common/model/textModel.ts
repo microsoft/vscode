@@ -2408,6 +2408,31 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				if (distance === 0) {
 					// This is the initial line number
+					if (currentIndent >= 0 && this._computeIndentLevel(upLineNumber) > currentIndent) {
+						// This is a new scope, we have special handling here, since we want the
+						// child scope's indent to be active, not the parent scope's
+						startLineNumber = upLineNumber + 1;
+						endLineNumber = maxLineNumber;
+						for (let offsetDown = startLineNumber; offsetDown < maxLineNumber; offsetDown++) {
+							if (this._computeIndentLevel(offsetDown) === currentIndent) {
+								endLineNumber = offsetDown;
+								break;
+							}
+						}
+						return { startLineNumber, endLineNumber, indent: upLineIndentLevel + 1 };
+					}
+					if (currentIndent >= 0 && this._computeIndentLevel(upLineNumber - 2) > currentIndent) {
+						// This is the end of a scope. Like above, but we walk backwards to find the parent scope start
+						endLineNumber = upLineNumber - 1;
+						startLineNumber = minLineNumber;
+						for (let offsetUp = endLineNumber; offsetUp >= minLineNumber; offsetUp--) {
+							if (this._computeIndentLevel(offsetUp - 1) === this._computeIndentLevel(upLineNumber - 1)) {
+								startLineNumber = offsetUp + 1;
+								break;
+							}
+						}
+						return { startLineNumber, endLineNumber, indent: upLineIndentLevel + 1 };
+					}
 					startLineNumber = upLineNumber;
 					endLineNumber = downLineNumber;
 					indent = upLineIndentLevel;

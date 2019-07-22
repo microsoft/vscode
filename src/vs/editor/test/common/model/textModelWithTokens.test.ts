@@ -433,37 +433,6 @@ suite('TextModel.getLineIndentGuide', () => {
 
 		assert.deepEqual(actual, lines);
 
-		// Also test getActiveIndentGuide
-		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-			let startLineNumber = lineNumber;
-			let endLineNumber = lineNumber;
-			let indent = actualIndents[lineNumber - 1];
-
-			if (indent !== 0) {
-				for (let i = lineNumber - 1; i >= 1; i--) {
-					const currIndent = actualIndents[i - 1];
-					if (currIndent >= indent) {
-						startLineNumber = i;
-					} else {
-						break;
-					}
-				}
-				for (let i = lineNumber + 1; i <= model.getLineCount(); i++) {
-					const currIndent = actualIndents[i - 1];
-					if (currIndent >= indent) {
-						endLineNumber = i;
-					} else {
-						break;
-					}
-				}
-			}
-
-			const expected = { startLineNumber, endLineNumber, indent };
-			const actual = model.getActiveIndentGuide(lineNumber, 1, model.getLineCount());
-
-			assert.deepEqual(actual, expected, `line number ${lineNumber}`);
-		}
-
 		model.dispose();
 	}
 
@@ -642,5 +611,72 @@ suite('TextModel.getLineIndentGuide', () => {
 		const actual = model.getActiveIndentGuide(2, 4, 9);
 		assert.deepEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
+	});
+});
+
+suite('TextModel.getActiveIndentGuide', () => {
+	function assertActiveIndent(lines: [Boolean, string][], selectedLine: number) {
+		let text = lines.map(l => l[1]).join('\n');
+		let model = TextModel.createFromString(text);
+
+		let actualActive = model.getActiveIndentGuide(selectedLine, 1, model.getLineCount());
+
+		let actual: [Boolean, string][] = [];
+		for (let line = 1; line <= model.getLineCount(); line++) {
+			actual[line - 1] = [actualActive.indent > 0 && line >= actualActive.startLineNumber && line <= actualActive.endLineNumber, model.getLineContent(line)];
+		}
+
+		assert.deepEqual(actual, lines);
+
+		model.dispose();
+
+	}
+
+	test('no active', () => {
+		assertActiveIndent([
+			[false, 'A'],
+			[false, 'A']
+		], 1);
+	});
+
+	test('inside scope', () => {
+		assertActiveIndent([
+			[false, 'A'],
+			[true, '  A']
+		], 2);
+	});
+
+	test('scope start', () => {
+		assertActiveIndent([
+			[false, 'A'],
+			[true, '  A'],
+			[false, 'A']
+		], 1);
+	});
+
+	test('inside scope start and end', () => {
+		assertActiveIndent([
+			[false, 'A'],
+			[true, '  A'],
+			[false, 'A']
+		], 2);
+	});
+
+	test('scope end', () => {
+		assertActiveIndent([
+			[false, 'A'],
+			[true, '  A'],
+			[false, 'A']
+		], 3);
+	});
+
+	test('empty line', () => {
+		assertActiveIndent([
+			[false, 'A'],
+			[true, '  A'],
+			[true, ''],
+			[true, '  A'],
+			[false, 'A']
+		], 3);
 	});
 });
