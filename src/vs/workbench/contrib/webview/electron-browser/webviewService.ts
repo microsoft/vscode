@@ -5,7 +5,7 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/DynamicWebviewEditorOverlay';
+import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
