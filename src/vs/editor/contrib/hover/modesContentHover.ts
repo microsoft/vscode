@@ -99,7 +99,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 
 	computeSync(): HoverPart[] {
-		if (!(this._editor.hasModel() && this._range)) {
+		if (!this._editor.hasModel() || !this._range) {
 			return [];
 		}
 
