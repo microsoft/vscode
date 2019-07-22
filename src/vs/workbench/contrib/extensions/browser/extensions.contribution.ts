@@ -64,14 +64,15 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 );
 
 // Editor
-const editorDescriptor = new EditorDescriptor(
-	ExtensionEditor,
-	ExtensionEditor.ID,
-	localize('extension', "Extension")
-);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(editorDescriptor, [new SyncDescriptor(ExtensionsInput)]);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	new EditorDescriptor(
+		ExtensionEditor,
+		ExtensionEditor.ID,
+		localize('extension', "Extension")
+	),
+	[
+		new SyncDescriptor(ExtensionsInput)
+	]);
 
 // Viewlet
 const viewletDescriptor = new ViewletDescriptor(
