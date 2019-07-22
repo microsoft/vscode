@@ -12,7 +12,7 @@ import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirr
 import { TextMateWorkerHost } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { IGrammar, StackElement, IRawTheme } from 'vscode-textmate';
-import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
+import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
 export interface IValidGrammarDefinitionDTO {
@@ -62,6 +62,16 @@ class TextMateWorkerModel extends MirrorTextModel {
 	public onLanguageId(languageId: LanguageId): void {
 		this._languageId = languageId;
 		this._resetTokenization();
+	}
+
+	onEvents(e: IModelChangedEvent): void {
+		super.onEvents(e);
+		for (let i = 0; i < e.changes.length; i++) {
+			const change = e.changes[i];
+			const [eolCount] = countEOL(change.text);
+			this._tokenizationStateStore.applyEdits(change.range, eolCount);
+		}
+		this._ensureTokens();
 	}
 
 	private _resetTokenization(): void {
