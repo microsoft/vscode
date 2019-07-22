@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -29,6 +29,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 
@@ -97,7 +98,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
-	static readonly ID = 'update.showCurrentReleaseNotes';
+	static readonly ID = ShowCurrentReleaseNotesActionId;
 	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(
@@ -219,7 +220,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 export class UpdateContribution extends Disposable implements IWorkbenchContribution {
 
 	private state: UpdateState;
-	private badgeDisposable: IDisposable = Disposable.None;
+	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 
 	constructor(
@@ -298,10 +299,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			clazz = 'progress-badge';
 		}
 
-		this.badgeDisposable.dispose();
+		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
+			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
 		}
 
 		this.state = state;

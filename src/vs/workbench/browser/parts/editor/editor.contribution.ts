@@ -51,6 +51,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { toLocalResource } from 'vs/base/common/resources';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -205,7 +206,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
 
 			if (detailsInput && masterInput) {
-				return new SideBySideEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
+				return new SideBySideEditorInput(deserialized.name, withNullAsUndefined(deserialized.description), detailsInput, masterInput);
 			}
 		}
 
@@ -516,8 +517,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dark.svg',
-		iconLight: 'close-light.svg'
+		iconDark: 'close-dark-alt.svg',
+		iconLight: 'close-light-alt.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
@@ -533,8 +534,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dark.svg',
-		iconLight: 'close-light.svg'
+		iconDark: 'close-dirty-dark-alt.svg',
+		iconLight: 'close-dirty-light-alt.svg'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end

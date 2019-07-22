@@ -153,7 +153,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaSetProvider: {
+		ariaProvider: {
 			getSetSize(node) {
 				return node.parent!.visibleChildrenCount;
 			},

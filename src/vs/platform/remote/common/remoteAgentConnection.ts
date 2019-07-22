@@ -163,6 +163,7 @@ export interface IRemoteExtensionHostStartParams {
 	debugId?: string;
 	break?: boolean;
 	port?: number | null;
+	env?: { [key: string]: string | null };
 }
 
 interface IExtensionHostConnectionResult {

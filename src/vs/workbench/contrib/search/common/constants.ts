@@ -24,6 +24,7 @@ export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
 export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
 export const ToggleRegexCommandId = 'toggleSearchRegex';
+export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
 
 export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
 

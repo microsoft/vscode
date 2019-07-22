@@ -44,7 +44,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
@@ -71,25 +71,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region events
 
 	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
+	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
 	private readonly _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
-	get onDidGroupChange(): Event<IGroupChangeEvent> { return this._onDidGroupChange.event; }
+	readonly onDidGroupChange: Event<IGroupChangeEvent> = this._onDidGroupChange.event;
 
 	private readonly _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
-	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent> = this._onWillOpenEditor.event;
 
 	private readonly _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
+	readonly onDidOpenEditorFail: Event<EditorInput> = this._onDidOpenEditorFail.event;
 
 	private readonly _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
+	readonly onWillCloseEditor: Event<IEditorCloseEvent> = this._onWillCloseEditor.event;
 
 	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = this._onDidCloseEditor.event;
 
 	//#endregion
 
@@ -729,7 +729,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.editors;
 	}
 
-	getEditor(index: number): EditorInput | null {
+	getEditor(index: number): EditorInput | undefined {
 		return this._group.getEditor(index);
 	}
 
@@ -789,10 +789,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Proceed with opening
-		return this.doOpenEditor(editor, options);
+		return this.doOpenEditor(editor, options).then(withUndefinedAsNull);
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
+	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | undefined> {
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
@@ -833,10 +833,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doShowEditor(editor, !!openEditorOptions.active, options);
 	}
 
-	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
+	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditor | null>;
+		let openEditorPromise: Promise<IEditor | undefined>;
 		if (active) {
 			openEditorPromise = (async () => {
 				try {
@@ -853,11 +853,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					// Handle errors but do not bubble them up
 					this.doHandleOpenEditorError(error, editor, options);
 
-					return null; // error: return NULL as result to signal this
+					return undefined; // error: return undefined as result to signal this
 				}
 			})();
 		} else {
-			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
+			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it

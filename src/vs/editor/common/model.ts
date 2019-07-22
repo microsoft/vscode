@@ -783,7 +783,7 @@ export interface ITextModel {
 	 * Flush all tokenization state.
 	 * @internal
 	 */
-	flushTokens(): void;
+	resetTokenization(): void;
 
 	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
@@ -1116,6 +1116,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeAttached(listener: () => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event

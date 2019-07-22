@@ -53,7 +53,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
-	): Iterator<ITreeElement<T | null>> {
+	): Iterator<ITreeElement<T>> {
 		const location = this.getElementLocation(element);
 		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
 	}
@@ -63,7 +63,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
-	): Iterator<ITreeElement<T | null>> {
+	): Iterator<ITreeElement<T>> {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
@@ -107,7 +107,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			_onDidDeleteNode
 		);
 
-		return result;
+		return result as Iterator<ITreeElement<T>>;
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {
@@ -190,12 +190,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.getLastElementAncestor(location);
 	}
 
-	getListIndex(element: T): number {
+	getListIndex(element: T | null): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListIndex(location);
 	}
 
-	getListRenderCount(element: T): number {
+	getListRenderCount(element: T | null): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListRenderCount(location);
 	}
@@ -238,11 +238,15 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return node;
 	}
 
-	getNodeLocation(node: ITreeNode<T, TFilterData>): T {
+	getNodeLocation(node: ITreeNode<T, TFilterData>): T | null {
 		return node.element;
 	}
 
-	getParentNodeLocation(element: T): T | null {
+	getParentNodeLocation(element: T | null): T | null {
+		if (element === null) {
+			throw new Error(`Invalid getParentNodeLocation call`);
+		}
+
 		const node = this.nodes.get(element);
 
 		if (!node) {

@@ -77,6 +77,9 @@ export interface ParsedArgs {
 	'js-flags'?: boolean;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
+
+	// Web flags
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -118,9 +121,6 @@ export interface IEnvironmentService {
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
 
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
-
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 
@@ -132,7 +132,7 @@ export interface IEnvironmentService {
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
-	extensionsPath: string;
+	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 
@@ -169,4 +169,7 @@ export interface IEnvironmentService {
 
 	webviewEndpoint?: string;
 	readonly webviewResourceRoot: string;
+	readonly webviewCspSource: string;
+
+	readonly galleryMachineIdResource?: URI;
 }

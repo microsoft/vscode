@@ -9,6 +9,8 @@ import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/com
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { safeStringify } from 'vs/base/common/objects';
+import { isObject } from 'vs/base/common/types';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -54,7 +56,7 @@ export class LogAppender implements ITelemetryAppender {
 	}
 
 	log(eventName: string, data: any): void {
-		const strippedData = {};
+		const strippedData: { [key: string]: any } = {};
 		Object.keys(data).forEach(key => {
 			if (!this.commonPropertiesRegex.test(key)) {
 				strippedData[key] = data[key];
@@ -185,7 +187,6 @@ const configurationValueWhitelist = [
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
 	'workbench.editor.highlightModifiedTabs',
-	'workbench.editor.swipeToNavigate',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',
 	'workbench.statusBar.visible',
@@ -244,7 +245,78 @@ export function keybindingsTelemetry(telemetryService: ITelemetryService, keybin
 	});
 }
 
-function flattenKeys(value: Object): string[] {
+
+export interface Properties {
+	[key: string]: string;
+}
+
+export interface Measurements {
+	[key: string]: number;
+}
+
+export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+
+	const properties: Properties = Object.create(null);
+	const measurements: Measurements = Object.create(null);
+
+	const flat = Object.create(null);
+	flatten(data, flat);
+
+	for (let prop in flat) {
+		// enforce property names less than 150 char, take the last 150 char
+		prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
+		const value = flat[prop];
+
+		if (typeof value === 'number') {
+			measurements[prop] = value;
+
+		} else if (typeof value === 'boolean') {
+			measurements[prop] = value ? 1 : 0;
+
+		} else if (typeof value === 'string') {
+			//enforce property value to be less than 1024 char, take the first 1024 char
+			properties[prop] = value.substring(0, 1023);
+
+		} else if (typeof value !== 'undefined' && value !== null) {
+			properties[prop] = value;
+		}
+	}
+
+	return {
+		properties,
+		measurements
+	};
+}
+
+function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
+	if (!obj) {
+		return;
+	}
+
+	for (let item of Object.getOwnPropertyNames(obj)) {
+		const value = obj[item];
+		const index = prefix ? prefix + item : item;
+
+		if (Array.isArray(value)) {
+			result[index] = safeStringify(value);
+
+		} else if (value instanceof Date) {
+			// TODO unsure why this is here and not in _getData
+			result[index] = value.toISOString();
+
+		} else if (isObject(value)) {
+			if (order < 2) {
+				flatten(value, result, order + 1, index + '.');
+			} else {
+				result[index] = safeStringify(value);
+			}
+		} else {
+			result[index] = value;
+		}
+	}
+}
+
+function flattenKeys(value: Object | undefined): string[] {
 	if (!value) {
 		return [];
 	}
@@ -253,7 +325,7 @@ function flattenKeys(value: Object): string[] {
 	return result;
 }
 
-function flatKeys(result: string[], prefix: string, value: Object): void {
+function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
 	if (value && typeof value === 'object' && !Array.isArray(value)) {
 		Object.keys(value)
 			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
@@ -262,7 +334,7 @@ function flatKeys(result: string[], prefix: string, value: Object): void {
 	}
 }
 
-function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] {
+function flattenValues(value: { [key: string]: any } | undefined, keys: string[]): { [key: string]: any }[] {
 	if (!value) {
 		return [];
 	}

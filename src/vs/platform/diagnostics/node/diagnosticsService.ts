@@ -520,14 +520,21 @@ export class DiagnosticsService implements IDiagnosticsService {
 			if (folderUri.scheme === 'file') {
 				const folder = folderUri.fsPath;
 				collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
-					/* __GDPR__
-						"workspace.stats" : {
-							"fileTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"configTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"launchConfigs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
-					*/
-					this.telemetryService.publicLog('workspace.stats', {
+					type WorkspaceStatItemClassification = {
+						name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WorkspaceStatsClassification = {
+						fileTypes: WorkspaceStatItemClassification;
+						configTypes: WorkspaceStatItemClassification;
+						launchConfigs: WorkspaceStatItemClassification;
+					};
+					type WorkspaceStatsEvent = {
+						fileTypes: WorkspaceStatItem[];
+						configTypes: WorkspaceStatItem[];
+						launchConfigs: WorkspaceStatItem[];
+					};
+					this.telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('workspace.stats', {
 						fileTypes: stats.fileTypes,
 						configTypes: stats.configFiles,
 						launchConfigs: stats.launchConfigFiles

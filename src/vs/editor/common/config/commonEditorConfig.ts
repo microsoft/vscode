@@ -153,8 +153,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return true;
 	}
 
-	private static _subsetEquals(base: object, subset: object): boolean {
-		for (let key in subset) {
+	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
+		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
 				const subsetValue = subset[key];
 				const baseValue = base[key];
@@ -460,7 +460,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',

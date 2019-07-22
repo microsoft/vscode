@@ -14,11 +14,12 @@ import * as path from 'vs/base/common/path';
 import { runWhenIdle } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -294,7 +295,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
 				}
 
-				if (this._allRequestedActivateEvents[activationEvent]) {
+				if (this._allRequestedActivateEvents.has(activationEvent)) {
 					// This activation event was fired before the extension was added
 					shouldActivate = true;
 					shouldActivateReason = activationEvent;
@@ -418,8 +419,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const extensionHost = this._extensionHostProcessManagers[0];
 		this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
 		try {
-			const resolvedAuthority = await extensionHost.resolveAuthority(remoteAuthority);
-			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority);
+			const result = await extensionHost.resolveAuthority(remoteAuthority);
+			this._remoteAuthorityResolverService.setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
 			this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 		}
@@ -440,7 +441,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		localExtensions = localExtensions.filter(extension => this._isEnabled(extension));
 
 		if (remoteAuthority) {
-			let resolvedAuthority: ResolvedAuthority;
+			let resolvedAuthority: ResolverResult;
 
 			try {
 				resolvedAuthority = await extensionHost.resolveAuthority(remoteAuthority);
@@ -462,7 +463,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			// set the resolved authority
-			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority);
+			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
 
 			// monitor for breakage
 			const connection = this._remoteAgentService.getConnection();

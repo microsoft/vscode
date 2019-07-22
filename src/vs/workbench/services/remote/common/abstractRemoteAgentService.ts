@@ -121,8 +121,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 					} else {
 						this._onReconnecting.fire(undefined);
 					}
-					const { host, port } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host, port };
+					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
+					return { host: authority.host, port: authority.port };
 				}
 			},
 			signService: this._signService

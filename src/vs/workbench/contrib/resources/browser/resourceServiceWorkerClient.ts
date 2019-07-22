@@ -4,59 +4,102 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService } from 'vs/platform/files/common/files';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqualOrParent } from 'vs/base/common/resources';
+import { ILogService } from 'vs/platform/log/common/log';
 
-class ResourceServiceWorker {
+// load and start service worker as soon as this file
+// is being loaded and later, when services are ready,
+// claim this service worker so that messages can be
+// replied to
+const _serviceWorker = new class ServiceWorkerStarter {
 
-	private readonly _disposables = new DisposableStore();
+	private static _url = require.toUrl('./resourceServiceWorkerMain.js');
 
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
-	) {
-		this._initServiceWorker();
-		this._initFetchHandler();
+	private _beforeReadyEvents: ExtendableMessageEvent[] = [];
+	private _messageHandler?: (event: ExtendableMessageEvent) => void;
+
+	constructor() {
+		navigator.serviceWorker.register(ServiceWorkerStarter._url, { scope: '/' }).then(reg => {
+			// console.debug('SW#reg', reg);
+			return reg.update();
+			// }).then(() => {
+			// 	// console.debug('SW#updated', reg);
+			// 	return navigator.serviceWorker.ready;
+		}).then(() => {
+			console.info('SW#ready');
+		}).catch(err => {
+			console.error('SW#init', err);
+		});
+
+		const handleMessage = (event: ExtendableMessageEvent) => {
+			if (!this._messageHandler) {
+				this._beforeReadyEvents.push(event);
+				console.debug('SW#buffered', event.data);
+			} else {
+				this._messageHandler(event);
+			}
+		};
+
+		navigator.serviceWorker.addEventListener('message', e => handleMessage(e as ExtendableMessageEvent));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		// when to dispose?
 	}
 
-	private _initServiceWorker(): void {
-		const url = require.toUrl('./resourceServiceWorkerMain.js');
-		navigator.serviceWorker.register(url, { scope: '/' }).then(reg => {
-			// console.log('registered', reg);
-			return navigator.serviceWorker.ready;
-		}).then(() => {
-			// console.log('ready');
-		}).catch(err => {
-			console.error(err);
+	claim(handler: (event: ExtendableMessageEvent) => void): void {
+		this._messageHandler = handler;
+		this._beforeReadyEvents.forEach(this._messageHandler);
+	}
+};
+
+class ResourceServiceWorker {
+
+	constructor(
+		@IFileService private readonly _fileService: IFileService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		_serviceWorker.claim(e => this._handleMessage(e));
+	}
+
+	private _handleMessage(event: ExtendableMessageEvent): void {
+		this._logService.trace('SW#fetch', event.data.uri);
+
+		const uri = URI.revive(event.data.uri);
+		Promise.all([
+			this._fileService.readFile(uri),
+			this._isExtensionResource(uri)
+		]).then(([file, isExtensionResource]) => {
+			if (!event.source) {
+				return;
+			}
+			event.source.postMessage({
+				token: event.data.token,
+				data: file.value.buffer.buffer,
+				isExtensionResource
+			}, [file.value.buffer.buffer]);
 		});
 	}
 
-	private _initFetchHandler(): void {
-
-		const fetchListener: (this: ServiceWorkerContainer, ev: MessageEvent) => void = event => {
-			const uri = URI.parse(event.data.uri);
-			this._fileService.readFile(uri).then(file => {
-				// todo@joh typings
-				(<any>event.source).postMessage({
-					token: event.data.token,
-					data: file.value.buffer.buffer
-				}, [file.value.buffer.buffer]);
-			});
-		};
-		navigator.serviceWorker.addEventListener('message', fetchListener);
-		this._disposables.add(toDisposable(() => navigator.serviceWorker.removeEventListener('message', fetchListener)));
+	private async _isExtensionResource(uri: URI): Promise<boolean> {
+		for (const ext of await this._extensionService.getExtensions()) {
+			if (isEqualOrParent(uri, ext.extensionLocation)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	ResourceServiceWorker,
-	LifecyclePhase.Starting
+	LifecyclePhase.Ready
 );
 
 

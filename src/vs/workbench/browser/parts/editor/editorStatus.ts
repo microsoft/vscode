@@ -898,21 +898,9 @@ export class ChangeModeAction extends Action {
 				description = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			}
 
-			// construct a fake resource to be able to show nice icons if any
-			let fakeResource: URI | undefined;
-			const extensions = this.modeService.getExtensions(lang);
-			if (extensions && extensions.length) {
-				fakeResource = URI.file(extensions[0]);
-			} else {
-				const filenames = this.modeService.getFilenames(lang);
-				if (filenames && filenames.length) {
-					fakeResource = URI.file(filenames[0]);
-				}
-			}
-
 			return {
 				label: lang,
-				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
+				iconClasses: getIconClasses(this.modelService, this.modeService, this.getFakeResource(lang)),
 				description
 			};
 		});
@@ -1011,6 +999,7 @@ export class ChangeModeAction extends Action {
 			return {
 				id,
 				label: lang,
+				iconClasses: getIconClasses(this.modelService, this.modeService, this.getFakeResource(lang)),
 				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : undefined
 			};
 		});
@@ -1029,7 +1018,7 @@ export class ChangeModeAction extends Action {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspace && !!fileAssociationsConfig.workspace[associationKey]) {
+				if (fileAssociationsConfig.workspace && !!(fileAssociationsConfig.workspace as any)[associationKey]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 
@@ -1040,6 +1029,22 @@ export class ChangeModeAction extends Action {
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 			}
 		}, 50 /* quick open is sensitive to being opened so soon after another */);
+	}
+
+	private getFakeResource(lang: string): URI | undefined {
+		let fakeResource: URI | undefined;
+
+		const extensions = this.modeService.getExtensions(lang);
+		if (extensions && extensions.length) {
+			fakeResource = URI.file(extensions[0]);
+		} else {
+			const filenames = this.modeService.getFilenames(lang);
+			if (filenames && filenames.length) {
+				fakeResource = URI.file(filenames[0]);
+			}
+		}
+
+		return fakeResource;
 	}
 }
 

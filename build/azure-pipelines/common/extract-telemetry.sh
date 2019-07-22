@@ -2,13 +2,18 @@
 set -e
 
 cd $BUILD_STAGINGDIRECTORY
-git clone https://github.com/microsoft/vscode-telemetry-extractor.git
-cd vscode-telemetry-extractor
-git checkout f538e3157c84d1bd0b239dfc5ebccac226006d58
-npm i
-npm run setup-extension-repos
-node ./out/cli-extract.js --sourceDir $BUILD_SOURCESDIRECTORY --excludedDirPattern extensions  --outputDir . --applyEndpoints --includeIsMeasurement --patchWebsiteEvents
-node ./out/cli-extract-extensions.js --sourceDir ./src/telemetry-sources --outputDir . --applyEndpoints --includeIsMeasurement
+mkdir extraction
+cd extraction
+git clone --depth 1 https://github.com/Microsoft/vscode-extension-telemetry.git
+git clone --depth 1 https://github.com/Microsoft/vscode-chrome-debug-core.git
+git clone --depth 1 https://github.com/Microsoft/vscode-node-debug2.git
+git clone --depth 1 https://github.com/Microsoft/vscode-node-debug.git
+git clone --depth 1 https://github.com/Microsoft/vscode-html-languageservice.git
+git clone --depth 1 https://github.com/Microsoft/vscode-json-languageservice.git
+$BUILD_SOURCESDIRECTORY/build/node_modules/.bin/vscode-telemetry-extractor --sourceDir $BUILD_SOURCESDIRECTORY --excludedDir $BUILD_SOURCESDIRECTORY/extensions --outputDir . --applyEndpoints
+$BUILD_SOURCESDIRECTORY/build/node_modules/.bin/vscode-telemetry-extractor --config $BUILD_SOURCESDIRECTORY/build/azure-pipelines/common/telemetry-config.json -o .
 mkdir -p $BUILD_SOURCESDIRECTORY/.build/telemetry
 mv declarations-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json
-mv declarations-extensions-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+mv config-resolved.json $BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json
+cd ..
+rm -rf extraction

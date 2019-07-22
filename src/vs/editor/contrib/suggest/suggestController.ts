@@ -139,7 +139,7 @@ export class SuggestController implements IEditorContribution {
 			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
-		this._toDispose.add(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
+		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));
 		updateFromConfig();
 	}
 
@@ -149,11 +149,10 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._alternatives.dispose();
 		this._toDispose.dispose();
 		this._widget.dispose();
-		if (this._model) {
-			this._model.dispose();
-		}
+		this._model.dispose();
 	}
 
 	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
@@ -194,13 +193,13 @@ export class SuggestController implements IEditorContribution {
 		const overwriteBefore = position.column - suggestion.range.startColumn;
 		const overwriteAfter = suggestion.range.endColumn - position.column;
 
-		SnippetController2.get(this._editor).insert(
-			insertText,
-			overwriteBefore + columnDelta,
+		SnippetController2.get(this._editor).insert(insertText, {
+			overwriteBefore: overwriteBefore + columnDelta,
 			overwriteAfter,
-			false, false,
-			!(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
-		);
+			undoStopBefore: false,
+			undoStopAfter: false,
+			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
+		});
 
 		if (undoStops) {
 			this._editor.pushUndoStop();

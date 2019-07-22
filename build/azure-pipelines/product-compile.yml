@@ -6,8 +6,8 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    keyfile: 'build/.cachesalt, .build/commit'
+    targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'
@@ -31,11 +31,7 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch="$(VSCODE_ARCH)"
-
     cat << EOF > ~/.netrc
-    machine monacotools.visualstudio.com
-    password $(devops-pat)
     machine github.com
     login vscode
     password $(github-distro-mixin-password)
@@ -56,7 +52,7 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
@@ -69,7 +65,7 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, quality/*/package.json, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
@@ -80,18 +76,11 @@ steps:
   displayName: Run postinstall scripts
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), eq(variables['CacheRestored'], 'true'))
 
-- script: |
-    set -e
-    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js
-    CHILD_CONCURRENCY=1 node build/azure-pipelines/common/installDistroDependencies.js remote
-  displayName: Install distro dependencies
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
 # Mixin must run before optimize, because the CSS loader will
 # inline small SVGs
 - script: |
     set -e
-    yarn gulp mixin
+    node build/azure-pipelines/mixin
   displayName: Mix in quality
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
@@ -111,18 +100,24 @@ steps:
 - script: |
     set -e
     yarn gulp compile-build
-    yarn gulp compile-extensions-build-legacy
     yarn gulp compile-extensions-build
     yarn gulp minify-vscode
     yarn gulp minify-vscode-reh
-    yarn gulp minify-vscode-web
+    yarn gulp minify-vscode-reh-web
   displayName: Compile
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      node build/azure-pipelines/upload-sourcemaps
+  displayName: Upload sourcemaps
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: '.build/commit'
-    targetfolder: '.build, **/out-build, **/out-vscode-min, **/out-vscode-reh-min, **/out-vscode-web-min'
+    keyfile: 'build/.cachesalt, .build/commit'
+    targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
     alias: 'Compilation'

@@ -11,7 +11,6 @@ import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -67,15 +66,12 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
 
-	private toDispose: IDisposable[] = [];
-
-	constructor(id: string, label: string,
-		@IOutputService private readonly outputService: IOutputService) {
+	constructor(id: string, label: string, @IOutputService private readonly outputService: IOutputService) {
 		super(id, label, 'output-action output-scroll-unlock');
-		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => {
+		this._register(this.outputService.onActiveOutputChannel(channel => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel) {
-				this.setClass(activeChannel.scrollLock);
+				this.setClassAndLabel(activeChannel.scrollLock);
 			}
 		}));
 	}
@@ -90,23 +86,20 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 			else {
 				activeChannel.scrollLock = !activeChannel.scrollLock;
 			}
-			this.setClass(activeChannel.scrollLock);
+			this.setClassAndLabel(activeChannel.scrollLock);
 		}
 
 		return Promise.resolve(true);
 	}
 
-	private setClass(locked: boolean) {
+	private setClassAndLabel(locked: boolean) {
 		if (locked) {
 			this.class = 'output-action output-scroll-lock';
+			this.label = nls.localize('outputScrollOn', "Turn Auto Scrolling On");
 		} else {
 			this.class = 'output-action output-scroll-unlock';
+			this.label = nls.localize('outputScrollOff', "Turn Auto Scrolling Off");
 		}
-	}
-
-	public dispose() {
-		super.dispose();
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 
@@ -187,15 +180,13 @@ export class OpenLogOutputFile extends Action {
 	public static readonly ID = 'workbench.output.action.openLogOutputFile';
 	public static readonly LABEL = nls.localize('openInLogViewer', "Open Log File");
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
-		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
+		this._register(this.outputService.onActiveOutputChannel(this.update, this));
 		this.update();
 	}
 

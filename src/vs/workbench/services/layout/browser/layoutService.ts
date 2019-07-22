@@ -139,6 +139,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setPanelPosition(position: Position): void;
 
 	/**
+	 * Returns the element that is parent of the workbench element.
+	 */
+	getWorkbenchContainer(): HTMLElement;
+
+	/**
 	 * Returns the element that contains the workbench.
 	 */
 	getWorkbenchElement(): HTMLElement;

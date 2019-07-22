@@ -24,7 +24,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
+import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
@@ -38,6 +38,7 @@ import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
+import { IDownloadService } from 'vs/platform/download/common/download';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
@@ -215,12 +216,13 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@IDownloadService downloadService: IDownloadService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('dialog', new DialogChannel(dialogService));
-			connection.registerChannel('download', new DownloadServiceChannel());
+			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
 			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
 		}
 	}
@@ -397,12 +399,45 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 	}
 }
 
+class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService commandService: ICommandService,
+	) {
+		super();
+
+		function shouldShowExplorer(): boolean {
+			const startupEditor = configurationService.getValue<string>('workbench.startupEditor');
+			return startupEditor !== 'welcomePage' && startupEditor !== 'welcomePageInEmptyWorkbench';
+		}
+
+		function shouldShowTerminal(): boolean {
+			return shouldShowExplorer();
+		}
+
+		const { remoteAuthority, folderUri, workspace } = environmentService.configuration;
+		if (remoteAuthority && !folderUri && !workspace) {
+			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
+				if (shouldShowExplorer()) {
+					commandService.executeCommand('workbench.view.explorer');
+				}
+				if (shouldShowTerminal()) {
+					commandService.executeCommand('workbench.action.terminal.toggleTerminal');
+				}
+			});
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

@@ -13,6 +13,7 @@ import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
@@ -21,7 +22,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	private _state: State = State.Uninitialized;
 
 	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
 		return this._state;
@@ -159,29 +160,17 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	protected doCheckForUpdates(context: any): void {
 		this.setState(State.CheckingForUpdates(context));
-
 		this.isUpdateAvailable().then(result => {
 			if (result) {
 				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 				this.setState(State.Idle(UpdateType.Snap));
 			}
 		}, err => {
 			this.logService.error(err);
-
-			/* __GDPR__
-				"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-				*/
-			this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+			this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 			this.setState(State.Idle(UpdateType.Snap, err.message || err));
 		});
 	}

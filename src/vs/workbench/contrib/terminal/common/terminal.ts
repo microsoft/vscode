@@ -64,6 +64,7 @@ export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
 export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
+export const SHELL_CWD_INVALID_EXIT_CODE = -3;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -121,6 +122,7 @@ export interface ITerminalConfigHelper {
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export interface ITerminalFont {
@@ -228,7 +230,7 @@ export interface ITerminalService {
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
-	onInstanceRequestVirtualProcess: Event<ITerminalProcessExtHostProxy>;
+	onInstanceRequestVirtualProcess: Event<ITerminalVirtualProcessRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
@@ -296,7 +298,7 @@ export interface ITerminalService {
 
 	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
-	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void;
+	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
 }
 
 /**
@@ -532,7 +534,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(): void;
+	copySelection(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
@@ -764,6 +766,12 @@ export interface ITerminalProcessExtHostRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+}
+
+export interface ITerminalVirtualProcessRequest {
+	proxy: ITerminalProcessExtHostProxy;
+	cols: number;
+	rows: number;
 }
 
 export interface IAvailableShellsRequest {

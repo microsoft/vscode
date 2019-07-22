@@ -74,7 +74,7 @@ export class Storage extends Disposable implements IStorage {
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
 	private readonly _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
-	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
+	readonly onDidChangeStorage: Event<string> = this._onDidChangeStorage.event;
 
 	private state = StorageState.None;
 

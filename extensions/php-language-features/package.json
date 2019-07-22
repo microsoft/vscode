@@ -38,7 +38,8 @@
 						"null"
 					],
 					"default": null,
-					"description": "%configuration.validate.executablePath%"
+					"description": "%configuration.validate.executablePath%",
+					"scope": "machine"
 				},
 				"php.validate.run": {
 					"type": "string",

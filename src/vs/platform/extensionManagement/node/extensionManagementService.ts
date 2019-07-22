@@ -26,7 +26,7 @@ import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter, createCancelablePromise, CancelablePromise, Queue } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import { URI } from 'vs/base/common/uri';
 import pkg from 'vs/platform/product/node/package';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -35,7 +35,7 @@ import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/ex
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
+import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -135,7 +135,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	) {
 		super();
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
-		this.extensionsPath = environmentService.extensionsPath;
+		this.extensionsPath = environmentService.extensionsPath!;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.uninstalledFileLimiter = new Queue();
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
@@ -197,7 +197,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					.then(manifest => {
 						const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 						let operation: InstallOperation = InstallOperation.Install;
-						if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
+						if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, pkg.version)) {
 							return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, pkg.version)));
 						}
 						const identifierWithVersion = new ExtensionIdentifierWithVersion(identifier, manifest.version);
@@ -241,7 +241,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			throw new Error('Download service is not available');
 		}
 		const downloadedLocation = path.join(tmpdir(), generateUuid());
-		return this.downloadService.download(vsix, downloadedLocation).then(() => URI.file(downloadedLocation));
+		return this.downloadService.download(vsix, URI.file(downloadedLocation)).then(() => URI.file(downloadedLocation));
 	}
 
 	private installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IGalleryMetadata | null, type: ExtensionType, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {
@@ -391,9 +391,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		};
 
 		this.logService.trace('Started downloading extension:', extension.identifier.id);
-		return this.galleryService.download(extension, operation)
+		return this.galleryService.download(extension, URI.file(tmpdir()), operation)
 			.then(
-				zipPath => {
+				zip => {
+					const zipPath = zip.fsPath;
 					this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
 					return getManifest(zipPath)
 						.then(

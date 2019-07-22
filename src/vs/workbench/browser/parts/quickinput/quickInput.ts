@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import { Component } from 'vs/workbench/common/component';
 import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -51,8 +51,8 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
 	iconPath: {
-		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/arrow-left.svg')),
-		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/arrow-left.svg'))
+		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
+		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
 	},
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO

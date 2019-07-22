@@ -129,7 +129,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.disposables.add(this.addEventListener(this.content, 'blur', e => {
 			this.editorFocus.reset();
 		}));
-		this.disposables.add(this.addEventListener(this.content, 'focusin', e => {
+		this.disposables.add(this.addEventListener(this.content, 'focusin', (e: FocusEvent) => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
 			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
 				const scrollPosition = this.scrollbar.getScrollPosition();
@@ -356,43 +356,33 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
+					type WalkThroughSnippetInteractionClassification = {
+						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WalkThroughSnippetInteractionEvent = {
+						from?: string,
+						type: string,
+						snippet: number
+					};
+
 					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
 							snippet: i

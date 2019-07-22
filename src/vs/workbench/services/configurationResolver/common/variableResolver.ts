@@ -237,6 +237,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						return getFilePath();
 
+					case 'relativeFileDirname':
+						let dirname = paths.dirname(getFilePath());
+						if (folderUri) {
+							return paths.normalize(paths.relative(getFolderUri().fsPath, dirname));
+						}
+						return dirname;
+
 					case 'fileDirname':
 						return paths.dirname(getFilePath());
 
