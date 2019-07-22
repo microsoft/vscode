@@ -236,7 +236,7 @@ class KeyboardController<T> implements IDisposable {
 		private view: ListView<T>,
 		options: IListOptions<T>
 	) {
-		const multipleSelectionSupport = options.multipleSelectionSupport !== false;
+		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
 
 		this.openController = options.openController || DefaultOpenController;
 
@@ -394,12 +394,13 @@ class TypeLabelController<T> implements IDisposable {
 	}
 
 	private disable(): void {
-		if (this.enabled) {
-
-			this.enabledDisposables.clear();
-			this.enabled = false;
-			this.triggered = false;
+		if (!this.enabled) {
+			return;
 		}
+
+		this.enabledDisposables.clear();
+		this.enabled = false;
+		this.triggered = false;
 	}
 
 	private onInput(word: string | null): void {
