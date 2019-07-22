@@ -905,7 +905,7 @@ const editorConfiguration: IConfigurationNode = {
 			'enumDescriptions': [
 				'',
 				nls.localize('renderWhiteSpace.boundary', "Render whitespace characters except for single spaces between words."),
-				nls.localize('renderWhiteSpace.selection', "Render whitespace characters only on selected text."),
+				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
 				''
 			],
 			default: EDITOR_DEFAULTS.viewInfo.renderWhitespace,
