@@ -19,7 +19,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,6 +29,8 @@ import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/ran
 import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { IFilterResult, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -65,6 +67,8 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private readonly _onUpdatePreference = this._register(new Emitter<{ key: string, value: any, source: IIndexedSetting }>());
 	readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
+	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
+
 	private filterResult: IFilterResult | undefined;
 
 	constructor(protected editor: ICodeEditor, readonly preferencesModel: SettingsEditorModel,
@@ -78,7 +82,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this._updatePreference(key, value, source)));
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
-
+		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
 	getAssociatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
@@ -102,6 +106,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		if (this.filterResult) {
 			this.filterPreferences(this.filterResult);
 		}
+		this.unsupportedSettingsRenderer.render();
 	}
 
 	private _updatePreference(key: string, value: any, source: IIndexedSetting): void {
@@ -944,6 +949,151 @@ class SettingHighlighter extends Disposable {
 		}
 		this.clearFocusEventEmitter.fire(this.highlightedSetting);
 	}
+}
+
+class UnsupportedSettingsRenderer extends Disposable {
+
+	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+
+	constructor(
+		private editor: ICodeEditor,
+		private settingsEditorModel: SettingsEditorModel,
+		@IMarkerService private markerService: IMarkerService,
+		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
+	}
+
+	public render(): void {
+		const markerData: IMarkerData[] = this.generateMarkerData();
+		if (markerData.length) {
+			this.markerService.changeOne('preferencesEditor', this.settingsEditorModel.uri, markerData);
+		} else {
+			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
+		}
+	}
+
+	private generateMarkerData(): IMarkerData[] {
+		const markerData: IMarkerData[] = [];
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
+			for (const section of settingsGroup.sections) {
+				for (const setting of section.settings) {
+					const configuration = configurationRegistry[setting.key];
+					if (configuration) {
+						switch (this.settingsEditorModel.configurationTarget) {
+							case ConfigurationTarget.USER_LOCAL:
+								this.handleLocalUserConfiguration(setting, configuration, markerData);
+								break;
+							case ConfigurationTarget.USER_REMOTE:
+								this.handleRemoteUserConfiguration(setting, configuration, markerData);
+								break;
+							case ConfigurationTarget.WORKSPACE:
+								this.handleWorkspaceConfiguration(setting, configuration, markerData);
+								break;
+							case ConfigurationTarget.WORKSPACE_FOLDER:
+								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
+								break;
+						}
+					} else {
+						markerData.push({
+							severity: MarkerSeverity.Hint,
+							tags: [MarkerTag.Unnecessary],
+							startLineNumber: setting.keyRange.startLineNumber,
+							startColumn: setting.keyRange.startColumn,
+							endLineNumber: setting.valueRange.endLineNumber,
+							endColumn: setting.valueRange.endColumn,
+							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
+						});
+					}
+				}
+			}
+		}
+		return markerData;
+	}
+
+	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+		if (this.workbenchEnvironmentService.configuration.remote && configuration.scope === ConfigurationScope.MACHINE) {
+			markerData.push({
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				startLineNumber: setting.keyRange.startLineNumber,
+				startColumn: setting.keyRange.startColumn,
+				endLineNumber: setting.valueRange.endLineNumber,
+				endColumn: setting.valueRange.endColumn,
+				message: nls.localize('unsupportedRemoteMachineSetting', "This setting can be applied only in remote machine settings")
+			});
+		}
+	}
+
+	private handleRemoteUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+		if (configuration.scope === ConfigurationScope.APPLICATION) {
+			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+		}
+	}
+
+	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+		if (configuration.scope === ConfigurationScope.APPLICATION) {
+			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+		}
+
+		if (configuration.scope === ConfigurationScope.MACHINE) {
+			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
+		}
+	}
+
+	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+		if (configuration.scope === ConfigurationScope.APPLICATION) {
+			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+		}
+
+		if (configuration.scope === ConfigurationScope.MACHINE) {
+			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
+		}
+
+		if (configuration.scope === ConfigurationScope.WINDOW) {
+			markerData.push({
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				startLineNumber: setting.keyRange.startLineNumber,
+				startColumn: setting.keyRange.startColumn,
+				endLineNumber: setting.valueRange.endLineNumber,
+				endColumn: setting.valueRange.endColumn,
+				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly.")
+			});
+		}
+	}
+
+	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			startLineNumber: setting.keyRange.startLineNumber,
+			startColumn: setting.keyRange.startColumn,
+			endLineNumber: setting.keyRange.endLineNumber,
+			endColumn: setting.keyRange.endColumn,
+			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
+		};
+	}
+
+	private generateUnsupportedMachineSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			startLineNumber: setting.keyRange.startLineNumber,
+			startColumn: setting.keyRange.startColumn,
+			endLineNumber: setting.valueRange.endLineNumber,
+			endColumn: setting.valueRange.endColumn,
+			message: nls.localize('unsupportedMachineSetting', "This setting can be applied only in user settings")
+		};
+	}
+
+	public dispose(): void {
+		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
+		super.dispose();
+	}
+
 }
 
 class WorkspaceConfigurationRenderer extends Disposable {
