@@ -162,6 +162,11 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	}
 
 	private _onExtHostConnectionLost(): void {
+
+		if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId) {
+			this._extensionHostDebugService.close(this._environmentService.debugExtensionHost.debugId);
+		}
+
 		if (this._terminating) {
 			// Expected termination path (we asked the process to terminate)
 			return;
