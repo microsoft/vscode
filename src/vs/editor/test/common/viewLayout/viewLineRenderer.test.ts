@@ -1172,6 +1172,27 @@ suite('viewLineRenderer.renderLine 2', () => {
 		);
 	});
 
+	test('createLineParts render whitespace for selection with selections next to each other', () => {
+		testCreateLineParts(
+			false,
+			' * S',
+			[
+				createPart(4, 0)
+			],
+			0,
+			'selection',
+			[new LineRange(0, 1), new LineRange(1, 2), new LineRange(2, 3)],
+			[
+				'<span>',
+				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
+				'<span class="mtk0">*</span>',
+				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
+				'<span class="mtk0">S</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,

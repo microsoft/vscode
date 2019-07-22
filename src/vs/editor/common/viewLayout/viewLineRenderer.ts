@@ -567,14 +567,13 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 		}
 	}
 	tmpIndent = tmpIndent % tabSize;
-
 	let wasInWhitespace = false;
 	let currentSelectionIndex = 0;
 	let currentSelection = selections && selections[currentSelectionIndex];
 	for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 		const chCode = lineContent.charCodeAt(charIndex);
 
-		if (currentSelection && charIndex > currentSelection.endOffset) {
+		if (currentSelection && charIndex >= currentSelection.endOffset) {
 			currentSelectionIndex++;
 			currentSelection = selections && selections[currentSelectionIndex];
 		}
