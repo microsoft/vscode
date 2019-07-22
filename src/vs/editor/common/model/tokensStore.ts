@@ -9,6 +9,37 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
+import { CharCode } from 'vs/base/common/charCode';
+
+export function countEOL(text: string): [number, number] {
+	let eolCount = 0;
+	let firstLineLength = 0;
+	for (let i = 0, len = text.length; i < len; i++) {
+		const chr = text.charCodeAt(i);
+
+		if (chr === CharCode.CarriageReturn) {
+			if (eolCount === 0) {
+				firstLineLength = i;
+			}
+			eolCount++;
+			if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
+				// \r\n... case
+				i++; // skip \n
+			} else {
+				// \r... case
+			}
+		} else if (chr === CharCode.LineFeed) {
+			if (eolCount === 0) {
+				firstLineLength = i;
+			}
+			eolCount++;
+		}
+	}
+	if (eolCount === 0) {
+		firstLineLength = text.length;
+	}
+	return [eolCount, firstLineLength];
+}
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (
@@ -80,8 +111,8 @@ export class MultilineTokensBuilder {
 
 export class MultilineTokens {
 
-	public readonly startLineNumber: number;
-	public readonly tokens: Uint32Array[];
+	public startLineNumber: number;
+	public tokens: (Uint32Array | ArrayBuffer | null)[];
 
 	constructor(startLineNumber: number, tokens: Uint32Array[]) {
 		this.startLineNumber = startLineNumber;
@@ -107,8 +138,12 @@ export class MultilineTokens {
 		result += 4; // 4 bytes for the start line number
 		result += 4; // 4 bytes for the line count
 		for (let i = 0; i < this.tokens.length; i++) {
+			const lineTokens = this.tokens[i];
+			if (!(lineTokens instanceof Uint32Array)) {
+				throw new Error(`Not supported!`);
+			}
 			result += 4; // 4 bytes for the byte count
-			result += this.tokens[i].byteLength;
+			result += lineTokens.byteLength;
 		}
 		return result;
 	}
@@ -117,10 +152,132 @@ export class MultilineTokens {
 		writeUInt32BE(destination, this.startLineNumber, offset); offset += 4;
 		writeUInt32BE(destination, this.tokens.length, offset); offset += 4;
 		for (let i = 0; i < this.tokens.length; i++) {
-			writeUInt32BE(destination, this.tokens[i].byteLength, offset); offset += 4;
-			destination.set(new Uint8Array(this.tokens[i].buffer), offset); offset += this.tokens[i].byteLength;
+			const lineTokens = this.tokens[i];
+			if (!(lineTokens instanceof Uint32Array)) {
+				throw new Error(`Not supported!`);
+			}
+			writeUInt32BE(destination, lineTokens.byteLength, offset); offset += 4;
+			destination.set(new Uint8Array(lineTokens.buffer), offset); offset += lineTokens.byteLength;
 		}
 		return offset;
+	}
+
+	public applyEdit(range: IRange, text: string): void {
+		const [eolCount, firstLineLength] = countEOL(text);
+		this._acceptDeleteRange(range);
+		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
+	}
+
+	private _acceptDeleteRange(range: IRange): void {
+		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
+			// Nothing to delete
+			return;
+		}
+
+		const firstLineIndex = range.startLineNumber - this.startLineNumber;
+		const lastLineIndex = range.endLineNumber - this.startLineNumber;
+
+		if (lastLineIndex < 0) {
+			// this deletion occurs entirely before this block, so we only need to adjust line numbers
+			const deletedLinesCount = lastLineIndex - firstLineIndex;
+			this.startLineNumber -= deletedLinesCount;
+			return;
+		}
+
+		if (firstLineIndex >= this.tokens.length) {
+			// this deletion occurs entirely after this block, so there is nothing to do
+			return;
+		}
+
+		if (firstLineIndex < 0 && lastLineIndex >= this.tokens.length) {
+			// this deletion completely encompasses this block
+			this.startLineNumber = 0;
+			this.tokens = [];
+		}
+
+		if (firstLineIndex === lastLineIndex) {
+			// a delete on a single line
+			this.tokens[firstLineIndex] = TokensStore._delete(this.tokens[firstLineIndex], range.startColumn - 1, range.endColumn - 1);
+			return;
+		}
+
+		if (firstLineIndex >= 0) {
+			// The first line survives
+			this.tokens[firstLineIndex] = TokensStore._deleteEnding(this.tokens[firstLineIndex], range.startColumn - 1);
+
+			if (lastLineIndex < this.tokens.length) {
+				// The last line survives
+				const lastLineTokens = TokensStore._deleteBeginning(this.tokens[lastLineIndex], range.endColumn - 1);
+
+				// Take remaining text on last line and append it to remaining text on first line
+				this.tokens[firstLineIndex] = TokensStore._append(this.tokens[firstLineIndex], lastLineTokens);
+
+				// Delete middle lines
+				this.tokens.splice(firstLineIndex + 1, lastLineIndex - firstLineIndex);
+			} else {
+				// The last line does not survive
+
+				// Take remaining text on last line and append it to remaining text on first line
+				this.tokens[firstLineIndex] = TokensStore._append(this.tokens[firstLineIndex], null);
+
+				// Delete lines
+				this.tokens = this.tokens.slice(0, firstLineIndex + 1);
+			}
+		} else {
+			// The first line does not survive
+
+			const deletedBefore = -firstLineIndex;
+			this.startLineNumber -= deletedBefore;
+
+			// Remove beginning from last line
+			this.tokens[lastLineIndex] = TokensStore._deleteBeginning(this.tokens[lastLineIndex], range.endColumn - 1);
+
+			// Delete lines
+			this.tokens = this.tokens.slice(lastLineIndex);
+		}
+	}
+
+	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number): void {
+
+		if (eolCount === 0 && firstLineLength === 0) {
+			// Nothing to insert
+			return;
+		}
+
+		const lineIndex = position.lineNumber - this.startLineNumber;
+
+		if (lineIndex < 0) {
+			// this insertion occurs before this block, so we only need to adjust line numbers
+			this.startLineNumber += eolCount;
+			return;
+		}
+
+		if (lineIndex >= this.tokens.length) {
+			// this insertion occurs after this block, so there is nothing to do
+			return;
+		}
+
+		if (eolCount === 0) {
+			// Inserting text on one line
+			this.tokens[lineIndex] = TokensStore._insert(this.tokens[lineIndex], position.column - 1, firstLineLength);
+			return;
+		}
+
+		this.tokens[lineIndex] = TokensStore._deleteEnding(this.tokens[lineIndex], position.column - 1);
+		this.tokens[lineIndex] = TokensStore._insert(this.tokens[lineIndex], position.column - 1, firstLineLength);
+
+		this._insertLines(position.lineNumber, eolCount);
+	}
+
+	private _insertLines(insertIndex: number, insertCount: number): void {
+		if (insertCount === 0) {
+			return;
+		}
+		let lineTokens: (Uint32Array | ArrayBuffer | null)[] = [];
+		for (let i = 0; i < insertCount; i++) {
+			lineTokens[i] = null;
+		}
+		this.tokens = arrays.arrayInsert(this.tokens, insertIndex, lineTokens);
 	}
 }
 
@@ -162,7 +319,16 @@ export class TokensStore {
 		return new LineTokens(lineTokens, lineText);
 	}
 
-	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, tokens: Uint32Array): Uint32Array | ArrayBuffer {
+	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer {
+		if (!_tokens || _tokens.byteLength === 0) {
+			const tokens = new Uint32Array(2);
+			tokens[0] = lineTextLength;
+			tokens[1] = getDefaultMetadata(topLevelLanguageId);
+			return tokens.buffer;
+		}
+
+		const tokens = toUint32Array(_tokens);
+
 		if (lineTextLength === 0) {
 			let hasDifferentLanguageId = false;
 			if (tokens && tokens.length > 1) {
@@ -172,12 +338,6 @@ export class TokensStore {
 			if (!hasDifferentLanguageId) {
 				return EMPTY_LINE_TOKENS;
 			}
-		}
-
-		if (!tokens || tokens.length === 0) {
-			tokens = new Uint32Array(2);
-			tokens[0] = lineTextLength;
-			tokens[1] = getDefaultMetadata(topLevelLanguageId);
 		}
 
 		// Ensure the last token covers the end of the text
@@ -220,7 +380,7 @@ export class TokensStore {
 		this._len += insertCount;
 	}
 
-	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array): void {
+	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null): void {
 		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
 		this._ensureLine(lineIndex);
 		this._lineTokens[lineIndex] = tokens;
@@ -228,7 +388,7 @@ export class TokensStore {
 
 	//#region Editing
 
-	public applyEdits(range: IRange, eolCount: number, firstLineLength: number): void {
+	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
 		this._acceptDeleteRange(range);
 		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
 	}
@@ -289,14 +449,14 @@ export class TokensStore {
 		this._insertLines(position.lineNumber, eolCount);
 	}
 
-	private static _deleteBeginning(lineTokens: Uint32Array | ArrayBuffer | null, toChIndex: number): Uint32Array | ArrayBuffer | null {
+	public static _deleteBeginning(lineTokens: Uint32Array | ArrayBuffer | null, toChIndex: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
 			return lineTokens;
 		}
 		return TokensStore._delete(lineTokens, 0, toChIndex);
 	}
 
-	private static _deleteEnding(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number): Uint32Array | ArrayBuffer | null {
+	public static _deleteEnding(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
 			return lineTokens;
 		}
@@ -306,7 +466,7 @@ export class TokensStore {
 		return TokensStore._delete(lineTokens, fromChIndex, lineTextLength);
 	}
 
-	private static _delete(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number, toChIndex: number): Uint32Array | ArrayBuffer | null {
+	public static _delete(lineTokens: Uint32Array | ArrayBuffer | null, fromChIndex: number, toChIndex: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
 			return lineTokens;
 		}
@@ -363,7 +523,7 @@ export class TokensStore {
 		return tmp.buffer;
 	}
 
-	private static _append(lineTokens: Uint32Array | ArrayBuffer | null, _otherTokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer | null {
+	public static _append(lineTokens: Uint32Array | ArrayBuffer | null, _otherTokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer | null {
 		if (_otherTokens === EMPTY_LINE_TOKENS) {
 			return lineTokens;
 		}
@@ -392,7 +552,7 @@ export class TokensStore {
 		return result.buffer;
 	}
 
-	private static _insert(lineTokens: Uint32Array | ArrayBuffer | null, chIndex: number, textLength: number): Uint32Array | ArrayBuffer | null {
+	public static _insert(lineTokens: Uint32Array | ArrayBuffer | null, chIndex: number, textLength: number): Uint32Array | ArrayBuffer | null {
 		if (lineTokens === null || lineTokens === EMPTY_LINE_TOKENS) {
 			// nothing to do
 			return lineTokens;

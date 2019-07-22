@@ -99,7 +99,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
 		}
 
-		this._worker._setTokens(this._uri, builder.serialize());
+		this._worker._setTokens(this._uri, this._versionId, builder.serialize());
 	}
 }
 
@@ -176,8 +176,8 @@ export class TextMateWorker {
 		this._grammarFactory.setTheme(theme);
 	}
 
-	public _setTokens(resource: URI, tokens: Uint8Array): void {
-		this._host.setTokens(resource, tokens);
+	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {
+		this._host.setTokens(resource, versionId, tokens);
 	}
 }
 

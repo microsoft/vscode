@@ -202,9 +202,6 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private async _registerDefinitionIfAvailable(modeId: string): Promise<void> {
-		if (modeId === 'typescript') {
-			return;
-		}
 		const languageIdentifier = this._modeService.getLanguageIdentifier(modeId);
 		if (!languageIdentifier) {
 			return;
@@ -229,7 +226,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 					onUnexpectedError(e);
 					return null;
 				});
-				this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, promise));
+				if (modeId !== 'typescript') {
+					this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, promise));
+				}
 			}
 		} catch (err) {
 			onUnexpectedError(err);
