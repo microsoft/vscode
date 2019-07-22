@@ -325,13 +325,13 @@ export class SplitView extends Disposable {
 
 		container.appendChild(view.element);
 
-		let highPriorityIndex: number | undefined;
+		let highPriorityIndexes: number[] | undefined;
 
 		if (typeof size !== 'number' && size.type === 'split') {
-			highPriorityIndex = size.index;
+			highPriorityIndexes = [size.index];
 		}
 
-		this.relayout(index, highPriorityIndex);
+		this.relayout([index], highPriorityIndexes);
 		this.state = State.Idle;
 
 		if (typeof size !== 'number' && size.type === 'distribute') {
@@ -418,17 +418,6 @@ export class SplitView extends Disposable {
 
 		this.distributeEmptySpace(index);
 		this.layoutViews();
-	}
-
-	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
-		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-		const lowPriorityIndexes = typeof lowPriorityIndex === 'number' ? [lowPriorityIndex] : undefined;
-		const highPriorityIndexes = typeof highPriorityIndex === 'number' ? [highPriorityIndex] : undefined;
-
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
-		this.distributeEmptySpace();
-		this.layoutViews();
-		this.saveProportions();
 	}
 
 	layout(size: number): void {
@@ -582,7 +571,7 @@ export class SplitView extends Disposable {
 			this.layoutViews();
 		} else {
 			item.size = size;
-			this.relayout(index, undefined);
+			this.relayout([index], undefined);
 		}
 	}
 
@@ -597,42 +586,32 @@ export class SplitView extends Disposable {
 			return;
 		}
 
+		const indexes = range(this.viewItems.length).filter(i => i !== index);
+		const lowPriorityIndexes = [...indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low), index];
+		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+
 		const item = this.viewItems[index];
 		size = Math.round(size);
-		size = clamp(size, item.minimumSize, item.maximumSize);
-		let delta = size - item.size;
+		size = clamp(size, item.minimumSize, Math.min(item.maximumSize, this.size));
 
-		if (delta !== 0 && index < this.viewItems.length - 1) {
-			const downIndexes = range(index + 1, this.viewItems.length);
-			const collapseDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].size - this.viewItems[i].minimumSize), 0);
-			const expandDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].maximumSize - this.viewItems[i].size), 0);
-			const deltaDown = clamp(delta, -expandDown, collapseDown);
-
-			this.resize(index, deltaDown);
-			delta -= deltaDown;
-		}
-
-		if (delta !== 0 && index > 0) {
-			const upIndexes = range(index - 1, -1);
-			const collapseUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].size - this.viewItems[i].minimumSize), 0);
-			const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].maximumSize - this.viewItems[i].size), 0);
-			const deltaUp = clamp(-delta, -collapseUp, expandUp);
-
-			this.resize(index - 1, deltaUp);
-		}
-
-		this.distributeEmptySpace();
-		this.layoutViews();
-		this.saveProportions();
+		item.size = size;
+		this.relayout(lowPriorityIndexes, highPriorityIndexes);
 		this.state = State.Idle;
 	}
 
 	distributeViewSizes(): void {
 		const size = Math.floor(this.size / this.viewItems.length);
 
-		for (let i = 0; i < this.viewItems.length - 1; i++) {
-			this.resizeView(i, size);
+		for (let i = 0; i < this.viewItems.length; i++) {
+			const item = this.viewItems[i];
+			item.size = clamp(size, item.minimumSize, item.maximumSize);
 		}
+
+		const indexes = range(this.viewItems.length);
+		const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low);
+		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+
+		this.relayout(lowPriorityIndexes, highPriorityIndexes);
 	}
 
 	getViewSize(index: number): number {
@@ -641,6 +620,15 @@ export class SplitView extends Disposable {
 		}
 
 		return this.viewItems[index].size;
+	}
+
+	private relayout(lowPriorityIndexes?: number[], highPriorityIndexes?: number[]): void {
+		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
+		this.distributeEmptySpace();
+		this.layoutViews();
+		this.saveProportions();
 	}
 
 	private resize(
