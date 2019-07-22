@@ -5,6 +5,8 @@
 
 declare namespace monaco {
 
+	// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
+
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
