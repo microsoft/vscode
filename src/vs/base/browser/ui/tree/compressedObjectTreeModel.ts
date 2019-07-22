@@ -270,3 +270,135 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		return node;
 	}
 }
+
+export type ElementMapper<T> = (elements: T[]) => T;
+export const DefaultElementMapper: ElementMapper<any> = elements => elements[elements.length - 1];
+
+export type NodeMapper<T, TFilterData> = (node: ITreeNode<ICompressedTreeNode<T> | null, TFilterData>) => ITreeNode<T | null, TFilterData>;
+
+function mapNode<T, TFilterData>(elementMapper: ElementMapper<T>, node: ITreeNode<ICompressedTreeNode<T> | null, TFilterData>): ITreeNode<T | null, TFilterData> {
+	return {
+		...node,
+		element: node.element === null ? null : elementMapper(node.element.elements),
+		children: node.children.map(child => mapNode(elementMapper, child)),
+		parent: typeof node.parent === 'undefined' ? node.parent : mapNode(elementMapper, node.parent)
+	};
+}
+
+function createNodeMapper<T, TFilterData>(elementMapper: ElementMapper<T>): NodeMapper<T, TFilterData> {
+	return node => mapNode(elementMapper, node);
+}
+
+export interface ILinearCompressedObjectTreeModelOptions<T, TFilterData> extends ICompressedObjectTreeModelOptions<T, TFilterData> {
+	readonly elementMapper?: ElementMapper<T>;
+}
+
+export class LinearCompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
+
+	readonly rootRef = null;
+
+	get onDidSplice(): Event<ITreeModelSpliceEvent<T | null, TFilterData>> {
+		return Event.map(this.model.onDidSplice, ({ insertedNodes, deletedNodes }) => ({
+			insertedNodes: insertedNodes.map(this.mapNode),
+			deletedNodes: deletedNodes.map(this.mapNode),
+		}));
+	}
+
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> {
+		return Event.map(this.model.onDidChangeCollapseState, ({ node, deep }) => ({
+			node: this.mapNode(node),
+			deep
+		}));
+	}
+
+	get onDidChangeRenderNodeCount(): Event<ITreeNode<T | null, TFilterData>> {
+		return Event.map(this.model.onDidChangeRenderNodeCount, this.mapNode);
+	}
+
+	private mapElement: ElementMapper<T | null>;
+	private mapNode: NodeMapper<T | null, TFilterData>;
+	private model: CompressedObjectTreeModel<T, TFilterData>;
+
+	constructor(
+		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
+		options: ILinearCompressedObjectTreeModelOptions<T, TFilterData> = {}
+	) {
+		this.mapElement = options.elementMapper || DefaultElementMapper;
+		this.mapNode = createNodeMapper(this.mapElement);
+		this.model = new CompressedObjectTreeModel(list, options);
+	}
+
+	getListIndex(location: T | null): number {
+		return this.model.getListIndex(location);
+	}
+
+	getListRenderCount(location: T | null): number {
+		return this.model.getListRenderCount(location);
+	}
+
+	getNode(location?: T | null | undefined): ITreeNode<T | null, any> {
+		return this.mapNode(this.model.getNode(location));
+	}
+
+	getNodeLocation(node: ITreeNode<T | null, any>): T | null {
+		return node.element;
+	}
+
+	getParentNodeLocation(location: T | null): T | null {
+		return this.model.getParentNodeLocation(location);
+	}
+
+	getParentElement(location: T | null): T | null {
+		const result = this.model.getParentElement(location);
+
+		if (result === null) {
+			return result;
+		}
+
+		return this.mapElement(result.elements);
+	}
+
+	getFirstElementChild(location: T | null): T | null | undefined {
+		const result = this.model.getFirstElementChild(location);
+
+		if (result === null || typeof result === 'undefined') {
+			return result;
+		}
+
+		return this.mapElement(result.elements);
+	}
+
+	getLastElementAncestor(location?: T | null | undefined): T | null | undefined {
+		const result = this.model.getLastElementAncestor(location);
+
+		if (result === null || typeof result === 'undefined') {
+			return result;
+		}
+
+		return this.mapElement(result.elements);
+	}
+
+	isCollapsible(location: T | null): boolean {
+		return this.model.isCollapsible(location);
+	}
+
+	isCollapsed(location: T | null): boolean {
+		return this.model.isCollapsed(location);
+	}
+
+	setCollapsed(location: T | null, collapsed?: boolean | undefined, recursive?: boolean | undefined): boolean {
+		return this.model.setCollapsed(location, collapsed, recursive);
+	}
+
+	expandTo(location: T | null): void {
+		return this.model.expandTo(location);
+	}
+
+	rerender(location: T | null): void {
+		return this.model.rerender(location);
+	}
+
+	refilter(): void {
+		return this.model.refilter();
+	}
+}
