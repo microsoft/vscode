@@ -236,7 +236,7 @@ class KeyboardController<T> implements IDisposable {
 		private view: ListView<T>,
 		options: IListOptions<T>
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+		const multipleSelectionSupport = options.multipleSelectionSupport !== false;
 
 		this.openController = options.openController || DefaultOpenController;
 
