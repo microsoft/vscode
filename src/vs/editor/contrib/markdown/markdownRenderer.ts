@@ -82,10 +82,10 @@ export class MarkdownRenderer extends Disposable {
 		const disposeables = new DisposableStore();
 
 		let element: HTMLElement;
-		if (markdown) {
-			element = renderMarkdown(markdown, this.getOptions(disposeables));
-		} else {
+		if (!markdown) {
 			element = document.createElement('span');
+		} else {
+			element = renderMarkdown(markdown, this.getOptions(disposeables));
 		}
 
 		return {
