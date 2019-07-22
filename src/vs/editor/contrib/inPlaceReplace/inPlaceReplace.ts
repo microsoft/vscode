@@ -83,7 +83,7 @@ class InPlaceReplaceController implements IEditorContribution {
 
 		return this.currentRequest.then(result => {
 
-			if (!(result && result.range && result.value)) {
+			if (!result || !result.range || !result.value) {
 				// No proper result
 				return;
 			}
@@ -151,10 +151,10 @@ class InPlaceReplaceUp extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
 		const controller = InPlaceReplaceController.get(editor);
-		if (controller) {
-			return controller.run(this.id, true);
+		if (!controller) {
+			return Promise.resolve(undefined);
 		}
-		return Promise.resolve(undefined);
+		return controller.run(this.id, true);
 	}
 }
 
@@ -176,10 +176,10 @@ class InPlaceReplaceDown extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
 		const controller = InPlaceReplaceController.get(editor);
-		if (controller) {
-			return controller.run(this.id, false);
+		if (!controller) {
+			return Promise.resolve(undefined);
 		}
-		return Promise.resolve(undefined);
+		return controller.run(this.id, false);
 	}
 }
 
