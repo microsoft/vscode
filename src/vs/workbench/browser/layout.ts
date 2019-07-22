@@ -713,55 +713,63 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.panelPartView = panelPart;
 			this.statusBarPartView = statusBar;
 
+			let workbenchGrid: SerializableGrid<ISerializableView> | undefined;
+
 			const savedGrid = this.storageService.get(Storage.GRID_LAYOUT, StorageScope.GLOBAL, undefined);
 			if (savedGrid) {
 				const parsedGrid: ISerializedGrid = JSON.parse(savedGrid);
-				this.workbenchGrid = SerializableGrid.deserialize(parsedGrid, {
-					fromJSON: (serializedPart: { type: Parts } | null) => {
-						if (serializedPart && serializedPart.type) {
-							switch (serializedPart.type) {
-								case Parts.ACTIVITYBAR_PART:
-									return this.activityBarPartView;
-								case Parts.TITLEBAR_PART:
-									return this.titleBarPartView;
-								case Parts.EDITOR_PART:
-									return this.editorPartView;
-								case Parts.PANEL_PART:
-									return this.panelPartView;
-								case Parts.SIDEBAR_PART:
-									return this.sideBarPartView;
-								case Parts.STATUSBAR_PART:
-									return this.statusBarPartView;
-								default:
-									return this.editorPartView;
-							}
-						} else {
-							return this.editorPartView;
+
+				const fromJSON = (serializedPart: { type: Parts } | null) => {
+					if (serializedPart && serializedPart.type) {
+						switch (serializedPart.type) {
+							case Parts.ACTIVITYBAR_PART:
+								return this.activityBarPartView;
+							case Parts.TITLEBAR_PART:
+								return this.titleBarPartView;
+							case Parts.EDITOR_PART:
+								return this.editorPartView;
+							case Parts.PANEL_PART:
+								return this.panelPartView;
+							case Parts.SIDEBAR_PART:
+								return this.sideBarPartView;
+							case Parts.STATUSBAR_PART:
+								return this.statusBarPartView;
+							default:
+								return this.editorPartView;
+						}
+					} else {
+						return this.editorPartView;
+					}
+				};
+
+				try {
+					workbenchGrid = SerializableGrid.deserialize(parsedGrid, { fromJSON }, { proportionalLayout: false });
+
+					// Set some layout state
+					this.state.sideBar.position = Position.LEFT;
+					for (let view of workbenchGrid.getNeighborViews(this.sideBarPartView, Direction.Right)) {
+						if (view === this.activityBarPartView) {
+							this.state.sideBar.position = Position.RIGHT;
 						}
 					}
-				},
-					{ proportionalLayout: false });
 
-
-				// Set some layout state
-				this.state.sideBar.position = Position.LEFT;
-				for (let view of this.workbenchGrid.getNeighborViews(this.sideBarPartView, Direction.Right)) {
-					if (view === this.activityBarPartView) {
-						this.state.sideBar.position = Position.RIGHT;
+					this.state.panel.position = Position.BOTTOM;
+					for (let view of workbenchGrid.getNeighborViews(this.panelPartView, Direction.Left)) {
+						if (view === this.editorPartView) {
+							this.state.panel.position = Position.RIGHT;
+						}
 					}
+				} catch (err) {
+					console.error(err);
 				}
-
-				this.state.panel.position = Position.BOTTOM;
-				for (let view of this.workbenchGrid.getNeighborViews(this.panelPartView, Direction.Left)) {
-					if (view === this.editorPartView) {
-						this.state.panel.position = Position.RIGHT;
-					}
-				}
-			} else {
-				this.workbenchGrid = new SerializableGrid(this.editorPartView, { proportionalLayout: false });
 			}
 
-			this.container.prepend(this.workbenchGrid.element);
+			if (!workbenchGrid) {
+				workbenchGrid = new SerializableGrid(this.editorPartView, { proportionalLayout: false });
+			}
+
+			this.container.prepend(workbenchGrid.element);
+			this.workbenchGrid = workbenchGrid;
 
 			this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
 				this.setSideBarHidden(!visible, true);
