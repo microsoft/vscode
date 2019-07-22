@@ -830,18 +830,26 @@ export class SplitView extends Disposable {
 	private findFirstSnapIndex(indexes: number[]): number | undefined {
 		// visible views first
 		for (const index of indexes) {
-			if (!this.viewItems[index].visible) {
+			const viewItem = this.viewItems[index];
+
+			if (!viewItem.visible) {
 				continue;
 			}
 
-			if (this.viewItems[index].snap) {
+			if (viewItem.snap) {
 				return index;
 			}
 		}
 
 		// then, hidden views
 		for (const index of indexes) {
-			if (!this.viewItems[index].visible && this.viewItems[index].snap) {
+			const viewItem = this.viewItems[index];
+
+			if (viewItem.visible && viewItem.maximumSize - viewItem.minimumSize > 0) {
+				return undefined;
+			}
+
+			if (!viewItem.visible && viewItem.snap) {
 				return index;
 			}
 		}
