@@ -256,7 +256,7 @@ function sleep(seconds: number): Promise<void> {
 	});
 }
 
-export const enum PersistenConnectionEventType {
+export const enum PersistentConnectionEventType {
 	ConnectionLost,
 	ReconnectionWait,
 	ReconnectionRunning,
@@ -264,22 +264,22 @@ export const enum PersistenConnectionEventType {
 	ConnectionGain
 }
 export class ConnectionLostEvent {
-	public readonly type = PersistenConnectionEventType.ConnectionLost;
+	public readonly type = PersistentConnectionEventType.ConnectionLost;
 }
 export class ReconnectionWaitEvent {
-	public readonly type = PersistenConnectionEventType.ReconnectionWait;
+	public readonly type = PersistentConnectionEventType.ReconnectionWait;
 	constructor(
 		public readonly durationSeconds: number
 	) { }
 }
 export class ReconnectionRunningEvent {
-	public readonly type = PersistenConnectionEventType.ReconnectionRunning;
+	public readonly type = PersistentConnectionEventType.ReconnectionRunning;
 }
 export class ConnectionGainEvent {
-	public readonly type = PersistenConnectionEventType.ConnectionGain;
+	public readonly type = PersistentConnectionEventType.ConnectionGain;
 }
 export class ReconnectionPermanentFailureEvent {
-	public readonly type = PersistenConnectionEventType.ReconnectionPermanentFailure;
+	public readonly type = PersistentConnectionEventType.ReconnectionPermanentFailure;
 }
 export type PersistenConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
