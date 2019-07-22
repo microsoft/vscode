@@ -744,11 +744,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution(taskDTO, <vscode.Task2>task);
+			await this.addCustomExecution(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
 
 		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution2(taskDTO, <vscode.Task2>task);
+			await this.addCustomExecution2(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
 
 		return resolvedTaskDTO;
