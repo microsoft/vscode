@@ -238,11 +238,15 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return node;
 	}
 
-	getNodeLocation(node: ITreeNode<T, TFilterData>): T {
+	getNodeLocation(node: ITreeNode<T, TFilterData>): T | null {
 		return node.element;
 	}
 
-	getParentNodeLocation(element: T): T | null {
+	getParentNodeLocation(element: T | null): T | null {
+		if (element === null) {
+			throw new Error(`Invalid getParentNodeLocation call`);
+		}
+
 		const node = this.nodes.get(element);
 
 		if (!node) {

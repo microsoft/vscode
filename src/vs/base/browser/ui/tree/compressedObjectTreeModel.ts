@@ -5,7 +5,7 @@
 
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { IObjectTreeModelOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
@@ -86,14 +86,9 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	readonly rootRef = null;
 
-	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>>();
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>> = this._onDidSplice.event;
-
-	private _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>>();
-	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>> = this._onDidChangeCollapseState.event;
-
-	private _onDidChangeRenderNodeCount = new Emitter<ITreeNode<ICompressedTreeNode<T>, TFilterData>>();
-	readonly onDidChangeRenderNodeCount: Event<ITreeNode<ICompressedTreeNode<T>, TFilterData>> = this._onDidChangeRenderNodeCount.event;
+	get onDidSplice(): Event<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>> { return this.model.onDidSplice; }
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	get onDidChangeRenderNodeCount(): Event<ITreeNode<ICompressedTreeNode<T>, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
 	private model: ObjectTreeModel<ICompressedTreeNode<T>, TFilterData>;
 	private nodes = new Map<T | null, ICompressedTreeNode<T>>();
@@ -164,19 +159,18 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const parentChildren = parent.children
 			.map(child => child === node ? recompressedElement : child);
 
-
 		this.model.setChildren(parent.element, parentChildren, _onDidCreateNode, _onDidDeleteNode);
 
 		// TODO
 		return Iterator.empty();
 	}
 
-	getListIndex(location: T): number {
+	getListIndex(location: T | null): number {
 		const node = this.getCompressedNode(location);
 		return this.model.getListIndex(node);
 	}
 
-	getListRenderCount(location: T): number {
+	getListRenderCount(location: T | null): number {
 		const node = this.getCompressedNode(location);
 		return this.model.getListRenderCount(node);
 	}
@@ -190,16 +184,32 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		return this.model.getNode(node);
 	}
 
-	getNodeLocation(node: ITreeNode<ICompressedTreeNode<T> | null, TFilterData>): T | null {
-		throw new Error('Method not implemented.');
+	// TODO: review this
+	getNodeLocation(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>): T | null {
+		const compressedNode = this.model.getNodeLocation(node);
+
+		if (compressedNode === null) {
+			return null;
+		}
+
+		return compressedNode.elements[compressedNode.elements.length - 1];
 	}
 
+	// TODO: review this
 	getParentNodeLocation(location: T | null): T | null {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		const parentNode = this.model.getParentNodeLocation(compressedNode);
+
+		if (parentNode === null) {
+			return null;
+		}
+
+		return parentNode.elements[parentNode.elements.length - 1];
 	}
 
 	getParentElement(location: T | null): ICompressedTreeNode<T> | null {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.getParentElement(compressedNode);
 	}
 
 	getFirstElementChild(location: T | null): ICompressedTreeNode<T> | null | undefined {
