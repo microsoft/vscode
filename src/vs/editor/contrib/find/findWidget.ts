@@ -384,9 +384,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
 		if (label === NLS_NO_RESULTS) {
-			return nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
 		}
-		return nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, (currentMatch ? currentMatch.startLineNumber + ':' + currentMatch.startColumn : ''));
+		return currentMatch
+			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
+			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
 	}
 
 	/**
