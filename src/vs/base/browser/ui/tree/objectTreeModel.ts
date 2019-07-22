@@ -200,22 +200,22 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.getListRenderCount(location);
 	}
 
-	isCollapsible(element: T): boolean {
+	isCollapsible(element: T | null): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsible(location);
 	}
 
-	isCollapsed(element: T): boolean {
+	isCollapsed(element: T | null): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);
 	}
 
-	setCollapsed(element: T, collapsed?: boolean, recursive?: boolean): boolean {
+	setCollapsed(element: T | null, collapsed?: boolean, recursive?: boolean): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.setCollapsed(location, collapsed, recursive);
 	}
 
-	expandTo(element: T): void {
+	expandTo(element: T | null): void {
 		const location = this.getElementLocation(element);
 		this.model.expandTo(location);
 	}

@@ -213,27 +213,33 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 	}
 
 	getFirstElementChild(location: T | null): ICompressedTreeNode<T> | null | undefined {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.getFirstElementChild(compressedNode);
 	}
 
 	getLastElementAncestor(location?: T | null | undefined): ICompressedTreeNode<T> | null | undefined {
-		throw new Error('Method not implemented.');
+		const compressedNode = typeof location === 'undefined' ? undefined : this.getCompressedNode(location);
+		return this.model.getLastElementAncestor(compressedNode);
 	}
 
 	isCollapsible(location: T | null): boolean {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.isCollapsible(compressedNode);
 	}
 
 	isCollapsed(location: T | null): boolean {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.isCollapsed(compressedNode);
 	}
 
 	setCollapsed(location: T | null, collapsed?: boolean | undefined, recursive?: boolean | undefined): boolean {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.setCollapsed(compressedNode, collapsed, recursive);
 	}
 
 	expandTo(location: T | null): void {
-		throw new Error('Method not implemented.');
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.expandTo(compressedNode);
 	}
 
 	refilter(): void {
