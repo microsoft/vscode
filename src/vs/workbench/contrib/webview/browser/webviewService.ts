@@ -192,6 +192,10 @@ class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOve
 	showFind(): void { this.withWebview(webview => webview.showFind()); }
 	hideFind(): void { this.withWebview(webview => webview.hideFind()); }
 
+	public getInnerWebview() {
+		return this._webview.value;
+	}
+
 	private withWebview(f: (webview: Webview) => void): void {
 		if (this._webview.value) {
 			f(this._webview.value);
