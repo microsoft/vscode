@@ -806,7 +806,8 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	if (!style || !cssText) {
 		return;
 	}
-	style.textContent = `${selector}{${cssText}}\n${style.textContent}`;
+
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
