@@ -374,12 +374,12 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 
 		let code = text.charCodeAt(pos);
 		// trivia: whitespace
-		if (isWhitespave(code)) {
+		if (isWhiteSpace(code)) {
 			do {
 				pos++;
 				value += String.fromCharCode(code);
 				code = text.charCodeAt(pos);
-			} while (isWhitespave(code));
+			} while (isWhiteSpace(code));
 
 			return token = SyntaxKind.Trivia;
 		}
@@ -517,7 +517,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	}
 
 	function isUnknownContentCharacter(code: CharacterCodes) {
-		if (isWhitespave(code) || isLineBreak(code)) {
+		if (isWhiteSpace(code) || isLineBreak(code)) {
 			return false;
 		}
 		switch (code) {
@@ -530,9 +530,8 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 			case CharacterCodes.comma:
 			case CharacterCodes.slash:
 				return false;
-			default:
-				return true;
 		}
+		return true;
 	}
 
 
@@ -556,7 +555,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	};
 }
 
-function isWhitespave(ch: number): boolean {
+function isWhiteSpace(ch: number): boolean {
 	return ch === CharacterCodes.space || ch === CharacterCodes.tab || ch === CharacterCodes.verticalTab || ch === CharacterCodes.formFeed ||
 		ch === CharacterCodes.nonBreakingSpace || ch === CharacterCodes.ogham || ch >= CharacterCodes.enQuad && ch <= CharacterCodes.zeroWidthSpace ||
 		ch === CharacterCodes.narrowNoBreakSpace || ch === CharacterCodes.mathematicalSpace || ch === CharacterCodes.ideographicSpace || ch === CharacterCodes.byteOrderMark;
