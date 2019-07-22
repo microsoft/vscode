@@ -8,7 +8,7 @@ import { WebviewService as BrowserWebviewService } from 'vs/workbench/contrib/we
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
-export class WebviewService extends BrowserWebviewService implements IWebviewService {
+export class ElectronWebviewService extends BrowserWebviewService implements IWebviewService {
 	_serviceBrand: any;
 
 	constructor(
