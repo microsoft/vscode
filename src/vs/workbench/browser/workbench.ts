@@ -414,7 +414,7 @@ export class Workbench extends Layout {
 
 		// Restore Editor Center Mode
 		if (this.state.editor.restoreCentered) {
-			this.centerEditorLayout(true);
+			this.centerEditorLayout(true, true);
 		}
 
 		// Emit a warning after 10s if restore does not complete
