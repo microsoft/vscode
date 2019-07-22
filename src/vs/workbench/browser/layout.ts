@@ -741,6 +741,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				},
 					{ proportionalLayout: false });
+
+
+				// Set some layout state
+				this.state.sideBar.position = Position.LEFT;
+				for (let view of this.workbenchGrid.getNeighborViews(this.sideBarPartView, Direction.Right)) {
+					if (view === this.activityBarPartView) {
+						this.state.sideBar.position = Position.RIGHT;
+					}
+				}
+
+				this.state.panel.position = Position.BOTTOM;
+				for (let view of this.workbenchGrid.getNeighborViews(this.panelPartView, Direction.Left)) {
+					if (view === this.editorPartView) {
+						this.state.panel.position = Position.RIGHT;
+					}
+				}
 			} else {
 				this.workbenchGrid = new SerializableGrid(this.editorPartView, { proportionalLayout: false });
 			}
