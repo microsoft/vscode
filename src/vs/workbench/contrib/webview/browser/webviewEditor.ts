@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class WebviewEditor extends BaseEditor {
 
-	public static readonly ID = 'WebviewEditor';
+	public static ID = 'WebviewEditor';
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
@@ -136,7 +136,7 @@ export class WebviewEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public async setInput(input: WebviewEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	public async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (this.input && this.input instanceof WebviewEditorInput) {
 			this.input.webview.release(this);
 		}
@@ -147,11 +147,13 @@ export class WebviewEditor extends BaseEditor {
 			return;
 		}
 
-		if (this.group) {
-			input.updateGroup(this.group.id);
-		}
+		if (input instanceof WebviewEditorInput) {
+			if (this.group) {
+				input.updateGroup(this.group.id);
+			}
 
-		this.claimWebview(input);
+			this.claimWebview(input);
+		}
 	}
 
 	private claimWebview(input: WebviewEditorInput): void {

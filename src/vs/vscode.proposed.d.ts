@@ -986,4 +986,29 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Custom editors, mjbvz
+
+	export interface WebviewEditor extends WebviewPanel { }
+
+	export interface WebviewEditorProvider {
+		/**
+		* Fills out a `WebviewEditor` for a given resource.
+		*
+		* The provider should take ownership of passed in `editor`.
+		*/
+		resolveWebviewEditor(
+			resource: Uri,
+			editor: WebviewEditor
+		): Thenable<void>;
+	}
+
+	namespace window {
+		export function registerWebviewEditorProvider(
+			viewType: string,
+			provider: WebviewEditorProvider,
+		): Disposable;
+	}
+
+	//#endregion
 }

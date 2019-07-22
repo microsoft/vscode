@@ -7,7 +7,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
@@ -70,6 +70,7 @@ export class WebviewEditorInput extends EditorInput {
 			readonly id: ExtensionIdentifier;
 		},
 		webview: Unowned<WebviewEditorOverlay>,
+		public readonly editorResource: URI,
 	) {
 		super();
 
@@ -94,7 +95,7 @@ export class WebviewEditorInput extends EditorInput {
 		return this._name;
 	}
 
-	public getTitle() {
+	public getTitle(_verbosity?: Verbosity) {
 		return this.getName();
 	}
 
@@ -154,8 +155,9 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 		},
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
 		webview: Unowned<WebviewEditorOverlay>,
+		public readonly editorResource: URI,
 	) {
-		super(id, viewType, name, extension, webview);
+		super(id, viewType, name, extension, webview, editorResource);
 	}
 
 	public async resolve(): Promise<IEditorModel> {
