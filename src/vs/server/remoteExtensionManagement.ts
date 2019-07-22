@@ -24,7 +24,7 @@ import { RemoteAgentEnvironmentChannel } from 'vs/server/remoteAgentEnvironmentI
 import { Emitter, Event } from 'vs/base/common/event';
 import { IPCServer, ClientConnectionEvent, StaticRouter, IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
+import { DownloadServiceChannelClient } from 'vs/platform/download/common/downloadIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
