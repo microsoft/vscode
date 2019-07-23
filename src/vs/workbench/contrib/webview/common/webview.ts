@@ -97,6 +97,8 @@ export interface WebviewEditorOverlay extends Webview {
 
 	claim(owner: any): void;
 	release(owner: any): void;
+
+	getInnerWebview(): Webview | undefined;
 }
 
 export const webviewDeveloperCategory = nls.localize('developer', "Developer");

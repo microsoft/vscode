@@ -1154,7 +1154,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 	abstract getId(): string;
 }
 
-class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
+export class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.defaultsettings';
 

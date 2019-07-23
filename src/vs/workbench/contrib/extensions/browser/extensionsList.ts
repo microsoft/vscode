@@ -13,7 +13,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, DisabledLabelAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -102,8 +102,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
-		const disabledLabelAction = this.instantiationService.createInstance(DisabledLabelAction, systemDisabledWarningAction);
-		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget, reloadAction);
+		const extensionTooltipAction = this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction);
+		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, extensionTooltipAction, recommendationWidget);
 		const widgets = [
 			recommendationWidget,
 			iconRemoteBadgeWidget,
@@ -113,10 +113,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true)
 		];
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, disabledLabelAction]);
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionTooltipAction]);
 
 		actionbar.push(actions, actionOptions);
-		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, disabledLabelAction);
+		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables: [disposables], actionbar,

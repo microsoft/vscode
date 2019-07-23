@@ -533,8 +533,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
 		iconLocation: {
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-light.svg`)),
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-dark.svg`))
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
 		}
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
@@ -817,8 +817,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
 		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-dark.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-light.svg'))
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg'))
 		}
 	},
 	group: 'navigation',

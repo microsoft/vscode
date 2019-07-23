@@ -2512,7 +2512,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 }
 
-export class DisabledLabelAction extends ExtensionAction {
+export class ExtensionToolTipAction extends ExtensionAction {
 
 	private static readonly Class = 'disable-status';
 
@@ -2521,10 +2521,12 @@ export class DisabledLabelAction extends ExtensionAction {
 
 	constructor(
 		private readonly warningAction: SystemDisabledWarningAction,
+		private readonly reloadAction: ReloadAction,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
-		super('extensions.disabledLabel', warningAction.tooltip, `${DisabledLabelAction.Class} hide`, false);
+		super('extensions.tooltip', warningAction.tooltip, `${ExtensionToolTipAction.Class} hide`, false);
 		this._register(warningAction.onDidChange(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
@@ -2535,25 +2537,51 @@ export class DisabledLabelAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.class = `${DisabledLabelAction.Class} hide`;
-		this.label = '';
+		this.label = this.getTooltip();
+		this.class = ExtensionToolTipAction.Class;
+		if (!this.label) {
+			this.class = `${ExtensionToolTipAction.Class} hide`;
+		}
+	}
+
+	private getTooltip(): string {
+		if (!this.extension) {
+			return '';
+		}
+		if (this.reloadAction.enabled) {
+			return this.reloadAction.tooltip;
+		}
 		if (this.warningAction.tooltip) {
-			this.class = DisabledLabelAction.Class;
-			this.label = this.warningAction.tooltip;
-			return;
+			return this.warningAction.tooltip;
 		}
-		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
-			return;
-		}
-		if (this.extension && this.extension.local && this._runningExtensions) {
+		if (this.extension && this.extension.local && this.extension.state === ExtensionState.Installed && this._runningExtensions) {
+			const isRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier));
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
-			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension.identifier));
-			if (!isExtensionRunning && !isEnabled && this.extensionEnablementService.canChangeEnablement(this.extension.local)) {
-				this.class = DisabledLabelAction.Class;
-				this.label = localize('disabled by user', "This extension is disabled by the user.");
-				return;
+
+			if (isEnabled && isRunning) {
+				if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+					if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+						return localize('extension enabled on remote', "Extension is enabled on '{0}'", this.extension.server.label);
+					}
+				}
+				if (this.extension.enablementState === EnablementState.EnabledGlobally) {
+					return localize('globally enabled', "This extension is enabled globally.");
+				}
+				if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+					return localize('workspace enabled', "This extension is enabled for this workspace by the user.");
+				}
+			}
+
+			if (!isEnabled && !isRunning) {
+				if (this.extension.enablementState === EnablementState.DisabledGlobally) {
+					return localize('globally disabled', "This extension is disabled globally by the user.");
+				}
+				if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
+					return localize('workspace disabled', "This extension is disabled for this workspace by the user.");
+				}
 			}
 		}
+		return '';
 	}
 
 	run(): Promise<any> {

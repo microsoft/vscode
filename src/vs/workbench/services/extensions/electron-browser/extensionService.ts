@@ -32,7 +32,7 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/co
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 
@@ -473,7 +473,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					if (!remoteAuthority) {
 						return;
 					}
-					if (e.type === PersistenConnectionEventType.ConnectionLost) {
+					if (e.type === PersistentConnectionEventType.ConnectionLost) {
 						this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
 					}
 				});
