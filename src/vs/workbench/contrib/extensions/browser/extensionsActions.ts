@@ -320,7 +320,7 @@ export class InstallInOtherServerAction extends ExtensionAction {
 		}
 
 		if (
-			this.extension && this.extension.local && this.server && this.extension.state === ExtensionState.Installed
+			this.extension && this.extension.local && this.server && this.extension.state === ExtensionState.Installed && this.extension.type === ExtensionType.User
 			// disabled by extension kind or it is a language pack extension
 			&& (this.extension.enablementState === EnablementState.DisabledByExtensionKind || isLanguagePackExtension(this.extension.local.manifest))
 			// Not installed in other server and can install in other server
@@ -3036,58 +3036,66 @@ export class InstallLocalExtensionsOnRemoteAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super('workbench.extensions.actions.installLocalExtensionsOnRemote');
-		this.enabled = !!this.extensionManagementServerService.localExtensionManagementServer && !!this.extensionManagementServerService.remoteExtensionManagementServer;
+		this.update();
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
+	}
+
+	get label(): string {
+		return this.extensionManagementServerService.remoteExtensionManagementServer ?
+			localize('install local extensions', "Install Local Extensions on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : '';
+	}
+
+	private update(): void {
+		this.enabled = this.getLocalExtensionsToInstall().length > 0;
+	}
+
+	private getLocalExtensionsToInstall(): IExtension[] {
+		return this.extensionsWorkbenchService.local.filter(extension => {
+			const action = this.instantiationService.createInstance(RemoteInstallAction);
+			action.extension = extension;
+			return action.enabled;
+		});
 	}
 
 	async run(): Promise<void> {
-		if (this.enabled) {
-			await this.selectAndInstallLocalExtensions();
+		this.selectAndInstallLocalExtensions();
+		return Promise.resolve();
+	}
+
+	private selectAndInstallLocalExtensions(): void {
+		const quickPick = this.quickInputService.createQuickPick<IExtensionPickItem>();
+		quickPick.busy = true;
+		const disposable = quickPick.onDidAccept(() => {
+			disposable.dispose();
+			quickPick.hide();
+			quickPick.dispose();
+			this.onDidAccept(quickPick.selectedItems);
+		});
+		quickPick.show();
+		const localExtensionsToInstall = this.getLocalExtensionsToInstall();
+		quickPick.busy = false;
+		if (localExtensionsToInstall.length) {
+			quickPick.placeholder = localize('select extensions to install', "Select extensions to install");
+			quickPick.canSelectMany = true;
+			localExtensionsToInstall.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+			quickPick.items = localExtensionsToInstall.map<IExtensionPickItem>(extension => ({ extension, label: extension.displayName, description: extension.version }));
+		} else {
+			quickPick.hide();
+			quickPick.dispose();
+			this.notificationService.notify({
+				severity: Severity.Info,
+				message: localize('no local extensions', "There are no extensions to install.")
+			});
 		}
 	}
 
-	private async getLocalExtensionsToInstall(): Promise<IExtension[]> {
-		const localExtensions = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.localExtensionManagementServer!);
-		const remoteExtensions = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.remoteExtensionManagementServer!);
-		const remoteExtensionsIds: Set<string> = new Set<string>();
-		const remoteExtensionsUUIDs: Set<string> = new Set<string>();
-		for (const extension of remoteExtensions) {
-			remoteExtensionsIds.add(extension.identifier.id.toLowerCase());
-			if (extension.identifier.uuid) {
-				remoteExtensionsUUIDs.add(extension.identifier.uuid);
-			}
-		}
-		const localExtensionsToInstall: IExtension[] = [];
-		for (const localExtension of localExtensions) {
-			if (localExtension.type === ExtensionType.User
-				&& (isLanguagePackExtension(localExtension.local!.manifest) || localExtension.enablementState === EnablementState.DisabledByExtensionKind)) {
-				if (!remoteExtensionsIds.has(localExtension.identifier.id.toLowerCase()) || (localExtension.identifier.uuid && !remoteExtensionsUUIDs.has(localExtension.identifier.uuid))) {
-					localExtensionsToInstall.push(localExtension);
-				}
-			}
-		}
-		return localExtensionsToInstall;
-	}
-
-	private async selectAndInstallLocalExtensions(): Promise<void> {
-		const result = await this.quickInputService.pick<IExtensionPickItem>(
-			this.getLocalExtensionsToInstall()
-				.then(extensions => {
-					if (extensions.length) {
-						extensions = extensions.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
-						return extensions.map<IExtensionPickItem>(extension => ({ extension, label: extension.displayName, description: extension.version }));
-					}
-					return [{ label: localize('no local extensions', "There are no extensions to install.") }];
-				}),
-			{
-				canPickMany: true,
-				placeHolder: localize('select extensions to install', "Select extensions to install")
-			}
-		);
-		if (result) {
-			const localExtensionsToInstall = result.filter(r => !!r.extension).map(r => r.extension!);
+	private onDidAccept(selectedItems: ReadonlyArray<IExtensionPickItem>): void {
+		if (selectedItems.length) {
+			const localExtensionsToInstall = selectedItems.filter(r => !!r.extension).map(r => r.extension!);
 			if (localExtensionsToInstall.length) {
 				this.progressService.withProgress(
 					{
