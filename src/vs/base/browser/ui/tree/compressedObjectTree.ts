@@ -7,25 +7,25 @@ import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
-import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
+import { CompressedTreeModel, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	sorter?: ITreeSorter<T>;
 }
 
-export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
+export class CompressedObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<ICompressedTreeNode<T> | null, TFilterData, T | null> {
 
-	protected model: IObjectTreeModel<T, TFilterData>;
+	protected model: CompressedTreeModel<T, TFilterData>;
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<ICompressedTreeNode<T> | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
 	constructor(
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<ICompressedTreeNode<T>>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		options: IObjectTreeOptions<T, TFilterData> = {}
+		options: IObjectTreeOptions<ICompressedTreeNode<T>, TFilterData> = {}
 	) {
 		super(container, delegate, renderers, options);
 	}
@@ -50,7 +50,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.resort(element, recursive);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(view, options);
+	protected createModel(view: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>, options: IObjectTreeOptions<ICompressedTreeNode<T>, TFilterData>): ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
+		return new CompressedTreeModel(view, options);
 	}
 }
