@@ -30,6 +30,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 
@@ -120,36 +121,44 @@ export class ProductContribution implements IWorkbenchContribution {
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IOpenerService openerService: IOpenerService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWindowService windowService: IWindowService,
+		@IWindowsService windowsService: IWindowsService
 	) {
-		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
-		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+		windowsService.getActiveWindowId().then(async windowId => {
+			if (windowId !== windowService.windowId) {
+				return;
+			}
 
-		// was there an update? if so, open release notes
-		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
-			showReleaseNotes(instantiationService, pkg.version)
-				.then(undefined, () => {
-					notificationService.prompt(
-						severity.Info,
-						nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-						[{
-							label: nls.localize('releaseNotes', "Release Notes"),
-							run: () => {
-								const uri = URI.parse(product.releaseNotesUrl);
-								openerService.open(uri);
-							}
-						}],
-						{ sticky: true }
-					);
-				});
-		}
+			const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
+			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
-		// should we show the new license?
-		if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
-			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl));
-		}
+			// was there an update? if so, open release notes
+			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+				showReleaseNotes(instantiationService, pkg.version)
+					.then(undefined, () => {
+						notificationService.prompt(
+							severity.Info,
+							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+							[{
+								label: nls.localize('releaseNotes', "Release Notes"),
+								run: () => {
+									const uri = URI.parse(product.releaseNotesUrl);
+									openerService.open(uri);
+								}
+							}],
+							{ sticky: true }
+						);
+					});
+			}
 
-		storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
+			// should we show the new license?
+			if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
+				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl));
+			}
+
+			storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
+		});
 	}
 }
 
