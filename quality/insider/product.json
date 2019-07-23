@@ -94,7 +94,8 @@
 		},
 		"vscjava.vscode-java-pack": {
 			"name": "Java",
-			"pattern": "{**/*.java}"
+			"pattern": "{**/*.java}",
+			"isExtensionPack": true
 		},
 		"ms-vscode.PowerShell": {
 			"name": "PowerShell",
@@ -115,6 +116,11 @@
 		"vsciot-vscode.vscode-arduino": {
 			"name": "Arduino",
 			"pattern": "{**/*.ino}"
+		},
+		"ms-vscode-remote.remote-wsl": {
+			"name": "Remote WSL",
+			"pattern": "file://wsl%24/**",
+			"isLocationPattern": true
 		}
 	},
 	"keymapExtensionTips": [
