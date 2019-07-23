@@ -796,4 +796,29 @@ suite('workspace-namespace', () => {
 		we.deleteFile(docUri, { ignoreIfNotExists: true });
 		assert.ok(await vscode.workspace.applyEdit(we));
 	});
+
+	test('The api workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735', async function () {
+
+		let [f1, f2, f3] = await Promise.all([createRandomFile(), createRandomFile(), createRandomFile()]);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(f1, new vscode.Position(0, 0), 'f1');
+		we.insert(f2, new vscode.Position(0, 0), 'f2');
+		we.insert(f3, new vscode.Position(0, 0), 'f3');
+
+		let f1_ = nameWithUnderscore(f1);
+		we.renameFile(f1, f1_);
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		assert.equal((await vscode.workspace.openTextDocument(f3)).getText(), 'f3');
+		assert.equal((await vscode.workspace.openTextDocument(f2)).getText(), 'f2');
+		assert.equal((await vscode.workspace.openTextDocument(f1_)).getText(), 'f1');
+		try {
+			await vscode.workspace.fs.stat(f1);
+			assert.ok(false);
+		} catch {
+			assert.ok(true);
+		}
+	});
 });
