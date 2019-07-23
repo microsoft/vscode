@@ -25,7 +25,7 @@ interface Map<K, V> {
 
 interface MapConstructor {
 	new <K, V>(): Map<K, V>;
-	prototype: Map<any, any>;
+	readonly prototype: Map<any, any>;
 
 	// not supported on IE11:
 	// new <K, V>(iterable: Iterable<[K, V]>): Map<K, V>;
@@ -51,7 +51,7 @@ interface Set<T> {
 
 interface SetConstructor {
 	new <T>(): Set<T>;
-	prototype: Set<any>;
+	readonly prototype: Set<any>;
 
 	// not supported on IE11:
 	// new <T>(iterable: Iterable<T>): Set<T>;

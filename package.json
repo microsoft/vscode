@@ -62,7 +62,7 @@
     "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
-    "@types/node": "^10.12.12",
+    "@types/node": "^10.14.8",
     "@types/semver": "^5.5.0",
     "@types/sinon": "^1.16.36",
     "@types/webpack": "^4.4.10",

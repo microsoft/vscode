@@ -532,6 +532,7 @@ suite('PFS', () => {
 		assert.equal(readable.read(), 'Hello World');
 
 		await pfs.rimraf(parentDir);
+		return;
 	});
 
 	test('writeFile (stream, error handling READERROR)', async () => {
@@ -555,6 +556,7 @@ suite('PFS', () => {
 		}
 
 		await pfs.rimraf(parentDir);
+		return;
 	});
 
 	test('writeFile (stream, error handling EACCES)', async () => {
@@ -613,6 +615,7 @@ suite('PFS', () => {
 		}
 
 		await pfs.rimraf(parentDir);
+		return;
 	});
 
 	test('writeFileSync', async () => {

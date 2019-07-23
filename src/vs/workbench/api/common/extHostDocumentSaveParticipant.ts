@@ -140,7 +140,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				reject(err);
 			});
 
-		}).then(values => {
+		}).then<boolean | undefined>(values => {
 
 			const resourceEdit: ResourceTextEditDto = {
 				resource: document.uri,

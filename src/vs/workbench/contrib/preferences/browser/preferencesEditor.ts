@@ -615,7 +615,7 @@ class PreferencesRenderersController extends Disposable {
 						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
 						this.logService.info('Setting search error: ' + message);
 					}
-					return undefined;
+					return Promise.resolve(undefined);
 				}
 			})
 			.then(searchResult => {
@@ -634,7 +634,7 @@ class PreferencesRenderersController extends Disposable {
 
 				if (filterResult) {
 					filterResult.query = filter;
-					filterResult.exactMatch = searchResult && searchResult.exactMatch;
+					filterResult.exactMatch = !!searchResult && searchResult.exactMatch;
 				}
 
 				return filterResult;

@@ -97,8 +97,8 @@ class InstallAction extends Action {
 			.then(undefined, ignore('ENOENT', false));
 	}
 
-	private createBinFolderAndSymlinkAsAdmin(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+	private createBinFolderAndSymlinkAsAdmin(): Promise<unknown> {
+		return new Promise<unknown>((resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
 			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
@@ -164,8 +164,8 @@ class UninstallAction extends Action {
 		});
 	}
 
-	private deleteSymlinkAsAdmin(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+	private deleteSymlinkAsAdmin(): Promise<unknown> {
+		return new Promise<unknown>((resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
 			this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 }).then(choice => {

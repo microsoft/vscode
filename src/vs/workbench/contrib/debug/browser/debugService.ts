@@ -396,7 +396,7 @@ export class DebugService implements IDebugService {
 								.then(() => false);
 						}
 
-						return launch && launch.openConfigFile(false, true).then(() => false);
+						return launch ? launch.openConfigFile(false, true).then(() => false) : Promise.resolve(false);
 					});
 				}
 
@@ -719,7 +719,7 @@ export class DebugService implements IDebugService {
 
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 			let taskStarted = false;
-			const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(tasks => {
+			const promise: Promise<ITaskSummary | null | undefined> = this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.filter(t => t._id === task._id).length) {
 					// task is already running - nothing to do.
 					return Promise.resolve(null);

@@ -374,7 +374,7 @@ class ExtHostTreeView<T> extends Disposable {
 				// check if an ancestor of extElement is already in the elements to update list
 				let currentNode: TreeNode | undefined = elementNode;
 				while (currentNode && currentNode.parent && !elementsToUpdate.has(currentNode.parent.item.handle)) {
-					const parentElement = this.elements.get(currentNode.parent.item.handle);
+					const parentElement = this.elements.get(currentNode.parent.item.handle) as T; // TODO: This cast should _not_ be required
 					currentNode = parentElement ? this.nodes.get(parentElement) : undefined;
 				}
 				if (currentNode && !currentNode.parent) {

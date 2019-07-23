@@ -760,7 +760,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				}
 				return undefined;
 			}),
-			new Promise((resolve, reject) => {
+			new Promise<undefined>((resolve, reject) => {
 				const timeout = setTimeout(() => {
 					clearTimeout(timeout);
 					reject(new Error('timeout'));

@@ -343,7 +343,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<any>((resolve, reject) => {
 			setTimeout(() => reject(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms")), 1750);
-			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
+			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then<undefined>(values => {
 				for (const success of values) {
 					if (!success) {
 						return Promise.reject(new Error('listener failed'));

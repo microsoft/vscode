@@ -278,6 +278,7 @@ CommandsRegistry.registerCommand({
 		} catch (e) {
 			onUnexpectedError(e);
 		}
+		return;
 	}
 });
 

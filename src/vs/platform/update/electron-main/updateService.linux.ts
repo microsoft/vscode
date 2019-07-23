@@ -41,7 +41,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 		this.requestService.request({ url: this.url }, CancellationToken.None)
-			.then<IUpdate>(asJson)
+			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });

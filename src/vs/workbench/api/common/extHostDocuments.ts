@@ -84,7 +84,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		if (!promise) {
 			promise = this._proxy.$tryOpenDocument(uri).then(() => {
 				this._documentLoader.delete(uri.toString());
-				return this._documentsAndEditors.getDocument(uri);
+				return this._documentsAndEditors.getDocument(uri)!; // TODO: Is this non-null cast valid?
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);

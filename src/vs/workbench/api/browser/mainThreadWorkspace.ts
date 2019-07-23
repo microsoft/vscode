@@ -123,11 +123,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
+	$startFileSearch(includePattern: string | undefined, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number | undefined, token: CancellationToken): Promise<UriComponents[] | undefined> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		const query = this._queryBuilder.file(
@@ -152,7 +152,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | undefined> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -165,7 +165,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		};
 
-		const search = this._searchService.textSearch(query, token, onProgress).then(
+		const search = this._searchService.textSearch(query, token, onProgress).then<ITextSearchComplete, undefined>(
 			result => {
 				return { limitHit: result.limitHit };
 			},
@@ -191,14 +191,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		return this._searchService.fileSearch(query, token).then(
 			result => {
-				return result.limitHit;
+				return !!result.limitHit;
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
 					return Promise.reject(err);
 				}
 
-				return undefined;
+				return false;
 			});
 	}
 

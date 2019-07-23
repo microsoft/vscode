@@ -8,7 +8,9 @@ interface Thenable<T> {
 	then<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => void): Thenable<U>;
 }
 
-declare class Promise<T> implements Thenable<T> {
+declare var Promise: PromiseConstructor;
+
+interface PromiseConstructor {
 	/**
 	 * If you call resolve in the body of the callback passed to the constructor,
 	 * your promise is fulfilled with result object passed to resolve.
@@ -16,8 +18,48 @@ declare class Promise<T> implements Thenable<T> {
 	 * For consistency and debugging (eg stack traces), obj should be an instanceof Error.
 	 * Any errors thrown in the constructor callback will be implicitly passed to reject().
 	 */
-	constructor(callback: (resolve: (value?: T | Thenable<T>) => void, reject: (error?: any) => void) => void);
+	new <T>(callback: (resolve: (value?: T | Thenable<T>) => void, reject: (error?: any) => void) => void): Promise<T>;
 
+	/**
+	 * Make a new promise from the thenable.
+	 * A thenable is promise-like in as far as it has a "then" method.
+	 */
+	resolve<T>(value: T | Thenable<T>): Promise<T>;
+
+	/**
+	 *
+	 */
+	resolve(): Promise<void>;
+
+	/**
+	 * Make a promise that rejects to obj. For consistency and debugging (eg stack traces), obj should be an instanceof Error
+	 */
+	reject(error: any): Promise<any>;
+	reject<T>(error: T): Promise<T>;
+
+	/**
+	 * Make a promise that fulfills when every item in the array fulfills, and rejects if (and when) any item rejects.
+	 * the array passed to all can be a mixture of promise-like objects and other objects.
+	 * The fulfillment value is an array (in order) of fulfillment values. The rejection value is the first rejection value.
+	 */
+	all<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>, T8 | Thenable<T8>, T9 | Thenable<T9>, T10 | Thenable<T10>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10]>;
+	all<T1, T2, T3, T4, T5, T6, T7, T8, T9>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>, T8 | Thenable<T8>, T9 | Thenable<T9>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8, T9]>;
+	all<T1, T2, T3, T4, T5, T6, T7, T8>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>, T8 | Thenable<T8>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8]>;
+	all<T1, T2, T3, T4, T5, T6, T7>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>]): Promise<[T1, T2, T3, T4, T5, T6, T7]>;
+	all<T1, T2, T3, T4, T5, T6>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>]): Promise<[T1, T2, T3, T4, T5, T6]>;
+	all<T1, T2, T3, T4, T5>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>]): Promise<[T1, T2, T3, T4, T5]>;
+	all<T1, T2, T3, T4>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>]): Promise<[T1, T2, T3, T4]>;
+	all<T1, T2, T3>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>]): Promise<[T1, T2, T3]>;
+	all<T1, T2>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>]): Promise<[T1, T2]>;
+	all<T>(values: (T | Thenable<T>)[]): Promise<T[]>;
+
+	/**
+	 * Make a Promise that fulfills when any item fulfills, and rejects if any item rejects.
+	 */
+	race<T>(promises: (T | Thenable<T>)[]): Promise<T>;
+}
+
+interface Promise<T> extends Thenable<T> {
 	/**
 	 * onFulfilled is called when/if "promise" resolves. onRejected is called when/if "promise" rejects.
 	 * Both are optional, if either/both are omitted the next onFulfilled/onRejected in the chain is called.
@@ -37,46 +79,6 @@ declare class Promise<T> implements Thenable<T> {
 	 * @param onRejected called when/if "promise" rejects
 	 */
 	catch<U>(onRejected?: (error: any) => U | Thenable<U>): Promise<U>;
-}
-
-declare namespace Promise {
-	/**
-	 * Make a new promise from the thenable.
-	 * A thenable is promise-like in as far as it has a "then" method.
-	 */
-	function resolve<T>(value: T | Thenable<T>): Promise<T>;
-
-	/**
-	 *
-	 */
-	function resolve(): Promise<void>;
-
-	/**
-	 * Make a promise that rejects to obj. For consistency and debugging (eg stack traces), obj should be an instanceof Error
-	 */
-	function reject(error: any): Promise<any>;
-	function reject<T>(error: T): Promise<T>;
-
-	/**
-	 * Make a promise that fulfills when every item in the array fulfills, and rejects if (and when) any item rejects.
-	 * the array passed to all can be a mixture of promise-like objects and other objects.
-	 * The fulfillment value is an array (in order) of fulfillment values. The rejection value is the first rejection value.
-	 */
-	function all<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>, T8 | Thenable<T8>, T9 | Thenable<T9>, T10 | Thenable<T10>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10]>;
-	function all<T1, T2, T3, T4, T5, T6, T7, T8, T9>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>, T8 | Thenable<T8>, T9 | Thenable<T9>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8, T9]>;
-	function all<T1, T2, T3, T4, T5, T6, T7, T8>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>, T8 | Thenable<T8>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8]>;
-	function all<T1, T2, T3, T4, T5, T6, T7>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>, T7 | Thenable<T7>]): Promise<[T1, T2, T3, T4, T5, T6, T7]>;
-	function all<T1, T2, T3, T4, T5, T6>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>, T6 | Thenable<T6>]): Promise<[T1, T2, T3, T4, T5, T6]>;
-	function all<T1, T2, T3, T4, T5>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>, T5 | Thenable<T5>]): Promise<[T1, T2, T3, T4, T5]>;
-	function all<T1, T2, T3, T4>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>, T4 | Thenable<T4>]): Promise<[T1, T2, T3, T4]>;
-	function all<T1, T2, T3>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>, T3 | Thenable<T3>]): Promise<[T1, T2, T3]>;
-	function all<T1, T2>(values: [T1 | Thenable<T1>, T2 | Thenable<T2>]): Promise<[T1, T2]>;
-	function all<T>(values: (T | Thenable<T>)[]): Promise<T[]>;
-
-	/**
-	 * Make a Promise that fulfills when any item fulfills, and rejects if any item rejects.
-	 */
-	function race<T>(promises: (T | Thenable<T>)[]): Promise<T>;
 }
 
 declare module 'es6-promise' {

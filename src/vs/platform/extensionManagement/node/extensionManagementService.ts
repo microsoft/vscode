@@ -371,7 +371,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								e => Promise.reject(new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e))))));
 				}
 				return Promise.reject(new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled")));
-			});
+			}).then(() => undefined);
 	}
 
 	private getTelemetryEvent(operation: InstallOperation): string {
@@ -495,7 +495,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private async installDependenciesAndPackExtensions(installed: ILocalExtension, existing: ILocalExtension | null): Promise<void> {
+	private async installDependenciesAndPackExtensions(installed: ILocalExtension, existing: ILocalExtension | null): Promise<unknown> {
 		if (this.galleryService.isEnabled()) {
 			const dependenciesAndPackExtensions: string[] = installed.manifest.extensionDependencies || [];
 			if (installed.manifest.extensionPack) {
@@ -546,7 +546,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				} else {
 					return Promise.reject(new Error(nls.localize('notInstalled', "Extension '{0}' is not installed.", extension.manifest.displayName || extension.manifest.name)));
 				}
-			}));
+			})).then(() => undefined);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {

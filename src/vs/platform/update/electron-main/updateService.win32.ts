@@ -109,7 +109,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url }, CancellationToken.None)
-			.then<IUpdate>(asJson)
+			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
 
