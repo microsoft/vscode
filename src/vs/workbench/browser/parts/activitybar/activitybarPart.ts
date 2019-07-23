@@ -34,6 +34,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface ICachedViewlet {
 	id: string;
@@ -79,13 +80,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
-			if (this.shouldBeHidden(cachedViewlet.id, cachedViewlet)) {
+			if (workbenchEnvironmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
+				|| this.shouldBeHidden(cachedViewlet.id, cachedViewlet)
+			) {
 				cachedViewlet.visible = false;
 			}
 		}
@@ -315,7 +319,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	private shouldBeHidden(viewletId: string, cachedViewlet: ICachedViewlet): boolean {
+	private shouldBeHidden(viewletId: string, cachedViewlet?: ICachedViewlet): boolean {
 		const viewContainer = this.getViewContainer(viewletId);
 		if (!viewContainer || !viewContainer.hideIfEmpty) {
 			return false;
