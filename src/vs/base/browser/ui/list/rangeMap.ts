@@ -113,11 +113,11 @@ export class RangeMap {
 	get count(): number {
 		const len = this.groups.length;
 
-		if (!len) {
-			return 0;
+		if (len) {
+			return this.groups[len - 1].range.end;
 		}
 
-		return this.groups[len - 1].range.end;
+		return 0;
 	}
 
 	/**
