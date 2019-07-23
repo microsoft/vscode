@@ -597,7 +597,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const now = Date.now();
 			forEach(this._availableRecommendations, entry => {
 				let { key: pattern, value: ids } = entry;
-				if (match(pattern, model.uri.path)) {
+				if (match(pattern, model.uri.toString())) {
 					for (let id of ids) {
 						if (caseInsensitiveGet(product.extensionImportantTips, id)) {
 							recommendationsToSuggest.push(id);
@@ -670,12 +670,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (!entry) {
 			return false;
 		}
-		const name = entry['name'];
-
+		const name = entry.name;
 		let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
-		// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
-		if (id === 'vscjava.vscode-java-pack') {
+		if (entry.isExtensionPack) {
 			message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", name);
+		} else if (entry.isLocationPattern) {
+			message = localize('reallyRecommendedLocationPattern', "The '{0}' extension is recommended for files at this location.", name);
 		}
 
 		const setIgnoreRecommendationsConfig = (configVal: boolean) => {

@@ -72,7 +72,7 @@ export interface IProductConfiguration {
 		readonly recommendationsUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
+	extensionImportantTips: { [id: string]: { name: string; pattern: string; isLocationPattern?: boolean, isExtensionPack?: boolean }; };
 	readonly exeBasedExtensionTips: { [id: string]: { friendlyName: string, windowsPath?: string, recommendations: readonly string[] }; };
 	readonly extensionKeywords: { [extension: string]: readonly string[]; };
 	readonly extensionAllowedBadgeProviders: readonly string[];
