@@ -108,6 +108,8 @@ export namespace DiagnosticTag {
 		switch (value) {
 			case types.DiagnosticTag.Unnecessary:
 				return MarkerTag.Unnecessary;
+			case types.DiagnosticTag.Deprecated:
+				return MarkerTag.Deprecated;
 		}
 		return undefined;
 	}
