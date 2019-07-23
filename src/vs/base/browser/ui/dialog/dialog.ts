@@ -82,7 +82,7 @@ export class Dialog extends Disposable {
 		this.focusToReturn = document.activeElement as HTMLElement;
 
 		return new Promise<number>((resolve) => {
-			if (!(this.element && this.buttonsContainer && this.iconElement && this.toolbarContainer)) {
+			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
 				resolve(0);
 				return;
 			}
