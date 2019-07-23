@@ -146,7 +146,7 @@
 					}
 				};
 
-				const tree = new CompressedObjectTree(container, delegate, [renderer], { ...opts, filter: treeFilter, setRowLineHeight: false, collapseByDefault: true });
+				const tree = new CompressedObjectTree(container, delegate, [renderer], { ...opts, filter: treeFilter, setRowLineHeight: false, collapseByDefault: true, setRowLineHeight: true });
 
 				return { tree, treeFilter };
 			}
