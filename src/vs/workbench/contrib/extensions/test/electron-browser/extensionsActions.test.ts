@@ -1160,15 +1160,29 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
 		testObject.extension = extensions[0];
 
-		return new Promise(c => {
-			testObject.onDidChange(() => {
-				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to complete the uninstallation of this extension.') {
-					c();
-				}
-			});
-			uninstallEvent.fire(local.identifier);
-			didUninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire(local.identifier);
+		didUninstallEvent.fire({ identifier: local.identifier });
+		assert.ok(testObject.enabled);
+		assert.equal(testObject.tooltip, 'Please reload Visual Studio Code to complete the uninstallation of this extension.');
+	});
+
+	test('Test ReloadAction when extension is uninstalled and can be removed', async () => {
+		const local = aLocalExtension('a');
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			getExtensions: () => Promise.resolve([ExtensionsActions.toExtensionDescription(local)]),
+			onDidChangeExtensions: new Emitter<void>().event,
+			canRemoveExtension: (extension) => true,
+			canAddExtension: (extension) => true
 		});
+		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
+		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
+		testObject.extension = extensions[0];
+
+		uninstallEvent.fire(local.identifier);
+		didUninstallEvent.fire({ identifier: local.identifier });
+		assert.ok(!testObject.enabled);
 	});
 
 	test('Test ReloadAction when extension is uninstalled and installed', async () => {
