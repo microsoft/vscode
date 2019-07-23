@@ -319,6 +319,7 @@ export class OutlinePanel extends ViewletPanel {
 			treeContainer,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._treeRenderer],
+			// https://github.com/microsoft/TypeScript/issues/32526
 			this._treeDataSource as IDataSource<OutlineModel, OutlineItem>,
 			{
 				expandOnlyOnTwistieClick: true,
@@ -328,7 +329,7 @@ export class OutlinePanel extends ViewletPanel {
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
 			}
-		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
+		);
 
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
