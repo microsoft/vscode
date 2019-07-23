@@ -24,7 +24,7 @@ export class CompressedObjectTree<T extends NonNullable<any>, TFilterData = void
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<ICompressedTreeNode<T>>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<ICompressedTreeNode<T>, TFilterData, any>[],
 		options: IObjectTreeOptions<ICompressedTreeNode<T>, TFilterData> = {}
 	) {
 		super(container, delegate, renderers, options);

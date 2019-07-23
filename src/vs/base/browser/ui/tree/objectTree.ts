@@ -24,7 +24,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
 		super(container, delegate, renderers, options);

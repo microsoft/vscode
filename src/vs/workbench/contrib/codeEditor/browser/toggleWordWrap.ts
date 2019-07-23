@@ -288,7 +288,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/WordWrap_16x.svg')) }
+		iconLocation: {
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'))
+		}
 	},
 	group: 'navigation',
 	order: 1,
@@ -302,7 +305,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/WordWrap_16x.svg')) }
+		iconLocation: {
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'))
+		}
 	},
 	group: 'navigation',
 	order: 1,

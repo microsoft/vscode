@@ -245,7 +245,7 @@ export class MainPanel extends ViewletPanel {
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMRepository>;
+		});
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
 		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
@@ -850,7 +850,7 @@ export class RepositoryPanel extends ViewletPanel {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		});
 
 		this._register(Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])

@@ -7,11 +7,11 @@ const path = require('path');
 const fs = require('fs');
 
 function collect(location) {
-	const element = path.basename(location);
+	const element = { name: path.basename(location) };
 	const stat = fs.statSync(location);
 
 	if (!stat.isDirectory()) {
-		return { element };
+		return { element, incompressible: true };
 	}
 
 	const children = fs.readdirSync(location)

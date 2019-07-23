@@ -165,7 +165,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, iconUrl: URI,
+		id: string, name: string, iconUrl: URI,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService

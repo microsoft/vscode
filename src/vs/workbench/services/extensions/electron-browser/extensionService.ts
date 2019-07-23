@@ -203,6 +203,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// Update the local registry
 		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		this._onDidChangeExtensions.fire(undefined);
+
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
@@ -218,8 +220,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		if (this._extensionHostProcessManagers.length > 0) {
 			await this._extensionHostProcessManagers[0].deltaExtensions(toAdd, toRemove.map(e => e.identifier));
 		}
-
-		this._onDidChangeExtensions.fire(undefined);
 
 		for (let i = 0; i < toAdd.length; i++) {
 			this._activateAddedExtensionIfNeeded(toAdd[i]);

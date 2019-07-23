@@ -385,7 +385,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				collapseByDefault: (e: ITreeItem): boolean => {
 					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 				}
-			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+			}));
 		aligner.tree = this.tree;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
