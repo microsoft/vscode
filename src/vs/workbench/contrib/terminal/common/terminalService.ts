@@ -145,7 +145,6 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
-		// Don't need to wait on extensions here as this can only be triggered by an extension
 		this._onInstanceRequestVirtualProcess.fire({ proxy, cols, rows });
 	}
 
