@@ -229,6 +229,12 @@ export interface IExtensionService {
 	 */
 	stopExtensionHost(): void;
 
+	/**
+	 * Modify the environment of the remote extension host
+	 * @param env New properties for the remote extension host
+	 */
+	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+
 	_logOrShowMessage(severity: Severity, msg: string): void;
 	_activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
@@ -278,6 +284,7 @@ export class NullExtensionService implements IExtensionService {
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
+	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
 	_logOrShowMessage(_severity: Severity, _msg: string): void { }
