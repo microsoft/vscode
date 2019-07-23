@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.0-beta.13
+// Type definitions for Electron 6.0.0-beta.15
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -4086,26 +4086,26 @@ declare namespace Electron {
 		once(event: 'unlock-screen', listener: Function): this;
 		addListener(event: 'unlock-screen', listener: Function): this;
 		removeListener(event: 'unlock-screen', listener: Function): this;
-    /**
-     * Calculate the system idle state. idleThreshold is the amount of time (in
-     * seconds) before considered idle.  locked is available on supported systems only.
-     */
-    getSystemIdleState(idleThreshold: number): ('active' | 'idle' | 'locked' | 'unknown');
-    /**
-     * Calculate system idle time in seconds.
-     */
-    getSystemIdleTime(): number;
-    /**
-     * Calculate the system idle state. idleThreshold is the amount of time (in
-     * seconds) before considered idle. callback will be called synchronously on some
-     * systems and with an idleState argument that describes the system's state. locked
-     * is available on supported systems only.
-     */
-    querySystemIdleState(idleThreshold: number, callback: (idleState: 'active' | 'idle' | 'locked' | 'unknown') => void): void;
-    /**
-     * Calculate system idle time in seconds.
-     */
-    querySystemIdleTime(callback: (idleTime: number) => void): void;
+		/**
+		 * Calculate the system idle state. idleThreshold is the amount of time (in
+		 * seconds) before considered idle.  locked is available on supported systems only.
+		 */
+		getSystemIdleState(idleThreshold: number): ('active' | 'idle' | 'locked' | 'unknown');
+		/**
+		 * Calculate system idle time in seconds.
+		 */
+		getSystemIdleTime(): number;
+		/**
+		 * Calculate the system idle state. idleThreshold is the amount of time (in
+		 * seconds) before considered idle. callback will be called synchronously on some
+		 * systems and with an idleState argument that describes the system's state. locked
+		 * is available on supported systems only.
+		 */
+		querySystemIdleState(idleThreshold: number, callback: (idleState: 'active' | 'idle' | 'locked' | 'unknown') => void): void;
+		/**
+		 * Calculate system idle time in seconds.
+		 */
+		querySystemIdleTime(callback: (idleTime: number) => void): void;
 	}
 
 	interface PowerSaveBlocker extends EventEmitter {
@@ -4173,9 +4173,9 @@ declare namespace Electron {
 		 */
 		pid: number;
 		/**
-		 * Process type (Browser or Tab or GPU etc).
+		 * Process type. One of the following values:
 		 */
-		type: string;
+		type: ('Browser' | 'Tab' | 'Utility' | 'Zygote' | 'GPU' | 'Unknown');
 	}
 
 	interface Product {
@@ -5550,9 +5550,9 @@ declare namespace Electron {
 		 */
 		setContextMenu(menu: (Menu) | (null)): void;
 		/**
-		 * Sets when the tray's icon background becomes highlighted (in blue). Note: You
-		 * can use highlightMode with a BrowserWindow by toggling between 'never' and
-		 * 'always' modes when the window visibility changes.
+		 * Sets when the tray's icon background becomes highlighted (in blue). Deprecated
+		 * Note: You can use highlightMode with a BrowserWindow by toggling between 'never'
+		 * and 'always' modes when the window visibility changes.
 		 */
 		setHighlightMode(mode: 'selection' | 'always' | 'never'): void;
 		/**
@@ -7640,7 +7640,7 @@ declare namespace Electron {
 		 * Loads the url in the webview, the url must contain the protocol prefix, e.g. the
 		 * http:// or file://.
 		 */
-		loadURL(url: string, options?: LoadURLOptions): void;
+		loadURL(url: string, options?: LoadURLOptions): Promise<void>;
 		/**
 		 * Opens a DevTools window for guest page.
 		 */
@@ -10579,7 +10579,6 @@ declare namespace NodeJS {
 		// addListener(event: 'loaded', listener: Function): this;
 		// removeListener(event: 'loaded', listener: Function): this;
 		// ### END VSCODE MODIFICATION ###
-
 		/**
 		 * Causes the main thread of the current process crash.
 		 */
