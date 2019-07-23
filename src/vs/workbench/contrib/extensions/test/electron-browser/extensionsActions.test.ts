@@ -1731,7 +1731,7 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test remote install action is disabled for local workspace extension if it cannot be installed', async () => {
+	test('Test remote install action is enabled for local workspace extension if it has not gallery', async () => {
 		// multi server setup
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
@@ -1747,7 +1747,7 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.extension);
-		assert.ok(!testObject.enabled);
+		assert.ok(testObject.enabled);
 	});
 
 	test('Test remote install action is disabled for local ui extension if it is not installed in remote', async () => {
@@ -2071,7 +2071,7 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test local install action is disabled for remote UI extension if it cannot be installed', async () => {
+	test('Test local install action is enabled for remote UI extension if it has gallery', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
@@ -2087,7 +2087,7 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.extension);
-		assert.ok(!testObject.enabled);
+		assert.ok(testObject.enabled);
 	});
 
 	test('Test local install action is disabled for remote workspace extension if it is not installed in local', async () => {
