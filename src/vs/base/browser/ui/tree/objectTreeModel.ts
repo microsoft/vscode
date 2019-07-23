@@ -10,12 +10,19 @@ import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 
+export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
+
+export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
+	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): Iterator<ITreeElement<T>>;
+	resort(element?: T | null, recursive?: boolean): void;
+}
+
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
 	readonly identityProvider?: IIdentityProvider<T>;
 }
 
-export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
+export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
 
 	readonly rootRef = null;
 
@@ -51,8 +58,8 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	setChildren(
 		element: T | null,
 		children: ISequence<ITreeElement<T>> | undefined,
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
-		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
+		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
 	): Iterator<ITreeElement<T>> {
 		const location = this.getElementLocation(element);
 		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
@@ -61,8 +68,8 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	private _setChildren(
 		location: number[],
 		children: ISequence<ITreeElement<T>> | undefined,
-		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
-		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
+		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
 	): Iterator<ITreeElement<T>> {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();

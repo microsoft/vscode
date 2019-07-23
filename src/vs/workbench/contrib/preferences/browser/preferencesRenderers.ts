@@ -1071,8 +1071,8 @@ class UnsupportedSettingsRenderer extends Disposable {
 			tags: [MarkerTag.Unnecessary],
 			startLineNumber: setting.keyRange.startLineNumber,
 			startColumn: setting.keyRange.startColumn,
-			endLineNumber: setting.keyRange.endLineNumber,
-			endColumn: setting.keyRange.endColumn,
+			endLineNumber: setting.valueRange.endLineNumber,
+			endColumn: setting.valueRange.endColumn,
 			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
 		};
 	}

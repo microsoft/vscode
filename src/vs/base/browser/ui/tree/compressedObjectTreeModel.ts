@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
-import { IObjectTreeModelOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
 export interface ICompressedTreeElement<T> extends ITreeElement<T> {
 	readonly children?: Iterator<ICompressedTreeElement<T>> | ICompressedTreeElement<T>[];
@@ -80,9 +80,9 @@ export function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, ch
 	};
 }
 
-export interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> { }
+export interface ICompressedTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> { }
 
-export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
+export class CompressedTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
 
 	readonly rootRef = null;
 
@@ -95,7 +95,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	get size(): number { return this.nodes.size; }
 
-	constructor(list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>, options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}) {
+	constructor(list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>, options: ICompressedTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new ObjectTreeModel(list, options);
 	}
 
@@ -289,11 +289,11 @@ function createNodeMapper<T, TFilterData>(elementMapper: ElementMapper<T>): Node
 	return node => mapNode(elementMapper, node);
 }
 
-export interface ILinearCompressedObjectTreeModelOptions<T, TFilterData> extends ICompressedObjectTreeModelOptions<T, TFilterData> {
+export interface ICompressedObjectTreeModelOptions<T, TFilterData> extends ICompressedTreeModelOptions<T, TFilterData> {
 	readonly elementMapper?: ElementMapper<T>;
 }
 
-export class LinearCompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
+export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
 
 	readonly rootRef = null;
 
@@ -317,15 +317,25 @@ export class LinearCompressedObjectTreeModel<T extends NonNullable<any>, TFilter
 
 	private mapElement: ElementMapper<T | null>;
 	private mapNode: NodeMapper<T | null, TFilterData>;
-	private model: CompressedObjectTreeModel<T, TFilterData>;
+	private model: CompressedTreeModel<T, TFilterData>;
 
 	constructor(
 		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
-		options: ILinearCompressedObjectTreeModelOptions<T, TFilterData> = {}
+		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.mapElement = options.elementMapper || DefaultElementMapper;
 		this.mapNode = createNodeMapper(this.mapElement);
-		this.model = new CompressedObjectTreeModel(list, options);
+		this.model = new CompressedTreeModel(list, options);
+	}
+
+	setChildren(
+		element: T | null,
+		children: ISequence<ITreeElement<T>> | undefined
+	): Iterator<ITreeElement<T>> {
+		this.model.setChildren(element, children);
+
+		// TODO
+		return Iterator.empty();
 	}
 
 	getListIndex(location: T | null): number {
@@ -400,5 +410,9 @@ export class LinearCompressedObjectTreeModel<T extends NonNullable<any>, TFilter
 
 	refilter(): void {
 		return this.model.refilter();
+	}
+
+	resort(element: T | null = null, recursive = true): void {
+		return this.model.resort(element, recursive);
 	}
 }

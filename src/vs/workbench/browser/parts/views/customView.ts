@@ -392,6 +392,10 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e)));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
 		this._register(this.tree.onDidChangeCollapseState(e => {
+			if (!e.node.element) {
+				return;
+			}
+
 			const element: ITreeItem = Array.isArray(e.node.element.element) ? e.node.element.element[0] : e.node.element.element;
 			if (e.node.collapsed) {
 				this._onDidCollapseItem.fire(element);
