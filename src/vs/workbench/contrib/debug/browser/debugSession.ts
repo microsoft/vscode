@@ -31,7 +31,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class DebugSession implements IDebugSession {
 
@@ -66,7 +65,6 @@ export class DebugSession implements IDebugSession {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService,
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
@@ -169,7 +167,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.signService, this.windowsService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService);
 
 				return this.raw!.start().then(() => {
 
