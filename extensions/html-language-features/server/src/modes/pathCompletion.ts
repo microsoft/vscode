@@ -109,14 +109,15 @@ function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: strin
 		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
 		const startPos = shiftPosition(range.end, -1 - valueAfterLastSlash.length);
 
-		// If whitespace exists, replace until there is no more remaining.
+		// If whitespace exists, replace until there is no more
 		const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
-		if (whitespaceIndex === -1) {
-			replaceRange = Range.create(startPos, shiftPosition(range.end, -1));
-
+		let endPos;
+		if (whitespaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whitespaceIndex);
 		} else {
-			replaceRange = Range.create(startPos, shiftPosition(startPos, whitespaceIndex));
+			endPos = shiftPosition(range.end, -1);
 		}
+		replaceRange = Range.create(startPos, endPos);
 	}
 
 	if (isDir) {

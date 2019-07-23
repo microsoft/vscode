@@ -144,24 +144,27 @@ const isDir = (p: string) => {
 };
 
 function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullValueRange: Range) {
+	let replaceRange: Range;
 	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
 	if (lastIndexOfSlash === -1) {
-		return fullValueRange;
+		replaceRange = fullValueRange;
+	} else {
+		// For cases where cursor is in the middle of attribute value, like <script src="./s|rc/test.js">
+		// Find the last slash before cursor, and calculate the start of replace range from there
+		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
+		const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
+		// If whitespace exists, replace until it
+		const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
+		let endPos;
+		if (whitespaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whitespaceIndex);
+		} else {
+			endPos = fullValueRange.end;
+		}
+		replaceRange = Range.create(startPos, endPos);
 	}
 
-	// For cases where cursor is in the middle of attribute value, like <script src="./s|rc/test.js">
-	// Find the last slash before cursor, and calculate the start of replace range from there
-	const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
-	const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
-
-	// If whitespace exists, replace until there is no more remaining.
-	const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
-	if (whitespaceIndex === -1) {
-		return Range.create(startPos, fullValueRange.end);
-
-	}
-
-	return Range.create(startPos, shiftPosition(startPos, whitespaceIndex));
+	return replaceRange;
 }
 
 function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
@@ -177,14 +180,13 @@ function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
 				command: 'editor.action.triggerSuggest'
 			}
 		};
+	} else {
+		return {
+			label: escapePath(p),
+			kind: CompletionItemKind.File,
+			textEdit: TextEdit.replace(replaceRange, escapePath(p))
+		};
 	}
-
-	return {
-		label: escapePath(p),
-		kind: CompletionItemKind.File,
-		textEdit: TextEdit.replace(replaceRange, escapePath(p))
-	};
-
 }
 
 // Escape https://www.w3.org/TR/CSS1/#url
