@@ -61,6 +61,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IProductService } from 'vs/platform/product/common/product';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -324,7 +325,6 @@ export class InstallInOtherServerAction extends ExtensionAction {
 			&& (this.extension.enablementState === EnablementState.DisabledByExtensionKind || isLanguagePackExtension(this.extension.local.manifest))
 			// Not installed in other server and can install in other server
 			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.server)
-			&& this.extensionsWorkbenchService.canInstall(this.extension)
 		) {
 			this.enabled = true;
 			this.updateLabel();
@@ -338,8 +338,14 @@ export class InstallInOtherServerAction extends ExtensionAction {
 			this.update();
 			this.extensionsWorkbenchService.open(this.extension);
 			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
-			if (this.extension.gallery) {
-				await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
+			try {
+				if (this.extension.gallery) {
+					await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
+				} else {
+					const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
+					await this.server.extensionManagementService.install(vsix);
+				}
+			} finally {
 				this.installing = false;
 				this.update();
 			}
@@ -3014,6 +3020,111 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 						);
 					}, error => this.notificationService.error(error));
 			});
+	}
+}
+
+interface IExtensionPickItem extends IQuickPickItem {
+	extension?: IExtension;
+}
+
+export class InstallLocalExtensionsOnRemoteAction extends Action {
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IProgressService private readonly progressService: IProgressService
+	) {
+		super('workbench.extensions.actions.installLocalExtensionsOnRemote');
+		this.enabled = !!this.extensionManagementServerService.localExtensionManagementServer && !!this.extensionManagementServerService.remoteExtensionManagementServer;
+	}
+
+	async run(): Promise<void> {
+		if (this.enabled) {
+			await this.selectAndInstallLocalExtensions();
+		}
+	}
+
+	private async getLocalExtensionsToInstall(): Promise<IExtension[]> {
+		const localExtensions = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.localExtensionManagementServer!);
+		const remoteExtensions = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.remoteExtensionManagementServer!);
+		const remoteExtensionsIds: Set<string> = new Set<string>();
+		const remoteExtensionsUUIDs: Set<string> = new Set<string>();
+		for (const extension of remoteExtensions) {
+			remoteExtensionsIds.add(extension.identifier.id.toLowerCase());
+			if (extension.identifier.uuid) {
+				remoteExtensionsUUIDs.add(extension.identifier.uuid);
+			}
+		}
+		const localExtensionsToInstall: IExtension[] = [];
+		for (const localExtension of localExtensions) {
+			if (localExtension.type === ExtensionType.User
+				&& (isLanguagePackExtension(localExtension.local!.manifest) || localExtension.enablementState === EnablementState.DisabledByExtensionKind)) {
+				if (!remoteExtensionsIds.has(localExtension.identifier.id.toLowerCase()) || (localExtension.identifier.uuid && !remoteExtensionsUUIDs.has(localExtension.identifier.uuid))) {
+					localExtensionsToInstall.push(localExtension);
+				}
+			}
+		}
+		return localExtensionsToInstall;
+	}
+
+	private async selectAndInstallLocalExtensions(): Promise<void> {
+		const result = await this.quickInputService.pick<IExtensionPickItem>(
+			this.getLocalExtensionsToInstall()
+				.then(extensions => {
+					if (extensions.length) {
+						extensions = extensions.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+						return extensions.map<IExtensionPickItem>(extension => ({ extension, label: extension.displayName, description: extension.version }));
+					}
+					return [{ label: localize('no local extensions', "There are no extensions to install.") }];
+				}),
+			{
+				canPickMany: true,
+				placeHolder: localize('select extensions to install', "Select extensions to install")
+			}
+		);
+		if (result) {
+			const localExtensionsToInstall = result.filter(r => !!r.extension).map(r => r.extension!);
+			if (localExtensionsToInstall.length) {
+				this.progressService.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('installing extensions', "Installing Extensions...")
+					},
+					() => this.installLocalExtensions(localExtensionsToInstall));
+			}
+		}
+	}
+
+	private async installLocalExtensions(localExtensionsToInstall: IExtension[]): Promise<void> {
+		const galleryExtensions: IGalleryExtension[] = [];
+		const vsixs: URI[] = [];
+		await Promise.all(localExtensionsToInstall.map(async extension => {
+			if (this.extensionGalleryService.isEnabled()) {
+				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, extension.version);
+				if (gallery) {
+					galleryExtensions.push(gallery);
+					return;
+				}
+			}
+			const vsix = await this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.zip(extension.local!);
+			vsixs.push(vsix);
+		}));
+
+		await Promise.all(galleryExtensions.map(gallery => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
+		await Promise.all(vsixs.map(vsix => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.install(vsix)));
+
+		this.notificationService.notify({
+			severity: Severity.Info,
+			message: localize('finished installing', "Completed installing the extensions. Please reload the window now."),
+			actions: {
+				primary: [new Action('realod', localize('reload', "Realod Window"), '', true,
+					() => this.windowService.reloadWindow())]
+			}
+		});
 	}
 }
 
