@@ -573,13 +573,13 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 				mainThreadCalled = true;
 				assert.equal(includePattern, 'foo');
-				assert.equal(_includeFolder, null);
-				assert.equal(excludePatternOrDisregardExcludes, null);
+				assert.equal(_includeFolder, undefined);
+				assert.equal(excludePatternOrDisregardExcludes, undefined);
 				assert.equal(maxResults, 10);
-				return Promise.resolve(null);
+				return Promise.resolve(undefined);
 			}
 		});
 
@@ -595,12 +595,12 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 				mainThreadCalled = true;
 				assert.equal(includePattern, 'glob/**');
 				assert.deepEqual(_includeFolder, URI.file('/other/folder').toJSON());
-				assert.equal(excludePatternOrDisregardExcludes, null);
-				return Promise.resolve(null);
+				assert.equal(excludePatternOrDisregardExcludes, undefined);
+				return Promise.resolve(undefined);
 			}
 		});
 
@@ -616,12 +616,12 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 				mainThreadCalled = true;
 				assert.equal(includePattern, 'glob/**');
 				assert.deepEqual(_includeFolder, URI.file('/other/folder').toJSON());
 				assert.equal(excludePatternOrDisregardExcludes, false);
-				return Promise.resolve(null);
+				return Promise.resolve(undefined);
 			}
 		});
 
@@ -637,9 +637,9 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 				mainThreadCalled = true;
-				return Promise.resolve(null);
+				return Promise.resolve(undefined);
 			}
 		});
 
@@ -657,10 +657,10 @@ suite('ExtHostWorkspace', function () {
 
 		let mainThreadCalled = false;
 		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
+			$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 				mainThreadCalled = true;
 				assert(excludePatternOrDisregardExcludes, 'glob/**'); // Note that the base portion is ignored, see #52651
-				return Promise.resolve(null);
+				return Promise.resolve(undefined);
 			}
 		});
 
