@@ -1246,12 +1246,18 @@
         },
         "git.ignoredRepositories": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "scope": "window",
           "description": "%config.ignoredRepositories%"
         },
         "git.scanRepositories": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "scope": "resource",
           "description": "%config.scanRepositories%"

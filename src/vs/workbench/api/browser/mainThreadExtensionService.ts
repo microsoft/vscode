@@ -102,7 +102,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
 				actions: {
 					primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
-						() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.Disabled ? EnablementState.Enabled : EnablementState.WorkspaceEnabled)
+						() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
 							.then(() => this._windowService.reloadWindow(), e => this._notificationService.error(e)))]
 				}
 			});

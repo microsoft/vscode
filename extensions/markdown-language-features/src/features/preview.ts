@@ -75,7 +75,7 @@ export class PreviewDocumentVersion {
 
 export class MarkdownPreview extends Disposable {
 
-	public static viewType = 'markdown.preview';
+	public static readonly viewType = 'markdown.preview';
 
 	private _resource: vscode.Uri;
 	private _locked: boolean;

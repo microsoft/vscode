@@ -53,7 +53,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -167,6 +167,7 @@ registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);
 
 //#endregion
 
@@ -344,5 +345,6 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { IWorkspaceStatsService, WorkspaceStatsService } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 
 //#endregion

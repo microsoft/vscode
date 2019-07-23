@@ -26,10 +26,12 @@ export interface IExtensionManagementServerService {
 }
 
 export const enum EnablementState {
-	Disabled,
-	WorkspaceDisabled,
-	Enabled,
-	WorkspaceEnabled
+	DisabledByExtensionKind,
+	DisabledByEnvironemt,
+	DisabledGlobally,
+	DisabledWorkspace,
+	EnabledGlobally,
+	EnabledWorkspace
 }
 
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');

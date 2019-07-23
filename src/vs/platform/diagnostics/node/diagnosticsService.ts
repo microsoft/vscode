@@ -520,10 +520,14 @@ export class DiagnosticsService implements IDiagnosticsService {
 			if (folderUri.scheme === 'file') {
 				const folder = folderUri.fsPath;
 				collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
+					type WorkspaceStatItemClassification = {
+						name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
 					type WorkspaceStatsClassification = {
-						fileTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						configTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						launchConfigs: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						fileTypes: WorkspaceStatItemClassification;
+						configTypes: WorkspaceStatItemClassification;
+						launchConfigs: WorkspaceStatItemClassification;
 					};
 					type WorkspaceStatsEvent = {
 						fileTypes: WorkspaceStatItem[];

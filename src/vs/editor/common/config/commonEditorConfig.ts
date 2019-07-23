@@ -460,7 +460,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
@@ -901,10 +901,11 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderWhitespace': {
 			'type': 'string',
-			'enum': ['none', 'boundary', 'all'],
+			'enum': ['none', 'boundary', 'selection', 'all'],
 			'enumDescriptions': [
 				'',
 				nls.localize('renderWhiteSpace.boundary', "Render whitespace characters except for single spaces between words."),
+				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
 				''
 			],
 			default: EDITOR_DEFAULTS.viewInfo.renderWhitespace,

@@ -12,7 +12,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { ISignService } from 'vs/platform/sign/common/sign';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
@@ -74,7 +73,6 @@ export class RawDebugSession {
 		dbgr: IDebugger,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly signService: ISignService,
 		private readonly windowsService: IWindowsService
 
 	) {
@@ -547,19 +545,6 @@ export class RawDebugSession {
 					response.message = err.message;
 					safeSendResponse(response);
 				});
-				break;
-			case 'handshake':
-				try {
-					const signature = await this.signService.sign(request.arguments.value);
-					response.body = {
-						signature: signature
-					};
-					safeSendResponse(response);
-				} catch (e) {
-					response.success = false;
-					response.message = e.message;
-					safeSendResponse(response);
-				}
 				break;
 			default:
 				response.success = false;

@@ -94,6 +94,12 @@ declare module 'vscode' {
 		constructor(host: string, port: number);
 	}
 
+	export interface ResolvedOptions {
+		extensionHostEnv?: { [key: string]: string | null };
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
 		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
@@ -102,7 +108,7 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
-		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolvedAuthority | Thenable<ResolvedAuthority>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -713,54 +719,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	/**
-	 * Comment Reactions
-	 * Stay in proposed.
-	 */
-	interface CommentReaction {
-		readonly hasReacted?: boolean;
-	}
-
-	/**
-	 * Stay in proposed
-	 */
-	export interface CommentReactionProvider {
-		availableReactions: CommentReaction[];
-		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-	}
-
-
-	export interface CommentController {
-		/**
-		 * Optional reaction provider
-		 * Stay in proposed.
-		 */
-		reactionProvider?: CommentReactionProvider;
-	}
-
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The id of the comment
-		 */
-		commentId: string;
-	}
-
-	/**
-	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
-	 * provide users various ways to interact with comments.
-	 */
-	export interface CommentController {
-		/**
-		 * Optional reaction provider
-		 */
-		reactionProvider?: CommentReactionProvider;
-	}
-
-	//#endregion
 
 	//#region Terminal
 

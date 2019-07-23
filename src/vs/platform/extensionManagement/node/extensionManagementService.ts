@@ -241,7 +241,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			throw new Error('Download service is not available');
 		}
 		const downloadedLocation = path.join(tmpdir(), generateUuid());
-		return this.downloadService.download(vsix, downloadedLocation).then(() => URI.file(downloadedLocation));
+		return this.downloadService.download(vsix, URI.file(downloadedLocation)).then(() => URI.file(downloadedLocation));
 	}
 
 	private installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IGalleryMetadata | null, type: ExtensionType, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {

@@ -302,7 +302,7 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
-			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+			});
 		this._register(this.tree);
 
 		// Bind context keys

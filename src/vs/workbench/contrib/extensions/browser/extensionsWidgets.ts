@@ -5,13 +5,13 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -145,16 +145,13 @@ export class TooltipWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly parent: HTMLElement,
-		private readonly disabledLabelAction: DisabledLabelAction,
+		private readonly tooltipAction: ExtensionToolTipAction,
 		private readonly recommendationWidget: RecommendationWidget,
-		private readonly reloadAction: ReloadAction,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 		this._register(Event.any<any>(
-			this.disabledLabelAction.onDidChange,
-			this.reloadAction.onDidChange,
+			this.tooltipAction.onDidChange,
 			this.recommendationWidget.onDidChangeTooltip,
 			this.labelService.onDidChangeFormatters
 		)(() => this.render()));
@@ -173,17 +170,8 @@ export class TooltipWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return '';
 		}
-		if (this.reloadAction.enabled) {
-			return this.reloadAction.tooltip;
-		}
-		if (this.disabledLabelAction.label) {
-			return this.disabledLabelAction.label;
-		}
-		if (this.extension.local && this.extension.state === ExtensionState.Installed) {
-			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-				return localize('extension enabled on remote', "Extension is enabled on '{0}'", this.extension.server.label);
-			}
-			return localize('extension enabled locally', "Extension is enabled locally.");
+		if (this.tooltipAction.tooltip) {
+			return this.tooltipAction.tooltip;
 		}
 		return this.recommendationWidget.tooltip;
 	}
