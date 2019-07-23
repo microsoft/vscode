@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -334,14 +334,15 @@ class DecorationProviderWrapper {
 	}
 }
 
-export class FileDecorationsService extends Disposable implements IDecorationsService {
+export class FileDecorationsService implements IDecorationsService {
 
 	_serviceBrand: any;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = this._register(new Emitter<URI | URI[]>());
-	private readonly _onDidChangeDecorations = this._register(new Emitter<IResourceDecorationChangeEvent>());
+	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
+	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
+	private readonly _disposables: IDisposable[];
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
 		this._onDidChangeDecorations.event,
@@ -355,17 +356,27 @@ export class FileDecorationsService extends Disposable implements IDecorationsSe
 	constructor(
 		@IThemeService themeService: IThemeService
 	) {
-		super();
-		this._decorationStyles = this._register(new DecorationStyles(themeService));
+		this._decorationStyles = new DecorationStyles(themeService);
 
 		// every so many events we check if there are
 		// css styles that we don't need anymore
 		let count = 0;
-		this._register(this.onDidChangeDecorations(() => {
+		let reg = this.onDidChangeDecorations(() => {
 			if (++count % 17 === 0) {
 				this._decorationStyles.cleanUp(this._data.iterator());
 			}
-		}));
+		});
+
+		this._disposables = [
+			reg,
+			this._decorationStyles
+		];
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
+		dispose(this._onDidChangeDecorations);
+		dispose(this._onDidChangeDecorationsDelayed);
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {

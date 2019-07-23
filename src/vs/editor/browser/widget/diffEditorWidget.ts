@@ -2027,7 +2027,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
 			config.viewInfo.renderControlCharacters,
-			config.viewInfo.fontLigatures
+			config.viewInfo.fontLigatures,
+			null // Send no selections, original line cannot be selected
 		), sb);
 
 		sb.appendASCIIString('</div>');

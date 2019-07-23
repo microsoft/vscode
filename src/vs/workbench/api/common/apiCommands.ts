@@ -12,7 +12,6 @@ import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenSettings, IURIToOpen, IWindowService } from 'vs/platform/windows/common/windows';
-import { IDownloadService } from 'vs/platform/download/common/download';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IRecent } from 'vs/platform/history/common/history';
 import { Schemas } from 'vs/base/common/network';
@@ -206,9 +205,4 @@ CommandsRegistry.registerCommand({
 			}
 		}]
 	}
-});
-
-CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
-	const downloadService = accessor.get(IDownloadService);
-	return downloadService.download(resource).then(location => URI.file(location));
 });

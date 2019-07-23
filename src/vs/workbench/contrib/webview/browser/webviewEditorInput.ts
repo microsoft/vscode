@@ -9,6 +9,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/common/webview';
+import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
@@ -58,6 +59,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _name: string;
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
+	private readonly _webview: WebviewEditorOverlay;
 
 	constructor(
 		public readonly id: string,
@@ -67,14 +69,14 @@ export class WebviewEditorInput extends EditorInput {
 			readonly location: URI;
 			readonly id: ExtensionIdentifier;
 		},
-		public readonly webview: WebviewEditorOverlay,
+		webview: Unowned<WebviewEditorOverlay>,
 	) {
 		super();
 
 		this._name = name;
 		this.extension = extension;
 
-		this._register(webview); // The input owns this webview
+		this._webview = this._register(webview.acquire()); // The input owns this webview
 	}
 
 	public getTypeId(): string {
@@ -103,6 +105,10 @@ export class WebviewEditorInput extends EditorInput {
 	public setName(value: string): void {
 		this._name = value;
 		this._onDidChangeLabel.fire();
+	}
+
+	public get webview() {
+		return this._webview;
 	}
 
 	public get iconPath() {
@@ -147,7 +153,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 			readonly id: ExtensionIdentifier
 		},
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		webview: WebviewEditorOverlay,
+		webview: Unowned<WebviewEditorOverlay>,
 	) {
 		super(id, viewType, name, extension, webview);
 	}

@@ -399,7 +399,8 @@
 }
 
 .monaco-editor .review-widget .action-item {
-	min-width: 16px;
+	min-width: 18px;
+	min-height: 18px;
 	margin-left: 4px;
 }
 
