@@ -21,6 +21,7 @@ import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEn
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
+
 	private _remoteExtensionsEnvironmentData: IRemoteAgentEnvironment | null;
 
 	constructor(
