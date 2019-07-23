@@ -8,7 +8,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, IWebSocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
@@ -47,7 +47,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	constructor(
 		private readonly _allExtensions: Promise<IExtensionDescription[]>,
 		private readonly _initDataProvider: IInitDataProvider,
-		private readonly _webSocketFactory: IWebSocketFactory,
+		private readonly _socketFactory: ISocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -73,7 +73,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 		const options: IConnectionOptions = {
 			isBuilt: this._environmentService.isBuilt,
 			commit: this._productService.commit,
-			webSocketFactory: this._webSocketFactory,
+			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);

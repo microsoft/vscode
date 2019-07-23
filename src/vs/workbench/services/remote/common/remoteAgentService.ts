@@ -8,7 +8,7 @@ import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platfo
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { Event } from 'vs/base/common/event';
-import { PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistenConnectionEvent as PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const RemoteExtensionLogFileName = 'remoteagent';
 
@@ -16,6 +16,8 @@ export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteA
 
 export interface IRemoteAgentService {
 	_serviceBrand: any;
+
+	readonly socketFactory: ISocketFactory;
 
 	getConnection(): IRemoteAgentConnection | null;
 	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null>;
@@ -27,7 +29,7 @@ export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
 
 	readonly onReconnecting: Event<void>;
-	readonly onDidStateChange: Event<PersistenConnectionEvent>;
+	readonly onDidStateChange: Event<PersistentConnectionEvent>;
 
 	getChannel<T extends IChannel>(channelName: string): T;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
