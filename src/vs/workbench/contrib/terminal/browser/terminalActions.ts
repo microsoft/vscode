@@ -887,6 +887,71 @@ export class ScrollToTopTerminalAction extends Action {
 	}
 }
 
+export class NavigationModeExitTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.exitNavigationMode();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+
+
+export class NavigationModeFocusPreviousTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusPreviousLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class NavigationModeFocusNextTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusNextLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
 export class ClearTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;

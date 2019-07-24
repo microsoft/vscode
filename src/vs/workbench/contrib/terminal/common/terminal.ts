@@ -21,6 +21,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('t
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+/** A context key that is set when the user is navigating the accessibility tree */
+export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
@@ -483,6 +485,8 @@ export interface ITerminalInstance {
 	 */
 	readonly commandTracker: ITerminalCommandTracker;
 
+	readonly navigationMode: INavigationMode | undefined;
+
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
@@ -630,17 +634,6 @@ export interface ITerminalInstance {
 	attachToElement(container: HTMLElement): void;
 
 	/**
-	 * Updates the configuration of the terminal instance.
-	 */
-	updateConfig(): void;
-
-	/**
-	 * Updates the accessibility support state of the terminal instance.
-	 * @param isEnabled Whether it's enabled.
-	 */
-	updateAccessibilitySupport(isEnabled: boolean): void;
-
-	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
@@ -685,6 +678,12 @@ export interface ITerminalCommandTracker {
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
+}
+
+export interface INavigationMode {
+	exitNavigationMode(): void;
+	focusPreviousLine(): void;
+	focusNextLine(): void;
 }
 
 export interface IBeforeProcessDataEvent {
