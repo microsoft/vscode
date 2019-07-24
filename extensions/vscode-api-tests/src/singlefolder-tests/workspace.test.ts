@@ -520,6 +520,20 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('findFiles - null exclude', async () => {
+		await vscode.workspace.findFiles('**/file.txt').then((res) => {
+			// search.exclude folder is still searched, files.exclude folder is not
+			assert.equal(res.length, 1);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+
+		await vscode.workspace.findFiles('**/file.txt', null).then((res) => {
+			// search.exclude and files.exclude folders are both searched
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+	});
+
 	test('findFiles - exclude', () => {
 		return vscode.workspace.findFiles('**/*.png').then((res) => {
 			assert.equal(res.length, 2);
