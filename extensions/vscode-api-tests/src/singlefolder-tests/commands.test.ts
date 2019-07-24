@@ -113,4 +113,31 @@ suite('commands namespace tests', () => {
 
 		return Promise.all([a, b, c, d]);
 	});
+
+	test('onDidExecuteCommand', async function () {
+		let args: any[];
+		let d1 = commands.registerCommand('t1', function () {
+			args = [...arguments];
+		});
+
+
+		const p = new Promise((resolve, reject) => {
+
+			let d2 = commands.onDidExecuteCommand(event => {
+				d2.dispose();
+				d1.dispose();
+
+				try {
+					assert.equal(event.command, 't1');
+					assert.deepEqual(args, event.arguments);
+					resolve();
+				} catch (e) {
+					reject(e);
+				}
+			});
+		});
+
+		await commands.executeCommand('t1', { foo: 1 });
+		await p;
+	});
 });
