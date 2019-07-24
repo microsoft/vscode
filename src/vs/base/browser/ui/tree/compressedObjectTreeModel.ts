@@ -154,8 +154,14 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		}
 
 		const compressedNode = this.nodes.get(element);
+
+		if (!compressedNode) {
+			throw new Error('Unknown compressed tree node');
+		}
+
 		const node = this.model.getNode(compressedNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
-		const parent = node.parent!;
+		const compressedParentNode = this.model.getParentNodeLocation(compressedNode);
+		const parent = this.model.getNode(compressedParentNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
 
 		const decompressedElement = decompress(node);
 		const splicedElement = splice(decompressedElement, element, Iterator.from(children));
@@ -207,11 +213,6 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		}
 
 		return parentNode.elements[parentNode.elements.length - 1];
-	}
-
-	getParentElement(location: T | null): ICompressedTreeNode<T> | null {
-		const compressedNode = this.getCompressedNode(location);
-		return this.model.getParentElement(compressedNode);
 	}
 
 	getFirstElementChild(location: T | null): ICompressedTreeNode<T> | null | undefined {
@@ -285,8 +286,7 @@ function mapNode<T, TFilterData>(compressedNodeMapper: CompressedNodeMapper<T>, 
 	return {
 		...node,
 		element: node.element === null ? null : compressedNodeMapper(node.element),
-		children: node.children.map(child => mapNode(compressedNodeMapper, child)),
-		parent: typeof node.parent === 'undefined' ? node.parent : mapNode(compressedNodeMapper, node.parent)
+		children: node.children.map(child => mapNode(compressedNodeMapper, child))
 	};
 }
 
@@ -382,16 +382,6 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	getParentNodeLocation(location: T | null): T | null {
 		return this.model.getParentNodeLocation(location);
-	}
-
-	getParentElement(location: T | null): T | null {
-		const result = this.model.getParentElement(location);
-
-		if (result === null) {
-			return result;
-		}
-
-		return this.elementMapper(result.elements);
 	}
 
 	getFirstElementChild(location: T | null): T | null | undefined {

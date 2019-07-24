@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ITreeNode, ITreeFilter, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator } from 'vs/base/common/iterator';
-import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel, IIndexTreeNode } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 	return {
@@ -576,7 +576,7 @@ suite('IndexTreeModel', function () {
 	suite('getNodeLocation', function () {
 
 		test('simple', function () {
-			const list: ITreeNode<number>[] = [];
+			const list: IIndexTreeNode<number>[] = [];
 			const model = new IndexTreeModel<number>(toSpliceable(list), -1);
 
 			model.splice([0], 0, Iterator.fromArray([
@@ -600,7 +600,7 @@ suite('IndexTreeModel', function () {
 		});
 
 		test('with filter', function () {
-			const list: ITreeNode<number>[] = [];
+			const list: IIndexTreeNode<number>[] = [];
 			const filter = new class implements ITreeFilter<number> {
 				filter(element: number): TreeVisibility {
 					return element % 2 === 0 ? TreeVisibility.Visible : TreeVisibility.Hidden;

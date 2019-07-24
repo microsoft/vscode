@@ -69,7 +69,6 @@ interface IDataTreeListTemplateData<T> {
 class AsyncDataTreeNodeWrapper<TInput, T, TFilterData> implements ITreeNode<TInput | T, TFilterData> {
 
 	get element(): T { return this.node.element!.element as T; }
-	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new AsyncDataTreeNodeWrapper(this.node.parent); }
 	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new AsyncDataTreeNodeWrapper(node)); }
 	get depth(): number { return this.node.depth; }
 	get visibleChildrenCount(): number { return this.node.visibleChildrenCount; }

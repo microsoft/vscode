@@ -180,11 +180,6 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		}));
 	}
 
-	getParentElement(ref: T | null = null): T | null {
-		const location = this.getElementLocation(ref);
-		return this.model.getParentElement(location);
-	}
-
 	getFirstElementChild(ref: T | null = null): T | null | undefined {
 		const location = this.getElementLocation(ref);
 		return this.model.getFirstElementChild(location);
@@ -252,13 +247,12 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			throw new Error(`Invalid getParentNodeLocation call`);
 		}
 
-		const node = this.nodes.get(element);
+		const node = this.nodes.get(element)!;
+		const location = this.model.getNodeLocation(node);
+		const parentLocation = this.model.getParentNodeLocation(location);
+		const parent = this.model.getNode(parentLocation);
 
-		if (!node) {
-			throw new Error(`Tree element not found: ${element}`);
-		}
-
-		return node.parent!.element;
+		return parent.element;
 	}
 
 	private getElementLocation(element: T | null): number[] {

@@ -82,8 +82,6 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.previous(), null);
 			assert.equal(navigator.next(), 0);
 			assert.equal(navigator.next(), 10);
-			assert.equal(navigator.parent(), 0);
-			assert.equal(navigator.parent(), null);
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
@@ -113,7 +111,6 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.previous(), 0);
 			assert.equal(navigator.previous(), null);
 			assert.equal(navigator.next(), 0);
-			assert.equal(navigator.parent(), null);
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
@@ -148,8 +145,6 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.previous(), null);
 			assert.equal(navigator.next(), 0);
 			assert.equal(navigator.next(), 10);
-			assert.equal(navigator.parent(), 0);
-			assert.equal(navigator.parent(), null);
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
@@ -181,8 +176,6 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.previous(), null);
 			assert.equal(navigator.next(), 0);
 			assert.equal(navigator.next(), 10);
-			assert.equal(navigator.parent(), 0);
-			assert.equal(navigator.parent(), null);
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
@@ -265,4 +258,29 @@ suite('CompressibleObjectTree', function () {
 		const rows = toArray(container.querySelectorAll('.monaco-tl-contents'));
 		assert.equal(rows.length, 0);
 	});
+
+	// test('simple', function () {
+	// 	const container = document.createElement('div');
+	// 	container.style.width = '200px';
+	// 	container.style.height = '200px';
+
+	// 	const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+	// 	tree.layout(200);
+
+	// 	tree.setChildren(null, [
+	// 		{
+	// 			element: 0, children: [
+	// 				{ element: 10 },
+	// 				{ element: 11 },
+	// 				{ element: 12 },
+	// 			]
+	// 		},
+	// 		{ element: 1 },
+	// 		{ element: 2 }
+	// 	]);
+
+	// 	const rows = toArray(container.querySelectorAll('.monaco-tl-contents'));
+	// 	assert.equal(rows.length, 0);
+
+	// });
 });

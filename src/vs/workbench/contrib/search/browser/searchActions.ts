@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
-import { INavigator } from 'vs/base/common/iterator';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -32,6 +31,7 @@ import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/search
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
+import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -450,7 +450,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: INavigator<any> = viewer.navigate(element);
+		const navigator: ITreeNavigator<any> = viewer.navigate(element);
 		if (element instanceof BaseFolderMatch) {
 			while (!!navigator.next() && !(navigator.current() instanceof BaseFolderMatch)) { }
 		} else if (element instanceof FileMatch) {
@@ -464,7 +464,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: INavigator<any> = viewer.navigate(element);
+		const navigator: ITreeNavigator<any> = viewer.navigate(element);
 		let previousElement = navigator.previous();
 
 		// Hence take the previous element.
@@ -616,7 +616,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private getElementToFocusAfterReplace(): Match {
-		const navigator: INavigator<any> = this.viewer.navigate();
+		const navigator: ITreeNavigator<any> = this.viewer.navigate();
 		let fileMatched = false;
 		let elementToFocus: any = null;
 		do {

@@ -81,7 +81,6 @@ export interface ITreeElement<T> {
 
 export interface ITreeNode<T, TFilterData = void> {
 	readonly element: T;
-	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
 	readonly visibleChildrenCount: number;
@@ -113,9 +112,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef;
+	getParentNodeLocation(location: TRef): TRef | undefined;
 
-	getParentElement(location: TRef): T;
 	getFirstElementChild(location: TRef): T | undefined;
 	getLastElementAncestor(location?: TRef): T | undefined;
 
@@ -159,7 +157,6 @@ export interface ITreeContextMenuEvent<T> {
 export interface ITreeNavigator<T> {
 	current(): T | null;
 	previous(): T | null;
-	parent(): T | null;
 	first(): T | null;
 	last(): T | null;
 	next(): T | null;
