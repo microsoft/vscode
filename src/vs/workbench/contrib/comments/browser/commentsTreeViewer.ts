@@ -23,7 +23,7 @@ export class CommentsDataSource implements IDataSource {
 			return `${element.owner}-${element.id}`;
 		}
 		if (element instanceof CommentNode) {
-			return `${element.owner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}`;
+			return `${element.owner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}` + (element.isRoot ? '-root' : '');
 		}
 		return '';
 	}
