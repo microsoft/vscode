@@ -24,7 +24,7 @@ export class DataSource implements IDataSource {
 
 	getId(tree: ITree, element: any): string {
 		if (!element) {
-			return null;
+			return null!;
 		}
 
 		const model = this.modelProvider.getModel();
@@ -33,7 +33,7 @@ export class DataSource implements IDataSource {
 
 	hasChildren(tree: ITree, element: any): boolean {
 		const model = this.modelProvider.getModel();
-		return model && model === element && model.entries.length > 0;
+		return !!(model && model === element && model.entries.length > 0);
 	}
 
 	getChildren(tree: ITree, element: any): Promise<any[]> {
@@ -49,10 +49,10 @@ export class DataSource implements IDataSource {
 export class AccessibilityProvider implements IAccessibilityProvider {
 	constructor(private modelProvider: IModelProvider) { }
 
-	getAriaLabel(tree: ITree, element: any): string {
+	getAriaLabel(tree: ITree, element: any): string | null {
 		const model = this.modelProvider.getModel();
 
-		return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
+		return model.accessibilityProvider ? model.accessibilityProvider.getAriaLabel(element) : null;
 	}
 
 	getPosInSet(tree: ITree, element: any): string {

@@ -49,7 +49,7 @@ export function isStringArray(value: any): value is string[] {
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): boolean {
+export function isObject(obj: any): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
 	// are subclasses of any put not positvely matched by the function. Hence type
 	// narrowing results in wrong results.
@@ -92,7 +92,6 @@ export function isUndefined(obj: any): obj is undefined {
 export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
-
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -143,8 +142,12 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			throw new Error(`argument does not match constraint: typeof ${constraint}`);
 		}
 	} else if (isFunction(constraint)) {
-		if (arg instanceof constraint) {
-			return;
+		try {
+			if (arg instanceof constraint) {
+				return;
+			}
+		} catch{
+			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
 			return;
@@ -156,13 +159,51 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 	}
 }
 
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor: Function, ...args: any[]): any {
-	let obj = Object.create(ctor.prototype);
-	ctor.apply(obj, args);
+export function getAllPropertyNames(obj: object): string[] {
+	let res: string[] = [];
+	let proto = Object.getPrototypeOf(obj);
+	while (Object.prototype !== proto) {
+		res = res.concat(Object.getOwnPropertyNames(proto));
+		proto = Object.getPrototypeOf(proto);
+	}
+	return res;
+}
 
-	return obj;
+export function getAllMethodNames(obj: object): string[] {
+	const methods: string[] = [];
+	for (const prop of getAllPropertyNames(obj)) {
+		if (typeof (obj as any)[prop] === 'function') {
+			methods.push(prop);
+		}
+	}
+	return methods;
+}
+
+export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: any[]) => any): T {
+	const createProxyMethod = (method: string): () => any => {
+		return function () {
+			const args = Array.prototype.slice.call(arguments, 0);
+			return invoke(method, args);
+		};
+	};
+
+	let result = {} as T;
+	for (const methodName of methodNames) {
+		(<any>result)[methodName] = createProxyMethod(methodName);
+	}
+	return result;
+}
+
+/**
+ * Converts null to undefined, passes all other values through.
+ */
+export function withNullAsUndefined<T>(x: T | null): T | undefined {
+	return x === null ? undefined : x;
+}
+
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull<T>(x: T | undefined): T | null {
+	return typeof x === 'undefined' ? null : x;
 }

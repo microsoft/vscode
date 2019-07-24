@@ -5,13 +5,23 @@
 
 exports.base = [{
 	name: 'vs/base/common/worker/simpleWorker',
-	include: [ 'vs/editor/common/services/editorSimpleWorker' ],
-	prepend: [ 'vs/loader.js' ],
-	append: [ 'vs/base/worker/workerMain' ],
+	include: ['vs/editor/common/services/editorSimpleWorker'],
+	prepend: ['vs/loader.js'],
+	append: ['vs/base/worker/workerMain'],
 	dest: 'vs/base/worker/workerMain.js'
 }];
-//@ts-ignore review
+
+exports.serviceWorker = [{
+	name: 'vs/workbench/contrib/resources/browser/resourceServiceWorker',
+	// include: ['vs/editor/common/services/editorSimpleWorker'],
+	prepend: ['vs/loader.js'],
+	append: ['vs/workbench/contrib/resources/browser/resourceServiceWorkerMain'],
+	dest: 'vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js'
+}];
+
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
+exports.workbenchWeb = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.web.api']);
+
 exports.code = require('./vs/code/buildfile').collectModules();
 
 exports.entrypoint = function (name) {

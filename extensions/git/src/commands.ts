@@ -56,7 +56,13 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 			return;
 		}
 
-		await repository.checkoutTracking(this.ref.name);
+		const branches = await repository.findTrackingBranches(this.ref.name);
+
+		if (branches.length > 0) {
+			await repository.checkout(branches[0].name!);
+		} else {
+			await repository.checkoutTracking(this.ref.name);
+		}
 	}
 }
 
@@ -93,7 +99,21 @@ class CreateBranchItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
+	get label(): string { return localize('create branch', '$(plus) Create new branch...'); }
+	get description(): string { return ''; }
+
+	get alwaysShow(): boolean { return true; }
+
+	async run(repository: Repository): Promise<void> {
+		await this.cc.branch(repository);
+	}
+}
+
+class CreateBranchFromItem implements QuickPickItem {
+
+	constructor(private cc: CommandCenter) { }
+
+	get label(): string { return localize('create branch from', '$(plus) Create new branch from...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }
@@ -182,7 +202,7 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 enum PushType {
 	Push,
 	PushTo,
-	PushTags,
+	PushFollowTags,
 }
 
 interface PushOptions {
@@ -467,10 +487,10 @@ export class CommandCenter {
 				(_, token) => this.git.clone(url!, parentPath, token)
 			);
 
-			const choices = [];
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
-			const open = localize('openrepo', "Open Repository");
-			choices.push(open);
+			const open = localize('openrepo', "Open");
+			const openNewWindow = localize('openreponew', "Open in New Window");
+			const choices = [open, openNewWindow];
 
 			const addToWorkspace = localize('add', "Add to Workspace");
 			if (workspace.workspaceFolders) {
@@ -495,6 +515,8 @@ export class CommandCenter {
 				commands.executeCommand('vscode.openFolder', uri);
 			} else if (result === addToWorkspace) {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+			} else if (result === openNewWindow) {
+				commands.executeCommand('vscode.openFolder', uri, true);
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
@@ -579,10 +601,10 @@ export class CommandCenter {
 
 		await this.git.init(repositoryPath);
 
-		const choices = [];
 		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
-		const open = localize('openrepo', "Open Repository");
-		choices.push(open);
+		const open = localize('openrepo', "Open");
+		const openNewWindow = localize('openreponew', "Open in New Window");
+		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
 			return;
@@ -601,6 +623,8 @@ export class CommandCenter {
 			commands.executeCommand('vscode.openFolder', uri);
 		} else if (result === addToWorkspace) {
 			workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+		} else if (result === openNewWindow) {
+			commands.executeCommand('vscode.openFolder', uri, true);
 		} else {
 			await this.model.openRepository(repositoryPath);
 		}
@@ -653,10 +677,11 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				const resources = ([resource, ...resourceStates] as Resource[])
-					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED);
-
-				uris = resources.map(r => r.resourceUri);
+				uris = ([resource, ...resourceStates] as Resource[])
+					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED)
+					.map(r => r.resourceUri);
+			} else if (window.activeTextEditor) {
+				uris = [window.activeTextEditor.document.uri];
 			}
 		}
 
@@ -665,6 +690,7 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
@@ -711,6 +737,8 @@ export class CommandCenter {
 		}
 
 		const HEAD = await this.getLeftResource(resource);
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const title = `${basename} (HEAD)`;
 
 		if (!HEAD) {
 			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
@@ -721,7 +749,7 @@ export class CommandCenter {
 			preview
 		};
 
-		return await commands.executeCommand<void>('vscode.open', HEAD, opts);
+		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
 	@command('git.openChange')
@@ -1087,7 +1115,7 @@ export class CommandCenter {
 
 		if (scmResources.length === 1) {
 			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
 				if (scmResources[0].type === Status.DELETED) {
@@ -1106,7 +1134,7 @@ export class CommandCenter {
 			}
 
 			if (untrackedCount > 0) {
-				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
+				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST.", untrackedCount)}`;
 			}
 		}
 
@@ -1147,7 +1175,7 @@ export class CommandCenter {
 			await repository.clean(resources.map(r => r.resourceUri));
 			return;
 		} else if (resources.length === 1) {
-			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resources[0].resourceUri.fsPath));
 			const yes = localize('delete file', "Delete file");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1419,14 +1447,16 @@ export class CommandCenter {
 			await repository.checkout(treeish);
 			return true;
 		}
-		const createBranch = new CreateBranchItem(this);
 
-		const picks = [createBranch, ...createCheckoutItems(repository)];
+		const createBranch = new CreateBranchItem(this);
+		const createBranchFrom = new CreateBranchFromItem(this);
+		const picks = [createBranch, createBranchFrom, ...createCheckoutItems(repository)];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
 		quickpick.placeholder = placeHolder;
+		quickpick.ignoreFocusOut = true;
 		quickpick.show();
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
@@ -1438,6 +1468,8 @@ export class CommandCenter {
 
 		if (choice === createBranch) {
 			await this._branch(repository, quickpick.value);
+		} else if (choice === createBranchFrom) {
+			await this._branch(repository, quickpick.value, true);
 		} else {
 			await (choice as CheckoutItem).run(repository);
 		}
@@ -1450,7 +1482,12 @@ export class CommandCenter {
 		await this._branch(repository);
 	}
 
-	private async _branch(repository: Repository, defaultName?: string): Promise<void> {
+	@command('git.branchFrom', { repository: true })
+	async branchFrom(repository: Repository): Promise<void> {
+		await this._branch(repository, undefined, true);
+	}
+
+	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
@@ -1458,8 +1495,7 @@ export class CommandCenter {
 			name.trim().replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
-		const rawBranchName = await window.showInputBox({
-			value: defaultName,
+		const rawBranchName = defaultName || await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
 			ignoreFocusOut: true,
@@ -1479,15 +1515,21 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
-		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create a new branch from');
-		const target = await window.showQuickPick(picks, { placeHolder });
+		let target = 'HEAD';
 
-		if (!target) {
-			return;
+		if (from) {
+			const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
+			const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create the \'{0}\' branch from', branchName);
+			const choice = await window.showQuickPick(picks, { placeHolder });
+
+			if (!choice) {
+				return;
+			}
+
+			target = choice.label;
 		}
 
-		await repository.branch(branchName, true, target.label);
+		await repository.branch(branchName, true, target);
 	}
 
 	@command('git.deleteBranch', { repository: true })
@@ -1529,8 +1571,11 @@ export class CommandCenter {
 
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
-		const placeHolder = localize('provide branch name', "Please provide a branch name");
-		const name = await window.showInputBox({ placeHolder });
+		const name = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			value: repository.HEAD && repository.HEAD.name
+		});
 
 		if (!name || name.trim().length === 0) {
 			return;
@@ -1722,10 +1767,8 @@ export class CommandCenter {
 			}
 		}
 
-		if (pushOptions.pushType === PushType.PushTags) {
-			await repository.pushTags(undefined, forcePushMode);
-
-			window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
+		if (pushOptions.pushType === PushType.PushFollowTags) {
+			await repository.pushFollowTags(undefined, forcePushMode);
 			return;
 		}
 
@@ -1782,13 +1825,13 @@ export class CommandCenter {
 	}
 
 	@command('git.pushWithTags', { repository: true })
-	async pushWithTags(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags });
+	async pushFollowTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags });
 	}
 
 	@command('git.pushWithTagsForce', { repository: true })
-	async pushWithTagsForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
+	async pushFollowTagsForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })
@@ -1799,6 +1842,72 @@ export class CommandCenter {
 	@command('git.pushToForce', { repository: true })
 	async pushToForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	}
+
+	@command('git.addRemote', { repository: true })
+	async addRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		const sanitize = (name: string) => {
+			name = name.trim();
+			return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+		};
+
+		const resultName = await window.showInputBox({
+			placeHolder: localize('remote name', "Remote name"),
+			prompt: localize('provide remote name', "Please provide a remote name"),
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (sanitize(name)) {
+					return null;
+				}
+				return localize('remote name format invalid', "Remote name format invalid");
+			}
+		});
+
+		const name = sanitize(resultName || '');
+
+		if (!name) {
+			return;
+		}
+
+		if (remotes.find(r => r.name === name)) {
+			window.showErrorMessage(localize('remote already exists', "Remote '{0}' already exists.", name));
+			return;
+		}
+
+		const url = await window.showInputBox({
+			placeHolder: localize('remote url', "Remote URL"),
+			prompt: localize('provide remote URL', "Enter URL for remote \"{0}\"", name),
+			ignoreFocusOut: true
+		});
+
+		if (!url) {
+			return;
+		}
+
+		await repository.addRemote(name, url);
+	}
+
+	@command('git.removeRemote', { repository: true })
+	async removeRemote(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		if (remotes.length === 0) {
+			window.showErrorMessage(localize('no remotes added', "Your repository has no remotes."));
+			return;
+		}
+
+		const picks = remotes.map(r => r.name);
+		const placeHolder = localize('remove remote', "Pick a remote to remove");
+
+		const remoteName = await window.showQuickPick(picks, { placeHolder });
+
+		if (!remoteName) {
+			return;
+		}
+
+		await repository.removeRemote(remoteName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
@@ -2118,6 +2227,7 @@ export class CommandCenter {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
 		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+
 		for (const r of this.model.repositories.map(r => r.root)) {
 			this.outputChannel.appendLine(`repo root ${r}`);
 		}

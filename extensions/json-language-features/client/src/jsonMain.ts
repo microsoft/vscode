@@ -6,10 +6,12 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
+
 const localize = nls.loadMessageBundle();
 
 import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -81,7 +83,12 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['json', 'jsonc'];
 
-	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem({
+		id: 'status.json.resolveError',
+		name: localize('json.resolveError', "JSON: Schema Resolution Error"),
+		alignment: StatusBarAlignment.Right,
+		priority: 0
+	});
 	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
 	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
@@ -93,6 +100,9 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
 		documentSelector,
+		initializationOptions: {
+			handledSchemaProtocols: ['file'] // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
+		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
 			configurationSection: ['json', 'http'],
@@ -138,11 +148,20 @@ export function activate(context: ExtensionContext) {
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			let uri = Uri.parse(uriPath);
-			return workspace.openTextDocument(uri).then(doc => {
-				return doc.getText();
-			}, error => {
-				return Promise.reject(error);
-			});
+			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+				return workspace.openTextDocument(uri).then(doc => {
+					return doc.getText();
+				}, error => {
+					return Promise.reject(error);
+				});
+			} else {
+				const headers = { 'Accept-Encoding': 'gzip, deflate' };
+				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
+					return response.responseText;
+				}, (error: XHRResponse) => {
+					return Promise.reject(new ResponseError(error.status, error.responseText || getErrorStatusDescription(error.status) || error.toString()));
+				});
+			}
 		});
 
 		let handleContentChange = (uri: Uri) => {
@@ -193,7 +212,13 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+
+		extensions.onDidChange(_ => {
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		});
 	});
+
+
 
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
@@ -225,6 +250,7 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 						}
 						if (fileMatch[0] === '%') {
 							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
+							fileMatch = fileMatch.replace(/%MACHINE_SETTINGS_HOME%/, '/Machine');
 							fileMatch = fileMatch.replace(/%APP_WORKSPACES_HOME%/, '/Workspaces');
 						} else if (fileMatch.charAt(0) !== '/' && !fileMatch.match(/\w+:\/\//)) {
 							fileMatch = '/' + fileMatch;

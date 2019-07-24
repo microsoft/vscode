@@ -30,7 +30,7 @@ for PID in "$@"; do
   fi
 
   PROCESS_BEFORE_TIMES[$ITER]=$PROCESS_TIME_BEFORE
-  ((ITER++))
+  ((++ITER))
 done
 
 # Wait for a second
@@ -56,9 +56,9 @@ for PID in "$@"; do
   PROCESS_TIME_BEFORE=${PROCESS_BEFORE_TIMES[$ITER]}
   let PROCESS_DELTA=$PROCESS_TIME_AFTER-$PROCESS_TIME_BEFORE
   let TOTAL_DELTA=$TOTAL_TIME_AFTER-$TOTAL_TIME_BEFORE
-  CPU_USAGE=`echo "100*$PROCESS_DELTA/$TOTAL_DELTA" | bc -l`
+  CPU_USAGE=`echo "$((100*$PROCESS_DELTA/$TOTAL_DELTA))"`
 
   # Parent script reads from stdout, so echo result to be read
   echo $CPU_USAGE
-  ((ITER++))
+  ((++ITER))
 done

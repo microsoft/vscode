@@ -49,7 +49,7 @@ export const enum Mode {
 export interface IEntryRunContext {
 	event: any;
 	keymods: IKeyMods;
-	quickNavigateConfiguration: IQuickNavigateConfiguration;
+	quickNavigateConfiguration: IQuickNavigateConfiguration | undefined;
 }
 
 export interface IKeyMods {
@@ -59,7 +59,7 @@ export interface IKeyMods {
 
 export interface IDataSource<T> {
 	getId(entry: T): string;
-	getLabel(entry: T): string;
+	getLabel(entry: T): string | null;
 }
 
 /**

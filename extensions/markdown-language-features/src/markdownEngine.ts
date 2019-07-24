@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import { MarkdownIt, Token } from 'markdown-it';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MarkdownContributions } from './markdownExtensions';
+import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
@@ -47,6 +47,11 @@ class TokenCache {
 		};
 		this.tokens = tokens;
 	}
+
+	public clean(): void {
+		this.cachedDocument = undefined;
+		this.tokens = undefined;
+	}
 }
 
 export class MarkdownEngine {
@@ -57,16 +62,21 @@ export class MarkdownEngine {
 	private _tokenCache = new TokenCache();
 
 	public constructor(
-		private readonly extensionPreviewResourceProvider: MarkdownContributions,
+		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly slugifier: Slugifier,
-	) { }
+	) {
+		contributionProvider.onContributionsChanged(() => {
+			// Markdown plugin contributions may have changed
+			this.md = undefined;
+		});
+	}
 
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
 			this.md = import('markdown-it').then(async markdownIt => {
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 
-				for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
+				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
 					} catch {
@@ -131,7 +141,7 @@ export class MarkdownEngine {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
 		return engine.renderer.render(this.tokenize(document, config, engine), {
-			...(await getMarkdownOptions(() => engine)),
+			...(engine as any).options,
 			...config
 		}, {});
 	}
@@ -140,6 +150,10 @@ export class MarkdownEngine {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
 		return this.tokenize(document, config, engine);
+	}
+
+	public cleanCache(): void {
+		this._tokenCache.clean();
 	}
 
 	private getConfig(resource: vscode.Uri): MarkdownItConfig {
@@ -211,7 +225,6 @@ export class MarkdownEngine {
 					return normalizeLink(externalSchemeUri.toString(true));
 				}
 
-
 				// Assume it must be an relative or absolute file path
 				// Use a fake scheme to avoid parse warnings
 				let uri = vscode.Uri.parse(`vscode-resource:${link}`);
@@ -248,7 +261,7 @@ export class MarkdownEngine {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			// support file:// links
-			return validateLink(link) || link.indexOf('file:') === 0;
+			return validateLink(link) || link.startsWith('file:') || /^data:image\/.*?;/.test(link);
 		};
 	}
 
@@ -283,7 +296,6 @@ async function getMarkdownOptions(md: () => MarkdownIt) {
 	return {
 		html: true,
 		highlight: (str: string, lang?: string) => {
-			console.log(123);
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
 			if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
 				lang = 'jsx';

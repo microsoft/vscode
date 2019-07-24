@@ -8,6 +8,7 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { keys } from 'vs/base/common/map';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -40,23 +41,26 @@ export class KeybindingResolver {
 		this._keybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
 		for (let i = 0, len = this._keybindings.length; i < len; i++) {
 			let k = this._keybindings[i];
-			if (k.keypressFirstPart === null) {
+			if (k.keypressParts.length === 0) {
 				// unbound
 				continue;
 			}
 
-			this._addKeyPress(k.keypressFirstPart, k);
+			// TODO@chords
+			this._addKeyPress(k.keypressParts[0], k);
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | null): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | undefined): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
-		if (keypressFirstPart && defaultKb.keypressFirstPart !== keypressFirstPart) {
+		// TODO@chords
+		if (keypressFirstPart && defaultKb.keypressParts[0] !== keypressFirstPart) {
 			return false;
 		}
-		if (keypressChordPart && defaultKb.keypressChordPart !== keypressChordPart) {
+		// TODO@chords
+		if (keypressChordPart && defaultKb.keypressParts[1] !== keypressChordPart) {
 			return false;
 		}
 		if (when) {
@@ -84,8 +88,9 @@ export class KeybindingResolver {
 			}
 
 			const command = override.command.substr(1);
-			const keypressFirstPart = override.keypressFirstPart;
-			const keypressChordPart = override.keypressChordPart;
+			// TODO@chords
+			const keypressFirstPart = override.keypressParts[0];
+			const keypressChordPart = override.keypressParts[1];
 			const when = override.when;
 			for (let j = defaults.length - 1; j >= 0; j--) {
 				if (this._isTargetedForRemoval(defaults[j], keypressFirstPart, keypressChordPart, command, when)) {
@@ -114,10 +119,11 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			const conflictIsChord = (conflict.keypressChordPart !== null);
-			const itemIsChord = (item.keypressChordPart !== null);
+			const conflictIsChord = (conflict.keypressParts.length > 1);
+			const itemIsChord = (item.keypressParts.length > 1);
 
-			if (conflictIsChord && itemIsChord && conflict.keypressChordPart !== item.keypressChordPart) {
+			// TODO@chords
+			if (conflictIsChord && itemIsChord && conflict.keypressParts[1] !== item.keypressParts[1]) {
 				// The conflict only shares the chord start with this command
 				continue;
 			}
@@ -167,7 +173,7 @@ export class KeybindingResolver {
 	 * Returns true if it is provable `a` implies `b`.
 	 * **Precondition**: Assumes `a` and `b` are normalized!
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null, b: ContextKeyExpr | null): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null | undefined, b: ContextKeyExpr | null | undefined): boolean {
 		if (!b) {
 			return true;
 		}
@@ -247,7 +253,8 @@ export class KeybindingResolver {
 			lookupMap = [];
 			for (let i = 0, len = candidates.length; i < len; i++) {
 				let candidate = candidates[i];
-				if (candidate.keypressChordPart === keypress) {
+				// TODO@chords
+				if (candidate.keypressParts[1] === keypress) {
 					lookupMap.push(candidate);
 				}
 			}
@@ -266,7 +273,8 @@ export class KeybindingResolver {
 			return null;
 		}
 
-		if (currentChord === null && result.keypressChordPart !== null) {
+		// TODO@chords
+		if (currentChord === null && result.keypressParts.length > 1 && result.keypressParts[1] !== null) {
 			return {
 				enterChord: true,
 				commandId: null,
@@ -297,7 +305,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}
@@ -307,29 +315,31 @@ export class KeybindingResolver {
 	public static getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
 		const unboundCommands: string[] = [];
 		const seenMap: Map<string, boolean> = new Map<string, boolean>();
-		const addCommand = id => {
+		const addCommand = (id: string, includeCommandWithArgs: boolean) => {
 			if (seenMap.has(id)) {
 				return;
 			}
-			seenMap.set(id);
+			seenMap.set(id, true);
 			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
 				return;
 			}
 			if (boundCommands.get(id) === true) {
 				return;
 			}
-			const command = CommandsRegistry.getCommand(id);
-			if (command && typeof command.description === 'object'
-				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
-				return;
+			if (!includeCommandWithArgs) {
+				const command = CommandsRegistry.getCommand(id);
+				if (command && typeof command.description === 'object'
+					&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
+					return;
+				}
 			}
 			unboundCommands.push(id);
 		};
-		for (const id in MenuRegistry.getCommands()) {
-			addCommand(id);
+		for (const id of keys(MenuRegistry.getCommands())) {
+			addCommand(id, true);
 		}
-		for (const id in CommandsRegistry.getCommands()) {
-			addCommand(id);
+		for (const id of keys(CommandsRegistry.getCommands())) {
+			addCommand(id, false);
 		}
 
 		return unboundCommands;

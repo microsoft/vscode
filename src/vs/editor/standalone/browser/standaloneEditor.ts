@@ -36,6 +36,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -81,6 +83,7 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IStandaloneThemeService),
 			services.get(INotificationService),
 			services.get(IConfigurationService),
+			services.get(IAccessibilityService)
 		);
 	});
 }
@@ -149,15 +152,13 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 	value = value || '';
 
 	if (!language) {
-		let path = uri ? uri.path : null;
-
 		let firstLF = value.indexOf('\n');
 		let firstLine = value;
 		if (firstLF !== -1) {
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
 	}
 	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }
@@ -310,6 +311,13 @@ export function setTheme(themeName: string): void {
 }
 
 /**
+ * Clears all cached font measurements and triggers re-measurement.
+ */
+export function remeasureFonts(): void {
+	clearAllFontInfos();
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -338,11 +346,13 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		tokenize: <any>tokenize,
 		defineTheme: <any>defineTheme,
 		setTheme: <any>setTheme,
+		remeasureFonts: remeasureFonts,
 
 		// enums
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		MinimapPosition: standaloneEnums.MinimapPosition,
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
 		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
 		EndOfLineSequence: standaloneEnums.EndOfLineSequence,

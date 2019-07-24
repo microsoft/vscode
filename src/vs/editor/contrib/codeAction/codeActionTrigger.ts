@@ -5,6 +5,7 @@
 
 import { startsWith } from 'vs/base/common/strings';
 import { CodeAction } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -14,13 +15,18 @@ export class CodeActionKind {
 	public static readonly Refactor = new CodeActionKind('refactor');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = new CodeActionKind('source.organizeImports');
+	public static readonly SourceFixAll = new CodeActionKind('source.fixAll');
 
 	constructor(
 		public readonly value: string
 	) { }
 
+	public equals(other: CodeActionKind): boolean {
+		return this.value === other.value;
+	}
+
 	public contains(other: CodeActionKind): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.equals(other) || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 
 	public intersects(other: CodeActionKind): boolean {
@@ -31,7 +37,6 @@ export class CodeActionKind {
 export const enum CodeActionAutoApply {
 	IfSingle,
 	First,
-	Preferred,
 	Never,
 }
 
@@ -86,4 +91,8 @@ export interface CodeActionTrigger {
 	readonly type: 'auto' | 'manual';
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
+	readonly context?: {
+		readonly notAvailableMessage: string;
+		readonly position: Position;
+	};
 }

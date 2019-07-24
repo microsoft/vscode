@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -22,12 +22,13 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
-import { listFocusBackground, pickerGroupBorder, pickerGroupForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listFocusBackground, pickerGroupBorder, pickerGroupForeground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -220,6 +221,7 @@ export class QuickInputList {
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
 	matchOnDetail = false;
+	matchOnLabel = true;
 	private _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
@@ -248,8 +250,9 @@ export class QuickInputList {
 			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
-			multipleSelectionSupport: false
-		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
+			multipleSelectionSupport: false,
+			horizontalScrolling: false
+		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
@@ -396,6 +399,9 @@ export class QuickInputList {
 		this.list.setFocus(items
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)!));
+		if (items.length > 0) {
+			this.list.reveal(this.list.getFocus()[0]);
+		}
 	}
 
 	getActiveDescendant() {
@@ -450,7 +456,7 @@ export class QuickInputList {
 			what = 'Last';
 		}
 
-		this.list['focus' + what]();
+		(this.list as any)['focus' + what]();
 		this.list.reveal(this.list.getFocus()[0]);
 	}
 
@@ -467,6 +473,9 @@ export class QuickInputList {
 	}
 
 	filter(query: string) {
+		if (!(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+			return;
+		}
 		query = query.trim();
 
 		// Reset filtering
@@ -484,9 +493,9 @@ export class QuickInputList {
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel)) || undefined;
-				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) || undefined : undefined;
-				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) || undefined : undefined;
+				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel))) : undefined;
+				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || ''))) : undefined;
+				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || ''))) : undefined;
 
 				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
@@ -586,6 +595,13 @@ registerThemingParticipant((theme, collector) => {
 	if (listInactiveFocusBackground) {
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackground}; }`);
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackground}; }`);
+	}
+	const activeContrast = theme.getColor(activeContrastBorder);
+	if (activeContrast) {
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { border: 1px dotted ${activeContrast}; }`);
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row { border: 1px solid transparent; }`);
+		collector.addRule(`.quick-input-list .monaco-list .quick-input-list-entry { padding: 0 5px; height: 18px; align-items: center; }`);
+		collector.addRule(`.quick-input-list .monaco-list .quick-input-list-entry-action-bar { margin-top: 0; }`);
 	}
 	const pickerGroupBorderColor = theme.getColor(pickerGroupBorder);
 	if (pickerGroupBorderColor) {

@@ -8,7 +8,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -25,13 +25,13 @@ import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameter
 
 const $ = dom.$;
 
-export class ParameterHintsWidget implements IContentWidget, IDisposable {
+export class ParameterHintsWidget extends Disposable implements IContentWidget, IDisposable {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
 	private readonly markdownRenderer: MarkdownRenderer;
-	private renderDisposeables: IDisposable[];
-	private model: ParameterHintsModel | null;
+	private readonly renderDisposeables = this._register(new DisposableStore());
+	private readonly model = this._register(new MutableDisposable<ParameterHintsModel>());
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
@@ -41,25 +41,24 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private visible: boolean;
 	private announcedLabel: string | null;
 	private scrollbar: DomScrollableElement;
-	private disposables: IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IModeService modeService: IModeService,
 	) {
-		this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
-		this.model = new ParameterHintsModel(editor);
+		super();
+		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.model.value = new ParameterHintsModel(editor);
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 		this.visible = false;
-		this.disposables = [];
 
-		this.disposables.push(this.model.onChangedHints(newParameterHints => {
+		this._register(this.model.value.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
 				this.render(newParameterHints);
@@ -72,22 +71,23 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private createParamaterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
+		wrapper.tabIndex = -1;
 
 		const buttons = dom.append(wrapper, $('.buttons'));
 		const previous = dom.append(buttons, $('.button.previous'));
 		const next = dom.append(buttons, $('.button.next'));
 
 		const onPreviousClick = stop(domEvent(previous, 'click'));
-		onPreviousClick(this.previous, this, this.disposables);
+		this._register(onPreviousClick(this.previous, this));
 
 		const onNextClick = stop(domEvent(next, 'click'));
-		onNextClick(this.next, this, this.disposables);
+		this._register(onNextClick(this.next, this));
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
 		const body = $('.body');
 		this.scrollbar = new DomScrollableElement(body, {});
-		this.disposables.push(this.scrollbar);
+		this._register(this.scrollbar);
 		wrapper.appendChild(this.scrollbar.getDomNode());
 
 		this.signature = dom.append(body, $('.signature'));
@@ -98,7 +98,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.hide();
 
 		this.element.style.userSelect = 'text';
-		this.disposables.push(this.editor.onDidChangeCursorSelection(e => {
+		this._register(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);
 			}
@@ -111,11 +111,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		updateFont();
 
-		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		this._register(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
-			.on(updateFont, null, this.disposables);
+			.on(updateFont, null));
 
-		this.disposables.push(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
+		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();
 	}
 
@@ -189,8 +189,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			this.renderParameters(code, signature, hints.activeParameter);
 		}
 
-		dispose(this.renderDisposeables);
-		this.renderDisposeables = [];
+		this.renderDisposeables.clear();
 
 		const activeParameter = signature.parameters[hints.activeParameter];
 
@@ -201,7 +200,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			} else {
 				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
 				dom.addClass(renderedContents.element, 'markdown-docs');
-				this.renderDisposeables.push(renderedContents);
+				this.renderDisposeables.add(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.docs, $('p', {}, documentation));
@@ -215,7 +214,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		} else {
 			const renderedContents = this.markdownRenderer.render(signature.documentation);
 			dom.addClass(renderedContents.element, 'markdown-docs');
-			this.renderDisposeables.push(renderedContents);
+			this.renderDisposeables.add(renderedContents);
 			dom.append(this.docs, renderedContents.element);
 		}
 
@@ -283,22 +282,22 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	next(): void {
-		if (this.model) {
+		if (this.model.value) {
 			this.editor.focus();
-			this.model.next();
+			this.model.value.next();
 		}
 	}
 
 	previous(): void {
-		if (this.model) {
+		if (this.model.value) {
 			this.editor.focus();
-			this.model.previous();
+			this.model.value.previous();
 		}
 	}
 
 	cancel(): void {
-		if (this.model) {
-			this.model.cancel();
+		if (this.model.value) {
+			this.model.value.cancel();
 		}
 	}
 
@@ -311,24 +310,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	trigger(context: TriggerContext): void {
-		if (this.model) {
-			this.model.trigger(context, 0);
+		if (this.model.value) {
+			this.model.value.trigger(context, 0);
 		}
 	}
 
 	private updateMaxHeight(): void {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		this.element.style.maxHeight = `${height}px`;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this.renderDisposeables = dispose(this.renderDisposeables);
-
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
-		}
 	}
 }
 

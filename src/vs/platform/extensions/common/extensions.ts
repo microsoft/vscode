@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 
@@ -111,22 +108,11 @@ export interface IExtensionContributions {
 
 export type ExtensionKind = 'ui' | 'workspace';
 
-export class ExtensionIdentifierWithVersion {
-	constructor(
-		readonly identifier: IExtensionIdentifier,
-		readonly version: string
-	) { }
-
-	key(): string {
-		return `${this.identifier.id}-${this.version}`;
-	}
-
-	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
-			return false;
-		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
-	}
+export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.id === 'string'
+		&& (!thing.uuid || typeof thing.uuid === 'string');
 }
 
 export interface IExtensionIdentifier {
@@ -153,6 +139,8 @@ export interface IExtensionManifest {
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };
 	readonly enableProposedApi?: boolean;
+	readonly api?: string;
+	readonly scripts?: { [key: string]: string; };
 }
 
 export const enum ExtensionType {
@@ -165,39 +153,6 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
-}
-
-const uiExtensions = new Set<string>();
-uiExtensions.add('msjsdiag.debugger-for-chrome');
-
-export function isUIExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
-	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const configuredUIExtensions = configurationService.getValue<string[]>('_workbench.uiExtensions') || [];
-	if (configuredUIExtensions.length) {
-		if (configuredUIExtensions.indexOf(extensionId) !== -1) {
-			return true;
-		}
-		if (configuredUIExtensions.indexOf(`-${extensionId}`) !== -1) {
-			return false;
-		}
-	}
-	switch (manifest.extensionKind) {
-		case 'ui': return true;
-		case 'workspace': return false;
-		default: {
-			if (uiExtensions.has(extensionId)) {
-				return true;
-			}
-			if (manifest.main) {
-				return false;
-			}
-			if (manifest.contributes && isNonEmptyArray(manifest.contributes.debuggers)) {
-				return false;
-			}
-			// Default is UI Extension
-			return true;
-		}
-	}
 }
 
 /**
@@ -253,4 +208,17 @@ export class ExtensionIdentifier {
 		}
 		return id._lower;
 	}
+}
+
+export interface IExtensionDescription extends IExtensionManifest {
+	readonly identifier: ExtensionIdentifier;
+	readonly uuid?: string;
+	readonly isBuiltin: boolean;
+	readonly isUnderDevelopment: boolean;
+	readonly extensionLocation: URI;
+	enableProposedApi?: boolean;
+}
+
+export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
+	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }

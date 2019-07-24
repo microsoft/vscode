@@ -260,7 +260,7 @@ export class Color {
 	}
 
 	readonly rgba: RGBA;
-	private _hsla: HSLA;
+	private _hsla?: HSLA;
 	get hsla(): HSLA {
 		if (this._hsla) {
 			return this._hsla;
@@ -269,7 +269,7 @@ export class Color {
 		}
 	}
 
-	private _hsva: HSVA;
+	private _hsva?: HSVA;
 	get hsva(): HSVA {
 		if (this._hsva) {
 			return this._hsva;
@@ -387,7 +387,7 @@ export class Color {
 		const thisA = this.rgba.a;
 		const colorA = rgba.a;
 
-		let a = thisA + colorA * (1 - thisA);
+		const a = thisA + colorA * (1 - thisA);
 		if (a < 1e-6) {
 			return Color.transparent;
 		}
@@ -397,22 +397,6 @@ export class Color {
 		const b = this.rgba.b * thisA / a + rgba.b * colorA * (1 - thisA) / a;
 
 		return new Color(new RGBA(r, g, b, a));
-	}
-
-	blend2(c: Color): Color {
-		const otherRgba = c.rgba;
-
-		// Convert to 0..1 opacity
-		const thisA = this.rgba.a;
-		const otherA = otherRgba.a;
-
-		const totalA = thisA + otherA;
-
-		const r = this.rgba.r * thisA / totalA + otherRgba.r * otherA / totalA;
-		const g = this.rgba.g * thisA / totalA + otherRgba.g * otherA / totalA;
-		const b = this.rgba.b * thisA / totalA + otherRgba.b * otherA / totalA;
-
-		return new Color(new RGBA(r, g, b, 1));
 	}
 
 	flatten(...backgrounds: Color[]): Color {

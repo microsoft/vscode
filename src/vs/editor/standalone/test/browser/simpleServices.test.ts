@@ -39,9 +39,10 @@ suite('StandaloneKeybindingService', () => {
 		let commandInvoked = false;
 		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
 			commandInvoked = true;
-		}, null);
+		}, undefined);
 
 		keybindingService.testDispatch({
+			_standardKeyboardEventBrand: true,
 			ctrlKey: false,
 			shiftKey: false,
 			altKey: false,

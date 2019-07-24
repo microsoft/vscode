@@ -56,6 +56,21 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	}
 }
 
+// for a while we allowed uris *without* schemes and this is the migration
+// for them, e.g. an uri without scheme and without strict-mode warns and falls
+// back to the file-scheme. that should cause the least carnage and still be a
+// clear warning
+function _schemeFix(scheme: string, _strict: boolean): string {
+	if (_strict || _throwOnMissingSchema) {
+		return scheme || _empty;
+	}
+	if (!scheme) {
+		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
+		scheme = 'file';
+	}
+	return scheme;
+}
+
 // implements a bit of https://tools.ietf.org/html/rfc3986#section-5
 function _referenceResolution(scheme: string, path: string): string {
 
@@ -154,7 +169,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean) {
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict: boolean = false) {
 
 		if (typeof schemeOrData === 'object') {
 			this.scheme = schemeOrData.scheme || _empty;
@@ -166,7 +181,7 @@ export class URI implements UriComponents {
 			// that creates uri components.
 			// _validateUri(this);
 		} else {
-			this.scheme = schemeOrData || _empty;
+			this.scheme = _schemeFix(schemeOrData, _strict);
 			this.authority = authority || _empty;
 			this.path = _referenceResolution(this.scheme, path || _empty);
 			this.query = query || _empty;
@@ -211,7 +226,7 @@ export class URI implements UriComponents {
 
 	// ---- modify to new -------------------------
 
-	public with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
+	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
 
 		if (!change) {
 			return this;
@@ -264,7 +279,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	public static parse(value: string, _strict: boolean = false): URI {
+	static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
 			return new _URI(_empty, _empty, _empty, _empty, _empty);
@@ -300,7 +315,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param path A file system path (see `URI#fsPath`)
 	 */
-	public static file(path: string): URI {
+	static file(path: string): URI {
 
 		let authority = _empty;
 
@@ -314,7 +329,7 @@ export class URI implements UriComponents {
 		// check for authority as used in UNC shares
 		// or use the path as given
 		if (path[0] === _slash && path[1] === _slash) {
-			let idx = path.indexOf(_slash, 2);
+			const idx = path.indexOf(_slash, 2);
 			if (idx === -1) {
 				authority = path.substring(2);
 				path = _slash;
@@ -327,7 +342,7 @@ export class URI implements UriComponents {
 		return new _URI('file', authority, path, _empty, _empty);
 	}
 
-	public static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
+	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
 		return new _URI(
 			components.scheme,
 			components.authority,
@@ -350,23 +365,27 @@ export class URI implements UriComponents {
 	 *
 	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
-	public toString(skipEncoding: boolean = false): string {
+	toString(skipEncoding: boolean = false): string {
 		return _asFormatted(this, skipEncoding);
 	}
 
-	public toJSON(): object {
+	toJSON(): UriComponents {
 		return this;
 	}
 
-	static revive(data: UriComponents | any): URI {
+	static revive(data: UriComponents | URI): URI;
+	static revive(data: UriComponents | URI | undefined): URI | undefined;
+	static revive(data: UriComponents | URI | null): URI | null;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null {
 		if (!data) {
 			return data;
 		} else if (data instanceof URI) {
 			return data;
 		} else {
-			let result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
+			const result = new _URI(data);
 			result._formatted = (<UriState>data).external;
+			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
 			return result;
 		}
 	}
@@ -382,10 +401,12 @@ export interface UriComponents {
 
 interface UriState extends UriComponents {
 	$mid: number;
-	fsPath: string;
 	external: string;
+	fsPath: string;
+	_sep: 1 | undefined;
 }
 
+const _pathSepMarker = isWindows ? 1 : undefined;
 
 // tslint:disable-next-line:class-name
 class _URI extends URI {
@@ -400,7 +421,7 @@ class _URI extends URI {
 		return this._fsPath;
 	}
 
-	public toString(skipEncoding: boolean = false): string {
+	toString(skipEncoding: boolean = false): string {
 		if (!skipEncoding) {
 			if (!this._formatted) {
 				this._formatted = _asFormatted(this, false);
@@ -412,13 +433,14 @@ class _URI extends URI {
 		}
 	}
 
-	toJSON(): object {
+	toJSON(): UriComponents {
 		const res = <UriState>{
 			$mid: 1
 		};
 		// cached state
 		if (this._fsPath) {
 			res.fsPath = this._fsPath;
+			res._sep = _pathSepMarker;
 		}
 		if (this._formatted) {
 			res.external = this._formatted;
@@ -473,7 +495,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 	let nativeEncodePos = -1;
 
 	for (let pos = 0; pos < uriComponent.length; pos++) {
-		let code = uriComponent.charCodeAt(pos);
+		const code = uriComponent.charCodeAt(pos);
 
 		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
 		if (
@@ -503,7 +525,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 			}
 
 			// check with default table first
-			let escaped = encodeTable[code];
+			const escaped = encodeTable[code];
 			if (escaped !== undefined) {
 
 				// check if we are delaying native encode
@@ -532,7 +554,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 function encodeURIComponentMinimal(path: string): string {
 	let res: string | undefined = undefined;
 	for (let pos = 0; pos < path.length; pos++) {
-		let code = path.charCodeAt(pos);
+		const code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
 			if (res === undefined) {
 				res = path.substr(0, pos);
@@ -622,12 +644,12 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	if (path) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
-			let code = path.charCodeAt(1);
+			const code = path.charCodeAt(1);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
 			}
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
-			let code = path.charCodeAt(0);
+			const code = path.charCodeAt(0);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
 			}

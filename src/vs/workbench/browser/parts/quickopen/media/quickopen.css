@@ -15,10 +15,10 @@
 }
 
 .vs .monaco-workbench .monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.dirty {
-	background-image: url('dirty.svg');
+	background-image: url('dirty-light.svg');
 }
 
 .hc-black .monaco-workbench .monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.dirty,
 .vs-dark .monaco-workbench .monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.dirty {
-	background-image: url('dirty-inverse.svg');
+	background-image: url('dirty-dark.svg');
 }

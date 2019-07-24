@@ -7,10 +7,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as jsonc from 'jsonc-parser';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
+import { Disposable } from '../utils/dispose';
 
 
 const localize = nls.loadMessageBundle();
@@ -70,6 +72,12 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	public resolveTask(_task: vscode.Task): vscode.Task | undefined {
+		const definition = <TypeScriptTaskDefinition>_task.definition;
+		const badTsconfig = '\\tsconfig.json';
+		if ((definition.tsconfig.length > badTsconfig.length) && (definition.tsconfig.substring(definition.tsconfig.length - badTsconfig.length, definition.tsconfig.length) === badTsconfig)) {
+			// Warn that the task has the wrong slash type
+			vscode.window.showWarningMessage(localize('badTsConfig', "Typescript Task in tasks.json contains \"\\\\\". Typescript tasks must use \"/\""));
+		}
 		return undefined;
 	}
 
@@ -94,6 +102,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				const uri = editor.document.uri;
 				return [{
 					path: uri.fsPath,
+					posixPath: uri.path,
 					workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)
 				}];
 			}
@@ -119,6 +128,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			const folder = vscode.workspace.getWorkspaceFolder(uri);
 			return [{
 				path: normalizedConfigPath,
+				posixPath: uri.path,
 				workspaceFolder: folder
 			}];
 		}
@@ -197,7 +207,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['--watch', ...args]),
+				new vscode.ShellExecution(command, [...args, '--watch']),
 				'$tsc-watch');
 			watchTask.group = vscode.TaskGroup.Build;
 			watchTask.isBackground = true;
@@ -216,7 +226,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				}
 
 				try {
-					const tsconfig = JSON.parse(result.toString());
+					const tsconfig = jsonc.parse(result.toString());
 					if (tsconfig.references) {
 						return resolve(['-b', project.path]);
 					}
@@ -230,9 +240,11 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
-			return path.relative(project.workspaceFolder.uri.fsPath, project.path);
+			const workspaceNormalizedUri = vscode.Uri.file(path.normalize(project.workspaceFolder.uri.fsPath)); // Make sure the drive letter is lowercase
+			return path.posix.relative(workspaceNormalizedUri.path, project.posixPath);
 		}
-		return project.path;
+
+		return project.posixPath;
 	}
 
 	private onConfigurationChanged(): void {
@@ -244,23 +256,24 @@ class TscTaskProvider implements vscode.TaskProvider {
 /**
  * Manages registrations of TypeScript task providers with VS Code.
  */
-export default class TypeScriptTaskProviderManager {
+export default class TypeScriptTaskProviderManager extends Disposable {
 	private taskProviderSub: vscode.Disposable | undefined = undefined;
-	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
-		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
+		super();
+		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this._disposables);
 		this.onConfigurationChanged();
 	}
 
 	dispose() {
+		super.dispose();
+
 		if (this.taskProviderSub) {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
 		}
-		this.disposables.forEach(x => x.dispose());
 	}
 
 	private onConfigurationChanged() {

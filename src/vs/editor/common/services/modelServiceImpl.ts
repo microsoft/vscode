@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -30,7 +30,7 @@ class ModelData implements IDisposable {
 	private _languageSelection: ILanguageSelection | null;
 	private _languageSelectionListener: IDisposable | null;
 
-	private _modelEventListeners: IDisposable[];
+	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
 		model: ITextModel,
@@ -42,9 +42,8 @@ class ModelData implements IDisposable {
 		this._languageSelection = null;
 		this._languageSelectionListener = null;
 
-		this._modelEventListeners = [];
-		this._modelEventListeners.push(model.onWillDispose(() => onWillDispose(model)));
-		this._modelEventListeners.push(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
+		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+		this._modelEventListeners.add(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
 	private _disposeLanguageSelection(): void {
@@ -59,7 +58,7 @@ class ModelData implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._modelEventListeners = dispose(this._modelEventListeners);
+		this._modelEventListeners.dispose();
 		this._disposeLanguageSelection();
 	}
 
@@ -73,6 +72,7 @@ class ModelData implements IDisposable {
 
 interface IRawEditorConfig {
 	tabSize?: any;
+	indentSize?: any;
 	insertSpaces?: any;
 	detectIndentation?: any;
 	trimAutoWhitespace?: any;
@@ -90,9 +90,9 @@ const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLin
 export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: any;
 
-	private _configurationService: IConfigurationService;
-	private _configurationServiceSubscription: IDisposable;
-	private _resourcePropertiesService: ITextResourcePropertiesService;
+	private readonly _configurationService: IConfigurationService;
+	private readonly _configurationServiceSubscription: IDisposable;
+	private readonly _resourcePropertiesService: ITextResourcePropertiesService;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelAdded: Event<ITextModel> = this._onModelAdded.event;
@@ -110,7 +110,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	/**
 	 * All the models known in the system.
 	 */
-	private _models: { [modelId: string]: ModelData; };
+	private readonly _models: { [modelId: string]: ModelData; };
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -135,6 +135,17 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			}
 			if (tabSize < 1) {
 				tabSize = 1;
+			}
+		}
+
+		let indentSize = tabSize;
+		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
+			let parsedIndentSize = parseInt(config.editor.indentSize, 10);
+			if (!isNaN(parsedIndentSize)) {
+				indentSize = parsedIndentSize;
+			}
+			if (indentSize < 1) {
+				indentSize = 1;
 			}
 		}
 
@@ -169,6 +180,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return {
 			isForSimpleWidget: isForSimpleWidget,
 			tabSize: tabSize,
+			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
@@ -177,7 +189,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string, resource: URI | null | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
+	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
@@ -210,6 +222,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
 			&& (currentOptions.tabSize === newOptions.tabSize)
+			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
 		) {
 			// Same indent opts, no need to touch the model
@@ -225,6 +238,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
 				tabSize: newOptions.tabSize,
+				indentSize: newOptions.indentSize,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
 			});
 		}
@@ -237,7 +251,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | null | undefined, isForSimpleWidget: boolean): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
@@ -328,7 +342,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI | null | undefined, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (languageSelection) {

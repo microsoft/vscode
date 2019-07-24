@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -29,7 +30,17 @@ export interface ITelemetryService {
 	 */
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
 
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
+
+	setEnabled(value: boolean): void;
+
 	getTelemetryInfo(): Promise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
 }
+
+// Keys
+export const instanceStorageKey = 'telemetry.instanceId';
+export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
+export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
+export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';

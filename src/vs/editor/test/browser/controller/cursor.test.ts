@@ -710,7 +710,8 @@ suite('Editor Controller - Cursor', () => {
 			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
-				mouseColumn: 15
+				mouseColumn: 15,
+				setAnchorIfNotSet: false
 			});
 
 			let expectedSelections = [
@@ -745,7 +746,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 
 		assertCursor(cursor, [
@@ -784,7 +786,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -802,7 +805,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -2052,7 +2056,7 @@ suite('Editor Controller - Regression tests', () => {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(null!, state);
+				return new TokenizationResult2(new Uint32Array(0), state);
 			}
 		};
 
@@ -2212,6 +2216,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n'),
 			{
 				tabSize: 13,
+				indentSize: 13,
 			}
 		);
 
@@ -3122,7 +3127,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 2 }
+			modelOpts: {
+				tabSize: 2,
+				indentSize: 2
+			}
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3594,7 +3602,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ tabSize: 2 },
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
 			mode.getLanguageIdentifier()
 		);
 

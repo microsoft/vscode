@@ -83,8 +83,21 @@ export interface IConfigurationRegistry {
 }
 
 export const enum ConfigurationScope {
+	/**
+	 * Application specific configuration, which can be configured only in local user settings.
+	 */
 	APPLICATION = 1,
+	/**
+	 * Machine specific configuration, which can be configured only in local and remote user settings.
+	 */
+	MACHINE,
+	/**
+	 * Window specific configuration, which can be configured in the user or workspace settings.
+	 */
 	WINDOW,
+	/**
+	 * Resource specific configuration, which can be configured in the user, workspace or folder settings.
+	 */
 	RESOURCE,
 }
 
@@ -93,6 +106,10 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 	included?: boolean;
 	tags?: string[];
+}
+
+export interface IConfigurationExtensionInfo {
+	id: string;
 }
 
 export interface IConfigurationNode {
@@ -105,7 +122,7 @@ export interface IConfigurationNode {
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
 	scope?: ConfigurationScope;
-	contributedByExtension?: boolean;
+	extensionInfo?: IConfigurationExtensionInfo;
 }
 
 export interface IDefaultConfigurationExtension {
@@ -114,10 +131,13 @@ export interface IDefaultConfigurationExtension {
 	defaults: { [key: string]: {} };
 }
 
-export const allSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
-export const applicationSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
-export const windowSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
-export const resourceSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
+type SettingProperties = { [key: string]: any };
+
+export const allSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const applicationSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const machineSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const windowSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const resourceSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -185,6 +205,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					switch (configuration.properties[key].scope) {
 						case ConfigurationScope.APPLICATION:
 							delete applicationSettings.properties[key];
+							break;
+						case ConfigurationScope.MACHINE:
+							delete machineSettings.properties[key];
 							break;
 						case ConfigurationScope.WINDOW:
 							delete windowSettings.properties[key];
@@ -334,6 +357,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						case ConfigurationScope.APPLICATION:
 							applicationSettings.properties[key] = properties[key];
 							break;
+						case ConfigurationScope.MACHINE:
+							machineSettings.properties[key] = properties[key];
+							break;
 						case ConfigurationScope.WINDOW:
 							windowSettings.properties[key] = properties[key];
 							break;
@@ -371,6 +397,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		delete allSettings.patternProperties[this.overridePropertyPattern];
 		delete applicationSettings.patternProperties[this.overridePropertyPattern];
+		delete machineSettings.patternProperties[this.overridePropertyPattern];
 		delete windowSettings.patternProperties[this.overridePropertyPattern];
 		delete resourceSettings.patternProperties[this.overridePropertyPattern];
 
@@ -378,6 +405,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		allSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+		machineSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 
@@ -442,13 +470,13 @@ export function validateProperty(property: string): string | null {
 	return null;
 }
 
-export function getScopes(): { [key: string]: ConfigurationScope } {
-	const scopes = {};
+export function getScopes(): [string, ConfigurationScope | undefined][] {
+	const scopes: [string, ConfigurationScope | undefined][] = [];
 	const configurationProperties = configurationRegistry.getConfigurationProperties();
 	for (const key of Object.keys(configurationProperties)) {
-		scopes[key] = configurationProperties[key].scope;
+		scopes.push([key, configurationProperties[key].scope]);
 	}
-	scopes['launch'] = ConfigurationScope.RESOURCE;
-	scopes['task'] = ConfigurationScope.RESOURCE;
+	scopes.push(['launch', ConfigurationScope.RESOURCE]);
+	scopes.push(['task', ConfigurationScope.RESOURCE]);
 	return scopes;
 }

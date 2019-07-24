@@ -8,22 +8,24 @@ import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { keys } from 'vs/base/common/map';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandEvent {
 	commandId: string;
+	args: any[];
 }
 
 export interface ICommandService {
 	_serviceBrand: any;
 	onWillExecuteCommand: Event<ICommandEvent>;
+	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 
-export interface ICommandsMap {
-	[id: string]: ICommand;
-}
+export type ICommandsMap = Map<string, ICommand>;
 
 export interface ICommandHandler {
 	(accessor: ServicesAccessor, ...args: any[]): void;
@@ -37,7 +39,7 @@ export interface ICommand {
 
 export interface ICommandHandlerDescription {
 	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
+	args: { name: string; description?: string; constraint?: TypeConstraint; schema?: IJSONSchema; }[];
 	returns?: string;
 }
 
@@ -121,10 +123,13 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	getCommands(): ICommandsMap {
-		const result: ICommandsMap = Object.create(null);
-		this._commands.forEach((value, key) => {
-			result[key] = this.getCommand(key)!;
-		});
+		const result = new Map<string, ICommand>();
+		for (const key of keys(this._commands)) {
+			const command = this.getCommand(key);
+			if (command) {
+				result.set(key, command);
+			}
+		}
 		return result;
 	}
 };
@@ -132,7 +137,8 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	executeCommand<T = any>() {
-		return Promise.resolve<T>(undefined);
+	onDidExecuteCommand: () => ({ dispose: () => { } }),
+	executeCommand() {
+		return Promise.resolve(undefined);
 	}
 };

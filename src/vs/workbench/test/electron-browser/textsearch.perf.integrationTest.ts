@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
+import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
-import * as path from 'path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import * as path from 'vs/base/common/path';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -26,13 +26,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
+import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 declare var __dirname: string;
 
@@ -68,7 +69,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));
 
@@ -97,15 +98,15 @@ suite.skip('TextSearch performance (integration)', () => {
 
 					telemetryService.events = [];
 
-					resolve(resultsFinishedEvent);
+					resolve!(resultsFinishedEvent);
 				} catch (e) {
 					// Fail the runSearch() promise
-					error(e);
+					error!(e);
 				}
 			}
 
-			let resolve;
-			let error;
+			let resolve: (result: any) => void;
+			let error: (error: Error) => void;
 			return new Promise((_resolve, _error) => {
 				resolve = _resolve;
 				error = _error;
@@ -122,7 +123,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
 					let i = n;
-					return (function iterate() {
+					return (function iterate(): Promise<undefined> | undefined {
 						if (!i--) {
 							return;
 						}
@@ -133,11 +134,12 @@ suite.skip('TextSearch performance (integration)', () => {
 								finishedEvents.push(resultsFinishedEvent);
 								return iterate();
 							});
-					})().then(() => {
+					})()!.then(() => {
 						const totalTime = finishedEvents.reduce((sum, e) => sum + e.data.duration, 0);
 						console.log(`Avg duration: ${totalTime / n / 1000}s`);
 					});
 				}
+				return undefined;
 			});
 	});
 });
@@ -154,11 +156,18 @@ class TestTelemetryService implements ITelemetryService {
 		return this.emitter.event;
 	}
 
+	public setEnabled(value: boolean): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
 		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

@@ -17,7 +17,14 @@ function yarnInstall(location, opts) {
 	opts.cwd = location;
 	opts.stdio = 'inherit';
 
-	const result = cp.spawnSync(yarn, ['install'], opts);
+	const raw = process.env['npm_config_argv'] || '{}';
+	const argv = JSON.parse(raw);
+	const original = argv.original || [];
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+
+	console.log(`Installing dependencies in ${location}...`);
+	console.log(`$ yarn ${args.join(' ')}`);
+	const result = cp.spawnSync(yarn, args, opts);
 
 	if (result.error || result.status !== 0) {
 		process.exit(1);
@@ -25,6 +32,10 @@ function yarnInstall(location, opts) {
 }
 
 yarnInstall('extensions'); // node modules shared by all extensions
+
+yarnInstall('remote'); // node modules used by vscode server
+
+yarnInstall('remote/web'); // node modules used by vscode web
 
 const allExtensionFolders = fs.readdirSync('extensions');
 const extensions = allExtensionFolders.filter(e => {

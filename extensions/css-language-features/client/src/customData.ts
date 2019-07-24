@@ -28,9 +28,14 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 			wfCSSConfig.workspaceFolderValue.experimental &&
 			wfCSSConfig.workspaceFolderValue.experimental.customData
 		) {
-			wfCSSConfig.workspaceFolderValue.experimental.customData.forEach(p => [
-				dataPaths.push(path.resolve(wf.uri.fsPath, p))
-			]);
+			const customData = wfCSSConfig.workspaceFolderValue.experimental.customData;
+			if (Array.isArray(customData)) {
+				customData.forEach(t => {
+					if (typeof t === 'string') {
+						dataPaths.push(path.resolve(wf.uri.fsPath, t));
+					}
+				});
+			}
 		}
 	});
 
@@ -43,8 +48,8 @@ export function getCustomDataPathsFromAllExtensions(): string[] {
 	for (const extension of extensions.all) {
 		const contributes = extension.packageJSON && extension.packageJSON.contributes;
 
-		if (contributes && contributes.css && contributes.css.customData && Array.isArray(contributes.css.customData)) {
-			const relativePaths: string[] = contributes.css.customData;
+		if (contributes && contributes.css && contributes.css.experimental.customData && Array.isArray(contributes.css.experimental.customData)) {
+			const relativePaths: string[] = contributes.css.experimental.customData;
 			relativePaths.forEach(rp => {
 				dataPaths.push(path.resolve(extension.extensionPath, rp));
 			});

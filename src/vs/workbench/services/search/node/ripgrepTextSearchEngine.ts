@@ -5,17 +5,19 @@
 
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
-import * as vscode from 'vscode';
+import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
 import { rgPath } from 'vscode-ripgrep';
-import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
+import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
 import { coalesce } from 'vs/base/common/arrays';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { groupBy } from 'vs/base/common/collections';
+import { TextSearchQuery, TextSearchOptions, TextSearchResult, TextSearchComplete, TextSearchPreviewOptions, TextSearchContext, TextSearchMatch, Range } from 'vs/workbench/services/search/common/searchExtTypes';
+import { Progress } from 'vs/platform/progress/common/progress';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -24,7 +26,7 @@ export class RipgrepTextSearchEngine {
 
 	constructor(private outputChannel: IOutputChannel) { }
 
-	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
+	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -53,7 +55,7 @@ export class RipgrepTextSearchEngine {
 
 			let gotResult = false;
 			const ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
-			ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
+			ripgrepParser.on('result', (match: TextSearchResult) => {
 				gotResult = true;
 				progress.report(match);
 			});
@@ -119,9 +121,10 @@ export class RipgrepTextSearchEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
-	const firstLine = msg.split('\n')[0].trim();
+	const lines = msg.split('\n');
+	const firstLine = lines[0].trim();
 
-	if (startsWith(firstLine, 'regex parse error')) {
+	if (lines.some(l => startsWith(l, 'regex parse error'))) {
 		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
@@ -140,6 +143,10 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
 	}
 
+	if (startsWith(firstLine, 'PCRE2: error compiling pattern')) {
+		return new SearchError(firstLine, SearchErrorCode.regexParseError);
+	}
+
 	return undefined;
 }
 
@@ -151,7 +158,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: vscode.TextSearchPreviewOptions) {
+	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: TextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
 	}
@@ -165,10 +172,11 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 
-	on(event: 'result', listener: (result: vscode.TextSearchResult) => void);
-	on(event: 'hitLimit', listener: () => void);
-	on(event: string, listener: (...args: any[]) => void) {
+	on(event: 'result', listener: (result: TextSearchResult) => void): this;
+	on(event: 'hitLimit', listener: () => void): this;
+	on(event: string, listener: (...args: any[]) => void): this {
 		super.on(event, listener);
+		return this;
 	}
 
 	handleData(data: Buffer | string): void {
@@ -202,7 +210,7 @@ export class RipgrepParser extends EventEmitter {
 			newlineIdx = dataStr.indexOf('\n', prevIdx);
 		}
 
-		this.remainder = dataStr.substring(prevIdx).trim();
+		this.remainder = dataStr.substring(prevIdx);
 	}
 
 	private handleLine(outputLine: string): void {
@@ -235,7 +243,7 @@ export class RipgrepParser extends EventEmitter {
 		}
 	}
 
-	private createTextSearchMatch(data: IRgMatch, uri: vscode.Uri): vscode.TextSearchMatch {
+	private createTextSearchMatch(data: IRgMatch, uri: URI): TextSearchMatch {
 		const lineNumber = data.line_number - 1;
 		let isBOMStripped = false;
 		let fullText = bytesOrTextToString(data.lines);
@@ -285,7 +293,7 @@ export class RipgrepParser extends EventEmitter {
 		return createTextSearchResult(uri, fullText, <Range[]>ranges, this.previewOptions);
 	}
 
-	private createTextSearchContext(data: IRgMatch, uri: URI): vscode.TextSearchContext[] {
+	private createTextSearchContext(data: IRgMatch, uri: URI): TextSearchContext[] {
 		const text = bytesOrTextToString(data.lines);
 		const startLine = data.line_number;
 		return text
@@ -300,7 +308,7 @@ export class RipgrepParser extends EventEmitter {
 			});
 	}
 
-	private onResult(match: vscode.TextSearchResult): void {
+	private onResult(match: TextSearchResult): void {
 		this.emit('result', match);
 	}
 }
@@ -328,7 +336,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number, last
 	return { numLines, lastLineLength };
 }
 
-function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions): string[] {
+function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
 	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -402,11 +410,14 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 
 	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
 		args.push('--pcre2');
-
-		if (query.isRegExp) {
-			pattern = unicodeEscapesToPCRE2(pattern);
-		}
 	}
+
+	if (query.isRegExp) {
+		pattern = unicodeEscapesToPCRE2(pattern);
+	}
+
+	// Allow $ to match /r/n
+	args.push('--crlf');
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
@@ -414,12 +425,10 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		let fixedRegexpQuery = fixRegexEndingPattern(query.pattern);
-		fixedRegexpQuery = fixRegexNewline(fixedRegexpQuery);
+		let fixedRegexpQuery = fixRegexNewline(query.pattern);
 		fixedRegexpQuery = fixNewline(fixedRegexpQuery);
-		fixedRegexpQuery = fixRegexCRMatchingNonWordClass(fixedRegexpQuery, !!query.isMultiline);
-		fixedRegexpQuery = fixRegexCRMatchingWhitespaceClass(fixedRegexpQuery, !!query.isMultiline);
 		args.push('--regexp', fixedRegexpQuery);
+		args.push('--auto-hybrid-regex');
 	} else {
 		searchPatternAfterDoubleDashes = pattern;
 		args.push('--fixed-strings');
@@ -501,30 +510,10 @@ export interface IRgSubmatch {
 
 export type IRgBytesOrText = { bytes: string } | { text: string };
 
-export function fixRegexEndingPattern(pattern: string): string {
-	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceeded by none or even number of literal \
-	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
-		pattern.replace(/\$$/, '\\r?$') :
-		pattern;
-}
-
 export function fixRegexNewline(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
 	// Match $ preceeded by none or even number of literal \
 	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
-}
-
-export function fixRegexCRMatchingWhitespaceClass(pattern: string, isMultiline: boolean): string {
-	return isMultiline ?
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2(\\r?\\n|[^\\S\\r])') :
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\s/g, '$1$2[ \\t\\f]');
-}
-
-export function fixRegexCRMatchingNonWordClass(pattern: string, isMultiline: boolean): string {
-	return isMultiline ?
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2(\\r?\\n|[^\\w\\r])') :
-		pattern.replace(/([^\\]|^)((?:\\\\)*)\\W/g, '$1$2[^\\w\\r]');
 }
 
 export function fixNewline(pattern: string): string {

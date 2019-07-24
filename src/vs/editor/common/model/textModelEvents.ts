@@ -97,6 +97,7 @@ export interface IModelTokensChangedEvent {
 
 export interface IModelOptionsChangedEvent {
 	readonly tabSize: boolean;
+	readonly indentSize: boolean;
 	readonly insertSpaces: boolean;
 	readonly trimAutoWhitespace: boolean;
 }

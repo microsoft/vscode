@@ -69,7 +69,7 @@ async function goToProjectConfig(
 		return;
 	}
 
-	let res: ServerResponse<protocol.ProjectInfoResponse> | undefined;
+	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {

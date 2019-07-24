@@ -27,7 +27,7 @@ export interface IColorTheme extends ITheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors: ITokenColorizationRule[];
@@ -56,7 +56,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorTheme(): IColorTheme;
 	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
-	restoreColorTheme();
+	restoreColorTheme(): void;
 
 	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
@@ -64,7 +64,12 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
+}
+
 export interface ITokenColorCustomizations {
+	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITokenColorizationRule[];
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -99,5 +104,6 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
+	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
 	_watch: boolean; // unsupported options to watch location
 }

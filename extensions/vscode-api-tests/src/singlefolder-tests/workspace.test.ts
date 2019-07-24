@@ -36,10 +36,12 @@ suite('workspace-namespace', () => {
 	});
 
 	test('rootPath', () => {
-		if (vscode.workspace.rootPath) {
-			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
-		}
+		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
 		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+	});
+
+	test('workspaceFile', () => {
+		assert.ok(!vscode.workspace.workspaceFile);
 	});
 
 	test('workspaceFolders', () => {
@@ -75,7 +77,7 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument, untitled is dirty', function () {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './newfile.txt'))).then(doc => {
+		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.workspaceFolders![0].uri.toString() || '', './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 		});
@@ -285,6 +287,30 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('events: onDidSaveTextDocument fires even for non dirty file when saved', () => {
+		return createRandomFile().then(file => {
+			let disposables: vscode.Disposable[] = [];
+
+			let onDidSaveTextDocument = false;
+			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
+				onDidSaveTextDocument = true;
+			}));
+
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc).then(() => {
+					return vscode.commands.executeCommand('workbench.action.files.save').then(() => {
+						assert.ok(onDidSaveTextDocument);
+
+						disposeAll(disposables);
+
+						return deleteFile(file);
+					});
+				});
+			});
+		});
+	});
+
 	test('openTextDocument, with selection', function () {
 		return createRandomFile('foo\nbar\nbar').then(file => {
 			return vscode.workspace.openTextDocument(file).then(doc => {
@@ -488,9 +514,37 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findFiles', () => {
-		return vscode.workspace.findFiles('*.js').then((res) => {
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
+
+	test('findFiles - null exclude', async () => {
+		await vscode.workspace.findFiles('**/file.txt').then((res) => {
+			// search.exclude folder is still searched, files.exclude folder is not
 			assert.equal(res.length, 1);
-			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+
+		await vscode.workspace.findFiles('**/file.txt', null).then((res) => {
+			// search.exclude and files.exclude folders are both searched
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+	});
+
+	test('findFiles - exclude', () => {
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
+
+	test('findFiles, exclude', () => {
+		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
+			assert.equal(res.length, 1);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
@@ -568,7 +622,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit should fail when editing renamed from resource', async () => {
 		const resource = await createRandomFile();
-		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
+		const newResource = vscode.Uri.file(resource.fsPath + '.1');
 		const edit = new vscode.WorkspaceEdit();
 		edit.renameFile(resource, newResource);
 		edit.insert(resource, new vscode.Position(0, 0), '');
@@ -755,5 +809,30 @@ suite('workspace-namespace', () => {
 		we = new vscode.WorkspaceEdit();
 		we.deleteFile(docUri, { ignoreIfNotExists: true });
 		assert.ok(await vscode.workspace.applyEdit(we));
+	});
+
+	test('The api workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735', async function () {
+
+		let [f1, f2, f3] = await Promise.all([createRandomFile(), createRandomFile(), createRandomFile()]);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(f1, new vscode.Position(0, 0), 'f1');
+		we.insert(f2, new vscode.Position(0, 0), 'f2');
+		we.insert(f3, new vscode.Position(0, 0), 'f3');
+
+		let f1_ = nameWithUnderscore(f1);
+		we.renameFile(f1, f1_);
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		assert.equal((await vscode.workspace.openTextDocument(f3)).getText(), 'f3');
+		assert.equal((await vscode.workspace.openTextDocument(f2)).getText(), 'f2');
+		assert.equal((await vscode.workspace.openTextDocument(f1_)).getText(), 'f1');
+		try {
+			await vscode.workspace.fs.stat(f1);
+			assert.ok(false);
+		} catch {
+			assert.ok(true);
+		}
 	});
 });

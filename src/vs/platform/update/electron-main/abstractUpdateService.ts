@@ -5,18 +5,22 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
 }
+
+export type UpdateNotAvailableClassification = {
+	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
@@ -27,7 +31,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	private _state: State = State.Uninitialized;
 
 	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
 		return this._state;
@@ -56,8 +60,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateChannel = this.configurationService.getValue<string>('update.channel');
-		const quality = this.getProductQuality(updateChannel);
+		const updateMode = getMigratedSettingValue<string>(this.configurationService, 'update.mode', 'update.channel');
+		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
 			this.logService.info('update#ctor - updates are disabled by user preference');
@@ -72,7 +76,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.setState(State.Idle(this.getUpdateType()));
 
-		if (updateChannel === 'manual') {
+		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
 		}
@@ -81,8 +85,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
-	private getProductQuality(updateChannel: string): string | undefined {
-		return updateChannel === 'none' ? undefined : product.quality;
+	private getProductQuality(updateMode: string): string | undefined {
+		return updateMode === 'none' ? undefined : product.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {

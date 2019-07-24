@@ -71,12 +71,12 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private static readonly ID = 'editor.contrib.findController';
 
 	protected _editor: ICodeEditor;
-	private _findWidgetVisible: IContextKey<boolean>;
+	private readonly _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel | null;
-	private _storageService: IStorageService;
-	private _clipboardService: IClipboardService;
+	private readonly _storageService: IStorageService;
+	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
 	public static get(editor: ICodeEditor): CommonFindController {
@@ -432,7 +432,7 @@ export class StartFindAction extends EditorAction {
 			id: FIND_IDS.StartFindAction,
 			label: nls.localize('startFindAction', "Find"),
 			alias: 'Find',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
@@ -469,7 +469,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 			id: FIND_IDS.StartFindWithSelection,
 			label: nls.localize('startFindWithSelectionAction', "Find With Selection"),
 			alias: 'Find With Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: 0,
@@ -523,7 +523,7 @@ export class NextMatchFindAction extends MatchFindAction {
 			id: FIND_IDS.NextMatchFindAction,
 			label: nls.localize('findNextMatchAction', "Find Next"),
 			alias: 'Find Next',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F3,
@@ -545,7 +545,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 			id: FIND_IDS.PreviousMatchFindAction,
 			label: nls.localize('findPreviousMatchAction', "Find Previous"),
 			alias: 'Find Previous',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F3,
@@ -593,7 +593,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			id: FIND_IDS.NextSelectionMatchFindAction,
 			label: nls.localize('nextSelectionMatchFindAction', "Find Next Selection"),
 			alias: 'Find Next Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.F3,
@@ -614,7 +614,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			id: FIND_IDS.PreviousSelectionMatchFindAction,
 			label: nls.localize('previousSelectionMatchFindAction', "Find Previous Selection"),
 			alias: 'Find Previous Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3,
@@ -635,7 +635,7 @@ export class StartFindReplaceAction extends EditorAction {
 			id: FIND_IDS.StartFindReplaceAction,
 			label: nls.localize('startReplace', "Replace"),
 			alias: 'Replace',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
@@ -714,7 +714,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleCaseSensitiveCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleCaseSensitive(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
@@ -728,7 +728,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleWholeWordCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleWholeWords(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
@@ -742,7 +742,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleRegexCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleRegex(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
@@ -756,7 +756,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleSearchScopeCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleSearchScope(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,

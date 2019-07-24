@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
@@ -315,9 +314,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 		const primaryCursor = this._cursors.getPrimaryCursor();
 		const primaryPos = primaryCursor.viewState.position;
+		const viewLineNumber = primaryPos.lineNumber;
+		const viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
 		return {
-			toViewLineNumber: primaryPos.lineNumber,
-			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos)
+			isReal: false,
+			fromViewLineNumber: viewLineNumber,
+			fromViewVisualColumn: viewVisualColumn,
+			toViewLineNumber: viewLineNumber,
+			toViewVisualColumn: viewVisualColumn,
 		};
 	}
 
@@ -828,7 +832,8 @@ class CommandExecutor {
 		try {
 			command.getEditOperations(ctx.model, editOperationBuilder);
 		} catch (e) {
-			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
+			// TODO@Alex use notification service if this should be user facing
+			// e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
 			onUnexpectedError(e);
 			return {
 				operations: [],

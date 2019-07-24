@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
@@ -57,7 +57,7 @@ export interface IBreadcrumbsItemEvent {
 
 export class BreadcrumbsWidget {
 
-	private readonly _disposables = new Array<IDisposable>();
+	private readonly _disposables = new DisposableStore();
 	private readonly _domNode: HTMLDivElement;
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _scrollable: DomScrollableElement;
@@ -94,26 +94,25 @@ export class BreadcrumbsWidget {
 			useShadows: false,
 			scrollYToX: true
 		});
-		this._disposables.push(this._scrollable);
-		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
+		this._disposables.add(this._scrollable);
+		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
 		container.appendChild(this._scrollable.getDomNode());
 
 		this._styleElement = dom.createStyleSheet(this._domNode);
 
-		let focusTracker = dom.trackFocus(this._domNode);
-		this._disposables.push(focusTracker);
-		this._disposables.push(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
-		this._disposables.push(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
+		const focusTracker = dom.trackFocus(this._domNode);
+		this._disposables.add(focusTracker);
+		this._disposables.add(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
+		this._disposables.add(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 		dispose(this._pendingLayout);
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
 		this._domNode.remove();
-		this._disposables.length = 0;
 		this._nodes.length = 0;
 		this._freeNodes.length = 0;
 	}
@@ -126,7 +125,7 @@ export class BreadcrumbsWidget {
 			this._pendingLayout.dispose();
 		}
 		if (dim) {
-			// only meaure
+			// only measure
 			this._pendingLayout = this._updateDimensions(dim);
 		} else {
 			this._pendingLayout = this._updateScrollbar();
@@ -134,14 +133,14 @@ export class BreadcrumbsWidget {
 	}
 
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
-		let disposables: IDisposable[] = [];
-		disposables.push(dom.modify(() => {
+		const disposables = new DisposableStore();
+		disposables.add(dom.modify(() => {
 			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
-			disposables.push(this._updateScrollbar());
+			disposables.add(this._updateScrollbar());
 		}));
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 
 	private _updateScrollbar(): IDisposable {
@@ -200,8 +199,8 @@ export class BreadcrumbsWidget {
 		return this._items[this._focusedItemIdx];
 	}
 
-	setFocused(item: BreadcrumbsItem, payload?: any): void {
-		this._focus(this._items.indexOf(item), payload);
+	setFocused(item: BreadcrumbsItem | undefined, payload?: any): void {
+		this._focus(this._items.indexOf(item!), payload);
 	}
 
 	focusPrev(payload?: any): any {
@@ -256,8 +255,8 @@ export class BreadcrumbsWidget {
 		return this._items[this._selectedItemIdx];
 	}
 
-	setSelection(item: BreadcrumbsItem, payload?: any): void {
-		this._select(this._items.indexOf(item), payload);
+	setSelection(item: BreadcrumbsItem | undefined, payload?: any): void {
+		this._select(this._items.indexOf(item!), payload);
 	}
 
 	private _select(nth: number, payload: any): void {
@@ -274,7 +273,7 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
-	getItems(): ReadonlyArray<BreadcrumbsItem> {
+	getItems(): readonly BreadcrumbsItem[] {
 		return this._items;
 	}
 
@@ -334,7 +333,7 @@ export class BreadcrumbsWidget {
 
 	private _onClick(event: IMouseEvent): void {
 		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
-			let idx = this._nodes.indexOf(el as any);
+			let idx = this._nodes.indexOf(el as HTMLDivElement);
 			if (idx >= 0) {
 				this._focus(idx, event);
 				this._select(idx, event);

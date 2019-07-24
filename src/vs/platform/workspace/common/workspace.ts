@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -46,7 +43,13 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
-	 * Provides access to the workspace object the platform is running with.
+	 * Provides access to the complete workspace object.
+	 */
+	getCompleteWorkspace(): Promise<IWorkspace>;
+
+	/**
+	 * Provides access to the workspace object the window is running with.
+	 * Use `getCompleteWorkspace` to get complete workspace object.
 	 */
 	getWorkspace(): IWorkspace;
 
@@ -177,12 +180,16 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder | null | undefined {
+	getFolder(resource: URI): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.toString());
+		return this._foldersMap.findSubstr(resource.with({
+			scheme: resource.scheme,
+			authority: resource.authority,
+			path: resource.path
+		}).toString()) || null;
 	}
 
 	private updateFoldersMap(): void {
@@ -219,17 +226,21 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo?: URI): WorkspaceFolder[] {
-	let workspaceFolders = parseWorkspaceFolders(configuredFolders, relativeTo);
-	return ensureUnique(coalesce(workspaceFolders))
-		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || resources.basenameOrAuthority(uri), index }, raw));
+export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
+	return new WorkspaceFolder({ uri: resource, index: 0, name: resources.basenameOrAuthority(resource) }, { uri: resource.toString() });
 }
 
-function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI | undefined): Array<WorkspaceFolder | undefined> {
-	return configuredFolders.map((configuredFolder, index) => {
+export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
+	let result: WorkspaceFolder[] = [];
+	let seen: Set<string> = new Set();
+
+	const relativeTo = resources.dirname(workspaceConfigFile);
+	for (let configuredFolder of configuredFolders) {
 		let uri: URI | null = null;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
-			uri = toUri(configuredFolder.path, relativeTo);
+			if (configuredFolder.path) {
+				uri = resources.resolvePath(relativeTo, configuredFolder.path);
+			}
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
 				uri = URI.parse(configuredFolder.uri);
@@ -242,25 +253,16 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 				// ignore
 			}
 		}
-		if (!uri) {
-			return undefined;
-		}
-		return new WorkspaceFolder({ uri, name: configuredFolder.name! /*is ensured in caller*/, index }, configuredFolder);
-	});
-}
+		if (uri) {
+			// remove duplicates
+			let comparisonKey = resources.getComparisonKey(uri);
+			if (!seen.has(comparisonKey)) {
+				seen.add(comparisonKey);
 
-function toUri(path: string, relativeTo: URI | undefined): URI | null {
-	if (path) {
-		if (paths.isAbsolute(path)) {
-			return URI.file(path);
-		}
-		if (relativeTo) {
-			return resources.joinPath(relativeTo, path);
+				const name = configuredFolder.name || resources.basenameOrAuthority(uri);
+				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
+			}
 		}
 	}
-	return null;
-}
-
-function ensureUnique(folders: WorkspaceFolder[]): WorkspaceFolder[] {
-	return distinct(folders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
+	return result;
 }

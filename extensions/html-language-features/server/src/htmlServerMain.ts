@@ -11,17 +11,15 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
-import * as fs from 'fs';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
-import uri from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
-import { parseHTMLData } from './utils/tagDefinitions';
-import { HTMLData } from 'vscode-html-languageservice';
+import { getDataProviders } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -40,8 +38,7 @@ process.on('uncaughtException', (e: any) => {
 	console.error(formatError(`Unhandled exception`, e));
 });
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
+// Create a text document manager.
 const documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
@@ -87,42 +84,19 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (!Array.isArray(workspaceFolders)) {
 		workspaceFolders = [];
 		if (params.rootPath) {
-			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+			workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 		}
 	}
 
 	const dataPaths: string[] = params.initializationOptions.dataPaths;
-
-	let allHtmlData: HTMLData = {
-		tags: [],
-		globalAttributes: [],
-		valueSetMap: {}
-	};
-
-	if (dataPaths) {
-		dataPaths.forEach(path => {
-			try {
-				if (fs.existsSync(path)) {
-					const htmlData = parseHTMLData(fs.readFileSync(path, 'utf-8'));
-					if (htmlData.tags) {
-						allHtmlData.tags = allHtmlData.tags!.concat(htmlData.tags);
-					}
-					if (htmlData.globalAttributes) {
-						allHtmlData.globalAttributes = allHtmlData.globalAttributes!.concat(htmlData.globalAttributes);
-					}
-				}
-			} catch (err) {
-				console.log(`Failed to laod tag from ${path}`);
-			}
-		});
-	}
+	const providers = getDataProviders(dataPaths);
 
 	const workspace = {
 		get settings() { return globalSettings; },
 		get folders() { return workspaceFolders; }
 	};
 
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, allHtmlData);
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, providers);
 
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
@@ -200,7 +174,7 @@ connection.onDidChangeConfiguration((change) => {
 		const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
+				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }];
 				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
 			}
 		} else if (formatterRegistration) {
@@ -478,6 +452,21 @@ connection.onFoldingRanges((params, token) => {
 		}
 		return null;
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
+});
+
+connection.onSelectionRanges((params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const positions: Position[] = params.positions;
+
+		if (document) {
+			const htmlMode = languageModes.getMode('html');
+			if (htmlMode && htmlMode.getSelectionRanges) {
+				return htmlMode.getSelectionRanges(document, positions);
+			}
+		}
+		return [];
+	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 

@@ -8,7 +8,7 @@
 		"resolveJsonModule": true,
 		"experimentalDecorators": true,
 		// enable JavaScript type checking for the language service
-		// use the tsconfig.build.json for compiling wich disable JavaScript
+		// use the tsconfig.build.json for compiling which disable JavaScript
 		// type checking so that JavaScript file are not transpiled
 		"allowJs": true,
 		"checkJs": true,

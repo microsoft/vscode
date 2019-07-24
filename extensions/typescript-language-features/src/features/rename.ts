@@ -79,7 +79,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
-	): Promise<ServerResponse<Proto.RenameResponse> | undefined> {
+	): Promise<ServerResponse.Response<Proto.RenameResponse> | undefined> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;

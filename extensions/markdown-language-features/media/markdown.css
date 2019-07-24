@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-body {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif;
-	font-size: 14px;
+html, body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
 	padding: 0 26px;
-	line-height: 22px;
+	line-height: var(--vscode-markdown-line-height, 22px);
 	word-wrap: break-word;
 }
 
@@ -31,7 +31,6 @@ body {
 	background-color:#007acc;
 	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
 }
-
 
 body.scrollBeyondLastLine {
 	margin-bottom: calc(100vh - 22px);
@@ -136,7 +135,6 @@ h3 code,
 h4 code,
 h5 code,
 h6 code {
-	font-size: inherit;
 	line-height: auto;
 }
 
@@ -169,17 +167,12 @@ blockquote {
 
 code {
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 14px;
-	line-height: 19px;
+	font-size: 1em;
+	line-height: 1.357em;
 }
 
 body.wordWrap pre {
 	white-space: pre-wrap;
-}
-
-.mac code {
-	font-size: 12px;
-	line-height: 18px;
 }
 
 pre:not(.hljs),
@@ -193,6 +186,7 @@ pre.hljs code > div {
 
 pre code {
 	color: var(--vscode-editor-foreground);
+	tab-size: 4;
 }
 
 

@@ -9,7 +9,7 @@ import { CancelablePromise, createCancelablePromise, first, timeout } from 'vs/b
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerDefaultLanguageCommand, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -112,7 +112,7 @@ class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 
 class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 
-	private _selectionIsEmpty: boolean;
+	private readonly _selectionIsEmpty: boolean;
 
 	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
 		super(model, selection, wordSeparators);
@@ -160,11 +160,11 @@ registerDefaultLanguageCommand('_executeDocumentHighlights', (model, position) =
 
 class WordHighlighter {
 
-	private editor: IActiveCodeEditor;
+	private readonly editor: IActiveCodeEditor;
 	private occurrencesHighlight: boolean;
-	private model: ITextModel;
+	private readonly model: ITextModel;
 	private _decorationIds: string[];
-	private toUnhook: IDisposable[];
+	private readonly toUnhook = new DisposableStore();
 
 	private workerRequestTokenId: number = 0;
 	private workerRequest: IOccurenceAtPositionRequest | null;
@@ -174,7 +174,7 @@ class WordHighlighter {
 	private lastCursorPositionChangeTime: number = 0;
 	private renderDecorationsTimer: any = -1;
 
-	private _hasWordHighlights: IContextKey<boolean>;
+	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
 	constructor(editor: IActiveCodeEditor, contextKeyService: IContextKeyService) {
@@ -183,8 +183,7 @@ class WordHighlighter {
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
-		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 
 			if (this._ignorePositionChangeEvent) {
 				// We are changing the position => ignore this event
@@ -199,10 +198,10 @@ class WordHighlighter {
 
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.push(editor.onDidChangeModelContent((e) => {
+		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
 		}));
-		this.toUnhook.push(editor.onDidChangeConfiguration((e) => {
+		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
 			let newValue = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
@@ -415,7 +414,7 @@ class WordHighlighter {
 		this._hasWordHighlights.set(this.hasDecorations());
 	}
 
-	private static _getDecorationOptions(kind: DocumentHighlightKind): ModelDecorationOptions {
+	private static _getDecorationOptions(kind: DocumentHighlightKind | undefined): ModelDecorationOptions {
 		if (kind === DocumentHighlightKind.Write) {
 			return this._WRITE_OPTIONS;
 		} else if (kind === DocumentHighlightKind.Text) {
@@ -454,7 +453,7 @@ class WordHighlighter {
 
 	public dispose(): void {
 		this._stopAll();
-		this.toUnhook = dispose(this.toUnhook);
+		this.toUnhook.dispose();
 	}
 }
 
@@ -526,7 +525,7 @@ class WordHighlighterContribution extends Disposable implements editorCommon.IEd
 
 class WordHighlightNavigationAction extends EditorAction {
 
-	private _isNext: boolean;
+	private readonly _isNext: boolean;
 
 	constructor(next: boolean, opts: IActionOptions) {
 		super(opts);

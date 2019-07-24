@@ -14,20 +14,20 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
-export interface ISelectBoxDelegate {
+export interface ISelectBoxDelegate extends IDisposable {
 
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;
-	setOptions(options: ISelectOptionItem[], selected?: number);
+	setOptions(options: ISelectOptionItem[], selected?: number): void;
 	select(index: number): void;
-	setAriaLabel(label: string);
+	setAriaLabel(label: string): void;
 	focus(): void;
 	blur(): void;
-	dispose(): void;
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;

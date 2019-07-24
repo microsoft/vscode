@@ -7,13 +7,13 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
-	[arg: string]: any;
 	_: string[];
 	'folder-uri'?: string | string[];
 	'file-uri'?: string | string[];
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
+	telemetry?: boolean;
 	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
@@ -28,7 +28,6 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
-	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -37,19 +36,21 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
-	debugPluginHost?: string;
-	debugBrkPluginHost?: string;
+	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
+	extensionTestsPath?: string; // either a local path or a URI
+	'inspect-extensions'?: string;
+	'inspect-brk-extensions'?: string;
 	debugId?: string;
-	debugSearch?: string;
-	debugBrkSearch?: string;
+	'inspect-search'?: string;
+	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
+	'category'?: string;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'locate-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
@@ -62,13 +63,24 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: number;
+	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	'upload-logs'?: string;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
+	'disable-user-env-probe'?: boolean;
+	'enable-remote-auto-shutdown'?: boolean;
+	'disable-inspect'?: boolean;
+	'force'?: boolean;
+	'gitCredential'?: string;
+	// node flags
+	'js-flags'?: boolean;
+	'disable-gpu'?: boolean;
+	'nolazy'?: boolean;
+
+	// Web flags
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -81,6 +93,8 @@ export interface IDebugParams {
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
+
+export const BACKUPS = 'Backups';
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
@@ -96,27 +110,32 @@ export interface IEnvironmentService {
 
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	appSettingsHome: URI;
 
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
+	// user roaming data
+	userRoamingDataHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
+	localeResource: URI;
+
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 
-	backupHome: string;
+	backupHome: URI;
 	backupWorkspacesPath: string;
 
-	workspacesHome: string;
+	untitledWorkspacesHome: URI;
 
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionsPath?: string;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
@@ -148,4 +167,10 @@ export interface IEnvironmentService {
 
 	driverHandle?: string;
 	driverVerbose: boolean;
+
+	webviewEndpoint?: string;
+	readonly webviewResourceRoot: string;
+	readonly webviewCspSource: string;
+
+	readonly galleryMachineIdResource?: URI;
 }

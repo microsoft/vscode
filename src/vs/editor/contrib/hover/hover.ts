@@ -7,7 +7,7 @@ import 'vs/css!./hover';
 import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -19,19 +19,20 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
 import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export class ModesHoverController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.hover';
 
-	private _toUnhook: IDisposable[];
-	private _didChangeConfigurationHandler: IDisposable;
+	private readonly _toUnhook = new DisposableStore();
+	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
@@ -63,10 +64,9 @@ export class ModesHoverController implements IEditorContribution {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IModeService private readonly _modeService: IModeService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
-		this._toUnhook = [];
-
 		this._isMouseDown = false;
 		this._hoverClicked = false;
 
@@ -88,22 +88,22 @@ export class ModesHoverController implements IEditorContribution {
 		this._isHoverEnabled = hoverOpts.enabled;
 		this._isHoverSticky = hoverOpts.sticky;
 		if (this._isHoverEnabled) {
-			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-			this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
-			this._toUnhook.push(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.push(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
+			this._toUnhook.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
+			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
+			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.add(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		} else {
-			this._toUnhook.push(this._editor.onMouseMove(hideWidgetsEventHandler));
+			this._toUnhook.add(this._editor.onMouseMove(hideWidgetsEventHandler));
 		}
 
-		this._toUnhook.push(this._editor.onMouseLeave(hideWidgetsEventHandler));
-		this._toUnhook.push(this._editor.onDidChangeModel(hideWidgetsEventHandler));
-		this._toUnhook.push(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
+		this._toUnhook.add(this._editor.onMouseLeave(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 	}
 
 	private _unhookEvents(): void {
-		this._toUnhook = dispose(this._toUnhook);
+		this._toUnhook.clear();
 	}
 
 	private _onModelDecorationsChanged(): void {
@@ -205,9 +205,8 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _createHoverWidget() {
-		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService);
-		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
+		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
@@ -220,6 +219,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	public dispose(): void {
 		this._unhookEvents();
+		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
 
 		if (this._glyphWidget) {
@@ -244,7 +244,7 @@ class ShowHoverAction extends EditorAction {
 				]
 			}, "Show Hover"),
 			alias: 'Show Hover',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I),
@@ -263,7 +263,8 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		controller.showContentHover(range, HoverStartMode.Immediate, true);
+		const focus = editor.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled;
+		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }
 
@@ -290,6 +291,10 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
+	}
+	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
+	if (actionsBackground) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
 	}
 	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {

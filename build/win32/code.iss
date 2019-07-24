@@ -1,7 +1,7 @@
 #define LocalizedLanguageFile(Language = "") \
     DirExists(RepoDir + "\licenses") && Language != "" \
-      ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.txt"') \
-      : '; LicenseFile: "' + RepoDir + '\LICENSE.txt"'
+      ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.rtf"') \
+      : '; LicenseFile: "' + RepoDir + '\LICENSE.rtf"'
 
 [Setup]
 AppId={#AppId}
@@ -1034,7 +1034,7 @@ begin
       AltArch := '32';
     end;
 
-    if not Result then begin
+    if not Result and not WizardSilent() then begin
       MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
     end;
   end;
