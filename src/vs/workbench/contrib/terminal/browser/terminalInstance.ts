@@ -223,7 +223,6 @@ export class TerminalInstance implements ITerminalInstance {
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
-	public set shellLaunchConfig(shellLaunchConfig: IShellLaunchConfig) { this._shellLaunchConfig = shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
 	private readonly _onExit = new Emitter<number>();
@@ -969,6 +968,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
+		this._processManager.onProcessOverrideShellLaunchConfig(e => this.setShellLaunchConfig(e));
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -1378,6 +1378,13 @@ export class TerminalInstance implements ITerminalInstance {
 	public setDimensions(dimensions: ITerminalDimensions | undefined): void {
 		this._dimensionsOverride = dimensions;
 		this._resize();
+	}
+
+	private setShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
+		this._shellLaunchConfig.args = shellLaunchConfig.args;
+		this._shellLaunchConfig.cwd = shellLaunchConfig.cwd;
+		this._shellLaunchConfig.executable = shellLaunchConfig.executable;
+		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
 	private _getXtermTheme(theme?: ITheme): any {

@@ -24,6 +24,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideShellLaunchConfig = new Emitter<IShellLaunchConfig>();
+	public get onProcessOverrideShelllaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 
 	private readonly _onInput = this._register(new Emitter<string>());
 	public readonly onInput: Event<string> = this._onInput.event;
@@ -91,6 +93,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 	public emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void {
 		this._onProcessOverrideDimensions.fire(dimensions);
+	}
+
+	public emitOverrideShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
+		this._onProcessOverrideShellLaunchConfig.fire(shellLaunchConfig);
 	}
 
 	public emitInitialCwd(initialCwd: string): void {
