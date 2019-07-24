@@ -1428,8 +1428,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public toggleEscapeSequenceLogging(): void {
-		this._xterm._core.debug = !this._xterm._core.debug;
-		this._xterm.setOption('debug', this._xterm._core.debug);
+		this._xterm.setOption('logLevel', 'debug');
 	}
 
 	public getInitialCwd(): Promise<string> {
