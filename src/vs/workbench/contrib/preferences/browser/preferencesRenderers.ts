@@ -960,9 +960,15 @@ class UnsupportedSettingsRenderer extends Disposable {
 		private settingsEditorModel: SettingsEditorModel,
 		@IMarkerService private markerService: IMarkerService,
 		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
+		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
+	}
+
+	private delayedRender(): void {
+		this.renderingDelayer.trigger(() => this.render());
 	}
 
 	public render(): void {
@@ -1000,10 +1006,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 						markerData.push({
 							severity: MarkerSeverity.Hint,
 							tags: [MarkerTag.Unnecessary],
-							startLineNumber: setting.keyRange.startLineNumber,
-							startColumn: setting.keyRange.startColumn,
-							endLineNumber: setting.valueRange.endLineNumber,
-							endColumn: setting.valueRange.endColumn,
+							...setting.range,
 							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
 						});
 					}
@@ -1018,10 +1021,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
-				startLineNumber: setting.keyRange.startLineNumber,
-				startColumn: setting.keyRange.startColumn,
-				endLineNumber: setting.valueRange.endLineNumber,
-				endColumn: setting.valueRange.endColumn,
+				...setting.range,
 				message: nls.localize('unsupportedRemoteMachineSetting', "This setting can be applied only in remote machine settings")
 			});
 		}
@@ -1056,10 +1056,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
-				startLineNumber: setting.keyRange.startLineNumber,
-				startColumn: setting.keyRange.startColumn,
-				endLineNumber: setting.valueRange.endLineNumber,
-				endColumn: setting.valueRange.endColumn,
+				...setting.range,
 				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly.")
 			});
 		}
@@ -1069,10 +1066,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		return {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
-			startLineNumber: setting.keyRange.startLineNumber,
-			startColumn: setting.keyRange.startColumn,
-			endLineNumber: setting.valueRange.endLineNumber,
-			endColumn: setting.valueRange.endColumn,
+			...setting.range,
 			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
 		};
 	}
@@ -1081,10 +1075,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		return {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
-			startLineNumber: setting.keyRange.startLineNumber,
-			startColumn: setting.keyRange.startColumn,
-			endLineNumber: setting.valueRange.endLineNumber,
-			endColumn: setting.valueRange.endColumn,
+			...setting.range,
 			message: nls.localize('unsupportedMachineSetting', "This setting can be applied only in user settings")
 		};
 	}
