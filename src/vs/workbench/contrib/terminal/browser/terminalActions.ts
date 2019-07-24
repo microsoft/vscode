@@ -749,6 +749,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(terminalService.onInstancesChanged(this._updateItems, this));
 		this._register(terminalService.onActiveTabChanged(this._updateItems, this));
 		this._register(terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this._register(terminalService.onTabDisposed(this._updateItems, this));
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
