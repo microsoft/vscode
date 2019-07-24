@@ -709,6 +709,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 
 	dispose(immediate?: boolean): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
@@ -747,6 +748,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
+	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
@@ -802,6 +804,7 @@ export interface ITerminalChildProcess {
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 
 	/**
 	 * Shutdown the terminal process.
