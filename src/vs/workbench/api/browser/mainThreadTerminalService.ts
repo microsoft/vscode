@@ -326,7 +326,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
 		const instance = this._terminalService.getInstanceFromId(terminalId);
 		if (instance) {
-			this._getTerminalProcess(terminalId).then(e => e.emitOverrideShellLaunchConfig(shellLaunchConfig));
+			this._getTerminalProcess(terminalId).then(e => e.emitResolvedShellLaunchConfig(shellLaunchConfig));
 		}
 	}
 

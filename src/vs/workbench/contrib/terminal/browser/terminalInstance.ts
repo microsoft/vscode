@@ -968,7 +968,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
-		this._processManager.onProcessOverrideShellLaunchConfig(e => this.setShellLaunchConfig(e));
+		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -1380,7 +1380,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._resize();
 	}
 
-	private setShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
+	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
 		this._shellLaunchConfig.args = shellLaunchConfig.args;
 		this._shellLaunchConfig.cwd = shellLaunchConfig.cwd;
 		this._shellLaunchConfig.executable = shellLaunchConfig.executable;

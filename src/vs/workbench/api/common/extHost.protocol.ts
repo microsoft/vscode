@@ -407,9 +407,9 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
-	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
+	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void;
 
 	// Renderer

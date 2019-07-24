@@ -71,7 +71,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessOverrideShellLaunchConfig = new Emitter<IShellLaunchConfig>();
-	public get onProcessOverrideShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
+	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -172,8 +172,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (this._process.onProcessOverrideDimensions) {
 			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));
 		}
-		if (this._process.onProcessOverrideShelllaunchConfig) {
-			this._process.onProcessOverrideShelllaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e));
+		if (this._process.onProcessResolvedShellLaunchConfig) {
+			this._process.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e));
 		}
 
 		setTimeout(() => {

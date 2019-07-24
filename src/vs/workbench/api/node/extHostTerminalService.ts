@@ -319,7 +319,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const terminal = new ExtHostTerminal(this._proxy, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
-
 		return terminal;
 	}
 
