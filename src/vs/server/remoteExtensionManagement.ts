@@ -44,7 +44,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import pkg from 'vs/platform/product/node/package';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { getMachineId } from 'vs/base/node/id';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -179,7 +179,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, this._logService);
-				this._register(appInsightsAppender);
+				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 			}
 
 			const machineId = await getMachineId();
