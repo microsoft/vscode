@@ -52,6 +52,7 @@ suite.only('workspace-namespace', () => {
 					return result;
 				},
 				resolveTask(_task: vscode.Task): vscode.Task | undefined {
+					assert.fail('resolveTask should not trigger during the test');
 					return undefined;
 				}
 			});
