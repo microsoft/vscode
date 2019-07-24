@@ -9,6 +9,7 @@ import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
@@ -194,6 +195,10 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			labelOptions.extraClasses = [
 				`suggest-icon ${completionKindToCssClass(suggestion.kind)}`
 			];
+		}
+
+		if (suggestion.label && suggestion.deprecated) {
+			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat([ClassName.EditorDeprecatedInlineDecoration]);
 		}
 
 		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);
