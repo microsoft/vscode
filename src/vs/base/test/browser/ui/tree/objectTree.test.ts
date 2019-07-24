@@ -339,4 +339,40 @@ suite('CompressibleObjectTree', function () {
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11', '111', '112', '113/1131', '1132', '1133']);
 	});
+
+	test('enableCompression', () => {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		tree.layout(200);
+
+		assert.equal(tree.isCompressionEnabled(), true);
+
+		tree.setChildren(null, Iterator.fromArray([
+			{
+				element: 1, children: Iterator.fromArray([{
+					element: 11, children: Iterator.fromArray([{
+						element: 111, children: Iterator.fromArray([
+							{ element: 1111 },
+							{ element: 1112 },
+							{ element: 1113 },
+						])
+					}])
+				}])
+			}
+		]));
+
+		let rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
+		assert.deepEqual(rows, ['1/11/111', '1111', '1112', '1113']);
+
+		tree.setCompressionEnabled(false);
+		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
+		assert.deepEqual(rows, ['1', '11', '111', '1111', '1112', '1113']);
+
+		tree.setCompressionEnabled(true);
+		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
+		assert.deepEqual(rows, ['1/11/111', '1111', '1112', '1113']);
+	});
 });

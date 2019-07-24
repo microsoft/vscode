@@ -145,6 +145,14 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		return new CompressibleObjectTreeModel(view, options);
 	}
 
+	isCompressionEnabled(): boolean {
+		return this.model.isCompressionEnabled();
+	}
+
+	setCompressionEnabled(enabled: boolean): void {
+		this.model.setCompressionEnabled(enabled);
+	}
+
 	getCompressedTreeNode(element: T): ITreeNode<ICompressedTreeNode<T>, TFilterData> {
 		return this.model.getCompressedTreeNode(element)!;
 	}
