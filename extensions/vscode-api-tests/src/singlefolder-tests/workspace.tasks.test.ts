@@ -29,13 +29,13 @@ suite.only('workspace-namespace', () => {
 			});
 			const taskProvider = vscode.tasks.registerTaskProvider(taskType, {
 				provideTasks: () => {
-					let result: vscode.Task[] = [];
-					let kind: CustomTestingTaskDefinition = {
+					const result: vscode.Task[] = [];
+					const kind: CustomTestingTaskDefinition = {
 						type: taskType,
 						customProp1: 'testing task one'
 					};
 					const writeEmitter = new vscode.EventEmitter<string>();
-					let execution = new vscode.CustomExecution2((): Thenable<vscode.TerminalVirtualProcess> => {
+					const execution = new vscode.CustomExecution2((): Thenable<vscode.TerminalVirtualProcess> => {
 						return Promise.resolve(<vscode.TerminalVirtualProcess>{
 							onDidWrite: writeEmitter.event,
 							start: () => {
@@ -47,7 +47,7 @@ suite.only('workspace-namespace', () => {
 							}
 						});
 					});
-					let task = new vscode.Task2(kind, vscode.TaskScope.Workspace, taskName, taskType, execution);
+					const task = new vscode.Task2(kind, vscode.TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
 					return result;
 				},
