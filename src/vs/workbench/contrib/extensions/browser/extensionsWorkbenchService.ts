@@ -536,6 +536,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallySyncWithGallery(true);
 		});
+
+		this._register(this.onChange(() => this.updateActivity()));
 	}
 
 	get local(): IExtension[] {
@@ -1023,6 +1025,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this._extensionAllowedBadgeProviders = (this.productService.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 		}
 		return this._extensionAllowedBadgeProviders;
+	}
+
+	private _activityCallBack: (() => void) | null = null;
+	private updateActivity(): void {
+		if ((this.localExtensions && this.localExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
+			|| (this.remoteExtensions && this.remoteExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))) {
+			if (!this._activityCallBack) {
+				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(c => this._activityCallBack = c));
+			}
+		} else {
+			if (this._activityCallBack) {
+				this._activityCallBack();
+			}
+			this._activityCallBack = null;
+		}
 	}
 
 	private onError(err: any): void {
