@@ -22,7 +22,8 @@ export class RemoteExtensionsInstaller extends Disposable implements IWorkbenchC
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			CommandsRegistry.registerCommand('workbench.extensions.installLocalExtensions', () => instantiationService.createInstance(InstallLocalExtensionsOnRemoteAction).run());
+			const installLocalExtensionsOnRemoteAction = instantiationService.createInstance(InstallLocalExtensionsOnRemoteAction);
+			CommandsRegistry.registerCommand('workbench.extensions.installLocalExtensions', () => installLocalExtensionsOnRemoteAction.run());
 			let disposable = Disposable.None;
 			const appendMenuItem = () => {
 				disposable.dispose();
@@ -30,7 +31,7 @@ export class RemoteExtensionsInstaller extends Disposable implements IWorkbenchC
 					command: {
 						id: 'workbench.extensions.installLocalExtensions',
 						category: localize('extensions', "Extensions"),
-						title: localize('istall local extensions', "Install Local Extensions on {0}", this.extensionManagementServerService.remoteExtensionManagementServer!.label)
+						title: installLocalExtensionsOnRemoteAction.label
 					}
 				});
 			};

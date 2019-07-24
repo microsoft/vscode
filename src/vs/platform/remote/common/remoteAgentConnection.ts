@@ -57,7 +57,7 @@ interface ISimpleConnectionOptions {
 	port: number;
 	reconnectionToken: string;
 	reconnectionProtocol: PersistentProtocol | null;
-	webSocketFactory: IWebSocketFactory;
+	socketFactory: ISocketFactory;
 	signService: ISignService;
 }
 
@@ -65,13 +65,13 @@ export interface IConnectCallback {
 	(err: any | undefined, socket: ISocket | undefined): void;
 }
 
-export interface IWebSocketFactory {
+export interface ISocketFactory {
 	connect(host: string, port: number, query: string, callback: IConnectCallback): void;
 }
 
 async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined): Promise<PersistentProtocol> {
 	const protocol = await new Promise<PersistentProtocol>((c, e) => {
-		options.webSocketFactory.connect(
+		options.socketFactory.connect(
 			options.host,
 			options.port,
 			`reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`,
@@ -202,7 +202,7 @@ async function doConnectRemoteAgentTunnel(options: ISimpleConnectionOptions, sta
 export interface IConnectionOptions {
 	isBuilt: boolean;
 	commit: string | undefined;
-	webSocketFactory: IWebSocketFactory;
+	socketFactory: ISocketFactory;
 	addressProvider: IAddressProvider;
 	signService: ISignService;
 }
@@ -216,7 +216,7 @@ async function resolveConnectionOptions(options: IConnectionOptions, reconnectio
 		port: port,
 		reconnectionToken: reconnectionToken,
 		reconnectionProtocol: reconnectionProtocol,
-		webSocketFactory: options.webSocketFactory,
+		socketFactory: options.socketFactory,
 		signService: options.signService
 	};
 }
