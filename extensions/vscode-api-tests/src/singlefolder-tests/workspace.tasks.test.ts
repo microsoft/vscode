@@ -27,7 +27,6 @@ suite.only('workspace-namespace', () => {
 					term.dispose();
 				});
 			});
-			const exitEmitter = new vscode.EventEmitter<number>();
 			const taskProvider = vscode.tasks.registerTaskProvider(taskType, {
 				provideTasks: () => {
 					let result: vscode.Task[] = [];
@@ -42,7 +41,6 @@ suite.only('workspace-namespace', () => {
 							start: () => {
 								writeEmitter.fire('testing\r\n');
 							},
-							onDidExit: exitEmitter.event,
 							shutdown: () => {
 								taskProvider.dispose();
 								done();
