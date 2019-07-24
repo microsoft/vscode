@@ -276,7 +276,7 @@ export class InstallAction extends ExtensionAction {
 	}
 }
 
-export class InstallInOtherServerAction extends ExtensionAction {
+export abstract class InstallInOtherServerAction extends ExtensionAction {
 
 	protected static INSTALL_LABEL = localize('install', "Install");
 	protected static INSTALLING_LABEL = localize('installing', "Installing");
@@ -285,7 +285,6 @@ export class InstallInOtherServerAction extends ExtensionAction {
 	private static readonly InstallingClass = 'extension-action install installing';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	protected installing: boolean = false;
 
 	constructor(
 		id: string,
@@ -293,73 +292,61 @@ export class InstallInOtherServerAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(id, InstallInOtherServerAction.INSTALL_LABEL, InstallInOtherServerAction.Class, false);
-		this.updateLabel();
 		this.update();
-	}
-
-	private updateLabel(): void {
-		this.label = this.getLabel();
-		this.tooltip = this.label;
-	}
-
-	protected getLabel(): string {
-		return this.installing ? InstallInOtherServerAction.INSTALLING_LABEL :
-			this.server ? `${InstallInOtherServerAction.INSTALL_LABEL} on ${this.server.label}`
-				: InstallInOtherServerAction.INSTALL_LABEL;
-
 	}
 
 	update(): void {
 		this.enabled = false;
 		this.class = InstallInOtherServerAction.Class;
-		if (this.installing) {
-			this.enabled = true;
-			this.class = InstallInOtherServerAction.InstallingClass;
-			this.updateLabel();
-			return;
-		}
 
 		if (
 			this.extension && this.extension.local && this.server && this.extension.state === ExtensionState.Installed && this.extension.type === ExtensionType.User
 			// disabled by extension kind or it is a language pack extension
 			&& (this.extension.enablementState === EnablementState.DisabledByExtensionKind || isLanguagePackExtension(this.extension.local.manifest))
-			// Not installed in other server and can install in other server
-			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.server)
 		) {
-			this.enabled = true;
-			this.updateLabel();
-			return;
+			const extensionInOtherServer = this.extensionsWorkbenchService.installed.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.server)[0];
+			if (extensionInOtherServer) {
+				// Getting installed in other server
+				if (extensionInOtherServer.state === ExtensionState.Installing && !extensionInOtherServer.local) {
+					this.enabled = true;
+					this.label = InstallInOtherServerAction.INSTALLING_LABEL;
+					this.class = InstallInOtherServerAction.InstallingClass;
+				}
+			} else {
+				// Not installed in other server
+				this.enabled = true;
+				this.label = this.getInstallLabel();
+			}
 		}
 	}
 
 	async run(): Promise<void> {
-		if (this.server && !this.installing) {
-			this.installing = true;
-			this.update();
+		if (this.server) {
 			this.extensionsWorkbenchService.open(this.extension);
 			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
-			try {
-				if (this.extension.gallery) {
-					await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
-				} else {
-					const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
-					await this.server.extensionManagementService.install(vsix);
-				}
-			} finally {
-				this.installing = false;
-				this.update();
+			if (this.extension.gallery) {
+				await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
+			} else {
+				const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
+				await this.server.extensionManagementService.install(vsix);
 			}
 		}
 	}
+
+	protected abstract getInstallLabel(): string;
 }
 
 export class RemoteInstallAction extends InstallInOtherServerAction {
 
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, extensionsWorkbenchService);
+	}
+
+	protected getInstallLabel(): string {
+		return this.extensionManagementServerService.remoteExtensionManagementServer ? localize('Install on Server', "Install on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : InstallInOtherServerAction.INSTALL_LABEL;
 	}
 
 }
@@ -373,8 +360,8 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, extensionsWorkbenchService);
 	}
 
-	protected getLabel(): string {
-		return this.installing ? InstallInOtherServerAction.INSTALLING_LABEL : localize('install locally', "Install Locally");
+	protected getInstallLabel(): string {
+		return localize('install locally', "Install Locally");
 	}
 
 }
