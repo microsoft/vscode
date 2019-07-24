@@ -6,7 +6,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class LazyPromise implements Promise<any> {
-	[Symbol.toStringTag] = 'LazyPromise';
+	[Symbol.toStringTag]!: string;
 	private _actual: Promise<any> | null;
 	private _actualOk: ((value?: any) => any) | null;
 	private _actualErr: ((err?: any) => any) | null;

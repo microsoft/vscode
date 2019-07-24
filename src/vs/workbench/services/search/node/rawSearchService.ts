@@ -380,7 +380,7 @@ export class SearchService implements IRawSearchService {
 	 */
 	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
 		return new class implements CancelablePromise<C> {
-			[Symbol.toStringTag] = 'CancelablePromise';
+			[Symbol.toStringTag]!: string;
 			cancel() {
 				// Do nothing
 			}
