@@ -6,8 +6,9 @@
 import * as assert from 'assert';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree, CompressibleObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
+import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 suite('ObjectTree', function () {
 	suite('TreeNavigator', function () {
@@ -223,5 +224,45 @@ suite('ObjectTree', function () {
 
 		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
 		assert.deepStrictEqual(tree.getFocus(), [101]);
+	});
+});
+
+function toArray(list: NodeList): Node[] {
+	const result: Node[] = [];
+	list.forEach(node => result.push(node));
+	return result;
+}
+
+suite('CompressibleObjectTree', function () {
+
+	class Delegate implements IListVirtualDelegate<number> {
+		getHeight() { return 20; }
+		getTemplateId(): string { return 'default'; }
+	}
+
+	class Renderer implements ICompressibleTreeRenderer<number, void, HTMLElement> {
+		readonly templateId = 'default';
+		renderTemplate(container: HTMLElement): HTMLElement {
+			return container;
+		}
+		renderElement(node: ITreeNode<number, void>, _: number, templateData: HTMLElement): void {
+			templateData.textContent = `regular: ${node.element}`;
+		}
+		renderCompressedElements(node: ITreeNode<ICompressedTreeNode<number>, void>, _: number, templateData: HTMLElement): void {
+			templateData.textContent = `compressed: ${node.element.elements.join('/')}`;
+		}
+		disposeTemplate(): void { }
+	}
+
+	test('empty', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		tree.layout(200);
+
+		const rows = toArray(container.querySelectorAll('.monaco-tl-contents'));
+		assert.equal(rows.length, 0);
 	});
 });

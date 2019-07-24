@@ -10,7 +10,7 @@ import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, IColla
 import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
-import { CompressibleObjectTreeModel, ElementMapper } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	sorter?: ITreeSorter<T>;
@@ -53,8 +53,8 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	}
 }
 
-interface ICompressedElementsCollectionProvider<T> {
-	getCompressedElements(element: T): T[];
+interface ICompressedTreeNodeProvider<T, TFilterData> {
+	getCompressedTreeNode(element: T): ITreeNode<ICompressedTreeNode<T>, TFilterData>;
 }
 
 export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends IObjectTreeOptions<T, TFilterData> {
@@ -62,21 +62,23 @@ export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends I
 }
 
 export interface ICompressibleTreeRenderer<T, TFilterData = void, TTemplateData = void> extends ITreeRenderer<T, TFilterData, TTemplateData> {
-	renderCompressedElements(elements: T[], index: number, templateData: TTemplateData, height: number | undefined): void;
-	disposeCompressedElements?(elements: T[], index: number, templateData: TTemplateData, height: number | undefined): void;
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, height: number | undefined): void;
+	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<T>, TFilterData>, index: number, templateData: TTemplateData, height: number | undefined): void;
 }
 
-interface CompressibleTemplateData<T, TTemplateData> {
-	compressedElements: T[] | undefined;
+interface CompressibleTemplateData<T, TFilterData, TTemplateData> {
+	compressedTreeNode: ITreeNode<ICompressedTreeNode<T>, TFilterData> | undefined;
 	readonly data: TTemplateData;
 }
 
-class CompressibleRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<T, TFilterData, CompressibleTemplateData<T, TTemplateData>> {
+class CompressibleRenderer<T, TFilterData, TTemplateData> implements ITreeRenderer<T, TFilterData, CompressibleTemplateData<T, TFilterData, TTemplateData>> {
 
 	readonly templateId: string;
 	readonly onDidChangeTwistieState: Event<T> | undefined;
 
-	constructor(private renderer: ICompressibleTreeRenderer<T, TFilterData, TTemplateData>, private compressedElementsCollectionProvider: ICompressedElementsCollectionProvider<T>) {
+	compressedTreeNodeProvider: ICompressedTreeNodeProvider<T, TFilterData>;
+
+	constructor(private renderer: ICompressibleTreeRenderer<T, TFilterData, TTemplateData>) {
 		this.templateId = renderer.templateId;
 
 		if (renderer.onDidChangeTwistieState) {
@@ -84,36 +86,36 @@ class CompressibleRenderer<T, TFilterData, TTemplateData> implements ITreeRender
 		}
 	}
 
-	renderTemplate(container: HTMLElement): CompressibleTemplateData<T, TTemplateData> {
+	renderTemplate(container: HTMLElement): CompressibleTemplateData<T, TFilterData, TTemplateData> {
 		const data = this.renderer.renderTemplate(container);
-		return { compressedElements: undefined, data };
+		return { compressedTreeNode: undefined, data };
 	}
 
-	renderElement(element: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TTemplateData>, height: number | undefined): void {
-		const elements = this.compressedElementsCollectionProvider.getCompressedElements(element.element);
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
+		const compressedTreeNode = this.compressedTreeNodeProvider.getCompressedTreeNode(node.element);
 
-		if (elements.length === 1) {
-			templateData.compressedElements = undefined;
-			this.renderer.renderElement(element, index, templateData.data, height);
+		if (compressedTreeNode.element.elements.length === 1) {
+			templateData.compressedTreeNode = undefined;
+			this.renderer.renderElement(node, index, templateData.data, height);
 		} else {
-			templateData.compressedElements = elements;
-			this.renderer.renderCompressedElements(elements, index, templateData.data, height);
+			templateData.compressedTreeNode = compressedTreeNode;
+			this.renderer.renderCompressedElements(compressedTreeNode, index, templateData.data, height);
 		}
 	}
 
-	disposeElement(element: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TTemplateData>, height: number | undefined): void {
-		if (templateData.compressedElements) {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
+		if (templateData.compressedTreeNode) {
 			if (this.renderer.disposeCompressedElements) {
-				this.renderer.disposeCompressedElements(templateData.compressedElements, index, templateData.data, height);
+				this.renderer.disposeCompressedElements(templateData.compressedTreeNode, index, templateData.data, height);
 			}
 		} else {
 			if (this.renderer.disposeElement) {
-				this.renderer.disposeElement(element, index, templateData.data, height);
+				this.renderer.disposeElement(node, index, templateData.data, height);
 			}
 		}
 	}
 
-	disposeTemplate(templateData: CompressibleTemplateData<T, TTemplateData>): void {
+	disposeTemplate(templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>): void {
 		this.renderer.disposeTemplate(templateData.data);
 	}
 
@@ -134,15 +136,16 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
-		const compressibleRenderers = renderers.map(r => new CompressibleRenderer(r, this));
+		const compressibleRenderers = renderers.map(r => new CompressibleRenderer(r));
 		super(container, delegate, compressibleRenderers, options);
+		compressibleRenderers.forEach(r => r.compressedTreeNodeProvider = this);
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new CompressibleObjectTreeModel(view, options);
 	}
 
-	getCompressedElements(element: T): T[] {
-		return this.model.getCompressedNode(element)!.elements;
+	getCompressedTreeNode(element: T): ITreeNode<ICompressedTreeNode<T>, TFilterData> {
+		return this.model.getCompressedTreeNode(element)!;
 	}
 }

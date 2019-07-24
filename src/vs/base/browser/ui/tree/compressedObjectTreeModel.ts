@@ -442,7 +442,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		return this.model.resort(element, recursive);
 	}
 
-	getCompressedNode(element: T | null): ICompressedTreeNode<T> | null {
-		return this.model.getCompressedNode(element);
+	getCompressedTreeNode(element: T): ITreeNode<ICompressedTreeNode<T>, TFilterData> {
+		return this.model.getNode(element) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
 	}
 }
