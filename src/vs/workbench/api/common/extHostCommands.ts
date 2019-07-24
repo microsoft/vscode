@@ -116,7 +116,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	$handleDidExecuteCommand(command: ICommandEvent): void {
-		this._onDidExecuteCommand.fire({ command: command.commandId, arguments: command.args });
+		this._onDidExecuteCommand.fire({
+			command: command.commandId,
+			arguments: command.args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg))
+		});
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
