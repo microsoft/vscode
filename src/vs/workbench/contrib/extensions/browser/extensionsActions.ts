@@ -276,7 +276,7 @@ export class InstallAction extends ExtensionAction {
 	}
 }
 
-export class InstallInOtherServerAction extends ExtensionAction {
+export abstract class InstallInOtherServerAction extends ExtensionAction {
 
 	protected static INSTALL_LABEL = localize('install', "Install");
 	protected static INSTALLING_LABEL = localize('installing', "Installing");
@@ -285,7 +285,6 @@ export class InstallInOtherServerAction extends ExtensionAction {
 	private static readonly InstallingClass = 'extension-action install installing';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	protected installing: boolean = false;
 
 	constructor(
 		id: string,
@@ -293,73 +292,61 @@ export class InstallInOtherServerAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(id, InstallInOtherServerAction.INSTALL_LABEL, InstallInOtherServerAction.Class, false);
-		this.updateLabel();
 		this.update();
-	}
-
-	private updateLabel(): void {
-		this.label = this.getLabel();
-		this.tooltip = this.label;
-	}
-
-	protected getLabel(): string {
-		return this.installing ? InstallInOtherServerAction.INSTALLING_LABEL :
-			this.server ? `${InstallInOtherServerAction.INSTALL_LABEL} on ${this.server.label}`
-				: InstallInOtherServerAction.INSTALL_LABEL;
-
 	}
 
 	update(): void {
 		this.enabled = false;
 		this.class = InstallInOtherServerAction.Class;
-		if (this.installing) {
-			this.enabled = true;
-			this.class = InstallInOtherServerAction.InstallingClass;
-			this.updateLabel();
-			return;
-		}
 
 		if (
-			this.extension && this.extension.local && this.server && this.extension.state === ExtensionState.Installed
+			this.extension && this.extension.local && this.server && this.extension.state === ExtensionState.Installed && this.extension.type === ExtensionType.User
 			// disabled by extension kind or it is a language pack extension
 			&& (this.extension.enablementState === EnablementState.DisabledByExtensionKind || isLanguagePackExtension(this.extension.local.manifest))
-			// Not installed in other server and can install in other server
-			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.server)
 		) {
-			this.enabled = true;
-			this.updateLabel();
-			return;
+			const extensionInOtherServer = this.extensionsWorkbenchService.installed.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.server)[0];
+			if (extensionInOtherServer) {
+				// Getting installed in other server
+				if (extensionInOtherServer.state === ExtensionState.Installing && !extensionInOtherServer.local) {
+					this.enabled = true;
+					this.label = InstallInOtherServerAction.INSTALLING_LABEL;
+					this.class = InstallInOtherServerAction.InstallingClass;
+				}
+			} else {
+				// Not installed in other server
+				this.enabled = true;
+				this.label = this.getInstallLabel();
+			}
 		}
 	}
 
 	async run(): Promise<void> {
-		if (this.server && !this.installing) {
-			this.installing = true;
-			this.update();
+		if (this.server) {
 			this.extensionsWorkbenchService.open(this.extension);
 			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
-			try {
-				if (this.extension.gallery) {
-					await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
-				} else {
-					const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
-					await this.server.extensionManagementService.install(vsix);
-				}
-			} finally {
-				this.installing = false;
-				this.update();
+			if (this.extension.gallery) {
+				await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
+			} else {
+				const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
+				await this.server.extensionManagementService.install(vsix);
 			}
 		}
 	}
+
+	protected abstract getInstallLabel(): string;
 }
 
 export class RemoteInstallAction extends InstallInOtherServerAction {
 
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, extensionsWorkbenchService);
+	}
+
+	protected getInstallLabel(): string {
+		return this.extensionManagementServerService.remoteExtensionManagementServer ? localize('Install on Server', "Install on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : InstallInOtherServerAction.INSTALL_LABEL;
 	}
 
 }
@@ -373,8 +360,8 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, extensionsWorkbenchService);
 	}
 
-	protected getLabel(): string {
-		return this.installing ? InstallInOtherServerAction.INSTALLING_LABEL : localize('install locally', "Install Locally");
+	protected getInstallLabel(): string {
+		return localize('install locally', "Install Locally");
 	}
 
 }
@@ -3036,58 +3023,66 @@ export class InstallLocalExtensionsOnRemoteAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super('workbench.extensions.actions.installLocalExtensionsOnRemote');
-		this.enabled = !!this.extensionManagementServerService.localExtensionManagementServer && !!this.extensionManagementServerService.remoteExtensionManagementServer;
+		this.update();
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
+	}
+
+	get label(): string {
+		return this.extensionManagementServerService.remoteExtensionManagementServer ?
+			localize('install local extensions', "Install Local Extensions on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : '';
+	}
+
+	private update(): void {
+		this.enabled = this.getLocalExtensionsToInstall().length > 0;
+	}
+
+	private getLocalExtensionsToInstall(): IExtension[] {
+		return this.extensionsWorkbenchService.local.filter(extension => {
+			const action = this.instantiationService.createInstance(RemoteInstallAction);
+			action.extension = extension;
+			return action.enabled;
+		});
 	}
 
 	async run(): Promise<void> {
-		if (this.enabled) {
-			await this.selectAndInstallLocalExtensions();
+		this.selectAndInstallLocalExtensions();
+		return Promise.resolve();
+	}
+
+	private selectAndInstallLocalExtensions(): void {
+		const quickPick = this.quickInputService.createQuickPick<IExtensionPickItem>();
+		quickPick.busy = true;
+		const disposable = quickPick.onDidAccept(() => {
+			disposable.dispose();
+			quickPick.hide();
+			quickPick.dispose();
+			this.onDidAccept(quickPick.selectedItems);
+		});
+		quickPick.show();
+		const localExtensionsToInstall = this.getLocalExtensionsToInstall();
+		quickPick.busy = false;
+		if (localExtensionsToInstall.length) {
+			quickPick.placeholder = localize('select extensions to install', "Select extensions to install");
+			quickPick.canSelectMany = true;
+			localExtensionsToInstall.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+			quickPick.items = localExtensionsToInstall.map<IExtensionPickItem>(extension => ({ extension, label: extension.displayName, description: extension.version }));
+		} else {
+			quickPick.hide();
+			quickPick.dispose();
+			this.notificationService.notify({
+				severity: Severity.Info,
+				message: localize('no local extensions', "There are no extensions to install.")
+			});
 		}
 	}
 
-	private async getLocalExtensionsToInstall(): Promise<IExtension[]> {
-		const localExtensions = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.localExtensionManagementServer!);
-		const remoteExtensions = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.remoteExtensionManagementServer!);
-		const remoteExtensionsIds: Set<string> = new Set<string>();
-		const remoteExtensionsUUIDs: Set<string> = new Set<string>();
-		for (const extension of remoteExtensions) {
-			remoteExtensionsIds.add(extension.identifier.id.toLowerCase());
-			if (extension.identifier.uuid) {
-				remoteExtensionsUUIDs.add(extension.identifier.uuid);
-			}
-		}
-		const localExtensionsToInstall: IExtension[] = [];
-		for (const localExtension of localExtensions) {
-			if (localExtension.type === ExtensionType.User
-				&& (isLanguagePackExtension(localExtension.local!.manifest) || localExtension.enablementState === EnablementState.DisabledByExtensionKind)) {
-				if (!remoteExtensionsIds.has(localExtension.identifier.id.toLowerCase()) || (localExtension.identifier.uuid && !remoteExtensionsUUIDs.has(localExtension.identifier.uuid))) {
-					localExtensionsToInstall.push(localExtension);
-				}
-			}
-		}
-		return localExtensionsToInstall;
-	}
-
-	private async selectAndInstallLocalExtensions(): Promise<void> {
-		const result = await this.quickInputService.pick<IExtensionPickItem>(
-			this.getLocalExtensionsToInstall()
-				.then(extensions => {
-					if (extensions.length) {
-						extensions = extensions.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
-						return extensions.map<IExtensionPickItem>(extension => ({ extension, label: extension.displayName, description: extension.version }));
-					}
-					return [{ label: localize('no local extensions', "There are no extensions to install.") }];
-				}),
-			{
-				canPickMany: true,
-				placeHolder: localize('select extensions to install', "Select extensions to install")
-			}
-		);
-		if (result) {
-			const localExtensionsToInstall = result.filter(r => !!r.extension).map(r => r.extension!);
+	private onDidAccept(selectedItems: ReadonlyArray<IExtensionPickItem>): void {
+		if (selectedItems.length) {
+			const localExtensionsToInstall = selectedItems.filter(r => !!r.extension).map(r => r.extension!);
 			if (localExtensionsToInstall.length) {
 				this.progressService.withProgress(
 					{

@@ -91,7 +91,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._idPromise.then(c => {
 			this._proxy.$registerOnDataListener(this._id);
 		});
-		return this._onData && this._onData.event;
+		return this._onData.event;
 	}
 
 	constructor(
@@ -110,7 +110,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		});
 	}
 
-	public create(
+	public async create(
 		shellPath?: string,
 		shellArgs?: string[] | string,
 		cwd?: string | URI,
@@ -118,18 +118,16 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
 		hideFromUser?: boolean
-	): void {
-		this._proxy.$createTerminal({ name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser }).then(terminal => {
-			this._name = terminal.name;
-			this._runQueuedRequests(terminal.id);
-		});
+	): Promise<void> {
+		const terminal = await this._proxy.$createTerminal({ name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser });
+		this._name = terminal.name;
+		this._runQueuedRequests(terminal.id);
 	}
 
-	public createVirtualProcess(): Promise<void> {
-		return this._proxy.$createTerminal({ name: this._name, isVirtualProcess: true }).then(terminal => {
-			this._name = terminal.name;
-			this._runQueuedRequests(terminal.id);
-		});
+	public async createVirtualProcess(): Promise<void> {
+		const terminal = await this._proxy.$createTerminal({ name: this._name, isVirtualProcess: true });
+		this._name = terminal.name;
+		this._runQueuedRequests(terminal.id);
 	}
 
 	public get name(): string {
@@ -620,8 +618,18 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 
-	public $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): void {
-		(this._terminalProcesses[id] as ExtHostVirtualProcess).startSendingEvents(initialDimensions);
+	public async $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
+		// Processes should be initialized here for normal virtual process terminals, however for
+		// tasks they are responsible for attaching the virtual process to a terminal so this
+		// function may be called before tasks is able to attach to the terminal.
+		let retries = 5;
+		while (retries-- > 0) {
+			if (this._terminalProcesses[id]) {
+				(this._terminalProcesses[id] as ExtHostVirtualProcess).startSendingEvents(initialDimensions);
+				return;
+			}
+			await timeout(50);
+		}
 	}
 
 	private _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
