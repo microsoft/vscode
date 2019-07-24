@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getMediaMime } from 'vs/base/common/mime';
 
@@ -71,7 +71,8 @@ async function respondWithDefault(event: FetchEvent): Promise<Response> {
 }
 
 async function respondWithResource(event: FetchEvent, uri: URI): Promise<Response> {
-	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(event.request));
+	const cacheKey = event.request.url.replace('&r=1', '');
+	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(cacheKey));
 	if (cachedValue) {
 		return cachedValue;
 	}
@@ -79,26 +80,27 @@ async function respondWithResource(event: FetchEvent, uri: URI): Promise<Respons
 	return new Promise<Response>(resolve => {
 
 		const token = generateUuid();
-		const query: { u: UriComponents, i: number } = JSON.parse(uri.query);
+		const [first] = uri.query.split('&');
+		const components = JSON.parse(first.substr(2));
 
 		_pendingFetch.set(token, async (data: ArrayBuffer, isExtensionResource: boolean) => {
 
 			const res = new Response(data, {
 				status: 200,
-				headers: { 'Content-Type': getMediaMime(query.u.path) || 'text/plain' }
+				headers: { 'Content-Type': getMediaMime(components.path) || 'text/plain' }
 			});
 
 			if (isExtensionResource) {
 				// only cache extension resources but not other
 				// resources, esp not workspace resources
-				await caches.open(_cacheName).then(cache => cache.put(event.request, res.clone()));
+				await caches.open(_cacheName).then(cache => cache.put(cacheKey, res.clone()));
 			}
 
 			return resolve(res);
 		});
 
 		self.clients.get(event.clientId).then(client => {
-			client.postMessage({ uri: query.u, token });
+			client.postMessage({ uri: components, token });
 		});
 	});
 }

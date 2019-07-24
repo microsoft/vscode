@@ -14,6 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class TextMateService extends AbstractTextMateService {
 
@@ -23,9 +24,10 @@ export class TextMateService extends AbstractTextMateService {
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService);
+		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
 	}
 
 	protected _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')> {

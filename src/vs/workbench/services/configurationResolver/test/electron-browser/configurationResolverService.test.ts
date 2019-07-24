@@ -523,6 +523,7 @@ class MockCommandService implements ICommandService {
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
+	onDidExecuteCommand = () => Disposable.None;
 	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
 

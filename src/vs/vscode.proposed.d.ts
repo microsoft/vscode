@@ -565,6 +565,22 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joh: onDidExecuteCommand
+
+	export interface CommandExecutionEvent {
+		command: string;
+		arguments: any[];
+	}
+
+	export namespace commands {
+		/**
+		 * An event that is emitted when a [command](#Command) is executed.
+		 */
+		export const onDidExecuteCommand: Event<CommandExecutionEvent>;
+	}
+
+	//#endregion
+
 	//#region Joh: decorations
 
 	//todo@joh -> make class

@@ -13,7 +13,7 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext, RemoteAuthorityContext, IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext, IsMacNativeContext, RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -424,7 +424,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						title: { value: label, original: `Open Remote Settings (${hostLabel})` },
 						category: { value: nls.localize('preferencesCategory', "Preferences"), original: 'Preferences' }
 					},
-					when: RemoteAuthorityContext.notEqualsTo('')
+					when: RemoteNameContext.notEqualsTo('')
 				});
 			});
 	}

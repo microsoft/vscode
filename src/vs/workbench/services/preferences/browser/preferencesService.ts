@@ -158,7 +158,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return Promise.resolve(null);
 	}
 
-	async createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<any>> {
+	async createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<any> | null> {
 		if (this.isDefaultSettingsResource(uri)) {
 			return this.createDefaultSettingsEditorModel(uri);
 		}
@@ -174,7 +174,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const settingsUri = await this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, uri);
-			if (settingsUri) {
+			if (settingsUri && settingsUri.toString() === uri.toString()) {
 				return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE_FOLDER, uri);
 			}
 		}
@@ -185,7 +185,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_REMOTE, uri);
 		}
 
-		return Promise.reject(`unknown resource: ${uri.toString()}`);
+		return null;
 	}
 
 	openRawDefaultSettings(): Promise<IEditor | null> {
