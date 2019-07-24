@@ -72,6 +72,7 @@ import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -277,15 +278,7 @@ export function createApiFactory(
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
-				if (!initData.remote.authority) {
-					return undefined;
-				}
-				const pos = initData.remote.authority.indexOf('+');
-				if (pos < 0) {
-					// funky? bad authority?
-					return initData.remote.authority;
-				}
-				return initData.remote.authority.substr(0, pos);
+				return getRemoteName(initData.remote.authority);
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {

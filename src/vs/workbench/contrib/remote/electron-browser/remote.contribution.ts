@@ -37,7 +37,7 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
+import { RemoteConnectionState, Deprecated_RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
@@ -119,6 +119,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
 			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(!isDisconnected && this.remoteAuthority || '');
 			this.updateWindowIndicator();
 		}
 	}
