@@ -45,6 +45,8 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 
 suite('ExtensionsActions Test', () => {
 
@@ -69,6 +71,7 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IProgressService, ProgressService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
