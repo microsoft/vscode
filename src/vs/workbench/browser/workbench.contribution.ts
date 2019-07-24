@@ -131,7 +131,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			'workbench.commandPalette.preserveInput': {
 				'type': 'boolean',
 				'description': nls.localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
-				'default': false
+				'default': true
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
@@ -141,7 +141,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			'workbench.quickOpen.preserveInput': {
 				'type': 'boolean',
 				'description': nls.localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
-				'default': false
+				'default': true
 			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',
