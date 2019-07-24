@@ -239,7 +239,7 @@ suite('CompressibleObjectTree', function () {
 			return container;
 		}
 		renderElement(node: ITreeNode<number, void>, _: number, templateData: HTMLElement): void {
-			templateData.textContent = `regular: ${node.element}`;
+			templateData.textContent = `${node.element}`;
 		}
 		renderCompressedElements(node: ITreeNode<ICompressedTreeNode<number>, void>, _: number, templateData: HTMLElement): void {
 			templateData.textContent = `compressed: ${node.element.elements.join('/')}`;
@@ -259,28 +259,29 @@ suite('CompressibleObjectTree', function () {
 		assert.equal(rows.length, 0);
 	});
 
-	// test('simple', function () {
-	// 	const container = document.createElement('div');
-	// 	container.style.width = '200px';
-	// 	container.style.height = '200px';
+	test('simple', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
 
-	// 	const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
-	// 	tree.layout(200);
+		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		tree.layout(200);
 
-	// 	tree.setChildren(null, [
-	// 		{
-	// 			element: 0, children: [
-	// 				{ element: 10 },
-	// 				{ element: 11 },
-	// 				{ element: 12 },
-	// 			]
-	// 		},
-	// 		{ element: 1 },
-	// 		{ element: 2 }
-	// 	]);
+		tree.setChildren(null, [
+			{
+				element: 0, children: [
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
+				]
+			},
+			{ element: 1 },
+			{ element: 2 }
+		]);
 
-	// 	const rows = toArray(container.querySelectorAll('.monaco-tl-contents'));
-	// 	assert.equal(rows.length, 0);
+		const rows = toArray(container.querySelectorAll('.monaco-tl-contents'))
+			.map(row => row.textContent);
 
-	// });
+		assert.deepEqual(rows, ['0', '10', '11', '12', '1', '2']);
+	});
 });
