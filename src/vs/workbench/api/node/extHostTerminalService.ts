@@ -337,8 +337,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminal;
 	}
 
-	public attachVirtualProcessToTerminal(id: number, virtualProcess: vscode.TerminalVirtualProcess) {
-		const terminal = this._getTerminalById(id);
+	public async attachVirtualProcessToTerminal(id: number, virtualProcess: vscode.TerminalVirtualProcess): Promise<void> {
+		const terminal = this._getTerminalByIdEventually(id);
 		if (!terminal) {
 			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
 		}
@@ -619,6 +619,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public async $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
+		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
+		// TerminalVirtualProcess.start
+		await this._getTerminalByIdEventually(id);
+
 		// Processes should be initialized here for normal virtual process terminals, however for
 		// tasks they are responsible for attaching the virtual process to a terminal so this
 		// function may be called before tasks is able to attach to the terminal.
