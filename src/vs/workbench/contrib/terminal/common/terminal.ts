@@ -588,7 +588,7 @@ export interface ITerminalInstance {
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
 	 */
-	paste(): void;
+	paste(): Promise<void>;
 
 	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty

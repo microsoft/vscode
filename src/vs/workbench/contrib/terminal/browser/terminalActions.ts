@@ -607,12 +607,11 @@ export class TerminalPasteAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (instance) {
-			instance.paste();
+			await instance.paste();
 		}
-		return Promise.resolve(undefined);
 	}
 }
 

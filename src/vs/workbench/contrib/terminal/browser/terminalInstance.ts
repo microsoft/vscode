@@ -869,9 +869,9 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._xtermReadyPromise.then(() => this.focus(force));
 	}
 
-	public paste(): void {
+	public async paste(): Promise<void> {
 		this.focus();
-		document.execCommand('paste');
+		this._xterm._core._coreService.triggerDataEvent(await this._clipboardService.readText(), true);
 	}
 
 	public write(text: string): void {
