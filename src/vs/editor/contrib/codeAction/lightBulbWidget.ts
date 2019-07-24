@@ -29,7 +29,8 @@ namespace LightBulbState {
 
 		constructor(
 			public readonly actions: CodeActionSet,
-			public readonly position: IPosition,
+			public readonly editorPosition: IPosition,
+			public readonly widgetPosition: IContentWidgetPosition,
 		) { }
 	}
 
@@ -46,7 +47,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet }>());
 	public readonly onClick = this._onClick.event;
 
-	private _position: IContentWidgetPosition | null;
 	private _state: LightBulbState.State = LightBulbState.Hidden;
 
 	constructor(
@@ -63,7 +63,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this._state.type !== LightBulbState.Type.Showing || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
+			if (this._state.type !== LightBulbState.Type.Showing || !editorModel || this._state.editorPosition.lineNumber >= editorModel.getLineCount()) {
 				this.hide();
 			}
 		}));
@@ -81,7 +81,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
+			if (this._state.widgetPosition.position !== null && this._state.widgetPosition.position.lineNumber < this._state.editorPosition.lineNumber) {
 				pad += lineHeight;
 			}
 
@@ -129,7 +129,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		return this._position;
+		return this._state.type === LightBulbState.Type.Showing ? this._state.widgetPosition : null;
 	}
 
 	public update(actions: CodeActionSet, atPosition: IPosition) {
@@ -148,7 +148,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		this._state = new LightBulbState.Showing(actions, atPosition);
 		const tabSize = model.getOptions().tabSize;
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
@@ -166,15 +165,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			} else if (column * config.fontInfo.spaceWidth < 22) {
 				// cannot show lightbulb above/below and showing
 				// it inline would overlay the cursor...
-				this.hide();
-				return;
+				return this.hide();
 			}
 		}
 
-		this._position = {
+		this._state = new LightBulbState.Showing(actions, atPosition, {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
-		};
+		});
 		dom.toggleClass(this._domNode, 'autofixable', actions.hasAutoFix);
 		this._editor.layoutContentWidget(this);
 	}
@@ -184,7 +182,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	public hide(): void {
-		this._position = null;
 		this._state = LightBulbState.Hidden;
 		this._editor.layoutContentWidget(this);
 	}

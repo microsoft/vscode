@@ -34,6 +34,8 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { SignService } from 'vs/platform/sign/node/signService';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
@@ -80,6 +82,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _integratedTerminalInstance?: vscode.Terminal;
 	private _terminalDisposedListener: IDisposable;
+
+	private _signService: ISignService;
 
 
 	constructor(mainContext: IMainContext,
@@ -421,16 +425,45 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						this._debugAdaptersTrackers.set(debugAdapterHandle, tracker);
 					}
 
-					debugAdapter.onMessage(message => {
+					debugAdapter.onMessage(async message => {
 
-						if (tracker && tracker.onDidSendMessage) {
-							tracker.onDidSendMessage(message);
+						if (message.type === 'request' && (<DebugProtocol.Request>message).command === 'handshake') {
+
+							const request = <DebugProtocol.Request>message;
+
+							const response: DebugProtocol.Response = {
+								type: 'response',
+								seq: 0,
+								command: request.command,
+								request_seq: request.seq,
+								success: true
+							};
+
+							if (!this._signService) {
+								this._signService = new SignService();
+							}
+
+							try {
+								const signature = await this._signService.sign(request.arguments.value);
+								response.body = {
+									signature: signature
+								};
+								debugAdapter.sendResponse(response);
+							} catch (e) {
+								response.success = false;
+								response.message = e.message;
+								debugAdapter.sendResponse(response);
+							}
+						} else {
+							if (tracker && tracker.onDidSendMessage) {
+								tracker.onDidSendMessage(message);
+							}
+
+							// DA -> VS Code
+							message = convertToVSCPaths(message, true);
+
+							mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
 						}
-
-						// DA -> VS Code
-						message = convertToVSCPaths(message, true);
-
-						mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
 					});
 					debugAdapter.onError(err => {
 						if (tracker && tracker.onError) {

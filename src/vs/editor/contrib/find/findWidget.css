@@ -289,10 +289,6 @@
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-editor.vs-dark .find-widget .monaco-checkbox .checkbox:checked + .label {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
 .monaco-editor.hc-black .find-widget .close-fw,
 .monaco-editor.vs-dark .find-widget .close-fw {
 	background-image: url('images/close-dark.svg');

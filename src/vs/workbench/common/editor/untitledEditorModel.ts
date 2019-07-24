@@ -22,13 +22,13 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeDirty(): Event<void> { return this._onDidChangeDirty.event; }
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
 	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeEncoding(): Event<void> { return this._onDidChangeEncoding.event; }
+	readonly onDidChangeEncoding: Event<void> = this._onDidChangeEncoding.event;
 
 	private dirty: boolean = false;
 	private versionId: number = 0;

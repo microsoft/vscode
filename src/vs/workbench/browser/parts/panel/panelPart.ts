@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
@@ -32,7 +32,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface ICachedPanel {
@@ -58,13 +57,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
-	readonly snapSize: number = 50;
-	readonly priority: LayoutPriority = LayoutPriority.Low;
+	readonly snap = true;
 
 	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
-	get onDidPanelClose(): Event<IPanel> { return this.onDidCompositeClose.event; }
+	readonly onDidPanelClose: Event<IPanel> = this.onDidCompositeClose.event;
+
+	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -433,6 +434,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private setStoredCachedViewletsValue(value: string): void {
 		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

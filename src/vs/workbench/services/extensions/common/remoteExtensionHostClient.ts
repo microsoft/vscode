@@ -8,7 +8,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, IWebSocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
@@ -24,7 +24,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IProductService } from 'vs/platform/product/common/product';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -47,7 +47,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	constructor(
 		private readonly _allExtensions: Promise<IExtensionDescription[]>,
 		private readonly _initDataProvider: IInitDataProvider,
-		private readonly _webSocketFactory: IWebSocketFactory,
+		private readonly _socketFactory: ISocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -73,22 +73,23 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 		const options: IConnectionOptions = {
 			isBuilt: this._environmentService.isBuilt,
 			commit: this._productService.commit,
-			webSocketFactory: this._webSocketFactory,
+			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
-					const { host, port } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host, port };
+					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
+					return { host: authority.host, port: authority.port };
 				}
 			},
 			signService: this._signService
 		};
-		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolvedAuthority) => {
+		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 
 			const startParams: IRemoteExtensionHostStartParams = {
 				language: platform.language,
 				debugId: this._environmentService.debugExtensionHost.debugId,
 				break: this._environmentService.debugExtensionHost.break,
 				port: this._environmentService.debugExtensionHost.port,
+				env: resolverResult.options && resolverResult.options.extensionHostEnv
 			};
 
 			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
@@ -161,6 +162,11 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	}
 
 	private _onExtHostConnectionLost(): void {
+
+		if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId) {
+			this._extensionHostDebugService.close(this._environmentService.debugExtensionHost.debugId);
+		}
+
 		if (this._terminating) {
 			// Expected termination path (we asked the process to terminate)
 			return;
@@ -191,7 +197,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					globalStorageHome: remoteExtensionHostData.globalStorageHome,
 					userHome: remoteExtensionHostData.userHome,
 					webviewResourceRoot: this._environmentService.webviewResourceRoot,
-					webviewCspRule: this._environmentService.webviewCspRule,
+					webviewCspSource: this._environmentService.webviewCspSource,
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 					configuration: workspace.configuration,

@@ -320,19 +320,27 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidFocus(): Event<void> { return this.tree.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T>, TFilterData>> { return this.tree.onDidChangeCollapseState; }
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, TFilterData>> { return this.tree.onDidChangeCollapseState; }
 
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get filterOnType(): boolean { return this.tree.filterOnType; }
 	get openOnSingleClick(): boolean { return this.tree.openOnSingleClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) {
+		if (typeof this.tree.expandOnlyOnTwistieClick === 'boolean') {
+			return this.tree.expandOnlyOnTwistieClick;
+		}
+
+		const fn = this.tree.expandOnlyOnTwistieClick;
+		return element => fn(this.nodes.get((element === this.root.element ? null : element) as T) || null);
+	}
 
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
@@ -778,7 +786,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const hasChildren = !!this.dataSource.hasChildren(element);
 
 			if (!this.identityProvider) {
-				return createAsyncDataTreeNode({ element, parent: node, hasChildren });
+				const asyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, hasChildren });
+
+				if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
+					asyncDataTreeNode.collapsedByDefault = false;
+					childrenToRefresh.push(asyncDataTreeNode);
+				}
+
+				return asyncDataTreeNode;
 			}
 
 			const id = this.identityProvider.getId(element).toString();

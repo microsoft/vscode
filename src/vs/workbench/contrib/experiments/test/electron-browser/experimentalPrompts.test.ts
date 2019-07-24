@@ -13,7 +13,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/electron-browser/experimentalPrompt';
-import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
+import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 

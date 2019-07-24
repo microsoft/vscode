@@ -154,10 +154,10 @@ function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullVa
 		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
 		const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
 		// If whitespace exists, replace until it
-		const whiteSpaceIndex = valueAfterLastSlash.indexOf(' ');
+		const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
 		let endPos;
-		if (whiteSpaceIndex !== -1) {
-			endPos = shiftPosition(startPos, whiteSpaceIndex);
+		if (whitespaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whitespaceIndex);
 		} else {
 			endPos = fullValueRange.end;
 		}

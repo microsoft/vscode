@@ -20,6 +20,7 @@ import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -75,6 +76,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 	}
 
 	private _endSync(): void {
+		this._isSynced = false;
 		this._worker.acceptRemovedModel(this._model.uri.toString());
 	}
 
@@ -109,9 +111,10 @@ export class TextMateService extends AbstractTextMateService {
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService);
+		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);

@@ -302,7 +302,7 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
-			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+			});
 		this._register(this.tree);
 
 		// Bind context keys
@@ -337,7 +337,7 @@ export class ExplorerView extends ViewletPanel {
 		// save view state on shutdown
 		this._register(this.storageService.onWillSaveState(() => {
 			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE);
-		}, null));
+		}));
 	}
 
 	// React on events

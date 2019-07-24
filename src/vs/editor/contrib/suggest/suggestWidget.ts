@@ -492,7 +492,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	) {
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
-		const markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
+		const markdownRenderer = this.toDispose.add(new MarkdownRenderer(editor, modeService, openerService));
 
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -810,12 +810,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					"suggestWidget" : {
 						"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"${include}": [
-							"${ICompletionStats}",
-							"${EditorTelemetryData}"
+							"${ICompletionStats}"
 						]
 					}
 				*/
-				this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
+				this.telemetryService.publicLog('suggestWidget', { ...stats });
 			}
 
 			this.focusedItem = null;
@@ -949,14 +948,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
 			}
 		}
-		/* __GDPR__
-			"suggestWidget:toggleDetailsFocus" : {
-				"${include}": [
-					"${EditorTelemetryData}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('suggestWidget:toggleDetailsFocus', this.editor.getTelemetryData());
+		this.telemetryService.publicLog2('suggestWidget:toggleDetailsFocus');
 	}
 
 	toggleDetails(): void {
@@ -970,14 +962,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
-			/* __GDPR__
-				"suggestWidget:collapseDetails" : {
-					"${include}": [
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
+			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 		} else {
 			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
 				return;
@@ -986,14 +971,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
 			this._ariaAlert(this.details.getAriaLabel());
-			/* __GDPR__
-				"suggestWidget:expandDetails" : {
-					"${include}": [
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
+			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
 

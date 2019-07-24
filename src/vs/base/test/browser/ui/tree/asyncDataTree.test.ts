@@ -361,12 +361,6 @@ suite('AsyncDataTree', function () {
 			}
 		};
 
-		const identityProvider = new class implements IIdentityProvider<Element> {
-			getId(element: Element) {
-				return element.id;
-			}
-		};
-
 		const root: Element = {
 			id: 'root',
 			children: [{
@@ -377,7 +371,6 @@ suite('AsyncDataTree', function () {
 		const _: (id: string) => Element = find.bind(null, root.children);
 
 		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, {
-			identityProvider,
 			collapseByDefault: el => el.id !== 'a'
 		});
 		tree.layout(200);

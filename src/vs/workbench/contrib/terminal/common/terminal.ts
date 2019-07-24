@@ -124,6 +124,7 @@ export interface ITerminalConfigHelper {
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export interface ITerminalFont {
@@ -231,7 +232,7 @@ export interface ITerminalService {
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
-	onInstanceRequestVirtualProcess: Event<ITerminalProcessExtHostProxy>;
+	onInstanceRequestVirtualProcess: Event<ITerminalVirtualProcessRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
@@ -252,7 +253,7 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
@@ -299,7 +300,7 @@ export interface ITerminalService {
 
 	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
-	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy): void;
+	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
 }
 
 /**
@@ -537,7 +538,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(): void;
+	copySelection(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
@@ -707,6 +708,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 
 	dispose(immediate?: boolean): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
@@ -745,6 +747,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
+	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
@@ -764,6 +767,12 @@ export interface ITerminalProcessExtHostRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+}
+
+export interface ITerminalVirtualProcessRequest {
+	proxy: ITerminalProcessExtHostProxy;
+	cols: number;
+	rows: number;
 }
 
 export interface IAvailableShellsRequest {
@@ -794,6 +803,7 @@ export interface ITerminalChildProcess {
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 
 	/**
 	 * Shutdown the terminal process.

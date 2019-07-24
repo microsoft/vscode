@@ -200,6 +200,8 @@ export class BrowserKeyboardMapperFactoryBase {
 					}]
 				);
 
+				console.warn('Active keymap/keyevent does not match current keyboard layout', JSON.stringify(keymap), this._activeKeymapInfo ? JSON.stringify(this._activeKeymapInfo.layout) : '');
+
 				return;
 			}
 

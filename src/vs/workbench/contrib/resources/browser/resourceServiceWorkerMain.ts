@@ -3,60 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// This file is to bootstrap AMD so that we can program as usual
+// Note the fetch, install, activate event handler must be registered
+// when loading the service worker and despite AMD's async nature this
+// works. That's because the/our AMD loader uses the sync importScripts
+// statement.
+
 // trigger service worker updates
-const _tag = '586d4b79-f5c4-4aff-9a14-2139ddfbb486';
+const _tag = 'a6f9835e-c10e-4299-ab39-b8e29547c20a';
 
-(function () {
+// loader world
+const baseUrl = '../../../../../';
+importScripts(baseUrl + 'vs/loader.js');
+require.config({
+	baseUrl,
+	catchError: true
+});
+require(['vs/workbench/contrib/resources/browser/resourceServiceWorker'],
+	() => { },
+	err => console.error(err)
+);
 
-	type Handler = {
-		handleFetchEvent(event: Event): Promise<Response | undefined>;
-		handleMessageEvent(event: MessageEvent): void;
-	};
-
-	const handlerPromise = new Promise<Handler>((resolve, reject) => {
-		// load loader
-		const baseUrl = '../../../../../';
-		importScripts(baseUrl + 'vs/loader.js');
-		require.config({
-			baseUrl,
-			catchError: true
-		});
-		require(['vs/workbench/contrib/resources/browser/resourceServiceWorker'], resolve, reject);
-	});
-
-	self.addEventListener('message', event => {
-		handlerPromise.then(handler => {
-			handler.handleMessageEvent(event);
-		});
-	});
-
-	self.addEventListener('fetch', (event: any) => {
-		event.respondWith(handlerPromise.then(async handler => {
-			// try handler
-			const value = await handler.handleFetchEvent(event);
-			if (value instanceof Response) {
-				return value;
-			}
-			// try the network (prefetch or fetch)
-			const res = await event.preloadResponse;
-			if (res) {
-				return res;
-			} else {
-				return fetch(event.request);
-			}
-		}));
-	});
-	self.addEventListener('install', (event: any) => {
-		event.waitUntil((self as any).skipWaiting());
-	});
-
-	self.addEventListener('activate', (event: any) => {
-
-		event.waitUntil((async () => {
-			if ((self as any).registration.navigationPreload) {
-				await (self as any).registration.navigationPreload.enable(); // Enable navigation preloads!
-			}
-			await (self as any).clients.claim(); // Become available to all pages
-		})());
-	});
-})();

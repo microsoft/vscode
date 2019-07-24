@@ -145,7 +145,7 @@ export class CallStackView extends ViewletPanel {
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
 				}
-			}) as WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
+			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 

@@ -35,7 +35,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqualOrParent } from 'vs/base/common/resources';
 
@@ -401,7 +401,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
 						userHome: URI.file(this._environmentService.userHome),
 						webviewResourceRoot: this._environmentService.webviewResourceRoot,
-						webviewCspRule: this._environmentService.webviewCspRule,
+						webviewCspSource: this._environmentService.webviewCspSource,
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),

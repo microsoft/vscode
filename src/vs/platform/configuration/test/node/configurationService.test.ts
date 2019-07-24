@@ -94,7 +94,8 @@ suite('ConfigurationService - Node', () => {
 		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		return new Promise((c, e) => {
-			service.onDidChangeConfiguration(() => {
+			const disposable = service.onDidChangeConfiguration(() => {
+				disposable.dispose();
 				assert.equal(service.getValue('foo'), 'bar');
 				service.dispose();
 				c();

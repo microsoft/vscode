@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, isArray } from 'vs/base/common/types';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
@@ -375,6 +375,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const position = model.getPositionAt(offset);
 				range.endLineNumber = position.lineNumber;
 				range.endColumn = position.column;
+				settingsPropertyIndex = -1;
 			}
 		},
 		onArrayBegin: (offset: number, length: number) => {
@@ -613,6 +614,10 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || prop.markdownDescription || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+				const listItemType = prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type && !isArray(prop.items.type)
+					? prop.items.type
+					: undefined;
+
 				result.push({
 					key,
 					value,
@@ -625,6 +630,7 @@ export class DefaultSettings extends Disposable {
 					overrides,
 					scope: prop.scope,
 					type: prop.type,
+					arrayItemType: listItemType,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,

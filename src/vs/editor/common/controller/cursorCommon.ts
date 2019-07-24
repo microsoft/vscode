@@ -21,6 +21,9 @@ import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColumnSelectData {
+	isReal: boolean;
+	fromViewLineNumber: number;
+	fromViewVisualColumn: number;
 	toViewLineNumber: number;
 	toViewVisualColumn: number;
 }

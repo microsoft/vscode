@@ -433,7 +433,8 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
+
+connection.onSelectionRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {

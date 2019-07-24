@@ -132,7 +132,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from middle', () => {
 		moveTo(thisCursor, 1, 8);
 
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
+		moveToLineFirstNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 6);
 	});
@@ -140,7 +140,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from first non white space character', () => {
 		moveTo(thisCursor, 1, 6);
 
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
+		moveToLineFirstNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 6);
 	});
@@ -148,7 +148,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from first character', () => {
 		moveTo(thisCursor, 1, 1);
 
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
+		moveToLineFirstNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 6);
 	});
@@ -180,7 +180,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from middle', () => {
 		moveTo(thisCursor, 1, 8);
 
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		moveToLineLastNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 19);
 	});
@@ -188,7 +188,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from last non white space character', () => {
 		moveTo(thisCursor, 1, 19);
 
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		moveToLineLastNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 19);
 	});
@@ -196,7 +196,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from line end', () => {
 		moveTo(thisCursor, 1, 21);
 
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		moveToLineLastNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 19);
 	});
@@ -415,7 +415,7 @@ function moveToLineStart(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineStart });
 }
 
-function moveToLineFirstNonWhiteSpaceCharacter(cursor: Cursor) {
+function moveToLineFirstNonWhitespaceCharacter(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineFirstNonWhitespaceCharacter });
 }
 
@@ -427,7 +427,7 @@ function moveToLineEnd(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineEnd });
 }
 
-function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
+function moveToLineLastNonWhitespaceCharacter(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineLastNonWhitespaceCharacter });
 }
 

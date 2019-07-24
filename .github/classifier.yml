@@ -63,7 +63,7 @@
             assignLabel: false
         },
         file-explorer: {
-            assignees: [ isidorn ],
+            assignees: [ ],
             assignLabel: false
         },
         file-glob: [],
@@ -81,7 +81,7 @@
         hot-exit: [],
         html: [],
         install-update: [],
-        integrated-terminal: [ Tyriar ],
+        integrated-terminal: [],
         integration-test: [],
         intellisense-config: [],
         issue-reporter: [ RMacfarlane ],

@@ -47,7 +47,7 @@ import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecora
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { getServices } from 'vs/platform/instantiation/common/extensions';
+import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -100,7 +100,7 @@ export module StaticServices {
 		let result = new ServiceCollection();
 
 		// make sure to add all services that use `registerSingleton`
-		for (const { id, descriptor } of getServices()) {
+		for (const [id, descriptor] of getSingletonServiceDescriptors()) {
 			result.set(id, descriptor);
 		}
 

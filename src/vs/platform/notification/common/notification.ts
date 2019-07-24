@@ -254,7 +254,7 @@ export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
 	private readonly _onDidClose: Emitter<void> = new Emitter();
-	get onDidClose(): Event<void> { return this._onDidClose.event; }
+	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }

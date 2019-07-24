@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -71,7 +71,7 @@ export class FindModelBoundToEditorModel {
 
 	private readonly _editor: IActiveCodeEditor;
 	private readonly _state: FindReplaceState;
-	private _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 	private readonly _decorations: FindDecorations;
 	private _ignoreModelContentChanged: boolean;
 	private readonly _startSearchingTimer: TimeoutTimer;
@@ -82,17 +82,16 @@ export class FindModelBoundToEditorModel {
 	constructor(editor: IActiveCodeEditor, state: FindReplaceState) {
 		this._editor = editor;
 		this._state = state;
-		this._toDispose = [];
 		this._isDisposed = false;
 		this._startSearchingTimer = new TimeoutTimer();
 
 		this._decorations = new FindDecorations(editor);
-		this._toDispose.push(this._decorations);
+		this._toDispose.add(this._decorations);
 
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
-		this._toDispose.push(this._updateDecorationsScheduler);
+		this._toDispose.add(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+		this._toDispose.add(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (
 				e.reason === CursorChangeReason.Explicit
 				|| e.reason === CursorChangeReason.Undo
@@ -103,7 +102,7 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidChangeModelContent((e) => {
+		this._toDispose.add(this._editor.onDidChangeModelContent((e) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
@@ -115,7 +114,7 @@ export class FindModelBoundToEditorModel {
 			this._updateDecorationsScheduler.schedule();
 		}));
 
-		this._toDispose.push(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+		this._toDispose.add(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
 		this.research(false, this._state.searchScope);
 	}
@@ -123,7 +122,7 @@ export class FindModelBoundToEditorModel {
 	public dispose(): void {
 		this._isDisposed = true;
 		dispose(this._startSearchingTimer);
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
