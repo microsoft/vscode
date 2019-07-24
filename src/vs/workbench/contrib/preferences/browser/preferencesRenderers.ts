@@ -19,7 +19,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1002,7 +1002,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
 								break;
 						}
-					} else {
+					} else if (!OVERRIDE_PROPERTY_PATTERN.test(setting.key)) { // Ignore override settings (language specific settings)
 						markerData.push({
 							severity: MarkerSeverity.Hint,
 							tags: [MarkerTag.Unnecessary],
