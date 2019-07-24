@@ -1852,5 +1852,5 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
 	}
 
-	collector.addRule(`.monaco-editor .${ClassName.EditorDeprecatedDecoration} { text-decoration: strikethrough; }`);
+	collector.addRule(`.monaco-editor .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: strikethrough; }`);
 });
