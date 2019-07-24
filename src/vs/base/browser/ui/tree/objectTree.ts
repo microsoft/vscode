@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterator, ISequence } from 'vs/base/common/iterator';
+import { ISequence } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
@@ -31,11 +31,8 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(container, delegate, renderers, options);
 	}
 
-	setChildren(
-		element: T | null,
-		children?: ISequence<ITreeElement<T>>
-	): Iterator<ITreeElement<T | null>> {
-		return this.model.setChildren(element, children);
+	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): void {
+		this.model.setChildren(element, children);
 	}
 
 	rerender(element?: T): void {

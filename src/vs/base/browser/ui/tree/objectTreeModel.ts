@@ -13,7 +13,7 @@ import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
-	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): Iterator<ITreeElement<T>>;
+	setChildren(element: T | null, children: ISequence<ITreeElement<T>> | undefined): void;
 	resort(element?: T | null, recursive?: boolean): void;
 }
 
@@ -60,9 +60,9 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
-	): Iterator<ITreeElement<T>> {
+	): void {
 		const location = this.getElementLocation(element);
-		return this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
+		this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
 	}
 
 	private _setChildren(
@@ -70,7 +70,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		children: ISequence<ITreeElement<T>> | undefined,
 		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
 		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
-	): Iterator<ITreeElement<T>> {
+	): void {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
@@ -106,15 +106,13 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			}
 		};
 
-		const result = this.model.splice(
+		this.model.splice(
 			[...location, 0],
 			Number.MAX_VALUE,
 			children,
 			_onDidCreateNode,
 			_onDidDeleteNode
 		);
-
-		return result as Iterator<ITreeElement<T>>;
 	}
 
 	private preserveCollapseState(elements: ISequence<ITreeElement<T>> | undefined): ISequence<ITreeElement<T>> {

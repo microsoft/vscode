@@ -33,13 +33,6 @@ export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisib
 	}
 }
 
-function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
-	const { element, collapsed } = node;
-	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
-
-	return { element, children, collapsed };
-}
-
 export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
@@ -92,7 +85,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		toInsert?: ISequence<ITreeElement<T>>,
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
-	): Iterator<ITreeElement<T>> {
+	): void {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}
@@ -170,9 +163,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			deletedNodes.forEach(visit);
 		}
 
-		const result = Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
 		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
-		return result;
 	}
 
 	rerender(location: number[]): void {

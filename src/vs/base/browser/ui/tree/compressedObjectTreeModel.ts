@@ -109,7 +109,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		children: ISequence<ICompressedTreeElement<T>> | undefined,
 		onDidCreateNode?: (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => void
-	): Iterator<ITreeElement<T | null>> {
+	): void {
 		const insertedElements = new Set<T | null>();
 		const _onDidCreateNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
 			for (const element of node.element.elements) {
@@ -149,8 +149,8 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 		if (element === null) {
 			const compressedChildren = Iterator.map(Iterator.from(children), compress);
-			const result = this.model.setChildren(null, compressedChildren, _onDidCreateNode, _onDidDeleteNode);
-			return Iterator.map(result, decompress);
+			this.model.setChildren(null, compressedChildren, _onDidCreateNode, _onDidDeleteNode);
+			return;
 		}
 
 		const compressedNode = this.nodes.get(element);
@@ -165,9 +165,6 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 			.map(child => child === node ? recompressedElement : child);
 
 		this.model.setChildren(parent.element, parentChildren, _onDidCreateNode, _onDidDeleteNode);
-
-		// TODO
-		return Iterator.empty();
 	}
 
 	getListIndex(location: T | null): number {
@@ -363,14 +360,8 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		this.model = new CompressedObjectTreeModel(mapList(this.nodeMapper, list), mapOptions(compressedNodeMapper, options));
 	}
 
-	setChildren(
-		element: T | null,
-		children: ISequence<ITreeElement<T>> | undefined
-	): Iterator<ITreeElement<T>> {
+	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): void {
 		this.model.setChildren(element, children);
-
-		// TODO
-		return Iterator.empty();
 	}
 
 	getListIndex(location: T | null): number {
