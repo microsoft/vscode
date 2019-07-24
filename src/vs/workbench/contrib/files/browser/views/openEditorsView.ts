@@ -219,7 +219,7 @@ export class OpenEditorsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			}) as WorkbenchList<OpenEditor | IEditorGroup>;
+			});
 		this._register(this.list);
 		this._register(this.listLabels);
 

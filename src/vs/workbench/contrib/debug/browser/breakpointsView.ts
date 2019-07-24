@@ -83,7 +83,7 @@ export class BreakpointsView extends ViewletPanel {
 					getRole: (breakpoint: IEnablement) => 'checkbox',
 					isChecked: (breakpoint: IEnablement) => breakpoint.enabled
 				}
-			}) as WorkbenchList<IEnablement>;
+			});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 

@@ -24,20 +24,21 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
+import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
+import { RemoteConnectionState, Deprecated_RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
+import { IDownloadService } from 'vs/platform/download/common/download';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
@@ -100,13 +101,13 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (connection) {
 			this._register(connection.onDidStateChange((e) => {
 				switch (e.type) {
-					case PersistenConnectionEventType.ConnectionLost:
-					case PersistenConnectionEventType.ReconnectionPermanentFailure:
-					case PersistenConnectionEventType.ReconnectionRunning:
-					case PersistenConnectionEventType.ReconnectionWait:
+					case PersistentConnectionEventType.ConnectionLost:
+					case PersistentConnectionEventType.ReconnectionPermanentFailure:
+					case PersistentConnectionEventType.ReconnectionRunning:
+					case PersistentConnectionEventType.ReconnectionWait:
 						this.setDisconnected(true);
 						break;
-					case PersistenConnectionEventType.ConnectionGain:
+					case PersistentConnectionEventType.ConnectionGain:
 						this.setDisconnected(false);
 						break;
 				}
@@ -118,6 +119,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
 			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? '' : this.remoteAuthority || '');
 			this.updateWindowIndicator();
 		}
 	}
@@ -162,7 +164,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private showIndicatorActions(menu: IMenu) {
 
-		const actions = !this.disconnected || !this.remoteAuthority ? menu.getActions() : [];
+		const actions = menu.getActions();
 
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (let actionGroup of actions) {
@@ -215,12 +217,13 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@IDownloadService downloadService: IDownloadService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('dialog', new DialogChannel(dialogService));
-			connection.registerChannel('download', new DownloadServiceChannel());
+			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
 			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
 		}
 	}
@@ -296,7 +299,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					currentTimer = null;
 				}
 				switch (e.type) {
-					case PersistenConnectionEventType.ConnectionLost:
+					case PersistentConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
 							let promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
 							progressService!.withProgress(
@@ -313,13 +316,13 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 
 						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
 						break;
-					case PersistenConnectionEventType.ReconnectionWait:
+					case PersistentConnectionEventType.ReconnectionWait:
 						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
 						break;
-					case PersistenConnectionEventType.ReconnectionRunning:
+					case PersistentConnectionEventType.ReconnectionRunning:
 						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
 						break;
-					case PersistenConnectionEventType.ReconnectionPermanentFailure:
+					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						currentProgressPromiseResolve!();
 						currentProgressPromiseResolve = null;
 						progressReporter = null;
@@ -331,7 +334,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 							}
 						});
 						break;
-					case PersistenConnectionEventType.ConnectionGain:
+					case PersistentConnectionEventType.ConnectionGain:
 						currentProgressPromiseResolve!();
 						currentProgressPromiseResolve = null;
 						progressReporter = null;

@@ -221,7 +221,7 @@ export class FileDialogService implements IFileDialogService {
 		const schema = this.getFileSystemSchema(options);
 		if (this.shouldUseSimplified(schema)) {
 			if (!options.availableFileSystems) {
-				options.availableFileSystems = [schema]; // by default only allow saving in the own file system
+				options.availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
 			}
 
 			return this.saveRemoteResource(options);
@@ -239,7 +239,7 @@ export class FileDialogService implements IFileDialogService {
 		const schema = this.getFileSystemSchema(options);
 		if (this.shouldUseSimplified(schema)) {
 			if (!options.availableFileSystems) {
-				options.availableFileSystems = [schema]; // by default only allow loading in the own file system
+				options.availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
 			}
 
 			const uri = await this.pickRemoteResource(options);

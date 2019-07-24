@@ -10,7 +10,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
 		<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; img-src 'self' https: data: blob: vscode-remote:; media-src 'none'; child-src 'self' {{WEBVIEW_ENDPOINT}}; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob: vscode-remote:;">
+		content="default-src 'none'; img-src 'self' https: data: blob: vscode-remote:; media-src 'none'; frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob: vscode-remote:;">
 
 		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONGIGURATION}}">
 

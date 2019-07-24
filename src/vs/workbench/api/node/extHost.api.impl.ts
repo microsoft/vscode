@@ -49,6 +49,7 @@ import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
+import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
@@ -71,6 +72,7 @@ import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -114,6 +116,7 @@ export function createApiFactory(
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostLogService));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
+	rpcProtocol.set(ExtHostContext.ExtHostDownloadService, new ExtHostDownloadService(rpcProtocol.getProxy(MainContext.MainThreadDownloadService), extHostCommands));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
@@ -242,7 +245,11 @@ export function createApiFactory(
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
-			}
+			},
+			onDidExecuteCommand: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension);
+				return extHostCommands.onDidExecuteCommand(listener, thisArgs, disposables);
+			}),
 		};
 
 		// namespace: env
@@ -271,15 +278,7 @@ export function createApiFactory(
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
-				if (!initData.remote.authority) {
-					return undefined;
-				}
-				const pos = initData.remote.authority.indexOf('+');
-				if (pos < 0) {
-					// funky? bad authority?
-					return initData.remote.authority;
-				}
-				return initData.remote.authority.substr(0, pos);
+				return getRemoteName(initData.remote.authority);
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {

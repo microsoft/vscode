@@ -710,7 +710,8 @@ suite('Editor Controller - Cursor', () => {
 			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
-				mouseColumn: 15
+				mouseColumn: 15,
+				setAnchorIfNotSet: false
 			});
 
 			let expectedSelections = [
@@ -745,7 +746,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 
 		assertCursor(cursor, [
@@ -784,7 +786,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -802,7 +805,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),

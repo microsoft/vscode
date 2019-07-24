@@ -102,6 +102,22 @@ class BranchNode implements ISplitView, IDisposable {
 		return Math.min(...this.children.map(c => c.maximumOrthogonalSize));
 	}
 
+	get priority(): LayoutPriority {
+		if (this.children.length === 0) {
+			return LayoutPriority.Normal;
+		}
+
+		const priorities = this.children.map(c => typeof c.priority === 'undefined' ? LayoutPriority.Normal : c.priority);
+
+		if (priorities.some(p => p === LayoutPriority.High)) {
+			return LayoutPriority.High;
+		} else if (priorities.some(p => p === LayoutPriority.Low)) {
+			return LayoutPriority.Low;
+		}
+
+		return LayoutPriority.Normal;
+	}
+
 	get minimumOrthogonalSize(): number {
 		return this.splitview.minimumSize;
 	}
