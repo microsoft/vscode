@@ -121,6 +121,7 @@ suite('AbstractKeybindingService', () => {
 			let commandService: ICommandService = {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => ({ dispose: () => { } }),
+				onDidExecuteCommand: () => ({ dispose: () => { } }),
 				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
