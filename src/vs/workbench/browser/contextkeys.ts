@@ -123,7 +123,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsWebContext.bindTo(this.contextKeyService);
 		IsMacNativeContext.bindTo(this.contextKeyService);
 
-		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.environmentService.configuration.remoteAuthority || ''); // remove once 
 		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.configuration.remoteAuthority) || '');
 
 		// macOS Native Tabs
