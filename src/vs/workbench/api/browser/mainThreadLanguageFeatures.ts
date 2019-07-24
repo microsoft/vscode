@@ -341,6 +341,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			commitCharacters: data.k,
 			additionalTextEdits: data.l,
 			command: data.m,
+			deprecated: data.n,
 			// not-standard
 			_id: data.x,
 		};

@@ -1277,6 +1277,13 @@ declare module 'vscode' {
 
 	//#region Deprecated support
 
+	export interface CompletionItem {
+		/**
+		 * Indicates if this item is deprecated.
+		 */
+		deprecated?: boolean;
+	}
+
 	export enum DiagnosticTag {
 		/**
 		 * Deprecated or obsolete code
