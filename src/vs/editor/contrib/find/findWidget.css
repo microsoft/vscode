@@ -220,10 +220,6 @@
 	background-image: url('images/tree-collapsed-light.svg');
 }
 
-.monaco-editor .find-widget .preserve-case {
-	background: url('images/preserve-case.svg') center center no-repeat;
-}
-
 .monaco-editor .find-widget .replace {
 	background-image: url('images/replace-light.svg');
 }
@@ -312,16 +308,6 @@
 .monaco-editor.hc-black .find-widget .close-fw,
 .monaco-editor.vs-dark .find-widget .close-fw {
 	background-image: url('images/close-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .preserve-case-dark,
-.monaco-editor.vs-dark .find-widget .preserve-case-dark {
-	background-image: url('images/preserve-case-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .preserve-case,
-.monaco-editor.vs-dark .find-widget .preserve-case {
-	background: url('images/preserve-case-dark.svg') center center no-repeat;
 }
 
 .monaco-editor.hc-black .find-widget .replace,

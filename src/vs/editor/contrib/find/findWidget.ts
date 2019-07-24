@@ -917,7 +917,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._preserveCase = this._register(new Checkbox({
-			actionClassName: 'preserve-case',
+			actionClassName: 'monaco-case-sensitive',
 			title: NLS_PRESERVE_CASE_LABEL,
 			isChecked: false,
 		}));
