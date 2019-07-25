@@ -26,7 +26,7 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
-	protected readonly _findInput: FindInput;
+	private readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
