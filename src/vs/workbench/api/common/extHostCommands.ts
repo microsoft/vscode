@@ -50,7 +50,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
 			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
 		});
-		this.onDidExecuteCommand = this._onDidExecuteCommand.event;
+		this.onDidExecuteCommand = Event.filter(this._onDidExecuteCommand.event, e => e.command[0] !== '_'); // filter 'private' commands
 		this._logService = logService;
 		this._converter = new CommandsConverter(this);
 		this._argumentProcessors = [
@@ -222,7 +222,7 @@ export class CommandsConverter {
 
 	// --- conversion between internal and api commands
 	constructor(commands: ExtHostCommands) {
-		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
+		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 		this._commands = commands;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}

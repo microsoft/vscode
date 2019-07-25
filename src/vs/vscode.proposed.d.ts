@@ -925,7 +925,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal virtual process
+	//#region Terminal extension pty
 
 	export namespace window {
 		/**
@@ -1022,6 +1022,19 @@ declare module 'vscode' {
 		onDidExit?: Event<number>;
 
 		/**
+		 * Implement to handle when the terminal is ready to start firing events.
+		 *
+		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
+		 * terminal panel has not been opened before this is called.
+		 */
+		start(initialDimensions: TerminalDimensions | undefined): void;
+
+		/**
+		 * Implement to handle when the terminal shuts down by an act of the user.
+		 */
+		shutdown(): void;
+
+		/**
 		 * Implement to handle keystrokes in the terminal or when an extension calls
 		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
 		 * corresponding VT sequence representation.
@@ -1050,19 +1063,6 @@ declare module 'vscode' {
 		 * @param dimensions The new dimensions.
 		 */
 		setDimensions?(dimensions: TerminalDimensions): void;
-
-		/**
-		 * Implement to handle when the terminal shuts down by an act of the user.
-		 */
-		shutdown?(): void;
-
-		/**
-		 * Implement to handle when the terminal is ready to start firing events.
-		 *
-		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
-		 * terminal panel has not been opened before this is called.
-		 */
-		start?(initialDimensions: TerminalDimensions | undefined): void;
 	}
 
 	//#endregion

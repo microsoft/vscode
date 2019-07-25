@@ -140,7 +140,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		codeActionProvider: true,
 		renameProvider: true,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 	return { capabilities };
 });

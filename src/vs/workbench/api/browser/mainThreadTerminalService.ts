@@ -323,6 +323,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._getTerminalProcess(terminalId).then(e => e.emitCwd(cwd));
 	}
 
+	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
+		const instance = this._terminalService.getInstanceFromId(terminalId);
+		if (instance) {
+			this._getTerminalProcess(terminalId).then(e => e.emitResolvedShellLaunchConfig(shellLaunchConfig));
+		}
+	}
+
 	private async _onRequestLatency(terminalId: number): Promise<void> {
 		const COUNT = 2;
 		let sum = 0;

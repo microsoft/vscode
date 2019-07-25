@@ -119,7 +119,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
 			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
-			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? '' : this.remoteAuthority || '');
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? '' : this.remoteAuthority || `disconnected/${this.remoteAuthority}`);
 			this.updateWindowIndicator();
 		}
 	}
