@@ -1178,12 +1178,16 @@ export class TerminalInstance implements ITerminalInstance {
 		const config = this._configHelper.config;
 		const terminal = this._xterm;
 		if (config.cursorBlinking) {
-			// Save the original blur cursor render function
-			const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
-			this._canvasBlurCursor = cursorRenderLayer._renderBlurCursor;
+			if (config.rendererType === 'dom') {
+				// TODO
+			} else {
+				// Save the original blur cursor render function
+				const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
+				this._canvasBlurCursor = cursorRenderLayer._renderBlurCursor;
 
-			const xtermOption = config.cursorStyle === 'line' ? 'bar' : config.cursorStyle;
-			cursorRenderLayer._renderBlurCursor = cursorRenderLayer._cursorRenderers[xtermOption];
+				const xtermOption = config.cursorStyle === 'line' ? 'bar' : config.cursorStyle;
+				cursorRenderLayer._renderBlurCursor = cursorRenderLayer._cursorRenderers[xtermOption];
+			}
 		}
 	}
 
