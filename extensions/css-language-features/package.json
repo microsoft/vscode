@@ -34,6 +34,14 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.trustedDomains": {
+            "type": "array",
+            "description": "Trusted domains in hover and completion links",
+            "items": {
+              "type": "string"
+            },
+            "scope": "application"
+          },
           "css.experimental.customData": {
             "type": "array",
             "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",

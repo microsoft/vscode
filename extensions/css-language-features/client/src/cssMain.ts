@@ -3,18 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
-
+import * as path from 'path';
+import { isArray } from 'util';
+import { commands, CompletionItem, CompletionItemKind, ConfigurationTarget, ExtensionContext, languages, MarkdownString, Position, Range, SnippetString, TextEdit, window, workspace } from 'vscode';
+import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
+import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
+import { filterLinks } from './markdownLinks';
+
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-
-// this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
+	/**
+	 * Link whitelisting for hover / completion
+	 */
+	let whiteList: string[] = workspace.getConfiguration('css').get('trustedDomains', []);
+	commands.registerCommand('css.askLinkPermission', async ({ domain, linkValue }) => {
+		const results = await window.showInformationMessage(
+			`Opening link ${linkValue}. Trust links from ${domain}?`,
+			'Yes',
+			'Dismiss'
+		);
+		if (results === 'Yes') {
+			whiteList.push(domain);
+			await workspace.getConfiguration('css').update('trustedDomains', whiteList, ConfigurationTarget.Global);
+		}
+	});
+
+	workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('css.trustedDomains')) {
+			whiteList = workspace.getConfiguration('css').get('trustedDomains', []);
+		}
+	});
 
 	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
 	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
@@ -44,11 +65,45 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			dataPaths
+		},
+		middleware: {
+			async provideHover(document, position, token, next) {
+				const originalHover = await next(document, position, token);
+				if (originalHover) {
+					originalHover.contents.forEach(c => {
+						if (c instanceof MarkdownString) {
+							c.value = filterLinks(c.value, whiteList);
+							c.isTrusted = true;
+						}
+					});
+				}
+
+				return originalHover;
+			},
+			async provideCompletionItem(document, position, context, token, next) {
+				const originalCompletionItems = await next(document, position, context, token);
+				if (originalCompletionItems) {
+					const items = isArray(originalCompletionItems) ? originalCompletionItems : originalCompletionItems.items;
+
+					items.forEach(c => {
+						if (c.documentation instanceof MarkdownString) {
+							c.documentation.value = filterLinks(c.documentation.value, whiteList);
+							c.documentation.isTrusted = true;
+						}
+					});
+				}
+				return originalCompletionItems;
+			}
 		}
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
+	let client = new LanguageClient(
+		'css',
+		localize('cssserver.name', 'CSS Language Server'),
+		serverOptions,
+		clientOptions
+	);
 	client.registerProposedFeatures();
 
 	let disposable = client.start();
@@ -90,7 +145,8 @@ export function activate(context: ExtensionContext) {
 				if (match) {
 					let range = new Range(new Position(pos.line, match[1].length), pos);
 					let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
-					beginProposal.range = range; TextEdit.replace(range, '/* #region */');
+					beginProposal.range = range;
+					TextEdit.replace(range, '/* #region */');
 					beginProposal.insertText = new SnippetString('/* #region $1*/');
 					beginProposal.documentation = localize('folding.start', 'Folding Region Start');
 					beginProposal.filterText = match[2];
@@ -116,15 +172,19 @@ export function activate(context: ExtensionContext) {
 			if (textEditor.document.version !== documentVersion) {
 				window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
 			}
-			textEditor.edit(mutator => {
-				for (let edit of edits) {
-					mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
-				}
-			}).then(success => {
-				if (!success) {
-					window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
-				}
-			});
+			textEditor
+				.edit(mutator => {
+					for (let edit of edits) {
+						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+					}
+				})
+				.then(success => {
+					if (!success) {
+						window.showErrorMessage(
+							'Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.'
+						);
+					}
+				});
 		}
 	}
 }
@@ -137,4 +197,3 @@ function readJSONFile(location: string) {
 		return {};
 	}
 }
-
