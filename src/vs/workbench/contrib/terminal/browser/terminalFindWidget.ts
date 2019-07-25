@@ -8,7 +8,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
 	protected _findWidgetFocused: IContextKey<boolean>;
@@ -19,7 +18,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
+		super(_contextViewService, _contextKeyService, findState, true, true);
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));

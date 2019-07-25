@@ -26,7 +26,7 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
-	private readonly _findInput: FindInput;
+	protected readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
@@ -36,15 +36,18 @@ export abstract class SimpleFindWidget extends Widget {
 	private prevBtn: SimpleButton;
 	private nextBtn: SimpleButton;
 	private foundMatch: boolean;
+	private readonly _invertDefaultDirection: boolean | undefined;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		invertDefaultDirection?: boolean
 	) {
 		super();
 
+		this._invertDefaultDirection = invertDefaultDirection;
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
@@ -93,13 +96,14 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
-				this.find(true);
+				// Flip the direction search goes in the terminal case so it matches other terminals
+				this.find(this._invertDefaultDirection ? true : false);
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(false);
+				this.find(this._invertDefaultDirection ? false : true);
 				e.preventDefault();
 				return;
 			}
