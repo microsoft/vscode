@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition, IAvailableShellsRequest, ITerminalVirtualProcessRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition, IAvailableShellsRequest, IExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -55,8 +55,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	protected readonly _onInstanceRequestExtHostProcess = new Emitter<ITerminalProcessExtHostRequest>();
 	public get onInstanceRequestExtHostProcess(): Event<ITerminalProcessExtHostRequest> { return this._onInstanceRequestExtHostProcess.event; }
-	protected readonly _onInstanceRequestVirtualProcess = new Emitter<ITerminalVirtualProcessRequest>();
-	public get onInstanceRequestVirtualProcess(): Event<ITerminalVirtualProcessRequest> { return this._onInstanceRequestVirtualProcess.event; }
+	protected readonly _onInstanceRequestExtensionTerminal = new Emitter<IExtensionTerminalRequest>();
+	public get onInstanceRequestExtensionTerminal(): Event<IExtensionTerminalRequest> { return this._onInstanceRequestExtensionTerminal.event; }
 	protected readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	protected readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
@@ -144,8 +144,8 @@ export abstract class TerminalService implements ITerminalService {
 		});
 	}
 
-	public requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
-		this._onInstanceRequestVirtualProcess.fire({ proxy, cols, rows });
+	public requestExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
+		this._onInstanceRequestExtensionTerminal.fire({ proxy, cols, rows });
 	}
 
 	public extHostReady(remoteAuthority: string): void {

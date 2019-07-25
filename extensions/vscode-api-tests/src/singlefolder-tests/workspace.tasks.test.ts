@@ -35,8 +35,8 @@ suite.only('workspace-namespace', () => {
 						customProp1: 'testing task one'
 					};
 					const writeEmitter = new vscode.EventEmitter<string>();
-					const execution = new vscode.CustomExecution2((): Thenable<vscode.TerminalVirtualProcess> => {
-						return Promise.resolve(<vscode.TerminalVirtualProcess>{
+					const execution = new vscode.CustomExecution2((): Thenable<vscode.Pseudoterminal> => {
+						return Promise.resolve(<vscode.Pseudoterminal>{
 							onDidWrite: writeEmitter.event,
 							start: () => {
 								writeEmitter.fire('testing\r\n');
