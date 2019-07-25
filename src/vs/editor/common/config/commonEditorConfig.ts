@@ -696,7 +696,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
-			default: { keyword: true },
+			default: { keyword: true, snippet: true },
 			markdownDescription: nls.localize('suggest.filtered', "Controls whether some suggestion types should be filtered from IntelliSense. A list of suggestion types can be found here: https://code.visualstudio.com/docs/editor/intellisense#_types-of-completions."),
 			properties: {
 				method: {
