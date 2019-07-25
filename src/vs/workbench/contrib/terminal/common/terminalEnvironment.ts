@@ -118,9 +118,12 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, userHome: string, root?: Uri, customCwd?: string): string {
+export function getCwd(shell: IShellLaunchConfig, userHome: string, lastActiveWorkspace: IWorkspaceFolder | undefined, configurationResolverService: IConfigurationResolverService | undefined, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
-		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
+		let cwd = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
+		if (configurationResolverService) {
+			return configurationResolverService.resolve(lastActiveWorkspace, cwd);
+		}
 	}
 
 	let cwd: string | undefined;

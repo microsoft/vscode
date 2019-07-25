@@ -211,7 +211,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		}
 
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, lastActiveWorkspace ? lastActiveWorkspace : undefined, this._configurationResolverService, activeWorkspaceRootUri, this._configHelper.config.cwd);
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		this._configHelper.showRecommendations(shellLaunchConfig);
