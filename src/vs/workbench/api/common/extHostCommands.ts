@@ -222,7 +222,7 @@ export class CommandsConverter {
 
 	// --- conversion between internal and api commands
 	constructor(commands: ExtHostCommands) {
-		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
+		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 		this._commands = commands;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
