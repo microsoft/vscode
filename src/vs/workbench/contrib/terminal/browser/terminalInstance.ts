@@ -198,6 +198,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _linkHandler: TerminalLinkHandler;
 	private _commandTracker: TerminalCommandTracker;
 
+	private _canvasBlurCursor: any;
+
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
 	public get cols(): number {
@@ -631,10 +633,12 @@ export class TerminalInstance implements ITerminalInstance {
 			this._disposables.add(dom.addDisposableListener(this._xterm.textarea, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 				this._onFocused.fire(this);
+				this._restoreBlurCursor();
 			}));
 			this._disposables.add(dom.addDisposableListener(this._xterm.textarea, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
+				this._overrideBlurCursor();
 			}));
 			this._disposables.add(dom.addDisposableListener(this._xterm.element, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
@@ -1167,6 +1171,27 @@ export class TerminalInstance implements ITerminalInstance {
 		const newLine = buffer.getLine(buffer.baseY + buffer.cursorY);
 		if (newLine && !newLine.isWrapped) {
 			this._sendLineData(buffer, buffer.baseY + buffer.cursorY - 1);
+		}
+	}
+
+	private _overrideBlurCursor(): void {
+		const config = this._configHelper.config;
+		const terminal = this._xterm;
+		if (config.cursorBlinking) {
+			// Save the original blur cursor render function
+			const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
+			this._canvasBlurCursor = cursorRenderLayer._renderBlurCursor;
+
+			const xtermOption = config.cursorStyle === 'line' ? 'bar' : config.cursorStyle;
+			cursorRenderLayer._renderBlurCursor = cursorRenderLayer._cursorRenderers[xtermOption];
+		}
+	}
+
+	private _restoreBlurCursor(): void {
+		if (this._canvasBlurCursor) {
+			const terminal = this._xterm;
+			const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
+			cursorRenderLayer._renderBlurCursor = this._canvasBlurCursor;
 		}
 	}
 
