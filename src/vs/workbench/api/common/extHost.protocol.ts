@@ -21,7 +21,7 @@ import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model'
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import * as modes from 'vs/editor/common/modes';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -40,9 +40,9 @@ import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
+import { IAdapterDescriptor, IConfig } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalDimensions, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
@@ -115,6 +115,8 @@ export interface MainThreadClipboardShape extends IDisposable {
 
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
+	$registerCommandListener(): void;
+	$unregisterCommandListener(): void;
 	$unregisterCommand(id: string): void;
 	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined>;
 	$getCommands(): Promise<string[]>;
@@ -405,9 +407,10 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
-	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
+	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
+	$sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void;
 
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
@@ -736,6 +739,7 @@ export interface MainThreadWindowShape extends IDisposable {
 export interface ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T>;
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }>;
+	$handleDidExecuteCommand(command: ICommandEvent): void;
 }
 
 export interface ExtHostConfigurationShape {
@@ -1241,7 +1245,7 @@ export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Promise<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 	$startDASession(handle: number, session: IDebugSessionDto): Promise<void>;
 	$stopDASession(handle: number): Promise<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;

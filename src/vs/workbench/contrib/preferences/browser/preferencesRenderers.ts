@@ -19,7 +19,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -960,9 +960,15 @@ class UnsupportedSettingsRenderer extends Disposable {
 		private settingsEditorModel: SettingsEditorModel,
 		@IMarkerService private markerService: IMarkerService,
 		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
+		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
+	}
+
+	private delayedRender(): void {
+		this.renderingDelayer.trigger(() => this.render());
 	}
 
 	public render(): void {
@@ -996,14 +1002,11 @@ class UnsupportedSettingsRenderer extends Disposable {
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
 								break;
 						}
-					} else {
+					} else if (!OVERRIDE_PROPERTY_PATTERN.test(setting.key)) { // Ignore override settings (language specific settings)
 						markerData.push({
 							severity: MarkerSeverity.Hint,
 							tags: [MarkerTag.Unnecessary],
-							startLineNumber: setting.keyRange.startLineNumber,
-							startColumn: setting.keyRange.startColumn,
-							endLineNumber: setting.valueRange.endLineNumber,
-							endColumn: setting.valueRange.endColumn,
+							...setting.range,
 							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
 						});
 					}
@@ -1018,10 +1021,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
-				startLineNumber: setting.keyRange.startLineNumber,
-				startColumn: setting.keyRange.startColumn,
-				endLineNumber: setting.valueRange.endLineNumber,
-				endColumn: setting.valueRange.endColumn,
+				...setting.range,
 				message: nls.localize('unsupportedRemoteMachineSetting', "This setting can be applied only in remote machine settings")
 			});
 		}
@@ -1056,10 +1056,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
-				startLineNumber: setting.keyRange.startLineNumber,
-				startColumn: setting.keyRange.startColumn,
-				endLineNumber: setting.valueRange.endLineNumber,
-				endColumn: setting.valueRange.endColumn,
+				...setting.range,
 				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly.")
 			});
 		}
@@ -1069,10 +1066,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		return {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
-			startLineNumber: setting.keyRange.startLineNumber,
-			startColumn: setting.keyRange.startColumn,
-			endLineNumber: setting.valueRange.endLineNumber,
-			endColumn: setting.valueRange.endColumn,
+			...setting.range,
 			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
 		};
 	}
@@ -1081,10 +1075,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		return {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
-			startLineNumber: setting.keyRange.startLineNumber,
-			startColumn: setting.keyRange.startColumn,
-			endLineNumber: setting.valueRange.endLineNumber,
-			endColumn: setting.valueRange.endColumn,
+			...setting.range,
 			message: nls.localize('unsupportedMachineSetting', "This setting can be applied only in user settings")
 		};
 	}

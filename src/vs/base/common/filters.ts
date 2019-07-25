@@ -414,7 +414,7 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 	return res;
 }
 
-const _maxLen = 53;
+const _maxLen = 128;
 
 function initTable() {
 	const table: number[][] = [];

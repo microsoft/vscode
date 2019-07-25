@@ -4344,12 +4344,12 @@ suite('autoClosingPairs', () => {
 			let autoClosePositions = [
 				'var a |=| [|]|;|',
 				'var b |=| |`asd`|;|',
-				'var c |=| |\'asd!\'|;|',
+				'var c |=| |\'asd\'|;|',
 				'var d |=| |"asd"|;|',
 				'var e |=| /*3*/|	3;|',
 				'var f |=| /**| 3 */3;|',
 				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| |\'value!\'| |}|;|',
+				'var h |=| {| a:| |\'value\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4490,6 +4490,107 @@ suite('autoClosingPairs', () => {
 			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste"');
 			assert.equal(model.getLineContent(8), 'teste"');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - overtypes only those characters that it inserted', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: 'asd' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			// overtype!
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			// do not overtype!
+			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(2), 'y=());');
+
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - stops overtyping once cursor leaves area', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - it overtypes only once', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - it can remember multiple auto-closed instances', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
 		});
 		mode.dispose();
 	});

@@ -317,15 +317,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"extensionActivationTimes" : {
-				"${include}": [
-					"${TelemetryActivationEvent}",
-					"${ExtensionActivationTimes}"
-				],
-				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
 		type ExtensionActivationTimesClassification = {
 			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;

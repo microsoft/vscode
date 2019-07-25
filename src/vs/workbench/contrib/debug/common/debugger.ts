@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugger, IDebugSession, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -108,8 +108,7 @@ export class Debugger implements IDebugger {
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		return this.configurationManager.runInTerminal(this.type, args, config);
+		return this.configurationManager.runInTerminal(this.type, args);
 	}
 
 	get label(): string {

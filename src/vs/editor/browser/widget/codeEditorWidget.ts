@@ -1508,9 +1508,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
-	/* __GDPR__FRAGMENT__
-		"EditorTelemetryData" : {}
-	*/
 	public getTelemetryData(): { [key: string]: any; } | undefined {
 		return this._telemetryData;
 	}

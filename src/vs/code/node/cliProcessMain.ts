@@ -354,8 +354,6 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 
-			// Dispose the AI adapter so that remaining data gets flushed.
-			disposables.add(combinedAppender(...appenders));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
@@ -365,6 +363,8 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 		try {
 			await main.run(argv);
+			// Flush the remaining data in AI adapter.
+			await combinedAppender(...appenders).flush();
 		} finally {
 			disposables.dispose();
 		}
