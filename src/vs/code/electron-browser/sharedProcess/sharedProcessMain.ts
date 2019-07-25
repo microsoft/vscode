@@ -37,8 +37,8 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
@@ -115,7 +115,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 	services.set(IProductService, new SyncDescriptor(ProductService));
 
 	const mainProcessService = new MainProcessService(server, mainRouter);
@@ -138,6 +137,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.add(diskFileSystemProvider);
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+	services.set(IDownloadService, new SyncDescriptor(DownloadService));
+
 	const instantiationService = new InstantiationService(services);
 
 	let telemetryService: ITelemetryService;
@@ -153,7 +154,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
-				disposables.add(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+				disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 			}
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),

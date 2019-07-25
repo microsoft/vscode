@@ -581,7 +581,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
 				}
 			} else {
-				return selection;
+				return new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
 			}
 		});
 

@@ -33,6 +33,7 @@ import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -316,15 +317,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"extensionActivationTimes" : {
-				"${include}": [
-					"${TelemetryActivationEvent}",
-					"${ExtensionActivationTimes}"
-				],
-				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
 		type ExtensionActivationTimesClassification = {
 			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
@@ -662,12 +654,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		try {
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
+
+			// Split merged API result into separate authority/options
+			const authority: ResolvedAuthority = {
+				authority: remoteAuthority,
+				host: result.host,
+				port: result.port
+			};
+			const options: ResolvedOptions = {
+				extensionHostEnv: result.extensionHostEnv
+			};
+
 			return {
 				type: 'ok',
 				value: {
-					authority: remoteAuthority,
-					host: result.host,
-					port: result.port,
+					authority,
+					options
 				}
 			};
 		} catch (err) {

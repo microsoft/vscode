@@ -5,14 +5,10 @@
 
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { copy } from 'vs/base/node/pfs';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { join } from 'vs/base/common/path';
-import { tmpdir } from 'os';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IFileService } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 export class DownloadService implements IDownloadService {
 
@@ -23,18 +19,18 @@ export class DownloadService implements IDownloadService {
 		@IFileService private readonly fileService: IFileService
 	) { }
 
-	download(uri: URI, target: string = join(tmpdir(), generateUuid()), cancellationToken: CancellationToken = CancellationToken.None): Promise<string> {
-		if (uri.scheme === Schemas.file) {
-			return copy(uri.fsPath, target).then(() => target);
+	async download(resource: URI, target: URI, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
+		if (resource.scheme === Schemas.file) {
+			await this.fileService.copy(resource, target);
+			return;
 		}
-		const options = { type: 'GET', url: uri.toString() };
-		return this.requestService.request(options, cancellationToken)
-			.then(context => {
-				if (context.res.statusCode === 200) {
-					return this.fileService.writeFile(URI.file(target), context.stream).then(() => target);
-				}
-				return asText(context)
-					.then(message => Promise.reject(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`)));
-			});
+		const options = { type: 'GET', url: resource.toString() };
+		const context = await this.requestService.request(options, cancellationToken);
+		if (context.res.statusCode === 200) {
+			await this.fileService.writeFile(target, context.stream);
+		} else {
+			const message = await asText(context);
+			return Promise.reject(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`));
+		}
 	}
 }

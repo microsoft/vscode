@@ -34,7 +34,7 @@ export function isInDOM(node: Node | null): boolean {
 		if (node === document.body) {
 			return true;
 		}
-		node = node.parentNode;
+		node = node.parentNode || (node as ShadowRoot).host;
 	}
 	return false;
 }
@@ -806,7 +806,8 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	if (!style || !cssText) {
 		return;
 	}
-	style.textContent = `${selector}{${cssText}}\n${style.textContent}`;
+
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
@@ -1199,7 +1200,7 @@ export function asDomUri(uri: URI): URI {
 	if (Schemas.vscodeRemote === uri.scheme) {
 		// rewrite vscode-remote-uris to uris of the window location
 		// so that they can be intercepted by the service worker
-		return _location.with({ path: '/vscode-resources/fetch', query: JSON.stringify({ u: uri.toJSON(), i: 1 }) });
+		return _location.with({ path: '/vscode-resources/fetch', query: `u=${JSON.stringify(uri)}` });
 	}
 	return uri;
 }

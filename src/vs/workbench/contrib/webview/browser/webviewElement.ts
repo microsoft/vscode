@@ -45,7 +45,9 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		if (typeof environmentService.webviewEndpoint !== 'string') {
+		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
+
+		if (typeof environmentService.webviewEndpoint !== 'string' && !useExternalEndpoint) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
 		}
 
@@ -142,7 +144,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private get endpoint(): string {
-		const endpoint = this.environmentService.webviewEndpoint!.replace('{{uuid}}', this.id);
+		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
+		const baseEndpoint = useExternalEndpoint ? 'https://{{uuid}}.vscode-webview-test.com/8fa811108f0f0524c473020ef57b6620f6c201e1' : this.environmentService.webviewEndpoint!;
+		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}

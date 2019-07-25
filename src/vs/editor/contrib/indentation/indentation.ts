@@ -589,13 +589,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
 		model.forceTokenization(lineNumber);
-		let nonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhiteSpaceColumn === 0) {
+		let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+		if (nonWhitespaceColumn === 0) {
 			return true;
 		}
 		let tokens = model.getLineTokens(lineNumber);
 		if (tokens.getCount() > 0) {
-			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhiteSpaceColumn);
+			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
 			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
 				return true;
 			}

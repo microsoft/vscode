@@ -311,7 +311,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			let currentComment = commentThread.comments![i];
 			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
 			if (oldCommentNode.length) {
-				oldCommentNode[0].update(currentComment);
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {

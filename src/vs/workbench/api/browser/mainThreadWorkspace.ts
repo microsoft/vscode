@@ -24,6 +24,7 @@ import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, Ma
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -122,21 +123,21 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
+	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
-			return Promise.resolve(undefined);
+			return Promise.resolve(null);
 		}
 
 		const query = this._queryBuilder.file(
 			includeFolder ? [includeFolder] : workspace.folders.map(f => f.uri),
 			{
-				maxResults,
+				maxResults: withNullAsUndefined(maxResults),
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
 				disregardSearchExcludeSettings: true,
 				disregardIgnoreFiles: true,
-				includePattern,
+				includePattern: withNullAsUndefined(includePattern),
 				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
 				_reason: 'startFileSearch'
 			});

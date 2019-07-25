@@ -314,9 +314,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 		const primaryCursor = this._cursors.getPrimaryCursor();
 		const primaryPos = primaryCursor.viewState.position;
+		const viewLineNumber = primaryPos.lineNumber;
+		const viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
 		return {
-			toViewLineNumber: primaryPos.lineNumber,
-			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos)
+			isReal: false,
+			fromViewLineNumber: viewLineNumber,
+			fromViewVisualColumn: viewVisualColumn,
+			toViewLineNumber: viewLineNumber,
+			toViewVisualColumn: viewVisualColumn,
 		};
 	}
 

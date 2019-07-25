@@ -119,7 +119,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
-	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
@@ -145,7 +145,6 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
-		// Don't need to wait on extensions here as this can only be triggered by an extension
 		this._onInstanceRequestVirtualProcess.fire({ proxy, cols, rows });
 	}
 

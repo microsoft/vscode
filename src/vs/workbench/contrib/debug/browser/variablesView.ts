@@ -91,7 +91,7 @@ export class VariablesView extends ViewletPanel {
 				accessibilityProvider: new VariablesAccessibilityProvider(),
 				identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
-			}) as WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
+			});
 
 		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 

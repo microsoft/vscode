@@ -324,11 +324,6 @@ class Widget {
 		const aboveLeft0 = topLeft.left - ctx.scrollLeft;
 		const belowLeft0 = bottomLeft.left - ctx.scrollLeft;
 
-		if (aboveLeft0 < 0 || aboveLeft0 > this._contentWidth) {
-			// Don't render if position is scrolled outside viewport
-			return null;
-		}
-
 		let aboveTop = topLeft.top - height;
 		let belowTop = bottomLeft.top + this._lineHeight;
 		let aboveLeft = aboveLeft0 + this._contentLeft;

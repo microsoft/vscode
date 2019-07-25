@@ -13,7 +13,7 @@ import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,7 +38,7 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 
 
 export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
-	getId(element: TreeElement): { toString(): string; } {
+	getId(element: OutlineItem): { toString(): string; } {
 		return element.id;
 	}
 }
