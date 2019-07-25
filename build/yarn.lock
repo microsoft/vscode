@@ -2124,7 +2124,7 @@ tough-cookie@~2.3.3:
   dependencies:
     punycode "^1.4.1"
 
-ts-morph@^3.1.2:
+ts-morph@^3.1.3:
   version "3.1.3"
   resolved "https://registry.yarnpkg.com/ts-morph/-/ts-morph-3.1.3.tgz#bbfa1d14481ee23bdd1c030340ccf4a243cfc844"
   integrity sha512-CwjgyJTtd3f8vBi7Vr0IOgdOY6Wi/Tq0MhieXOE2B5ns5WWRD7BwMNHtv+ZufKI/S2U/lMrh+Q3bOauE4tsv2g==
@@ -2313,19 +2313,19 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-ripgrep@^1.4.0:
+vscode-ripgrep@^1.5.5:
   version "1.5.5"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.5.tgz#24c0e9cb356cf889c98e15ecb58f9cf654a1d961"
   integrity sha512-OrPrAmcun4+uZAuNcQvE6CCPskh+5AsjANod/Q3zRcJcGNxgoOSGlQN9RPtatkUNmkN8Nn8mZBnS1jMylu/dKg==
 
-vscode-telemetry-extractor@1.4.3:
-  version "1.4.3"
-  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.4.3.tgz#e4af380beb4e2a63d6e4fa819b25ba7ef6dc4a10"
-  integrity sha512-OFklPErZnUBjrKte3hg+irQXue5rzgz4qnvE8kdaOnW1E/wynHUEXW9t5vF5q0hu2lodpGMkybwLkSjONZVzvg==
+vscode-telemetry-extractor@^1.5.1:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.5.1.tgz#67249e4ca9c65a21800ca53880732f8cef98d0fa"
+  integrity sha512-B5SnEdRiDrI4o6NMG9iHmengoaW1rxUQmS/sCaripgnchm+P79JURmKxhfXr5eRo4Mr1QSenFT/SDNaEop7aoQ==
   dependencies:
     command-line-args "^5.1.1"
-    ts-morph "^3.1.2"
-    vscode-ripgrep "^1.4.0"
+    ts-morph "^3.1.3"
+    vscode-ripgrep "^1.5.5"
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
