@@ -349,6 +349,7 @@ import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
 
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
+import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 
 // Experiments
 // import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
@@ -357,3 +358,5 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 // import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 
 //#endregion
+
+registerWindowDriver();
