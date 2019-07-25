@@ -135,7 +135,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		signatureHelpProvider: { triggerCharacters: ['('] },
 		referencesProvider: true,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 	return { capabilities };
 });
