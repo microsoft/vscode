@@ -50,7 +50,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
 			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
 		});
-		this.onDidExecuteCommand = this._onDidExecuteCommand.event;
+		this.onDidExecuteCommand = Event.filter(this._onDidExecuteCommand.event, e => e.command[0] !== '_'); // filter 'private' commands
 		this._logService = logService;
 		this._converter = new CommandsConverter(this);
 		this._argumentProcessors = [
