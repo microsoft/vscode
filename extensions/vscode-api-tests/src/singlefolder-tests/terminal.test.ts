@@ -265,7 +265,9 @@ suite('window namespace tests', () => {
 					term.dispose();
 				});
 				const virtualProcess: TerminalVirtualProcess = {
-					onDidWrite: new EventEmitter<string>().event
+					onDidWrite: new EventEmitter<string>().event,
+					start: () => {},
+					shutdown: () => {}
 				};
 				window.createTerminal({ name: 'c', virtualProcess });
 			});
@@ -291,7 +293,8 @@ suite('window namespace tests', () => {
 				const writeEmitter = new EventEmitter<string>();
 				const virtualProcess: TerminalVirtualProcess = {
 					onDidWrite: writeEmitter.event,
-					start: () => startResolve()
+					start: () => startResolve(),
+					shutdown: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
@@ -311,7 +314,8 @@ suite('window namespace tests', () => {
 							done();
 						});
 						terminal.dispose();
-					}
+					},
+					shutdown: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
@@ -338,7 +342,9 @@ suite('window namespace tests', () => {
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const virtualProcess: TerminalVirtualProcess = {
 					onDidWrite: writeEmitter.event,
-					onDidOverrideDimensions: overrideDimensionsEmitter.event
+					onDidOverrideDimensions: overrideDimensionsEmitter.event,
+					start: () => {},
+					shutdown: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
 			});
