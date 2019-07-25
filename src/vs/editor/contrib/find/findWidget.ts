@@ -593,6 +593,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
+		this._preserveCase.style(inputStyles);
 	}
 
 	private _tryUpdateWidgetWidth() {
