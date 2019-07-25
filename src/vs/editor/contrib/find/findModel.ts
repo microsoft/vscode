@@ -59,6 +59,7 @@ export const FIND_IDS = {
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
 	ToggleSearchScopeCommand: 'toggleFindInSelection',
+	TogglePreserveCaseCommand: 'togglePreserveCase',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches'
@@ -416,11 +417,11 @@ export class FindModelBoundToEditorModel {
 
 		let replacePattern = this._getReplacePattern();
 		let selection = this._editor.getSelection();
-		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns, false);
+		let nextMatch = this._getNextMatch(selection.getStartPosition(), true, false);
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
-				let replaceString = replacePattern.buildReplaceString(nextMatch.matches);
+				let replaceString = replacePattern.buildReplaceString(nextMatch.matches, this._state.preserveCase);
 
 				let command = new ReplaceCommand(selection, replaceString);
 

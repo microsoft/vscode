@@ -79,6 +79,15 @@
 	height: 25px;
 }
 
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	width: 100% !important;
+	padding-right: 66px;
+}
+
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
+	padding-right: 22px;
+}
+
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input,
 .monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
 	padding-top: 2px;
@@ -224,10 +233,17 @@
 }
 
 .monaco-editor .find-widget > .replace-part > .replace-input {
+	position: relative;
 	display: flex;
 	display: -webkit-flex;
 	vertical-align: middle;
 	width: auto !important;
+}
+
+.monaco-editor .find-widget > .replace-part > .replace-input > .controls {
+	position: absolute;
+	top: 3px;
+	right: 2px;
 }
 
 /* REDUCED */
