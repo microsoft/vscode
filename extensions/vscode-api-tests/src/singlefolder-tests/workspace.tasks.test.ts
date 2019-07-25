@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
-suite.only('workspace-namespace', () => {
+suite('workspace-namespace', () => {
 
 	suite('Tasks', () => {
 
