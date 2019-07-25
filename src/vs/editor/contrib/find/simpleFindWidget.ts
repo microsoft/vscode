@@ -93,13 +93,13 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
-				this.find(false);
+				this.find(true);
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(true);
+				this.find(false);
 				e.preventDefault();
 				return;
 			}
