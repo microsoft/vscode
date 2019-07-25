@@ -20,7 +20,7 @@ import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstract
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
@@ -318,7 +318,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
@@ -350,9 +350,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 				terminal.show();
 
-				return this._integratedTerminalInstance.processId.then(shellProcessId => {
+				return this._integratedTerminalInstance.processId.then(async shellProcessId => {
 
-					const command = prepareCommand(args, config);
+					const configProvider = await this._configurationService.getConfigProvider();
+					const shell = this._terminalService.getDefaultShell(configProvider);
+					const command = prepareCommand(args, shell, configProvider);
+
 					terminal.sendText(command, true);
 
 					return shellProcessId;
@@ -361,7 +364,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		} else if (args.kind === 'external') {
 
-			runInExternalTerminal(args, config);
+			runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return Promise.resolve(undefined);
 	}
