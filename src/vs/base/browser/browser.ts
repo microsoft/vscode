@@ -122,7 +122,7 @@ export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
-export const isStandalone = (window.matchMedia('(display-mode: standalone)').matches);
+export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
 export function hasClipboardSupport() {
 	if (isIE) {
