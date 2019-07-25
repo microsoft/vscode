@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -19,6 +19,24 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
+
+export interface ISnippetInsertOptions {
+	overwriteBefore: number;
+	overwriteAfter: number;
+	adjustWhitespace: boolean;
+	undoStopBefore: boolean;
+	undoStopAfter: boolean;
+	clipboardText: string | undefined;
+}
+
+const _defaultOptions: ISnippetInsertOptions = {
+	overwriteBefore: 0,
+	overwriteAfter: 0,
+	undoStopBefore: true,
+	undoStopAfter: true,
+	adjustWhitespace: true,
+	clipboardText: undefined
+};
 
 export class SnippetController2 implements IEditorContribution {
 
@@ -35,7 +53,7 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
-	private _snippetListener: IDisposable[] = [];
+	private _snippetListener = new DisposableStore();
 	private _modelVersionId: number;
 	private _currentChoice?: Choice;
 
@@ -54,6 +72,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		dispose(this._session);
+		this._snippetListener.dispose();
 	}
 
 	getId(): string {
@@ -62,15 +81,13 @@ export class SnippetController2 implements IEditorContribution {
 
 	insert(
 		template: string,
-		overwriteBefore: number = 0, overwriteAfter: number = 0,
-		undoStopBefore: boolean = true, undoStopAfter: boolean = true,
-		adjustWhitespace: boolean = true,
+		opts?: Partial<ISnippetInsertOptions>
 	): void {
 		// this is here to find out more about the yet-not-understood
 		// error that sometimes happens when we fail to inserted a nested
 		// snippet
 		try {
-			this._doInsert(template, overwriteBefore, overwriteAfter, undoStopBefore, undoStopAfter, adjustWhitespace);
+			this._doInsert(template, typeof opts === 'undefined' ? _defaultOptions : { ..._defaultOptions, ...opts });
 
 		} catch (e) {
 			this.cancel();
@@ -83,9 +100,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	private _doInsert(
 		template: string,
-		overwriteBefore: number = 0, overwriteAfter: number = 0,
-		undoStopBefore: boolean = true, undoStopAfter: boolean = true,
-		adjustWhitespace: boolean = true,
+		opts: ISnippetInsertOptions
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -93,31 +108,29 @@ export class SnippetController2 implements IEditorContribution {
 
 		// don't listen while inserting the snippet
 		// as that is the inflight state causing cancelation
-		this._snippetListener = dispose(this._snippetListener);
+		this._snippetListener.clear();
 
-		if (undoStopBefore) {
+		if (opts.undoStopBefore) {
 			this._editor.getModel().pushStackElement();
 		}
 
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
-			this._session = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter, adjustWhitespace);
+			this._session = new SnippetSession(this._editor, template, opts);
 			this._session.insert();
 		} else {
-			this._session.merge(template, overwriteBefore, overwriteAfter, adjustWhitespace);
+			this._session.merge(template, opts);
 		}
 
-		if (undoStopAfter) {
+		if (opts.undoStopAfter) {
 			this._editor.getModel().pushStackElement();
 		}
 
 		this._updateState();
 
-		this._snippetListener = [
-			this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()),
-			this._editor.onDidChangeModel(() => this.cancel()),
-			this._editor.onDidChangeCursorSelection(() => this._updateState())
-		];
+		this._snippetListener.add(this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()));
+		this._snippetListener.add(this._editor.onDidChangeModel(() => this.cancel()));
+		this._snippetListener.add(this._editor.onDidChangeCursorSelection(() => this._updateState()));
 	}
 
 	private _updateState(): void {
@@ -197,7 +210,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
-		dispose(this._snippetListener);
+		this._snippetListener.clear();
 		dispose(this._session);
 		this._session = undefined;
 		this._modelVersionId = -1;

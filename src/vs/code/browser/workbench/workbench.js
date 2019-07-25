@@ -3,38 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
 'use strict';
 
 (function () {
 
-	function loadScript(path, callback) {
-		let script = document.createElement('script');
-		script.onload = callback;
-		script.async = true;
-		script.type = 'text/javascript';
-		script.src = path;
-		document.head.appendChild(script);
-	}
+	require.config({
+		baseUrl: `${window.location.origin}/out`,
+		paths: {
+			'vscode-textmate': `${window.location.origin}/node_modules/vscode-textmate/release/main`,
+			'onigasm-umd': `${window.location.origin}/node_modules/onigasm-umd/release/main`,
+			'xterm': `${window.location.origin}/node_modules/xterm/lib/xterm.js`,
+			'xterm-addon-search': `${window.location.origin}/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+			'xterm-addon-web-links': `${window.location.origin}/node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js`,
+			'semver-umd': `${window.location.origin}/node_modules/semver-umd/lib/semver-umd.js`,
+		}
+	});
 
-	loadScript('../../../../../out/vs/loader.js', function () {
+	require(['vs/workbench/workbench.web.api'], function (api) {
+		const options = JSON.parse(document.getElementById('vscode-workbench-web-configuration').getAttribute('data-settings'));
 
-		// @ts-ignore
-		require.config({
-			baseUrl: `${window.location.origin}/out`
-		});
-
-		// @ts-ignore
-		require([
-			'vs/workbench/workbench.web.main',
-			'vs/nls!vs/workbench/workbench.web.main',
-			'vs/css!vs/workbench/workbench.web.main'
-		],
-			// @ts-ignore
-			function () {
-
-				// @ts-ignore
-				require('vs/workbench/browser/web.main').main().then(undefined, console.error);
-			});
+		api.create(document.body, options);
 	});
 })();

@@ -18,7 +18,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -275,10 +275,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private reportFilteringUsed(): void {
 		const filterOptions = this.filterController.getFilterOptions();
-		const data = {};
-		data['errors'] = filterOptions.filterErrors;
-		data['warnings'] = filterOptions.filterWarnings;
-		data['infos'] = filterOptions.filterInfos;
+		const data = {
+			errors: filterOptions.filterErrors,
+			warnings: filterOptions.filterWarnings,
+			infos: filterOptions.filterInfos,
+		};
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -296,9 +297,7 @@ export class QuickFixAction extends Action {
 	private static readonly CLASS: string = 'markers-panel-action-quickfix';
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
-	private disposables: IDisposable[] = [];
-
-	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
+	private readonly _onShowQuickFixes = this._register(new Emitter<void>());
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
 	private _quickFixes: IAction[] = [];
@@ -323,11 +322,6 @@ export class QuickFixAction extends Action {
 	run(): Promise<void> {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
-	}
-
-	dispose(): void {
-		dispose(this.disposables);
-		super.dispose();
 	}
 }
 

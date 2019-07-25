@@ -27,10 +27,11 @@ import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MA
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 export interface IFindController {
 	replace(): void;
@@ -372,12 +373,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		} else {
 			label = NLS_NO_RESULTS;
 		}
+
 		this._matchesCount.appendChild(document.createTextNode(label));
 
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions
+
+	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+		}
+		return currentMatch
+			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
+			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
+	}
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
@@ -560,6 +574,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _applyTheme(theme: ITheme) {
 		let inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
@@ -1193,6 +1208,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .find-widget { border: 2px solid ${hcBorder}; }`);
 	}
 
+	const foreground = theme.getColor(editorWidgetForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
+	}
+
 	const error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
@@ -1211,5 +1231,10 @@ registerThemingParticipant((theme, collector) => {
 	const inputActiveBorder = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveBorder) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
+	}
+
+	const inputActiveBackground = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveBackground) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { background-color: ${inputActiveBackground.toString()}; }`);
 	}
 });

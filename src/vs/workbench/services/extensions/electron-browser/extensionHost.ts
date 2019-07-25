@@ -5,13 +5,12 @@
 
 import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
-import { ipcRenderer as ipc } from 'electron';
 import { Server, Socket, createServer } from 'net';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/product/node/package';
@@ -36,16 +35,16 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
-	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
-	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
+	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
+	public readonly onExit: Event<[number, string]> = this._onExit.event;
 
-	private readonly _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 
 	private readonly _isExtensionDevHost: boolean;
 	private readonly _isExtensionDevDebug: boolean;
@@ -58,7 +57,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _namedPipeServer: Server | null;
-	private _inspectPort: number;
+	private _inspectPort: number | null;
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
 	private _messageProtocol: Promise<PersistentProtocol> | null;
@@ -92,16 +91,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
-		this._toDispose = [];
-		this._toDispose.push(this._onCrashed);
-		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
-		this._toDispose.push(this._extensionHostDebugService.onClose(event => {
+		this._toDispose.add(this._onExit);
+		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
+		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.closeWindow();
 			}
 		}));
-		this._toDispose.push(this._extensionHostDebugService.onReload(event => {
+		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.reloadWindow();
 			}
@@ -109,7 +107,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
-		this._toDispose.push(toDisposable(() => {
+		this._toDispose.add(toDisposable(() => {
 			process.removeListener('exit', globalExitListener);
 		}));
 	}
@@ -125,7 +123,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 
 		if (!this._messageProtocol) {
-			this._messageProtocol = Promise.all([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
+			this._messageProtocol = Promise.all([
+				this._tryListenOnPipe(),
+				!this._environmentService.args['disable-inspect'] ? this._tryFindDebugPort() : Promise.resolve(null)
+			]).then(data => {
 				const pipeName = data[0];
 				const portData = data[1];
 
@@ -148,7 +149,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					silent: true
 				};
 
-				if (portData.actual) {
+				if (portData && portData.actual) {
 					opts.execArgv = [
 						'--nolazy',
 						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portData.actual
@@ -215,10 +216,12 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
+				if (portData) {
+					if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
+					}
+					this._inspectPort = portData.actual;
 				}
-				this._inspectPort = portData.actual;
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
@@ -389,20 +392,26 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
+						appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
 						appName: product.nameLong,
 						appUriScheme: product.urlProtocol,
 						appLanguage: platform.language,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: URI.file(this._environmentService.userHome)
+						userHome: URI.file(this._environmentService.userHome),
+						webviewResourceRoot: this._environmentService.webviewResourceRoot,
+						webviewCspSource: this._environmentService.webviewCspSource,
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace),
 						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
+					},
+					remote: {
+						authority: this._environmentService.configuration.remoteAuthority,
+						isRemote: false
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],
@@ -451,36 +460,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			return;
 		}
 
-		// Unexpected termination
-		if (!this._isExtensionDevHost) {
-			this._onCrashed.fire([code, signal]);
-		}
-
-		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		else if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
-		}
-
-		// When CLI testing make sure to exit with proper exit code
-		else {
-			ipc.send('vscode:exit', code);
-		}
+		this._onExit.fire([code, signal]);
 	}
 
-	public enableInspector(): Promise<void> {
-		if (this._inspectPort) {
-			return Promise.resolve();
-		}
-		// send SIGUSR1 and wait a little the actual port is read from the process stdout which we
-		// scan here: https://github.com/Microsoft/vscode/blob/67ffab8dcd1a6752d8b62bcd13d7020101eef568/src/vs/workbench/services/extensions/electron-browser/extensionHost.ts#L225-L240
-		if (this._extensionHostProcess) {
-			this._extensionHostProcess.kill('SIGUSR1');
-		}
-		return timeout(1000);
-	}
-
-	public getInspectPort(): number {
-		return this._inspectPort;
+	public getInspectPort(): number | undefined {
+		return withNullAsUndefined(this._inspectPort);
 	}
 
 	public terminate(): void {
@@ -489,7 +473,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 		this._terminating = true;
 
-		dispose(this._toDispose);
+		this._toDispose.dispose();
 
 		if (!this._messageProtocol) {
 			// .start() was not called

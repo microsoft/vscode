@@ -201,15 +201,17 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		const activity: ICompositeActivity = { badge, clazz, priority };
 		this.model.addActivity(compositeId, activity);
+
 		return toDisposable(() => this.model.removeActivity(compositeId, activity));
 	}
 
-	pin(compositeId: string, open?: boolean): void {
+	async pin(compositeId: string, open?: boolean): Promise<void> {
 		if (this.model.setPinned(compositeId, true)) {
 			this.updateCompositeSwitcher();
 
 			if (open) {
-				this.options.openComposite(compositeId).then(() => this.activateComposite(compositeId)); // Activate after opening
+				await this.options.openComposite(compositeId);
+				this.activateComposite(compositeId); // Activate after opening
 			}
 		}
 	}
@@ -426,7 +428,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 	}
 
-	private getContextMenuActions(): IAction[] {
+	private getContextMenuActions(): ReadonlyArray<IAction> {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,

@@ -11,7 +11,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
+import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -559,6 +559,16 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		const decorations = this.model.getOverviewRulerDecorations();
 		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			if (opts) {
+				opts.invalidateCachedColor();
+			}
+		}
+	}
+
+	public invalidateMinimapColorCache(): void {
+		const decorations = this.model.getAllDecorations();
+		for (const decoration of decorations) {
+			const opts = <ModelDecorationMinimapOptions>decoration.options.minimap;
 			if (opts) {
 				opts.invalidateCachedColor();
 			}

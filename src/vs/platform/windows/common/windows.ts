@@ -6,14 +6,14 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -153,6 +153,7 @@ export interface IWindowsService {
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
 	log(severity: string, ...messages: string[]): Promise<void>;
@@ -182,6 +183,7 @@ export interface IOpenSettings {
 	forceReuseWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	noRecentEntry?: boolean;
 	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;
@@ -205,15 +207,15 @@ export interface IFileToOpen {
 }
 
 export function isWorkspaceToOpen(uriToOpen: IURIToOpen): uriToOpen is IWorkspaceToOpen {
-	return !!uriToOpen['workspaceUri'];
+	return !!(uriToOpen as IWorkspaceToOpen)['workspaceUri'];
 }
 
 export function isFolderToOpen(uriToOpen: IURIToOpen): uriToOpen is IFolderToOpen {
-	return !!uriToOpen['folderUri'];
+	return !!(uriToOpen as IFolderToOpen)['folderUri'];
 }
 
 export function isFileToOpen(uriToOpen: IURIToOpen): uriToOpen is IFileToOpen {
-	return !!uriToOpen['fileUri'];
+	return !!(uriToOpen as IFileToOpen)['fileUri'];
 }
 
 
@@ -238,9 +240,11 @@ export interface IWindowService {
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
@@ -282,6 +286,10 @@ export interface IWindowSettings {
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
+	if (isWeb) {
+		return 'custom';
+	}
+
 	const configuration = configurationService.getValue<IWindowSettings>('window');
 
 	const isDev = !environment.isBuilt || isExtensionDevelopment;
@@ -295,7 +303,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 			return 'native'; // native tabs on sierra do not work with custom title style
 		}
 
-		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
+		const useSimpleFullScreen = false; //isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
 		}
@@ -412,6 +420,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
@@ -447,13 +456,15 @@ export interface IRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
 }
 
-export class ActiveWindowManager implements IDisposable {
+export class ActiveWindowManager extends Disposable {
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = this._register(new DisposableStore());
 	private firstActiveWindowIdPromise: CancelablePromise<number | undefined> | undefined;
 	private activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
+		super();
+
 		const onActiveWindowChange = Event.latch(Event.any(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
@@ -474,10 +485,7 @@ export class ActiveWindowManager implements IDisposable {
 
 	async getActiveClientId(): Promise<string | undefined> {
 		const id = this.firstActiveWindowIdPromise ? (await this.firstActiveWindowIdPromise) : this.activeWindowId;
-		return `window:${id}`;
-	}
 
-	dispose() {
-		this.disposables = dispose(this.disposables);
+		return `window:${id}`;
 	}
 }

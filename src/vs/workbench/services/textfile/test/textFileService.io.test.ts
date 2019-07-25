@@ -17,12 +17,12 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -76,7 +76,7 @@ suite('Files - TextFileService i/o', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	let accessor: ServiceAccessor;
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 	let service: ITextFileService;
 	let testDir: string;
 
@@ -88,8 +88,8 @@ suite('Files - TextFileService i/o', () => {
 		const fileService = new FileService(logService);
 
 		const fileProvider = new DiskFileSystemProvider(logService);
-		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
+		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
@@ -108,7 +108,7 @@ suite('Files - TextFileService i/o', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();
 
-		disposables = dispose(disposables);
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});
@@ -247,7 +247,10 @@ suite('Files - TextFileService i/o', () => {
 	}
 
 	test('write - use encoding (cp1252)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_cp1252.txt')), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(isWindows ? '\r\n' : '\n'));
+		const filePath = join(testDir, 'some_cp1252.txt');
+		const contents = await readFile(filePath, 'utf8');
+		const eol = /\r\n/.test(contents) ? '\r\n' : '\n';
+		await testEncodingKeepsData(URI.file(filePath), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(eol));
 	});
 
 	test('write - use encoding (shiftjis)', async () => {

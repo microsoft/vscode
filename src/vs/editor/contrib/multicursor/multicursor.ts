@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
@@ -427,7 +427,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
 	private _session: MultiCursorSession | null;
-	private _sessionDispose: IDisposable[];
+	private readonly _sessionDispose = this._register(new DisposableStore());
 
 	public static get(editor: ICodeEditor): MultiCursorSelectionController {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
@@ -438,7 +438,6 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._editor = editor;
 		this._ignoreSelectionChange = false;
 		this._session = null;
-		this._sessionDispose = [];
 	}
 
 	public dispose(): void {
@@ -468,27 +467,25 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			}
 			findController.getState().change(newState, false);
 
-			this._sessionDispose = [
-				this._editor.onDidChangeCursorSelection((e) => {
-					if (this._ignoreSelectionChange) {
-						return;
-					}
+			this._sessionDispose.add(this._editor.onDidChangeCursorSelection((e) => {
+				if (this._ignoreSelectionChange) {
+					return;
+				}
+				this._endSession();
+			}));
+			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
+				this._endSession();
+			}));
+			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
+				if (e.matchCase || e.wholeWord) {
 					this._endSession();
-				}),
-				this._editor.onDidBlurEditorText(() => {
-					this._endSession();
-				}),
-				findController.getState().onFindReplaceStateChange((e) => {
-					if (e.matchCase || e.wholeWord) {
-						this._endSession();
-					}
-				})
-			];
+				}
+			}));
 		}
 	}
 
 	private _endSession(): void {
-		this._sessionDispose = dispose(this._sessionDispose);
+		this._sessionDispose.clear();
 		if (this._session && this._session.isDisconnectedFromFindController) {
 			const newState: INewFindReplaceState = {
 				wholeWordOverride: FindOptionOverride.NotSet,

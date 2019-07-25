@@ -5,7 +5,7 @@
 
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 
 export interface IAnchor {
@@ -128,21 +128,21 @@ export class ContextView extends Disposable {
 			this.container = container;
 			this.container.appendChild(this.view);
 
-			const toDisposeOnSetContainer: IDisposable[] = [];
+			const toDisposeOnSetContainer = new DisposableStore();
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
+				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
+				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
 					this.onDOMEvent(e, true);
 				}, true));
 			});
 
-			this.toDisposeOnSetContainer = combinedDisposable(toDisposeOnSetContainer);
+			this.toDisposeOnSetContainer = toDisposeOnSetContainer;
 		}
 	}
 
@@ -242,6 +242,9 @@ export class ContextView extends Disposable {
 		// if view intersects vertically with anchor, shift it horizontally
 		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
 			horizontalAnchor.size = around.width;
+			if (anchorAlignment === AnchorAlignment.RIGHT) {
+				horizontalAnchor.offset = around.left;
+			}
 		}
 
 		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
@@ -257,11 +260,12 @@ export class ContextView extends Disposable {
 	}
 
 	hide(data?: any): void {
-		if (this.delegate && this.delegate.onHide) {
-			this.delegate.onHide(data);
-		}
-
+		const delegate = this.delegate;
 		this.delegate = null;
+
+		if (delegate && delegate.onHide) {
+			delegate.onHide(data);
+		}
 
 		if (this.toDisposeOnClean) {
 			this.toDisposeOnClean.dispose();

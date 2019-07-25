@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -56,7 +56,7 @@ export class WalkThroughPart extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.walkThroughPart';
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private contentDisposables: IDisposable[] = [];
 	private content: HTMLDivElement;
 	private scrollbar: DomScrollableElement;
@@ -92,13 +92,13 @@ export class WalkThroughPart extends BaseEditor {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto
 		});
-		this.disposables.push(this.scrollbar);
+		this.disposables.add(this.scrollbar);
 		container.appendChild(this.scrollbar.getDomNode());
 
 		this.registerFocusHandlers();
 		this.registerClickHandler();
 
-		this.disposables.push(this.scrollbar.onScroll(e => this.updatedScrollPosition()));
+		this.disposables.add(this.scrollbar.onScroll(e => this.updatedScrollPosition()));
 	}
 
 	private updatedScrollPosition() {
@@ -120,16 +120,16 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private registerFocusHandlers() {
-		this.disposables.push(this.addEventListener(this.content, 'mousedown', e => {
+		this.disposables.add(this.addEventListener(this.content, 'mousedown', e => {
 			this.focus();
 		}));
-		this.disposables.push(this.addEventListener(this.content, 'focus', e => {
+		this.disposables.add(this.addEventListener(this.content, 'focus', e => {
 			this.editorFocus.set(true);
 		}));
-		this.disposables.push(this.addEventListener(this.content, 'blur', e => {
+		this.disposables.add(this.addEventListener(this.content, 'blur', e => {
 			this.editorFocus.reset();
 		}));
-		this.disposables.push(this.addEventListener(this.content, 'focusin', e => {
+		this.disposables.add(this.addEventListener(this.content, 'focusin', (e: FocusEvent) => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
 			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
 				const scrollPosition = this.scrollbar.getScrollPosition();
@@ -301,12 +301,6 @@ export class WalkThroughPart extends BaseEditor {
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
-					/* __GDPR__FRAGMENT__
-						"EditorTelemetryData" : {
-							"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
-					*/
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
@@ -356,43 +350,33 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
+					type WalkThroughSnippetInteractionClassification = {
+						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WalkThroughSnippetInteractionEvent = {
+						from?: string,
+						type: string,
+						snippet: number
+					};
+
 					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
 							snippet: i
 						});
 					}));
 					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						/* __GDPR__
-							"walkThroughSnippetInteraction" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
+						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
 							snippet: i
@@ -514,7 +498,7 @@ export class WalkThroughPart extends BaseEditor {
 	dispose(): void {
 		this.editorFocus.reset();
 		this.contentDisposables = dispose(this.contentDisposables);
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }

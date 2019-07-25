@@ -10,7 +10,7 @@ import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionba
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -31,7 +31,7 @@ export class ContextMenuController implements IEditorContribution {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
 	}
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private _contextMenuIsBeingShownCount: number = 0;
 	private readonly _editor: ICodeEditor;
 
@@ -45,13 +45,13 @@ export class ContextMenuController implements IEditorContribution {
 	) {
 		this._editor = editor;
 
-		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
-		this._toDispose.push(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
+		this._toDispose.add(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
+		this._toDispose.add(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
 			if (this._contextMenuIsBeingShownCount > 0) {
 				this._contextViewService.hideContextView();
 			}
 		}));
-		this._toDispose.push(this._editor.onKeyDown((e: IKeyboardEvent) => {
+		this._toDispose.add(this._editor.onKeyDown((e: IKeyboardEvent) => {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();
@@ -125,7 +125,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 	}
 
-	private _getMenuActions(model: ITextModel): IAction[] {
+	private _getMenuActions(model: ITextModel): ReadonlyArray<IAction> {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
@@ -141,7 +141,7 @@ export class ContextMenuController implements IEditorContribution {
 		return result;
 	}
 
-	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: ReadonlyArray<IAction>, anchor: IAnchor | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -217,7 +217,7 @@ export class ContextMenuController implements IEditorContribution {
 			this._contextViewService.hideContextView();
 		}
 
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 }
 

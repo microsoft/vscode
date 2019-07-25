@@ -6,9 +6,11 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 const emptyDialogService = new class implements IDialogService {
 	_serviceBrand: 'dialogService';
@@ -24,13 +26,14 @@ const emptyDialogService = new class implements IDialogService {
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
+	onDidExecuteCommand: () => ({ dispose: () => { } }),
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	_serviceBrand: 'notificiationService';
+	_serviceBrand: ServiceIdentifier<INotificationService>;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -46,11 +49,13 @@ const emptyNotificationService = new class implements INotificationService {
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('not implemented');
 	}
+	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
+		return Disposable.None;
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
-
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<INotificationService>;
 
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
@@ -71,6 +76,9 @@ class EmptyNotificationService implements INotificationService {
 	}
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		throw new Error('not implemented');
+	}
+	status(message: string, options?: IStatusMessageOptions): IDisposable {
+		return Disposable.None;
 	}
 }
 

@@ -56,7 +56,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 		this._register(_modeService.onDidCreateMode(() => {
 			const value = this._resourceKey.get();
-			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
+			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 		}));
 	}
 
@@ -65,7 +65,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 			this._resourceKey.set(value);
 			this._schemeKey.set(value ? value.scheme : null);
 			this._filenameKey.set(value ? basename(value) : null);
-			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
+			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 			this._extensionKey.set(value ? extname(value) : null);
 			this._hasResource.set(!!value);
 			this._isFileSystemResource.set(value ? this._fileService.canHandleResource(value) : false);
@@ -107,7 +107,7 @@ export class ResourceGlobMatcher extends Disposable {
 	private static readonly NO_ROOT: string | null = null;
 
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
-	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
+	readonly onExpressionChange: Event<void> = this._onExpressionChange.event;
 
 	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
 	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();

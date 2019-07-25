@@ -30,7 +30,7 @@ declare module "vscode-textmate" {
 	 */
 	export interface RegistryOptions {
 		theme?: IRawTheme;
-		loadGrammar(scopeName: string): Thenable<IRawGrammar | null> | null;
+		loadGrammar(scopeName: string): Thenable<IRawGrammar | undefined | null>;
 		getInjections?(scopeName: string): string[];
 		getOnigLib?(): Thenable<IOnigLib>;
 	}
@@ -85,7 +85,7 @@ declare module "vscode-textmate" {
 		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
 		 */
 		loadGrammar(initialScopeName: string): Thenable<IGrammar>;
-		private _loadGrammar(initialScopeName, initialLanguage, embeddedLanguages, tokenTypes);
+		private _loadGrammar;
 		/**
 		 * Adds a rawGrammar.
 		 */
@@ -182,7 +182,7 @@ declare module "vscode-textmate" {
 		equals(other: StackElement): boolean;
 	}
 	export const INITIAL: StackElement;
-	export const parseRawGrammar: (content: string, filePath: string) => IRawGrammar;
+	export const parseRawGrammar: (content: string, filePath?: string) => IRawGrammar;
 	export interface ILocation {
 		readonly filename: string;
 		readonly line: number;

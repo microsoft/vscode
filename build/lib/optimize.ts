@@ -154,7 +154,7 @@ export interface IOptimizeTaskOpts {
 	/**
 	 * (basically the Copyright treatment)
 	 */
-	header: string;
+	header?: string;
 	/**
 	 * (emit bundleInfo.json file)
 	 */
@@ -169,12 +169,18 @@ export interface IOptimizeTaskOpts {
 	languages?: Language[];
 }
 
+const DEFAULT_FILE_HEADER = [
+	'/*!--------------------------------------------------------',
+	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' *--------------------------------------------------------*/'
+].join('\n');
+
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
-	const bundledFileHeader = opts.header;
+	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
 	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
 	const out = opts.out;
 

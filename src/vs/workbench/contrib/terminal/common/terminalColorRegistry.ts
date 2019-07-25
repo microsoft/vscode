@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorIdentifier, ColorDefaults } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 /**
@@ -37,7 +37,7 @@ export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	hc: PANEL_BORDER
 }, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
 
-const ansiColorMap = {
+export const ansiColorMap: { [key: string]: { index: number, defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {
 		index: 0,
 		defaults: {

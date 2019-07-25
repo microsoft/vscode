@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toResource, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput, SideBySideEditor, Verbosity } from 'vs/workbench/common/editor';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,6 +35,7 @@ export interface IResourceLabelProps {
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
 	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
+	descriptionVerbosity?: Verbosity;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -52,19 +53,19 @@ export interface IResourceLabel extends IDisposable {
 	setLabel(label?: string, description?: string, options?: IIconLabelValueOptions): void;
 
 	/**
-	 * Convinient method to apply a label by passing a resource along.
+	 * Convenient method to apply a label by passing a resource along.
 	 *
 	 * Note: for file resources consider to use the #setFile() method instead.
 	 */
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void;
 
 	/**
-	 * Convinient method to render a file label based on a resource.
+	 * Convenient method to render a file label based on a resource.
 	 */
 	setFile(resource: URI, options?: IFileLabelOptions): void;
 
 	/**
-	 * Convinient method to apply a label by passing an editor along.
+	 * Convenient method to apply a label by passing an editor along.
 	 */
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void;
 
@@ -94,7 +95,8 @@ export class ResourceLabels extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -144,6 +146,10 @@ export class ResourceLabels extends Disposable {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this._widgets.forEach(widget => widget.notifyFileAssociationsChange());
 			}
+		}));
+
+		this._register(this.labelService.onDidChangeFormatters(() => {
+			this._widgets.forEach(widget => widget.notifyFormattersChange());
 		}));
 	}
 
@@ -212,9 +218,10 @@ export class ResourceLabel extends ResourceLabels {
 		@IModelService modelService: IModelService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService, labelService);
 
 		this._label = this._register(this.create(container, options));
 	}
@@ -232,7 +239,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private _onDidRender = this._register(new Emitter<void>());
-	get onDidRender(): Event<void> { return this._onDidRender.event; }
+	readonly onDidRender: Event<void> = this._onDidRender.event;
 
 	private label?: IResourceLabelProps;
 	private options?: IResourceLabelOptions;
@@ -309,6 +316,13 @@ class ResourceLabelWidget extends IconLabel {
 		this.render(true);
 	}
 
+	notifyFormattersChange(): void {
+		if (this.label && this.label.resource) {
+			this.setFile(this.label.resource, this.options);
+		}
+		this.render(false);
+	}
+
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
 		const hasResourceChanged = this.hasResourceChanged(label, options);
 
@@ -352,7 +366,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
 			name: withNullAsUndefined(editor.getName()),
-			description: withNullAsUndefined(editor.getDescription())
+			description: editor.getDescription(options ? options.descriptionVerbosity : undefined)
 		}, options);
 	}
 

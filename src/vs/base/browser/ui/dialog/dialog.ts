@@ -15,6 +15,7 @@ import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 
 export interface IDialogOptions {
 	cancelId?: number;
@@ -28,6 +29,11 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogBackground?: Color;
 	dialogShadow?: Color;
 	dialogBorder?: Color;
+}
+
+interface ButtonMapEntry {
+	label: string;
+	index: number;
 }
 
 export class Dialog extends Disposable {
@@ -91,13 +97,22 @@ export class Dialog extends Disposable {
 			clearNode(this.buttonsContainer);
 
 			let focusedButton = 0;
-			this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
-			this.buttonGroup.buttons.forEach((button, index) => {
-				button.label = mnemonicButtonLabel(this.buttons[index], true);
+			const buttonGroup = this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
+			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
+
+			// Set focused button to UI index
+			buttonMap.forEach((value, index) => {
+				if (value.index === 0) {
+					focusedButton = index;
+				}
+			});
+
+			buttonGroup.buttons.forEach((button, index) => {
+				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
-					resolve(index);
+					resolve(buttonMap[index].index);
 				}));
 			});
 
@@ -108,18 +123,16 @@ export class Dialog extends Disposable {
 				}
 
 				let eventHandled = false;
-				if (this.buttonGroup) {
-					if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
-						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
-						focusedButton = focusedButton % this.buttonGroup.buttons.length;
-						this.buttonGroup.buttons[focusedButton].focus();
-						eventHandled = true;
-					} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
-						focusedButton++;
-						focusedButton = focusedButton % this.buttonGroup.buttons.length;
-						this.buttonGroup.buttons[focusedButton].focus();
-						eventHandled = true;
-					}
+				if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+					focusedButton = focusedButton + buttonGroup.buttons.length - 1;
+					focusedButton = focusedButton % buttonGroup.buttons.length;
+					buttonGroup.buttons[focusedButton].focus();
+					eventHandled = true;
+				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
+					focusedButton++;
+					focusedButton = focusedButton % buttonGroup.buttons.length;
+					buttonGroup.buttons[focusedButton].focus();
+					eventHandled = true;
 				}
 
 				if (eventHandled) {
@@ -185,7 +198,7 @@ export class Dialog extends Disposable {
 			show(this.element);
 
 			// Focus first element
-			this.buttonGroup.buttons[focusedButton].focus();
+			buttonGroup.buttons[focusedButton].focus();
 		});
 	}
 
@@ -227,5 +240,24 @@ export class Dialog extends Disposable {
 			this.focusToReturn.focus();
 			this.focusToReturn = undefined;
 		}
+	}
+
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+		const buttonMap: ButtonMapEntry[] = [];
+		// Maps each button to its current label and old index so that when we move them around it's not a problem
+		buttons.forEach((button, index) => {
+			buttonMap.push({ label: button, index: index });
+		});
+
+		// macOS/linux: reverse button order
+		if (isMacintosh || isLinux) {
+			if (cancelId !== undefined) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.reverse();
+				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+			}
+		}
+
+		return buttonMap;
 	}
 }

@@ -13,6 +13,15 @@ export interface ResolvedAuthority {
 	readonly port: number;
 }
 
+export interface ResolvedOptions {
+	readonly extensionHostEnv?: { [key: string]: string | null };
+}
+
+export interface ResolverResult {
+	authority: ResolvedAuthority;
+	options?: ResolvedOptions;
+}
+
 export enum RemoteAuthorityResolverErrorCode {
 	Unknown = 'Unknown',
 	NotAvailable = 'NotAvailable',
@@ -27,7 +36,8 @@ export class RemoteAuthorityResolverError extends Error {
 				return true;
 			}
 		}
-		return false;
+
+		return this.isTemporarilyNotAvailable(err);
 	}
 
 	public static isTemporarilyNotAvailable(err: any): boolean {
@@ -60,9 +70,9 @@ export interface IRemoteAuthorityResolverService {
 
 	_serviceBrand: any;
 
-	resolveAuthority(authority: string): Promise<ResolvedAuthority>;
+	resolveAuthority(authority: string): Promise<ResolverResult>;
 
 	clearResolvedAuthority(authority: string): void;
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void;
+	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
 	setResolvedAuthorityError(authority: string, err: any): void;
 }

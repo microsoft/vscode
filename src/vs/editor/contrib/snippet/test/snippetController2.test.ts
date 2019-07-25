@@ -410,4 +410,22 @@ suite('SnippetController2', function () {
 		ctrl.insert('export default $1');
 		assertContextKeys(contextKeys, true, false, true);
 	});
+
+	test('Optional tabstop in snippets #72358', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('${1:prop: {$2\\},}\nmore$0');
+		assertContextKeys(contextKeys, true, false, true);
+
+		assertSelections(editor, new Selection(1, 1, 1, 10));
+		editor.trigger('test', Handler.Cut, {});
+
+		assertSelections(editor, new Selection(1, 1, 1, 1));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(2, 5, 2, 5));
+		assertContextKeys(contextKeys, false, false, false);
+	});
 });

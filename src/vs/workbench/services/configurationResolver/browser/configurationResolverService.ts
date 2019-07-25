@@ -19,8 +19,9 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -226,6 +227,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	 */
 	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
 
+		if (!inputInfos) {
+			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'input')));
+		}
+
 		// find info for the given input variable
 		const info = inputInfos.filter(item => item.id === variable).pop();
 		if (info) {
@@ -305,3 +310,5 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		super(environmentService.configuration.userEnv, editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
 	}
 }
+
+registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);

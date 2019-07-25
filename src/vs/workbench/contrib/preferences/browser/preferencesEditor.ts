@@ -31,7 +31,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -84,7 +84,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	readonly minimumHeight = 260;
 
-	private _onDidCreateWidget = new Emitter<{ width: number; height: number; } | undefined>();
+	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
 
 	constructor(
@@ -94,7 +94,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private readonly progressService: IProgressService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
@@ -237,7 +237,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (query) {
 			return Promise.all([
 				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query).then(() => { })),
-				this.remoteSearchThrottle.trigger(() => Promise.resolve(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
+				this.remoteSearchThrottle.trigger(() => Promise.resolve(this.editorProgressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
 			]).then(() => { });
 		} else {
 			// When clearing the input, update immediately to clear it
@@ -284,7 +284,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private _countById(settingsGroups: ISettingsGroup[]): IStringDictionary<number> {
-		const result = {};
+		const result: IStringDictionary<number> = {};
 
 		for (const group of settingsGroups) {
 			let i = 0;
@@ -329,11 +329,6 @@ export class PreferencesEditor extends BaseEditor {
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 			this._lastReportedFilter = filter;
 		}
-	}
-
-	dispose(): void {
-		this._onDidCreateWidget.dispose();
-		super.dispose();
 	}
 }
 
@@ -553,8 +548,11 @@ class PreferencesRenderersController extends Disposable {
 		const targetKey = resource.toString();
 		if (!this._prefsModelsForSearch.has(targetKey)) {
 			try {
-				const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
-				this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+				const model = await this.preferencesService.createPreferencesEditorModel(resource);
+				if (model) {
+					this._register(model);
+					this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+				}
 			} catch (e) {
 				// Will throw when the settings file doesn't exist.
 				return undefined;
@@ -685,7 +683,7 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private _updatePreference(key: string, value: any, source: ISetting, fromEditableSettings?: boolean): void {
-		const data = {
+		const data: { [key: string]: any } = {
 			userConfigurationKeys: [key]
 		};
 
@@ -774,10 +772,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
-	private readonly _onFocus = new Emitter<void>();
+	private readonly _onFocus = this._register(new Emitter<void>());
 	readonly onFocus: Event<void> = this._onFocus.event;
 
-	private readonly _onDidSettingsTargetChange = new Emitter<SettingsTarget>();
+	private readonly _onDidSettingsTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
 	private splitview: SplitView;
@@ -1121,16 +1119,19 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting> | null> {
 		return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
 			.then(associatedPreferencesEditorModel => {
-				return this.preferencesRendererCreationPromise!.then(preferencesRenderer => {
-					if (preferencesRenderer) {
-						const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
-						if (associatedPreferencesModel) {
-							associatedPreferencesModel.dispose();
+				if (associatedPreferencesEditorModel) {
+					return this.preferencesRendererCreationPromise!.then(preferencesRenderer => {
+						if (preferencesRenderer) {
+							const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+							if (associatedPreferencesModel) {
+								associatedPreferencesModel.dispose();
+							}
+							preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
 						}
-						preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
-					}
-					return preferencesRenderer;
-				});
+						return preferencesRenderer;
+					});
+				}
+				return null;
 			});
 	}
 
@@ -1159,7 +1160,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 	abstract getId(): string;
 }
 
-class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
+export class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.defaultsettings';
 
@@ -1198,12 +1199,14 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 	}
 
 	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null {
-		if (this.isSettingsModel()) {
-			return this.preferencesService.createPreferencesEditorModel(this.editor.getModel()!.uri)
+		const model = this.editor.getModel();
+		if (model) {
+			return this.preferencesService.createPreferencesEditorModel(model.uri)
 				.then<any>(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER_LOCAL:
+							case ConfigurationTarget.USER_REMOTE:
 								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE:
 								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);
@@ -1222,31 +1225,6 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		}
 		return null;
 	}
-
-	private isSettingsModel(): boolean {
-		const model = this.editor.getModel();
-		if (!model) {
-			return false;
-		}
-
-		if (this.preferencesService.userSettingsResource && this.preferencesService.userSettingsResource.toString() === model.uri.toString()) {
-			return true;
-		}
-
-		if (this.preferencesService.workspaceSettingsResource && this.preferencesService.workspaceSettingsResource.toString() === model.uri.toString()) {
-			return true;
-		}
-
-		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
-			if (folderSettingsResource && folderSettingsResource.toString() === model.uri.toString()) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 }
 
 registerEditorContribution(SettingsEditorContribution);

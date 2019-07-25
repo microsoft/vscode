@@ -6,21 +6,20 @@
 import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
-import { setFileNameComparer } from 'vs/base/common/comparers';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
-import { runWhenIdle, IdleValue } from 'vs/base/common/async';
+import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
-import { getServices } from 'vs/platform/instantiation/common/extensions';
+import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -37,7 +36,7 @@ import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/no
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
-import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
+import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -49,10 +48,10 @@ import { Layout } from 'vs/workbench/browser/layout';
 export class Workbench extends Layout {
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
-	get onShutdown(): Event<void> { return this._onShutdown.event; }
+	readonly onShutdown: Event<void> = this._onShutdown.event;
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
+	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -114,22 +113,13 @@ export class Workbench extends Layout {
 			// Configure emitter leak warning threshold
 			setGlobalLeakWarningThreshold(175);
 
-			// Setup Intl for comparers
-			setFileNameComparer(new IdleValue(() => {
-				const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-				return {
-					collator: collator,
-					collatorIsNumeric: collator.resolvedOptions().numeric
-				};
-			}));
-
 			// ARIA
 			setARIAContainer(document.body);
 
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
 
-			instantiationService.invokeFunction(accessor => {
+			instantiationService.invokeFunction(async accessor => {
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -156,7 +146,11 @@ export class Workbench extends Layout {
 				this.layout();
 
 				// Restore
-				this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService).then(undefined, error => onUnexpectedError(error));
+				try {
+					await this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService);
+				} catch (error) {
+					onUnexpectedError(error);
+				}
 			});
 
 			return instantiationService;
@@ -178,9 +172,9 @@ export class Workbench extends Layout {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
-		const contributedServices = getServices();
-		for (let contributedService of contributedServices) {
-			serviceCollection.set(contributedService.id, contributedService.descriptor);
+		const contributedServices = getSingletonServiceDescriptors();
+		for (let [id, descriptor] of contributedServices) {
+			serviceCollection.set(id, descriptor);
 		}
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
@@ -223,11 +217,11 @@ export class Workbench extends Layout {
 			this.dispose();
 		}));
 
-		// Storage
-		this._register(storageService.onWillSaveState(() => saveFontInfo(storageService)));
-
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+
+		// Storage
+		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
@@ -249,6 +243,35 @@ export class Workbench extends Layout {
 		}
 	}
 
+	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
+
+		// Restore (native: use storage service, web: use browser specific local storage)
+		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('editorFontInfo');
+		if (storedFontInfoRaw) {
+			try {
+				const storedFontInfo = JSON.parse(storedFontInfoRaw);
+				if (Array.isArray(storedFontInfo)) {
+					restoreFontInfo(storedFontInfo);
+				}
+			} catch (err) {
+				/* ignore */
+			}
+		}
+
+		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+	}
+
+	private storeFontInfo(e: IWillSaveStateEvent, storageService: IStorageService): void {
+		if (e.reason === WillSaveStateReason.SHUTDOWN) {
+			const serializedFontInfo = serializeFontInfo();
+			if (serializedFontInfo) {
+				const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
+
+				isNative ? storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
+			}
+		}
+	}
+
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// State specific classes
@@ -256,6 +279,7 @@ export class Workbench extends Layout {
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			platformClass,
+			isWeb ? 'web' : undefined,
 			this.state.sideBar.hidden ? 'nosidebar' : undefined,
 			this.state.panel.hidden ? 'nopanel' : undefined,
 			this.state.statusBar.hidden ? 'nostatusbar' : undefined,
@@ -273,8 +297,7 @@ export class Workbench extends Layout {
 		this.setFontAliasing(configurationService);
 
 		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+		this.restoreFontInfo(storageService, configurationService);
 
 		// Create Parts
 		[
@@ -331,7 +354,7 @@ export class Workbench extends Layout {
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
 	}
 
-	private restoreWorkbench(
+	private async restoreWorkbench(
 		editorService: IEditorService,
 		editorGroupService: IEditorGroupsService,
 		viewletService: IViewletService,
@@ -342,36 +365,39 @@ export class Workbench extends Layout {
 		const restorePromises: Promise<void>[] = [];
 
 		// Restore editors
-		mark('willRestoreEditors');
-		restorePromises.push(editorGroupService.whenRestored.then(() => {
+		restorePromises.push((async () => {
+			mark('willRestoreEditors');
 
-			function openEditors(editors: IResourceEditor[], editorService: IEditorService) {
-				if (editors.length) {
-					return editorService.openEditors(editors);
-				}
+			// first ensure the editor part is restored
+			await editorGroupService.whenRestored;
 
-				return Promise.resolve(undefined);
-			}
-
+			// then see for editors to open as instructed
+			let editors: IResourceEditor[];
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
-				return openEditors(this.state.editor.editorsToOpen, editorService);
+				editors = this.state.editor.editorsToOpen;
+			} else {
+				editors = await this.state.editor.editorsToOpen;
 			}
 
-			return this.state.editor.editorsToOpen.then(editors => openEditors(editors, editorService));
-		}).then(() => mark('didRestoreEditors')));
+			if (editors.length) {
+				await editorService.openEditors(editors);
+			}
+
+			mark('didRestoreEditors');
+		})());
 
 		// Restore Sidebar
 		if (this.state.sideBar.viewletToRestore) {
-			mark('willRestoreViewlet');
-			restorePromises.push(viewletService.openViewlet(this.state.sideBar.viewletToRestore)
-				.then(viewlet => {
-					if (!viewlet) {
-						return viewletService.openViewlet(viewletService.getDefaultViewletId()); // fallback to default viewlet as needed
-					}
+			restorePromises.push((async () => {
+				mark('willRestoreViewlet');
 
-					return viewlet;
-				})
-				.then(() => mark('didRestoreViewlet')));
+				const viewlet = await viewletService.openViewlet(this.state.sideBar.viewletToRestore);
+				if (!viewlet) {
+					await viewletService.openViewlet(viewletService.getDefaultViewletId()); // fallback to default viewlet as needed
+				}
+
+				mark('didRestoreViewlet');
+			})());
 		}
 
 		// Restore Panel
@@ -394,23 +420,24 @@ export class Workbench extends Layout {
 		// Emit a warning after 10s if restore does not complete
 		const restoreTimeoutHandle = setTimeout(() => logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
 
-		return Promise.all(restorePromises)
-			.then(() => clearTimeout(restoreTimeoutHandle))
-			.catch(error => onUnexpectedError(error))
-			.finally(() => {
+		try {
+			await Promise.all(restorePromises);
 
-				// Set lifecycle phase to `Restored`
-				lifecycleService.phase = LifecyclePhase.Restored;
+			clearTimeout(restoreTimeoutHandle);
+		} catch (error) {
+			onUnexpectedError(error);
+		} finally {
 
-				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
-				setTimeout(() => {
-					this._register(runWhenIdle(() => {
-						lifecycleService.phase = LifecyclePhase.Eventually;
-					}, 2500));
-				}, 2500);
+			// Set lifecycle phase to `Restored`
+			lifecycleService.phase = LifecyclePhase.Restored;
 
-				// Telemetry: startup metrics
-				mark('didStartWorkbench');
-			});
+			// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+			setTimeout(() => {
+				this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+			}, 2500);
+
+			// Telemetry: startup metrics
+			mark('didStartWorkbench');
+		}
 	}
 }

@@ -38,7 +38,8 @@ import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import * as modes from 'vs/editor/common/modes';
-import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity, editorWarningBorder, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -1507,9 +1508,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
-	/* __GDPR__FRAGMENT__
-		"EditorTelemetryData" : {}
-	*/
 	public getTelemetryData(): { [key: string]: any; } | undefined {
 		return this._telemetryData;
 	}

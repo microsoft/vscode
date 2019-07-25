@@ -30,7 +30,7 @@ export interface CallHierarchyProvider {
 
 	provideCallHierarchyItem(
 		document: ITextModel,
-		postion: IPosition,
+		position: IPosition,
 		token: CancellationToken
 	): ProviderResult<CallHierarchyItem>;
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/b896ebfb6f669b8714f419527f047466420efe5c",
+	"version": "https://github.com/atom/language-php/commit/0efbd42e73b52347f95ac5f00c9f288ed4958832",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -1207,7 +1207,7 @@
 		"function-call": {
 			"patterns": [
 				{
-					"begin": "(?xi)\n(\n  \\\\?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])                            # Optional root namespace\n  [a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*          # First namespace\n  (?:\\\\[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additional namespaces\n)\\s*(\\()",
+					"begin": "(?x)\n(\n  \\\\?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])                            # Optional root namespace\n  [a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*          # First namespace\n  (?:\\\\[a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additional namespaces\n)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1238,7 +1238,7 @@
 					]
 				},
 				{
-					"begin": "(?i)(\\\\)?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()",
+					"begin": "(\\\\)?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -1324,7 +1324,7 @@
 						}
 					},
 					"contentName": "text.html",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1360,7 +1360,7 @@
 						}
 					},
 					"contentName": "text.xml",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1396,7 +1396,7 @@
 						}
 					},
 					"contentName": "source.sql",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1432,7 +1432,7 @@
 						}
 					},
 					"contentName": "source.js",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1468,7 +1468,7 @@
 						}
 					},
 					"contentName": "source.json",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1504,7 +1504,7 @@
 						}
 					},
 					"contentName": "source.css",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1540,7 +1540,7 @@
 						}
 					},
 					"contentName": "string.regexp.heredoc.php",
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1619,7 +1619,7 @@
 							"name": "invalid.illegal.trailing-whitespace.php"
 						}
 					},
-					"end": "^(\\3)(?=;?$)",
+					"end": "^\\s*(\\3)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.php"
@@ -1652,7 +1652,7 @@
 						}
 					},
 					"contentName": "text.html",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1685,7 +1685,7 @@
 						}
 					},
 					"contentName": "text.xml",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1718,7 +1718,7 @@
 						}
 					},
 					"contentName": "source.sql",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1751,7 +1751,7 @@
 						}
 					},
 					"contentName": "source.js",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1784,7 +1784,7 @@
 						}
 					},
 					"contentName": "source.json",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1817,7 +1817,7 @@
 						}
 					},
 					"contentName": "source.css",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1850,7 +1850,7 @@
 						}
 					},
 					"contentName": "string.regexp.nowdoc.php",
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.php"
@@ -1926,7 +1926,7 @@
 							"name": "invalid.illegal.trailing-whitespace.php"
 						}
 					},
-					"end": "^(\\2)(?=;?$)",
+					"end": "^\\s*(\\2)(?![A-Za-z0-9_\\x{7f}-\\x{7fffffff}])",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.operator.nowdoc.php"

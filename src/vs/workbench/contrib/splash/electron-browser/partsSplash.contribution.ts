@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ipcRenderer as ipc } from 'electron';
 import { join } from 'vs/base/common/path';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -23,12 +23,14 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import * as perf from 'vs/base/common/performance';
 
 class PartsSplash {
 
 	private static readonly _splashElementId = 'monaco-parts-splash';
 
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	private _didChangeTitleBarStyle: boolean;
 	private _lastBaseTheme: string;
@@ -39,24 +41,30 @@ class PartsSplash {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
-		@IBroadcastService private readonly _broadcastService: IBroadcastService,
+		@IWindowService private readonly windowService: IWindowService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
-		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
+		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
+			this._removePartsSplash();
+			perf.mark('didRemovePartsSplash');
+		});
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
 			editorGroupsService.onDidLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 
 		configService.onDidChangeConfiguration(e => {
-			this._didChangeTitleBarStyle = e.affectsConfiguration('window.titleBarStyle');
+			if (e.affectsConfiguration('window.titleBarStyle')) {
+				this._didChangeTitleBarStyle = true;
+				this._savePartsSplash();
+			}
 		}, this, this._disposables);
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	private _savePartsSplash() {
@@ -96,7 +104,8 @@ class PartsSplash {
 
 			// the color needs to be in hex
 			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
-			this._broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) }) });
+			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
+			ipc.send('vscode:changeColorTheme', this.windowService.windowId, payload);
 		}
 	}
 

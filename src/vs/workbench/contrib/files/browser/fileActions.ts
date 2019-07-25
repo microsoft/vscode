@@ -6,8 +6,9 @@
 import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
+import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -44,7 +45,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { sequence } from 'vs/base/common/async';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -84,15 +84,13 @@ export class NewFileAction extends Action {
 	static readonly ID = 'workbench.files.action.createFileFromExplorer';
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
-	private toDispose: IDisposable[] = [];
-
 	constructor(
 		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL);
 		this.class = 'explorer-action new-file';
-		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
 		}));
@@ -101,11 +99,6 @@ export class NewFileAction extends Action {
 	run(): Promise<any> {
 		return this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
 	}
-
-	dispose(): void {
-		super.dispose();
-		dispose(this.toDispose);
-	}
 }
 
 /* New Folder */
@@ -113,15 +106,13 @@ export class NewFolderAction extends Action {
 	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
-	private toDispose: IDisposable[] = [];
-
 	constructor(
 		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL);
 		this.class = 'explorer-action new-folder';
-		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
 		}));
@@ -129,11 +120,6 @@ export class NewFolderAction extends Action {
 
 	run(): Promise<any> {
 		return this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
-	}
-
-	dispose(): void {
-		super.dispose();
-		dispose(this.toDispose);
 	}
 }
 
@@ -167,7 +153,7 @@ function deleteFiles(textFileService: ITextFileService, dialogService: IDialogSe
 
 	// Handle dirty
 	let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
-	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
+	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource)));
 	if (dirty.length) {
 		let message: string;
 		if (distinctElements.length > 1) {
@@ -342,11 +328,11 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwirte: boolean }): URI {
+export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
-	while (true && !fileToPaste.allowOverwirte) {
+	while (true && !fileToPaste.allowOverwrite) {
 		if (!targetFolder.root.find(candidate)) {
 			break;
 		}
@@ -359,70 +345,29 @@ export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste
 }
 
 export function incrementFileName(name: string, isFolder: boolean): string {
-	const separators = '[\\.\\-_]';
-	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
-
-	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
-	if (!isFolder && name.match(suffixFileRegex)) {
-		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g2);
-			return number < maxNumber
-				? g1 + strings.pad(number + 1, g2.length) + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
-		});
+	let namePrefix = name;
+	let extSuffix = '';
+	if (!isFolder) {
+		extSuffix = extname(name);
+		namePrefix = basename(name, extSuffix);
 	}
 
-	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
-	if (!isFolder && name.match(prefixFileRegex)) {
-		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2 + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
-		});
+	// name copy 5(.txt) => name copy 6(.txt)
+	// name copy(.txt) => name copy 2(.txt)
+	const suffixRegex = /^(.+ copy)( \d+)?$/;
+	if (suffixRegex.test(namePrefix)) {
+		return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
+			let number = (g2 ? parseInt(g2) : 1);
+			return number === 0
+				? `${g1}`
+				: (number < Constants.MAX_SAFE_SMALL_INTEGER
+					? `${g1} ${number + 1}`
+					: `${g1}${g2} copy`);
+		}) + extSuffix;
 	}
 
-	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
-	if (!isFolder && name.match(prefixFileNoNameRegex)) {
-		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2
-				: strings.format('{0}.1{1}', g1, g2);
-		});
-	}
-
-	// file.txt=>file.1.txt
-	const lastIndexOfDot = name.lastIndexOf('.');
-	if (!isFolder && lastIndexOfDot >= 0) {
-		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
-	}
-
-	// folder.1=>folder.2
-	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length)
-				: strings.format('{0}.1', groups[0]);
-		});
-	}
-
-	// 1.folder=>2.folder
-	if (isFolder && name.match(/^(\d+)/)) {
-		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length) + groups[1]
-				: strings.format('{0}{1}.1', groups[0], groups[1]);
-		});
-	}
-
-	// file/folder=>file.1/folder.1
-	return strings.format('{0}.1', name);
+	// name(.txt) => name copy(.txt)
+	return `${namePrefix} copy${extSuffix}`;
 }
 
 // Global Compare with
@@ -509,7 +454,6 @@ export class ToggleAutoSaveAction extends Action {
 }
 
 export abstract class BaseSaveAllAction extends Action {
-	private toDispose: IDisposable[];
 	private lastIsDirty: boolean;
 
 	constructor(
@@ -522,7 +466,6 @@ export abstract class BaseSaveAllAction extends Action {
 	) {
 		super(id, label);
 
-		this.toDispose = [];
 		this.lastIsDirty = this.textFileService.isDirty();
 		this.enabled = this.lastIsDirty;
 
@@ -535,13 +478,13 @@ export abstract class BaseSaveAllAction extends Action {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
-		this.toDispose.push(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
-		this.toDispose.push(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
-		this.toDispose.push(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
+		this._register(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
+		this._register(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
+		this._register(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
+		this._register(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
-			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
+			this._register(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
 		}
 	}
 
@@ -557,12 +500,6 @@ export abstract class BaseSaveAllAction extends Action {
 			onError(this.notificationService, error);
 			return false;
 		});
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }
 
@@ -666,15 +603,19 @@ export class CollapseExplorerView extends Action {
 	public static readonly ID = 'workbench.files.action.collapseExplorerFolders';
 	public static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
 
-	constructor(
-		id: string,
+	constructor(id: string,
 		label: string,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExplorerService readonly explorerService: IExplorerService
 	) {
-		super(id, label);
+		super(id, label, 'explorer-action collapse-explorer');
+		this._register(explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
@@ -689,13 +630,17 @@ export class RefreshExplorerView extends Action {
 	public static readonly ID = 'workbench.files.action.refreshFilesExplorer';
 	public static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
+
 	constructor(
-		id: string,
-		label: string,
+		id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
+		this._register(explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
 	public run(): Promise<any> {
@@ -765,14 +710,6 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 	// Invalid File name
 	if (names.some((folderName) => !extpath.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
-	}
-
-	// Max length restriction (on Windows)
-	if (isWindows) {
-		const fullPathLength = item.resource.fsPath.length + 1 /* path segment */;
-		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
-		}
 	}
 
 	return null;
@@ -859,10 +796,10 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 		@IModelService private readonly modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource.path), resource);
+	async provideTextContent(resource: URI): Promise<ITextModel> {
+		const model = this.modelService.createModel(await this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
 
-		return Promise.resolve(model);
+		return model;
 	}
 }
 
@@ -898,10 +835,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 	const viewletService = accessor.get(IViewletService);
-	const activeViewlet = viewletService.getActiveViewlet();
-	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID || !listService.lastFocusedList) {
-		await viewletService.openViewlet(VIEWLET_ID, true);
-	}
+	const notificationService = accessor.get(INotificationService);
+
+	await viewletService.openViewlet(VIEWLET_ID, true);
 
 	const list = listService.lastFocusedList;
 	if (list) {
@@ -928,8 +864,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 				refreshIfSeparator(value, explorerService);
 				return isFolder ? explorerService.select(created.resource, true)
 					: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
-			}, (error) => {
-				onErrorWithRetry(accessor.get(INotificationService), error, () => onSuccess(value));
+			}, error => {
+				onErrorWithRetry(notificationService, error, () => onSuccess(value));
 			});
 		};
 
@@ -981,7 +917,9 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
-				textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				if (stat.resource.toString() !== targetResource.toString()) {
+					textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+				}
 			}
 			explorerService.setEditable(stat, null);
 		}
@@ -1039,11 +977,33 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 	}
 };
 
-export const pasteFileHandler = (accessor: ServicesAccessor) => {
+export const DOWNLOAD_COMMAND_ID = 'explorer.download';
+const downloadFileHandler = (accessor: ServicesAccessor) => {
+	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList) {
+		return;
+	}
+	const explorerContext = getContext(listService.lastFocusedList);
+	const textFileService = accessor.get(ITextFileService);
+
+	if (explorerContext.stat) {
+		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+		stats.forEach(async s => {
+			await textFileService.saveAs(s.resource, undefined, { availableFileSystems: [Schemas.file] });
+		});
+	}
+};
+CommandsRegistry.registerCommand({
+	id: DOWNLOAD_COMMAND_ID,
+	handler: downloadFileHandler
+});
+
+export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
+	const textFileService = accessor.get(ITextFileService);
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
 
@@ -1053,13 +1013,14 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 		const element = explorerContext.stat || explorerService.roots[0];
 
 		// Check if target is ancestor of pasted folder
-		sequence(toPaste.map(fileToPaste => () => {
+		const stats = await Promise.all(toPaste.map(async fileToPaste => {
 
-			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste, !isLinux /* ignorecase */)) {
+			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
 
-			return fileService.resolve(fileToPaste).then(fileToPasteStat => {
+			try {
+				const fileToPasteStat = await fileService.resolve(fileToPaste);
 
 				// Find target
 				let target: ExplorerItem;
@@ -1069,21 +1030,32 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 					target = element.isDirectory ? element : element.parent!;
 				}
 
-				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
+				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove });
 
-				// Copy File
-				return pasteShouldMove ? fileService.move(fileToPaste, targetFile) : fileService.copy(fileToPaste, targetFile);
-			}, error => {
+				// Move/Copy File
+				if (pasteShouldMove) {
+					return await textFileService.move(fileToPaste, targetFile);
+				} else {
+					return await fileService.copy(fileToPaste, targetFile);
+				}
+			} catch (e) {
 				onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
-			});
-		})).then((stat) => {
-			if (pasteShouldMove) {
-				// Cut is done. Make sure to clear cut state.
-				explorerService.setToCopy([], false);
+				return undefined;
 			}
-			if (stat.length === 1 && !stat[0].isDirectory) {
-				editorService.openEditor({ resource: stat[0].resource, options: { pinned: true, preserveFocus: true } }).then(undefined, onUnexpectedError);
+		}));
+
+		if (pasteShouldMove) {
+			// Cut is done. Make sure to clear cut state.
+			explorerService.setToCopy([], false);
+		}
+		if (stats.length >= 1) {
+			const stat = stats[0];
+			if (stat && !stat.isDirectory && stats.length === 1) {
+				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 			}
-		});
+			if (stat) {
+				await explorerService.select(stat.resource);
+			}
+		}
 	}
 };

@@ -21,14 +21,14 @@ import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/theme
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -61,7 +61,7 @@ export class ElectronWindow extends Disposable {
 
 	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
-	private touchBarDisposables: IDisposable[];
+	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][];
 
 	private previousConfiguredZoomLevel: number;
@@ -95,8 +95,6 @@ export class ElectronWindow extends Disposable {
 	) {
 		super();
 
-		this.touchBarDisposables = [];
-
 		this.pendingFoldersToAdd = [];
 		this.addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 
@@ -117,7 +115,7 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (event: Event, request: IRunActionInWindowRequest) => {
+		ipc.on('vscode:runAction', async (event: Event, request: IRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -134,17 +132,17 @@ export class ElectronWindow extends Disposable {
 				args.push({ from: request.from }); // TODO@telemetry this is a bit weird to send this to every action?
 			}
 
-			this.commandService.executeCommand(request.id, ...args).then(_ => {
-				/* __GDPR__
-					"commandExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
-			}, err => {
-				this.notificationService.error(err);
-			});
+			try {
+				await this.commandService.executeCommand(request.id, ...args);
+
+				type CommandExecutedClassifcation = {
+					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				};
+				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
+			} catch (error) {
+				this.notificationService.error(error);
+			}
 		});
 
 		// Support runKeybinding event
@@ -173,34 +171,30 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Fullscreen Events
-		ipc.on('vscode:enterFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-				browser.setFullscreen(true);
-			});
+		ipc.on('vscode:enterFullScreen', async () => {
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			browser.setFullscreen(true);
 		});
 
-		ipc.on('vscode:leaveFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-				browser.setFullscreen(false);
-			});
+		ipc.on('vscode:leaveFullScreen', async () => {
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			browser.setFullscreen(false);
 		});
 
 		// High Contrast Events
-		ipc.on('vscode:enterHighContrast', () => {
+		ipc.on('vscode:enterHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-					this.themeService.setColorTheme(VS_HC_THEME, undefined);
-				});
+				await this.lifecycleService.when(LifecyclePhase.Ready);
+				this.themeService.setColorTheme(VS_HC_THEME, undefined);
 			}
 		});
 
-		ipc.on('vscode:leaveHighContrast', () => {
+		ipc.on('vscode:leaveHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-					this.themeService.restoreColorTheme();
-				});
+				await this.lifecycleService.when(LifecyclePhase.Ready);
+				this.themeService.restoreColorTheme();
 			}
 		});
 
@@ -310,9 +304,7 @@ export class ElectronWindow extends Disposable {
 		};
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-			ipc.send('vscode:workbenchReady', this.windowService.windowId);
-		});
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.windowService.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
@@ -321,7 +313,7 @@ export class ElectronWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			let isAdminPromise: Promise<boolean>;
 			if (isWindows) {
-				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
+				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated()); // not using async here due to https://github.com/microsoft/vscode/issues/74321
 			} else {
 				isAdminPromise = Promise.resolve(isRootUser());
 			}
@@ -356,26 +348,26 @@ export class ElectronWindow extends Disposable {
 		}
 
 		// Dispose old
-		this.touchBarDisposables = dispose(this.touchBarDisposables);
+		this.touchBarDisposables.clear();
 		this.touchBarMenu = undefined;
 
 		// Create new (delayed)
 		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
-		this.touchBarDisposables.push(this.touchBarUpdater);
+		this.touchBarDisposables.add(this.touchBarUpdater);
 		this.touchBarUpdater.schedule();
 	}
 
 	private doUpdateTouchbarMenu(): void {
 		if (!this.touchBarMenu) {
 			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
-			this.touchBarDisposables.push(this.touchBarMenu);
-			this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
+			this.touchBarDisposables.add(this.touchBarMenu);
+			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
 		}
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
 		// Fill actions into groups respecting order
-		fillInActionBarActions(this.touchBarMenu, undefined, actions);
+		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
@@ -408,13 +400,13 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
-	private setupCrashReporter(): void {
+	private async setupCrashReporter(): Promise<void> {
 
 		// base options with product info
 		const options = {
 			companyName: product.crashReporter.companyName,
 			productName: product.crashReporter.productName,
-			submitURL: isWindows ? product.hockeyApp[`win32-${process.arch}`] : isLinux ? product.hockeyApp[`linux-${process.arch}`] : product.hockeyApp.darwin,
+			submitURL: isWindows ? product.hockeyApp[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? product.hockeyApp[`linux-x64`] : product.hockeyApp.darwin,
 			extra: {
 				vscode_version: pkg.version,
 				vscode_commit: product.commit
@@ -422,18 +414,14 @@ export class ElectronWindow extends Disposable {
 		};
 
 		// mixin telemetry info
-		this.telemetryService.getTelemetryInfo()
-			.then(info => {
-				assign(options.extra, {
-					vscode_sessionId: info.sessionId
-				});
+		const info = await this.telemetryService.getTelemetryInfo();
+		assign(options.extra, { vscode_sessionId: info.sessionId });
 
-				// start crash reporter right here
-				crashReporter.start(deepClone(options));
+		// start crash reporter right here
+		crashReporter.start(deepClone(options));
 
-				// start crash reporter in the main process
-				return this.windowsService.startCrashReporter(options);
-			});
+		// start crash reporter in the main process
+		return this.windowsService.startCrashReporter(options);
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
@@ -525,27 +513,20 @@ export class ElectronWindow extends Disposable {
 		});
 	}
 
-	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
-		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<unknown> => {
+	private async openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): Promise<unknown> {
+		await this.lifecycleService.when(LifecyclePhase.Ready);
 
-			// In diffMode we open 2 resources as diff
-			if (diffMode && resources.length === 2) {
-				return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
-			}
+		// In diffMode we open 2 resources as diff
+		if (diffMode && resources.length === 2) {
+			return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
+		}
 
-			// For one file, just put it into the current active editor
-			if (resources.length === 1) {
-				return this.editorService.openEditor(resources[0]);
-			}
+		// For one file, just put it into the current active editor
+		if (resources.length === 1) {
+			return this.editorService.openEditor(resources[0]);
+		}
 
-			// Otherwise open all
-			return this.editorService.openEditors(resources);
-		});
-	}
-
-	dispose(): void {
-		this.touchBarDisposables = dispose(this.touchBarDisposables);
-
-		super.dispose();
+		// Otherwise open all
+		return this.editorService.openEditors(resources);
 	}
 }

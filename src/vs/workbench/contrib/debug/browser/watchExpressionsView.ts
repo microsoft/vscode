@@ -66,7 +66,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				identityProvider: { getId: (element: IExpression) => element.getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e },
 				dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			}) as WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
+			});
 
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
@@ -76,16 +76,16 @@ export class WatchExpressionsView extends ViewletPanel {
 		const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
 		this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
 
-		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
-		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
+		this._register(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
 				this.tree.updateChildren();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		this._register(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
@@ -95,14 +95,14 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
+		this._register(variableSetEmitter.event(() => this.tree.updateChildren()));
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Expression && e.name) {
 				this.tree.rerender(e);
 			}
@@ -247,6 +247,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			onFinish: (value: string, success: boolean) => {
 				if (success && value) {
 					this.debugService.renameWatchExpression(expression.getId(), value);
+					variableSetEmitter.fire();
 				} else if (!expression.name) {
 					this.debugService.removeWatchExpressions(expression.getId());
 				}

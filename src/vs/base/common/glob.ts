@@ -334,7 +334,6 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 		if (!extpath.isEqualOrParent(path, arg2.base)) {
 			return null;
 		}
-
 		return parsedPattern(paths.relative(arg2.base, path), basename);
 	};
 }
@@ -458,14 +457,14 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
-		const resultPattern = function (path: string, basename: string) {
+		const resultPattern: ParsedPattern & { allBasenames?: string[]; allPaths?: string[]; } = function (path: string, basename: string) {
 			return !!parsedPattern(path, basename);
 		};
 		if (parsedPattern.allBasenames) {
-			(<ParsedStringPattern><any>resultPattern).allBasenames = parsedPattern.allBasenames;
+			resultPattern.allBasenames = parsedPattern.allBasenames;
 		}
 		if (parsedPattern.allPaths) {
-			(<ParsedStringPattern><any>resultPattern).allPaths = parsedPattern.allPaths;
+			resultPattern.allPaths = parsedPattern.allPaths;
 		}
 		return resultPattern;
 	}

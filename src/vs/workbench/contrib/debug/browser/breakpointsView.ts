@@ -61,7 +61,7 @@ export class BreakpointsView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
-		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -76,14 +76,20 @@ export class BreakpointsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: IEnablement) => element.getId() },
 				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e }
-			}) as WorkbenchList<IEnablement>;
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
+				ariaProvider: {
+					getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
+					getPosInSet: (_: IEnablement, index: number) => index,
+					getRole: (breakpoint: IEnablement) => 'checkbox',
+					isChecked: (breakpoint: IEnablement) => breakpoint.enabled
+				}
+			});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this.disposables.push(this.list.onDidOpen(e => {
+		this._register(this.list.onDidOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
 			let isMiddleClick = false;
@@ -120,7 +126,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.list.splice(0, this.list.length, this.elements);
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onBreakpointsChange();
 			}
@@ -557,7 +563,6 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 		options: {
 			preserveFocus,
 			selection,
-			revealIfVisible: true,
 			revealIfOpened: true,
 			revealInCenterIfOutsideViewport: true,
 			pinned: !preserveFocus
