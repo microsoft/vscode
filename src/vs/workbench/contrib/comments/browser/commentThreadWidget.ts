@@ -569,12 +569,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const menu = this._commentMenus.getCommentThreadActions(commentThread, this._contextKeyService);
 
 		this._disposables.add(menu);
-		this._disposables.add(menu.onDidChange((newMenu) => {
-			if (newMenu) {
-				this._commentFormActions.setActions(newMenu);
-			} else {
-				this._commentFormActions.setActions(menu);
-			}
+		this._disposables.add(menu.onDidChange(() => {
+			this._commentFormActions.setActions(menu);
 		}));
 
 		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
