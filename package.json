@@ -94,7 +94,7 @@
     "gulp-gunzip": "^1.0.0",
     "gulp-json-editor": "^2.5.0",
     "gulp-plumber": "^1.2.0",
-    "gulp-remote-src": "^0.4.4",
+    "gulp-remote-retry-src": "^0.6.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
