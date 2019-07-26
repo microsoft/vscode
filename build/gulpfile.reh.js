@@ -28,7 +28,7 @@ const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
-const remote = require('gulp-remote-src');
+const remote = require('gulp-remote-retry-src');
 const cp = require('child_process');
 
 const REPO_ROOT = path.dirname(__dirname);
