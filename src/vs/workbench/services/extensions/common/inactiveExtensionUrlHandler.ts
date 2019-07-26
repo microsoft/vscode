@@ -96,8 +96,10 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return true;
 		}
 
-		const confirmedExtensionIds = this.getConfirmedExtensionIds();
-		confirmed = confirmed || confirmedExtensionIds.has(ExtensionIdentifier.toKey(extensionId));
+		if (!confirmed) {
+			const confirmedExtensionIds = this.getConfirmedExtensionIds();
+			confirmed = confirmedExtensionIds.has(ExtensionIdentifier.toKey(extensionId));
+		}
 
 		if (!confirmed) {
 			let uriString = uri.toString();
@@ -283,18 +285,17 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private getConfirmedExtensionIds(): Set<string> {
-		return new Set([
+		const ids = [
 			...this.getConfirmedExtensionIdsFromStorage(),
 			...this.getConfirmedExtensionIdsFromConfiguration(),
-		].map(
-			extensionId => ExtensionIdentifier.toKey(extensionId)
-		));
+		].map(extensionId => ExtensionIdentifier.toKey(extensionId));
+
+		return new Set(ids);
 	}
 
 	private getConfirmedExtensionIdsFromConfiguration(): Array<string> {
-		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(
-			CONFIRMED_EXTENSIONS_CONFIGURATION_KEY
-		);
+		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY);
+
 		if (!Array.isArray(confirmedExtensionIds)) {
 			return [];
 		}
@@ -303,17 +304,15 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private getConfirmedExtensionIdsFromStorage(): Array<string> {
-		const confirmedExtensionIdsJson = this.storageService.get(
-			CONFIRMED_EXTENSIONS_STORAGE_KEY,
-			StorageScope.GLOBAL,
-			'[]',
-		);
+		const confirmedExtensionIdsJson = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+
 		try {
 			return JSON.parse(confirmedExtensionIdsJson);
 		} catch (err) {
 			return [];
 		}
 	}
+
 	private addConfirmedExtensionIdToStorage(extensionId: string): void {
 		const existingConfirmedExtensionIds = this.getConfirmedExtensionIdsFromStorage();
 		this.storageService.store(
