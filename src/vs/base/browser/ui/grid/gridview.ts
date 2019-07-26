@@ -903,8 +903,11 @@ export class GridView implements IDisposable {
 		parent.setChildVisible(index, visible);
 	}
 
-	getViews(): GridBranchNode {
-		return this._getViews(this.root, this.orientation, { top: 0, left: 0, width: this.width, height: this.height }) as GridBranchNode;
+	getView(): GridBranchNode;
+	getView(location?: number[]): GridNode;
+	getView(location?: number[]): GridNode {
+		const node = location ? this.getNode(location)[1] : this._root;
+		return this._getViews(node, this.orientation, { top: 0, left: 0, width: this.width, height: this.height });
 	}
 
 	private _getViews(node: Node, orientation: Orientation, box: Box): GridNode {

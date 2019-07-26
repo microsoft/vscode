@@ -30,7 +30,8 @@ function oppositeDirection(direction: Direction): Direction {
 }
 
 export interface IView extends IGridViewView {
-	readonly preferredSize?: number;
+	readonly preferredHeight?: number;
+	readonly preferredWidth?: number;
 }
 
 export interface GridLeafNode<T extends IView> {
@@ -339,7 +340,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	getViews(): GridBranchNode<T> {
-		return this.gridview.getViews() as GridBranchNode<T>;
+		return this.gridview.getView() as GridBranchNode<T>;
 	}
 
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
@@ -375,7 +376,36 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	private onDidSashReset(location: number[]): void {
-		const [parentLocation,] = tail(location);
+		const resizeToPreferredSize = (node: GridNode<T>): boolean => {
+			if (isGridBranchNode(node)) {
+				return false;
+			}
+
+			const direction = getLocationOrientation(this.orientation, location);
+			const size = direction === Orientation.HORIZONTAL ? node.view.preferredWidth : node.view.preferredHeight;
+
+			if (typeof size !== 'number') {
+				return false;
+			}
+
+			const viewSize = Orientation.HORIZONTAL ? { width: size } : { height: size };
+			this.gridview.resizeView(location, viewSize);
+			return true;
+		};
+
+		let node = this.gridview.getView(location) as GridNode<T>;
+
+		if (resizeToPreferredSize(node)) {
+			return;
+		}
+
+		const [parentLocation, index] = tail(location);
+		node = this.gridview.getView([...parentLocation, index + 1]) as GridNode<T>;
+
+		if (resizeToPreferredSize(node)) {
+			return;
+		}
+
 		this.gridview.distributeViewSizes(parentLocation);
 	}
 }
