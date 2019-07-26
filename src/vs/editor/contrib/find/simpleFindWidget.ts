@@ -41,7 +41,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		private readonly _invertDefaultDirection: boolean = false
 	) {
 		super();
 
@@ -93,13 +94,13 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
-				this.find(false);
+				this.find(this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(true);
+				this.find(!this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
