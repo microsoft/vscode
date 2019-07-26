@@ -376,7 +376,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	private onDidSashReset(location: number[]): void {
-		const resizeToPreferredSize = (node: GridNode<T>): boolean => {
+		const resizeToPreferredSize = (location: number[]): boolean => {
+			const node = this.gridview.getView(location) as GridNode<T>;
+
 			if (isGridBranchNode(node)) {
 				return false;
 			}
@@ -388,21 +390,18 @@ export class Grid<T extends IView = IView> extends Disposable {
 				return false;
 			}
 
-			const viewSize = Orientation.HORIZONTAL ? { width: size } : { height: size };
+			const viewSize = direction === Orientation.HORIZONTAL ? { width: Math.round(size) } : { height: Math.round(size) };
 			this.gridview.resizeView(location, viewSize);
 			return true;
 		};
 
-		let node = this.gridview.getView(location) as GridNode<T>;
-
-		if (resizeToPreferredSize(node)) {
+		if (resizeToPreferredSize(location)) {
 			return;
 		}
 
 		const [parentLocation, index] = tail(location);
-		node = this.gridview.getView([...parentLocation, index + 1]) as GridNode<T>;
 
-		if (resizeToPreferredSize(node)) {
+		if (resizeToPreferredSize([...parentLocation, index + 1])) {
 			return;
 		}
 
