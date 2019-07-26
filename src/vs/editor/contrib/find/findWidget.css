@@ -39,6 +39,11 @@
 	transition: top 200ms linear;
 	padding: 0 4px;
 }
+
+.monaco-editor .find-widget.hiddenEditor {
+	display: none;
+}
+
 /* Find widget when replace is toggled on */
 .monaco-editor .find-widget.replaceToggled {
 	top: -74px; /* find input height + replace input height + shadow (10px) */
