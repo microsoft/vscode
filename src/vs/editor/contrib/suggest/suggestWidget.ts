@@ -672,7 +672,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			});
 
 			this.currentSuggestionDetails.then(() => {
-				if (this.list.length < index) {
+				if (index >= this.list.length || item !== this.list.element(index)) {
 					return;
 				}
 
@@ -689,11 +689,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				}
 
 				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
-			}).catch(onUnexpectedError).then(() => {
-				if (this.focusedItem === item) {
-					this.currentSuggestionDetails = null;
-				}
-			});
+			}).catch(onUnexpectedError);
 		}
 
 		// emit an event
