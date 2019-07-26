@@ -310,9 +310,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		private _logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
-		this.updateLastActiveWorkspace();
-		this.updateVariableResolver();
-		this.registerListeners();
+		this._updateLastActiveWorkspace();
+		this._updateVariableResolver();
+		this._registerListeners();
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
@@ -532,19 +532,19 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return env;
 	}
 
-	private registerListeners(): void {
-		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this.updateLastActiveWorkspace());
-		this._extHostWorkspace.onDidChangeWorkspace(() => this.updateVariableResolver());
+	private _registerListeners(): void {
+		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this._updateLastActiveWorkspace());
+		this._extHostWorkspace.onDidChangeWorkspace(() => this._updateVariableResolver());
 	}
 
-	private updateLastActiveWorkspace(): void {
+	private _updateLastActiveWorkspace(): void {
 		const activeEditor = this._extHostDocumentsAndEditors.activeEditor();
 		if (activeEditor) {
 			this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(activeEditor.document.uri) as IWorkspaceFolder;
 		}
 	}
 
-	private async updateVariableResolver(): Promise<void> {
+	private async _updateVariableResolver(): Promise<void> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);

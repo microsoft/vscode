@@ -20,10 +20,14 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { timeout } from 'vs/base/common/async';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IPickOptions, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+
+interface IExtHostReadyEntry {
+	promise: Promise<void>;
+	resolve: () => void;
+}
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -38,7 +42,7 @@ export abstract class TerminalService implements ITerminalService {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
-	private _extHostsReady: { [authority: string]: boolean } = {};
+	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
@@ -133,13 +137,11 @@ export abstract class TerminalService implements ITerminalService {
 
 	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
 		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			// Wait for the remoteAuthority to be ready (and listening for events) before proceeding
+			// Wait for the remoteAuthority to be ready (and listening for events) before firing
+			// the event to spawn the ext host process
 			const conn = this._remoteAgentService.getConnection();
 			const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-			let retries = 0;
-			while (!this._extHostsReady[remoteAuthority] && ++retries < 50) {
-				await timeout(100);
-			}
+			await this._whenExtHostReady(remoteAuthority);
 			this._onInstanceRequestSpawnExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
 	}
@@ -148,8 +150,24 @@ export abstract class TerminalService implements ITerminalService {
 		this._onInstanceRequestStartExtensionTerminal.fire({ proxy, cols, rows });
 	}
 
-	public extHostReady(remoteAuthority: string): void {
-		this._extHostsReady[remoteAuthority] = true;
+	public async extHostReady(remoteAuthority: string): Promise<void> {
+		this._createExtHostReadyEntry(remoteAuthority);
+		this._extHostsReady[remoteAuthority]!.resolve();
+	}
+
+	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
+		this._createExtHostReadyEntry(remoteAuthority);
+		return this._extHostsReady[remoteAuthority]!.promise;
+	}
+
+	private _createExtHostReadyEntry(remoteAuthority: string): void {
+		if (this._extHostsReady[remoteAuthority]) {
+			return;
+		}
+
+		let resolve!: () => void;
+		const promise = new Promise<void>(r => resolve = r);
+		this._extHostsReady[remoteAuthority] = { promise, resolve };
 	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {
