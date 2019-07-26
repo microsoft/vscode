@@ -1848,4 +1848,6 @@ registerThemingParticipant((theme, collector) => {
 	if (unnecessaryBorder) {
 		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
 	}
+
+	collector.addRule(`.monaco-editor .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; }`);
 });

@@ -11,7 +11,7 @@ import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -27,7 +27,6 @@ import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTa
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView, orthogonal, LayoutPriority, IViewSize } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -112,12 +111,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
-	private readonly _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidPreferredSizeChange: Event<void> = this._onDidPreferredSizeChange.event;
-
 	//#endregion
-
-	private _preferredSize: Dimension | undefined;
 
 	private readonly workspaceMemento: MementoObject;
 	private readonly globalMemento: MementoObject;
@@ -205,8 +199,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region IEditorGroupsService
 
-	private _dimension: Dimension;
-	get dimension(): Dimension { return this._dimension; }
+	private _contentDimension: Dimension;
+	get contentDimension(): Dimension { return this._contentDimension; }
 
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
@@ -366,9 +360,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const newOrientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		if (this.gridWidget.orientation !== newOrientation) {
 			this.gridWidget.orientation = newOrientation;
-
-			// Mark preferred size as changed
-			this.resetPreferredSize();
 		}
 	}
 
@@ -418,13 +409,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this._dimension);
+		this.doLayout(this._contentDimension);
 
 		// Update container
 		this.updateContainer();
-
-		// Mark preferred size as changed
-		this.resetPreferredSize();
 
 		// Events for groups that got added
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
@@ -489,9 +477,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Update container
 		this.updateContainer();
-
-		// Mark preferred size as changed
-		this.resetPreferredSize();
 
 		// Event
 		this._onDidAddGroup.fire(newGroupView);
@@ -661,9 +646,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Update container
 		this.updateContainer();
 
-		// Mark preferred size as changed
-		this.resetPreferredSize();
-
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
 	}
@@ -763,23 +745,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	get onDidChange(): Event<IViewSize | undefined> { return this.centeredLayoutWidget.onDidChange; }
 	readonly priority: LayoutPriority = LayoutPriority.High;
-
-	get preferredSize(): Dimension {
-		if (!this._preferredSize) {
-			this._preferredSize = new Dimension(this.gridWidget.minimumWidth, this.gridWidget.minimumHeight);
-		}
-
-		return this._preferredSize;
-	}
-
-	private resetPreferredSize(): void {
-
-		// Reset (will be computed upon next access)
-		this._preferredSize = undefined;
-
-		// Event
-		this._onDidPreferredSizeChange.fire();
-	}
 
 	private get gridSeparatorBorder(): Color {
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
@@ -968,10 +933,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doLayout(dimension: Dimension): void {
-		this._dimension = dimension;
+		this._contentDimension = dimension;
 
 		// Layout Grid
-		this.centeredLayoutWidget.layout(this._dimension.width, this._dimension.height);
+		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height);
 
 		// Event
 		this._onDidLayout.fire(dimension);

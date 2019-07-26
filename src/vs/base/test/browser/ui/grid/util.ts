@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IView, GridNode, isGridBranchNode, } from 'vs/base/browser/ui/grid/gridview';
+import { GridNode, isGridBranchNode } from 'vs/base/browser/ui/grid/gridview';
+import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export class TestView implements IView {
 

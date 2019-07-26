@@ -1694,7 +1694,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended ');
+				viewlet.search(`@id:${this.extensionId}`);
 				viewlet.focus();
 				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None)
 					.then(pager => {

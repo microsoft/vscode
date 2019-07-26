@@ -7,11 +7,11 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
+import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
 import { Event } from 'vs/base/common/event';
 import { InvisibleSizing } from 'vs/base/browser/ui/splitview/splitview';
 
-export { Orientation, Sizing as GridViewSizing } from './gridview';
+export { Orientation, Sizing as GridViewSizing, IViewSize, orthogonal, LayoutPriority } from './gridview';
 
 export const enum Direction {
 	Up,
@@ -27,6 +27,11 @@ function oppositeDirection(direction: Direction): Direction {
 		case Direction.Left: return Direction.Right;
 		case Direction.Right: return Direction.Left;
 	}
+}
+
+export interface IView extends IGridViewView {
+	readonly preferredHeight?: number;
+	readonly preferredWidth?: number;
 }
 
 export interface GridLeafNode<T extends IView> {
@@ -217,7 +222,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 		this.gridview = new GridView(options);
 		this._register(this.gridview);
 
-		this._register(this.gridview.onDidSashReset(this.doResetViewSize, this));
+		this._register(this.gridview.onDidSashReset(this.onDidSashReset, this));
 
 		const size: number | GridViewSizing = typeof options.firstViewVisibleCachedSize === 'number'
 			? GridViewSizing.Invisible(options.firstViewVisibleCachedSize)
@@ -335,7 +340,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	getViews(): GridBranchNode<T> {
-		return this.gridview.getViews() as GridBranchNode<T>;
+		return this.gridview.getView() as GridBranchNode<T>;
 	}
 
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
@@ -370,8 +375,36 @@ export class Grid<T extends IView = IView> extends Disposable {
 		return getGridLocation(element);
 	}
 
-	private doResetViewSize(location: number[]): void {
-		const [parentLocation,] = tail(location);
+	private onDidSashReset(location: number[]): void {
+		const resizeToPreferredSize = (location: number[]): boolean => {
+			const node = this.gridview.getView(location) as GridNode<T>;
+
+			if (isGridBranchNode(node)) {
+				return false;
+			}
+
+			const direction = getLocationOrientation(this.orientation, location);
+			const size = direction === Orientation.HORIZONTAL ? node.view.preferredWidth : node.view.preferredHeight;
+
+			if (typeof size !== 'number') {
+				return false;
+			}
+
+			const viewSize = direction === Orientation.HORIZONTAL ? { width: Math.round(size) } : { height: Math.round(size) };
+			this.gridview.resizeView(location, viewSize);
+			return true;
+		};
+
+		if (resizeToPreferredSize(location)) {
+			return;
+		}
+
+		const [parentLocation, index] = tail(location);
+
+		if (resizeToPreferredSize([...parentLocation, index + 1])) {
+			return;
+		}
+
 		this.gridview.distributeViewSizes(parentLocation);
 	}
 }
