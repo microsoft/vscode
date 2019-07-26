@@ -11,7 +11,7 @@ suite('window namespace tests', () => {
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
 		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
 	});
-	suite.skip('Terminal', () => {
+	suite('Terminal', () => {
 		test('sendText immediately after createTerminal should not throw', (done) => {
 			const reg1 = window.onDidOpenTerminal(term => {
 				equal(terminal, term);

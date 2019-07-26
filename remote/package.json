@@ -20,7 +20,7 @@
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.5.5",
     "vscode-textmate": "^4.2.2",
-    "xterm": "3.15.0-beta88",
+    "xterm": "3.15.0-beta89",
     "xterm-addon-search": "0.2.0-beta3",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
