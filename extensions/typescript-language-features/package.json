@@ -29,7 +29,7 @@
     "vscode": "^1.1.10"
   },
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features && rm -rf out && cp -r ../../build/extensions/typescript-language-features/out ./"
   },
   "activationEvents": [
     "onLanguage:javascript",

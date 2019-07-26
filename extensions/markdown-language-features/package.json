@@ -304,7 +304,7 @@
 		"compile": "gulp compile-extension:markdown-language-features && npm run build-preview",
 		"watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
 		"vscode:prepublish": "npm run build-ext && npm run build-preview",
-		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
+		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features && rm -rf out && cp -R ../../build/extensions/markdown-language-features/out ./",
 		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {

@@ -9,7 +9,7 @@
 		"vscode": "*"
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests && rm -rf out && cp -R ../../build/extensions/vscode-colorize-tests/out ./"
 	},
 	"devDependencies": {
 		"@types/node": "^10.14.8",
