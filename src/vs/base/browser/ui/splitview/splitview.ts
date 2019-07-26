@@ -336,7 +336,24 @@ export class SplitView extends Disposable {
 			const onChangeDisposable = onChange(this.onSashChange, this);
 			const onEnd = Event.map(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
 			const onEndDisposable = onEnd(this.onSashEnd, this);
-			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
+
+			const onDidResetDisposable = sash.onDidReset(() => {
+				const index = firstIndex(this.sashItems, item => item.sash === sash);
+				const upIndexes = range(index, -1);
+				const downIndexes = range(index + 1, this.viewItems.length);
+				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+
+				if (typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible) {
+					return;
+				}
+
+				if (typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible) {
+					return;
+				}
+
+				this._onDidSashReset.fire(index);
+			});
 
 			const disposable = combinedDisposable(onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash);
 			const sashItem: ISashItem = { sash, disposable };
@@ -630,10 +647,19 @@ export class SplitView extends Disposable {
 	}
 
 	distributeViewSizes(): void {
-		const size = Math.floor(this.size / this.viewItems.length);
+		const flexibleViewItems: ViewItem[] = [];
+		let flexibleSize = 0;
 
-		for (let i = 0; i < this.viewItems.length; i++) {
-			const item = this.viewItems[i];
+		for (const item of this.viewItems) {
+			if (item.maximumSize - item.minimumSize > 0) {
+				flexibleViewItems.push(item);
+				flexibleSize += item.size;
+			}
+		}
+
+		const size = Math.floor(flexibleSize / flexibleViewItems.length);
+
+		for (const item of flexibleViewItems) {
 			item.size = clamp(size, item.minimumSize, item.maximumSize);
 		}
 
