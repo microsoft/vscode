@@ -736,7 +736,6 @@ class SuggestAdapter {
 			k: item.commitCharacters,
 			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			m: this._commands.toInternal(item.command, disposables),
-			n: item.deprecated
 		};
 
 		// 'insertText'-logic
