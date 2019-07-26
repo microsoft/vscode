@@ -157,31 +157,31 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		};
 
 		const _exprKeyMapper = new class implements IContextKeyExprMapper {
-			mapDefined(key: string): ContextKeyDefinedExpr {
-				return new ContextKeyDefinedExpr(key);
+			mapDefined(key: string): ContextKeyExpr {
+				return ContextKeyDefinedExpr.create(key);
 			}
-			mapNot(key: string): ContextKeyNotExpr {
-				return new ContextKeyNotExpr(key);
+			mapNot(key: string): ContextKeyExpr {
+				return ContextKeyNotExpr.create(key);
 			}
-			mapEquals(key: string, value: any): ContextKeyEqualsExpr {
+			mapEquals(key: string, value: any): ContextKeyExpr {
 				if (key === 'resourceScheme' && typeof value === 'string') {
-					return new ContextKeyEqualsExpr(key, _mapResourceSchemeValue(value, false));
+					return ContextKeyEqualsExpr.create(key, _mapResourceSchemeValue(value, false));
 				} else {
-					return new ContextKeyEqualsExpr(key, value);
+					return ContextKeyEqualsExpr.create(key, value);
 				}
 			}
-			mapNotEquals(key: string, value: any): ContextKeyNotEqualsExpr {
+			mapNotEquals(key: string, value: any): ContextKeyExpr {
 				if (key === 'resourceScheme' && typeof value === 'string') {
-					return new ContextKeyNotEqualsExpr(key, _mapResourceSchemeValue(value, false));
+					return ContextKeyNotEqualsExpr.create(key, _mapResourceSchemeValue(value, false));
 				} else {
-					return new ContextKeyNotEqualsExpr(key, value);
+					return ContextKeyNotEqualsExpr.create(key, value);
 				}
 			}
 			mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr {
 				if (key === 'resourceScheme' && regexp) {
-					return new ContextKeyRegexExpr(key, _mapResourceRegExpValue(regexp));
+					return ContextKeyRegexExpr.create(key, _mapResourceRegExpValue(regexp));
 				} else {
-					return new ContextKeyRegexExpr(key, regexp);
+					return ContextKeyRegexExpr.create(key, regexp);
 				}
 			}
 		};

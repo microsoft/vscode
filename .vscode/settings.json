@@ -42,7 +42,7 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
-	"gitBranch.base": "origin/master",
+	"gitBranch.base": "origin/oss/master",
 	"gitBranch.diffGroups": [
 		{
 			"name": "⛔🛑 [DO NOT MERGE] Server implementation, resources & scripts",
