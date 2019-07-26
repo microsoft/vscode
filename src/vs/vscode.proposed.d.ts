@@ -1295,10 +1295,9 @@ declare module 'vscode' {
 
 	export enum DiagnosticTag {
 		/**
-		 * Deprecated or obsolete code
+		 * Deprecated or obsolete code.
 		 *
-		 * Can be used to style with strikeout or other "obsolete" styling. See:
-		 * https://github.com/microsoft/vscode/issues/50972
+		 * Diagnostics with this tag are rendered with a strike through.
 		 */
 		Deprecated = 2,
 	}
