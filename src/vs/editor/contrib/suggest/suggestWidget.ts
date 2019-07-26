@@ -50,7 +50,7 @@ interface ISuggestionTemplateData {
 	iconLabel: IconLabel;
 	typeLabel: HTMLElement;
 	readMore: HTMLElement;
-	disposables: IDisposable[];
+	disposables: DisposableStore;
 }
 
 /**
@@ -106,8 +106,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
-		const disposables = new DisposableStore();
-		data.disposables = [disposables];
+		data.disposables = new DisposableStore();
 
 		data.root = container;
 		addClass(data.root, 'show-file-icons');
@@ -119,7 +118,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const main = append(text, $('.main'));
 
 		data.iconLabel = new IconLabel(main, { supportHighlights: true });
-		disposables.add(data.iconLabel);
+		data.disposables.add(data.iconLabel);
 
 		data.typeLabel = append(main, $('span.type-label'));
 
@@ -147,7 +146,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		configureFont();
 
-		disposables.add(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		data.disposables.add(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo || e.contribInfo)
 			.on(configureFont, null));
 
@@ -218,7 +217,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+		templateData.disposables.dispose();
 	}
 }
 
@@ -253,7 +252,7 @@ class SuggestionDetails {
 	private type: HTMLElement;
 	private docs: HTMLElement;
 	private ariaLabel: string | null;
-	private disposables: IDisposable[];
+	private readonly disposables: DisposableStore;
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
 
@@ -264,16 +263,16 @@ class SuggestionDetails {
 		private readonly markdownRenderer: MarkdownRenderer,
 		private readonly triggerKeybindingLabel: string,
 	) {
-		this.disposables = [];
+		this.disposables = new DisposableStore();
 
 		this.el = append(container, $('.details'));
-		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
+		this.disposables.add(toDisposable(() => container.removeChild(this.el)));
 
 		this.body = $('.body');
 
 		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
-		this.disposables.push(this.scrollbar);
+		this.disposables.add(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.close'));
@@ -414,7 +413,7 @@ class SuggestionDetails {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		this.renderDisposeable = dispose(this.renderDisposeable);
 	}
 }
