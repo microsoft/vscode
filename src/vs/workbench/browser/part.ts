@@ -9,10 +9,9 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
-import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
+import { ISerializableView, Orientation, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewSize } from 'vs/base/browser/ui/grid/gridview';
 
 export interface IPartOptions {
 	hasTitle?: boolean;

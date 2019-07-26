@@ -11,7 +11,7 @@ import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -27,7 +27,6 @@ import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTa
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView, orthogonal, LayoutPriority, IViewSize } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
