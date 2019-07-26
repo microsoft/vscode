@@ -631,6 +631,34 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.ok(first.command);
+				assert.ok(first.command!.arguments![1] instanceof types.Selection);
+				assert.ok(first.command!.arguments![1].isEqual(selection));
+			});
+		});
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {
