@@ -36,18 +36,16 @@ export abstract class SimpleFindWidget extends Widget {
 	private prevBtn: SimpleButton;
 	private nextBtn: SimpleButton;
 	private foundMatch: boolean;
-	private readonly _invertDefaultDirection: boolean | undefined;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean,
-		invertDefaultDirection?: boolean
+		private readonly _invertDefaultDirection: boolean = false
 	) {
 		super();
 
-		this._invertDefaultDirection = invertDefaultDirection;
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
@@ -96,14 +94,13 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
-				// Flip the direction search goes in the terminal case so it matches other terminals
-				this.find(this._invertDefaultDirection ? true : false);
+				this.find(this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(this._invertDefaultDirection ? false : true);
+				this.find(!this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
