@@ -474,6 +474,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return true;
 	}
 
+	getDimension(_part: Parts): Dimension {
+		return new Dimension(0, 0);
+	}
+
 	public getContainer(_part: Parts): HTMLElement {
 		return null!;
 	}
