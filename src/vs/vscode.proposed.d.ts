@@ -1290,4 +1290,18 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Deprecated support
+
+	export enum DiagnosticTag {
+		/**
+		 * Deprecated or obsolete code
+		 *
+		 * Can be used to style with strikeout or other "obsolete" styling. See:
+		 * https://github.com/microsoft/vscode/issues/50972
+		 */
+		Deprecated = 2,
+	}
+
+	//#endregion
 }
