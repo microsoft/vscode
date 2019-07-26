@@ -199,8 +199,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region IEditorGroupsService
 
-	private _dimension: Dimension;
-	get dimension(): Dimension { return this._dimension; }
+	private _contentDimension: Dimension;
+	get contentDimension(): Dimension { return this._contentDimension; }
 
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
@@ -409,7 +409,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this._dimension);
+		this.doLayout(this._contentDimension);
 
 		// Update container
 		this.updateContainer();
@@ -933,10 +933,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doLayout(dimension: Dimension): void {
-		this._dimension = dimension;
+		this._contentDimension = dimension;
 
 		// Layout Grid
-		this.centeredLayoutWidget.layout(this._dimension.width, this._dimension.height);
+		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height);
 
 		// Event
 		this._onDidLayout.fire(dimension);

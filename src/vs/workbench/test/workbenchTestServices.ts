@@ -667,7 +667,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	willRestoreEditors = false;
 
-	dimension = { width: 800, height: 600 };
+	contentDimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
