@@ -713,7 +713,6 @@ export class Repository implements Disposable {
 		this.disposables.push(progressManager);
 
 		this.updateCommitTemplate();
-		this.status();
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
