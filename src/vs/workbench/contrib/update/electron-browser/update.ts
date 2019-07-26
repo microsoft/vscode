@@ -484,7 +484,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '5_update',
 			command: {
 				id: 'update.checking',
-				title: nls.localize('checkingForUpdates', "Checking For Updates..."),
+				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
 				precondition: FalseContext
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
