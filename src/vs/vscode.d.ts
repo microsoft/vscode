@@ -7750,6 +7750,11 @@ declare module 'vscode' {
 		export const onDidCloseTextDocument: Event<TextDocument>;
 
 		/**
+		 * An event that is emitted when a [text document](#TextDocument) is closed.
+		 */
+		export const onDoClosedTextDocument: Event<TextDocument>;
+
+		/**
 		 * An event that is emitted when a [text document](#TextDocument) is changed. This usually happens
 		 * when the [contents](#TextDocument.getText) changes but also when other things like the
 		 * [dirty](#TextDocument.isDirty)-state changes.
