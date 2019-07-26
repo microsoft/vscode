@@ -266,8 +266,8 @@ suite('window namespace tests', () => {
 				});
 				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
-					start: () => {},
-					shutdown: () => {}
+					open: () => {},
+					close: () => {}
 				};
 				window.createTerminal({ name: 'c', pty });
 			});
@@ -293,8 +293,8 @@ suite('window namespace tests', () => {
 				const writeEmitter = new EventEmitter<string>();
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
-					start: () => startResolve(),
-					shutdown: () => {}
+					open: () => startResolve(),
+					close: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
@@ -306,7 +306,7 @@ suite('window namespace tests', () => {
 				});
 				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
-					start: (dimensions) => {
+					open: (dimensions) => {
 						ok(dimensions!.columns > 0);
 						ok(dimensions!.rows > 0);
 						const reg3 = window.onDidCloseTerminal(() => {
@@ -315,7 +315,7 @@ suite('window namespace tests', () => {
 						});
 						terminal.dispose();
 					},
-					shutdown: () => {}
+					close: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
@@ -343,8 +343,8 @@ suite('window namespace tests', () => {
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					start: () => {},
-					shutdown: () => {}
+					open: () => {},
+					close: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});

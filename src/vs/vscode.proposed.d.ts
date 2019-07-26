@@ -968,8 +968,8 @@ declare module 'vscode' {
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   start: () => writeEmitter.fire('\x1b[31mHello world\x1b[0m'),
-		 *   shutdown: () => {}
+		 *   open: () => writeEmitter.fire('\x1b[31mHello world\x1b[0m'),
+		 *   close: () => {}
 		 * };
 		 * vscode.window.createTerminal({ name: 'My terminal', pty });
 		 * ```
@@ -994,13 +994,13 @@ declare module 'vscode' {
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidOverrideDimensions: dimensionsEmitter.event,
-		 *   start: () => {
+		 *   open: () => {
 		 *       dimensionsEmitter.fire({
 		 *       columns: 20,
 		 *       rows: 10
 		 *     });
 		 *   },
-		 *   shutdown: () => {}
+		 *   close: () => {}
 		 * };
 		 * vscode.window.createTerminal({ name: 'My terminal', pty });
 		 * ```
@@ -1008,37 +1008,40 @@ declare module 'vscode' {
 		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
 
 		/**
-		 * An event that when fired will exit the process with an exit code, this will behave the
-		 * same for an extension treminal as when a regular process exits with an exit code. Note
-		 * that exit codes must be positive numbers, when negative the exit code will be forced to
-		 * `1`.
+		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
 		 *
-		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
+		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const exitEmitter = new vscode.EventEmitter<number>();
+		 * const closeEmitter = new vscode.EventEmitter<number>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   start: () => writeEmitter.fire('Press y to exit successfully'),
-		 *   shutdown: () => {}
-		 *   handleInput: data => exitEmitter.fire(data === 'y' ? 0 : 1)
+		 *   onDidClose: closeEmitter.event,
+		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
+		 *   close: () => {}
+		 *   handleInput: {
+		 *     if (data !== 'y') {
+		 *       vscode.window.showInformationMessage('Something went wrong');
+		 *     }
+		 *     data => closeEmitter.fire();
+		 *   }
 		 * };
 		 * vscode.window.createTerminal({ name: 'Exit example', pty });
 		 */
-		onDidExit?: Event<number>;
+		onDidClose?: Event<void>;
 
 		/**
-		 * Implement to handle when the pty is ready to start firing events.
+		 * Implement to handle when the pty is open and ready to start firing events.
 		 *
 		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
 		 * terminal panel has not been opened before this is called.
 		 */
-		start(initialDimensions: TerminalDimensions | undefined): void;
+		open(initialDimensions: TerminalDimensions | undefined): void;
 
 		/**
-		 * Implement to handle when the terminal shuts down by an act of the user.
+		 * Implement to handle when the terminal is closed by an act of the user.
 		 */
-		shutdown(): void;
+		close(): void;
 
 		/**
 		 * Implement to handle incoming keystrokes in the terminal or when an extension calls
@@ -1053,8 +1056,8 @@ declare module 'vscode' {
 		 * const writeEmitter = new vscode.EventEmitter<string>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   start: () => {},
-		 *   shutdown: () => {},
+		 *   open: () => {},
+		 *   close: () => {},
 		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
 		 * };
 		 * vscode.window.createTerminal({ name: 'Local echo', pty });
@@ -1184,9 +1187,8 @@ declare module 'vscode' {
 
 		/**
 		 * The callback used to execute the task. Cancellation should be handled using
-		 * [Pseudoterminal.shutdown](#Pseudoterminal.shutdown). When the task is complete,
-		 * [Pseudoterminal.onDidExit](#Pseudoterminal.onDidExit) should be fired with the exit code
-		 * with '0' for success and a non-zero value for failure.
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 */
 		callback: (thisArg?: any) => Thenable<Pseudoterminal>;
 	}

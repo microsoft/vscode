@@ -793,8 +793,8 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	) {
 		this._queueDisposables = [];
 		this._queueDisposables.push(this._pty.onDidWrite(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
-		if (this._pty.onDidExit) {
-			this._queueDisposables.push(this._pty.onDidExit(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: e })));
+		if (this._pty.onDidClose) {
+			this._queueDisposables.push(this._pty.onDidClose(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: 0 })));
 		}
 		if (this._pty.onDidOverrideDimensions) {
 			this._queueDisposables.push(this._pty.onDidOverrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
@@ -802,8 +802,8 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	shutdown(): void {
-		if (this._pty.shutdown) {
-			this._pty.shutdown();
+		if (this._pty.close) {
+			this._pty.close();
 		}
 	}
 
@@ -839,18 +839,15 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 
 		// Attach the real listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
-		if (this._pty.onDidExit) {
-			this._pty.onDidExit(e => {
-				// Ensure only positive exit codes are returned
-				this._onProcessExit.fire(e >= 0 ? e : 1);
-			});
+		if (this._pty.onDidClose) {
+			this._pty.onDidClose(e => this._onProcessExit.fire(0));
 		}
 		if (this._pty.onDidOverrideDimensions) {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
 
-		if (this._pty.start) {
-			this._pty.start(initialDimensions);
+		if (this._pty.open) {
+			this._pty.open(initialDimensions);
 		}
 	}
 }
