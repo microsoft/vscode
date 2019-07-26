@@ -124,8 +124,8 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._runQueuedRequests(terminal.id);
 	}
 
-	public async createVirtualProcess(): Promise<void> {
-		const terminal = await this._proxy.$createTerminal({ name: this._name, isVirtualProcess: true });
+	public async createExtensionTerminal(): Promise<void> {
+		const terminal = await this._proxy.$createTerminal({ name: this._name, isExtensionTerminal: true });
 		this._name = terminal.name;
 		this._runQueuedRequests(terminal.id);
 	}
@@ -329,20 +329,20 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminal;
 	}
 
-	public createVirtualProcessTerminal(options: vscode.TerminalVirtualProcessOptions): vscode.Terminal {
+	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		const p = new ExtHostVirtualProcess(options.virtualProcess);
-		terminal.createVirtualProcess().then(() => this._setupExtHostProcessListeners(terminal._id, p));
+		const p = new ExtHostPseudoterminal(options.pty);
+		terminal.createExtensionTerminal().then(() => this._setupExtHostProcessListeners(terminal._id, p));
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
-	public async attachVirtualProcessToTerminal(id: number, virtualProcess: vscode.TerminalVirtualProcess): Promise<void> {
+	public async attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): Promise<void> {
 		const terminal = this._getTerminalByIdEventually(id);
 		if (!terminal) {
 			throw new Error(`Cannot resolve terminal with id ${id} for virtual process`);
 		}
-		const p = new ExtHostVirtualProcess(virtualProcess);
+		const p = new ExtHostPseudoterminal(pty);
 		this._setupExtHostProcessListeners(id, p);
 	}
 
@@ -550,7 +550,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
-	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -619,9 +619,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 
-	public async $startVirtualProcess(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
+	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
-		// TerminalVirtualProcess.start
+		// Pseudoterminal.start
 		await this._getTerminalByIdEventually(id);
 
 		// Processes should be initialized here for normal virtual process terminals, however for
@@ -630,7 +630,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		let retries = 5;
 		while (retries-- > 0) {
 			if (this._terminalProcesses[id]) {
-				(this._terminalProcesses[id] as ExtHostVirtualProcess).startSendingEvents(initialDimensions);
+				(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
 				return;
 			}
 			await timeout(50);
@@ -773,7 +773,7 @@ class ApiRequest {
 	}
 }
 
-class ExtHostVirtualProcess implements ITerminalChildProcess {
+class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }> | IQueuedEvent<ITerminalDimensions | undefined>)[] = [];
 	private _queueDisposables: IDisposable[] | undefined;
 
@@ -789,33 +789,33 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 
 	constructor(
-		private readonly _virtualProcess: vscode.TerminalVirtualProcess
+		private readonly _pty: vscode.Pseudoterminal
 	) {
 		this._queueDisposables = [];
-		this._queueDisposables.push(this._virtualProcess.onDidWrite(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
-		if (this._virtualProcess.onDidExit) {
-			this._queueDisposables.push(this._virtualProcess.onDidExit(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: e })));
+		this._queueDisposables.push(this._pty.onDidWrite(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
+		if (this._pty.onDidClose) {
+			this._queueDisposables.push(this._pty.onDidClose(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: 0 })));
 		}
-		if (this._virtualProcess.onDidOverrideDimensions) {
-			this._queueDisposables.push(this._virtualProcess.onDidOverrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
+		if (this._pty.onDidOverrideDimensions) {
+			this._queueDisposables.push(this._pty.onDidOverrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
 		}
 	}
 
 	shutdown(): void {
-		if (this._virtualProcess.shutdown) {
-			this._virtualProcess.shutdown();
+		if (this._pty.close) {
+			this._pty.close();
 		}
 	}
 
 	input(data: string): void {
-		if (this._virtualProcess.handleInput) {
-			this._virtualProcess.handleInput(data);
+		if (this._pty.handleInput) {
+			this._pty.handleInput(data);
 		}
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._virtualProcess.setDimensions) {
-			this._virtualProcess.setDimensions({ columns: cols, rows });
+		if (this._pty.setDimensions) {
+			this._pty.setDimensions({ columns: cols, rows });
 		}
 	}
 
@@ -838,19 +838,16 @@ class ExtHostVirtualProcess implements ITerminalChildProcess {
 		this._queueDisposables = undefined;
 
 		// Attach the real listeners
-		this._virtualProcess.onDidWrite(e => this._onProcessData.fire(e));
-		if (this._virtualProcess.onDidExit) {
-			this._virtualProcess.onDidExit(e => {
-				// Ensure only positive exit codes are returned
-				this._onProcessExit.fire(e >= 0 ? e : 1);
-			});
+		this._pty.onDidWrite(e => this._onProcessData.fire(e));
+		if (this._pty.onDidClose) {
+			this._pty.onDidClose(e => this._onProcessExit.fire(0));
 		}
-		if (this._virtualProcess.onDidOverrideDimensions) {
-			this._virtualProcess.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
+		if (this._pty.onDidOverrideDimensions) {
+			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
 
-		if (this._virtualProcess.start) {
-			this._virtualProcess.start(initialDimensions);
+		if (this._pty.open) {
+			this._pty.open(initialDimensions);
 		}
 	}
 }
