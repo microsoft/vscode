@@ -483,12 +483,14 @@ export class FindModelBoundToEditorModel {
 
 		const replacePattern = this._getReplacePattern();
 		let resultText: string;
+		const preserveCase = this._state.preserveCase;
+
 		if (replacePattern.hasReplacementPatterns) {
 			resultText = modelText.replace(searchRegex, function () {
-				return replacePattern.buildReplaceString(<string[]><any>arguments);
+				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
 			});
 		} else {
-			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null));
+			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
 		}
 
 		let command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
@@ -502,7 +504,7 @@ export class FindModelBoundToEditorModel {
 
 		let replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {
-			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches);
+			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches, this._state.preserveCase);
 		}
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);
