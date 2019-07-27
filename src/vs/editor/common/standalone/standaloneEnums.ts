@@ -7,8 +7,7 @@
 
 
 export enum MarkerTag {
-	Unnecessary = 1,
-	Deprecated = 2
+	Unnecessary = 1
 }
 
 export enum MarkerSeverity {
