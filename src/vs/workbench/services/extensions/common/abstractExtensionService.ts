@@ -300,7 +300,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
-			// Check if this is the better merge extension which was migrated to a built-in extension
+			// Check if this is the better merge extension that was migrated to a built-in extension
 			return false;
 		}
 

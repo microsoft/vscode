@@ -53,7 +53,7 @@ suite('History Navigator', () => {
 		assert.equal(testObject.previous(), null);
 	});
 
-	test('next on last element returs null and remains on last', () => {
+	test('next on last element returns null and remains on last', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 3);
 
 		testObject.first();
@@ -63,7 +63,7 @@ suite('History Navigator', () => {
 		assert.equal(testObject.next(), null);
 	});
 
-	test('previous on first element returs null and remains on first', () => {
+	test('previous on first element returns null and remains on first', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 3);
 
 		testObject.first();

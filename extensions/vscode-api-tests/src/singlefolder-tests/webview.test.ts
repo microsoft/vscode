@@ -108,7 +108,7 @@ suite('Webview tests', () => {
 			</script>`);
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessagee(webview, { type: 'add' });
 		assert.strictEqual(firstResponse.value, 1);
 
 		// Swap away from the webview
@@ -121,7 +121,7 @@ suite('Webview tests', () => {
 		await ready2;
 
 		// We should still have old state
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessagee(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
@@ -135,14 +135,14 @@ suite('Webview tests', () => {
 		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessagee(webview, { type: 'add' });
 		assert.strictEqual(firstResponse.value, 1);
 
 		// Now move webview to new view column
 		webview.reveal(vscode.ViewColumn.Two);
 
 		// We should still have old state
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessagee(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
@@ -153,7 +153,7 @@ suite('Webview tests', () => {
 		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessagee(webview, { type: 'add' });
 		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
@@ -164,7 +164,7 @@ suite('Webview tests', () => {
 		webview.reveal(vscode.ViewColumn.One);
 
 		// We should still have old state
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessagee(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
@@ -205,7 +205,7 @@ suite('Webview tests', () => {
 		webview.reveal(vscode.ViewColumn.One);
 
 		// We should still have old scroll pos
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessagee(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 100);
 	});
 
@@ -216,7 +216,7 @@ suite('Webview tests', () => {
 		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessagee(webview, { type: 'add' });
 		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
@@ -224,14 +224,14 @@ suite('Webview tests', () => {
 		await vscode.window.showTextDocument(doc);
 
 		// Try posting a message to our hidden webview
-		const secondResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const secondResponse = await sendReceiveMessagee(webview, { type: 'add' });
 		assert.strictEqual((await secondResponse).value, 2);
 
 		// Now show webview again
 		webview.reveal(vscode.ViewColumn.One);
 
 		// We should still have old state
-		const thirdResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const thirdResponse = await sendReceiveMessagee(webview, { type: 'get' });
 		assert.strictEqual(thirdResponse.value, 2);
 	});
 
@@ -258,17 +258,17 @@ suite('Webview tests', () => {
 
 		{
 			const imagePath = await toWebviewResource('/image.png');
-			const response = sendRecieveMessage(webview, { src: imagePath });
+			const response = sendReceiveMessagee(webview, { src: imagePath });
 			assert.strictEqual((await response).value, true);
 		}
 		{
 			const imagePath = await toWebviewResource('/no-such-image.png');
-			const response = sendRecieveMessage(webview, { src: imagePath });
+			const response = sendReceiveMessagee(webview, { src: imagePath });
 			assert.strictEqual((await response).value, false);
 		}
 		{
 			const imagePath = vscode.Uri.file(join(vscode.workspace.rootPath!, '..', '..', '..', 'resources', 'linux', 'code.png')).with({ scheme: 'vscode-resource' });
-			const response = sendRecieveMessage(webview, { src: imagePath.toString() });
+			const response = sendReceiveMessagee(webview, { src: imagePath.toString() });
 			assert.strictEqual((await response).value, false);
 		}
 	});
@@ -294,11 +294,11 @@ suite('Webview tests', () => {
 		const workspaceRootUri = vscode.Uri.file(vscode.workspace.rootPath!).with({ scheme: 'vscode-resource' });
 
 		{
-			const response = sendRecieveMessage(webview, { src: workspaceRootUri.toString() + '/sub/image.png' });
+			const response = sendReceiveMessagee(webview, { src: workspaceRootUri.toString() + '/sub/image.png' });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const response = sendRecieveMessage(webview, { src: workspaceRootUri.toString() + '/image.png' });
+			const response = sendReceiveMessagee(webview, { src: workspaceRootUri.toString() + '/image.png' });
 			assert.strictEqual((await response).value, false);
 		}
 	});
@@ -381,7 +381,7 @@ function getMesssage<R = any>(webview: vscode.WebviewPanel): Promise<R> {
 	});
 }
 
-function sendRecieveMessage<T = {}, R = any>(webview: vscode.WebviewPanel, message: T): Promise<R> {
+function sendReceiveMessagee<T = {}, R = any>(webview: vscode.WebviewPanel, message: T): Promise<R> {
 	const p = getMesssage<R>(webview);
 	webview.webview.postMessage(message);
 	return p;

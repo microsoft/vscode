@@ -465,20 +465,20 @@ class WordHighlighterContribution extends Disposable implements editorCommon.IEd
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
 	}
 
-	private wordHighligher: WordHighlighter | null;
+	private wordHighlighter: WordHighlighter | null;
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
 		this.wordHighligher = null;
 		const createWordHighlighterIfPossible = () => {
 			if (editor.hasModel()) {
-				this.wordHighligher = new WordHighlighter(editor, contextKeyService);
+				this.wordHighlighter = new WordHighlighter(editor, contextKeyService);
 			}
 		};
 		this._register(editor.onDidChangeModel((e) => {
-			if (this.wordHighligher) {
-				this.wordHighligher.dispose();
-				this.wordHighligher = null;
+			if (this.wordHighlighter) {
+				this.wordHighlighter.dispose();
+				this.wordHighlighter = null;
 			}
 			createWordHighlighterIfPossible();
 		}));
@@ -490,34 +490,34 @@ class WordHighlighterContribution extends Disposable implements editorCommon.IEd
 	}
 
 	public saveViewState(): boolean {
-		if (this.wordHighligher && this.wordHighligher.hasDecorations()) {
+		if (this.wordHighlighter && this.wordHighlighter.hasDecorations()) {
 			return true;
 		}
 		return false;
 	}
 
 	public moveNext() {
-		if (this.wordHighligher) {
-			this.wordHighligher.moveNext();
+		if (this.wordHighlighter) {
+			this.wordHighlighter.moveNext();
 		}
 	}
 
 	public moveBack() {
-		if (this.wordHighligher) {
-			this.wordHighligher.moveBack();
+		if (this.wordHighlighter) {
+			this.wordHighlighter.moveBack();
 		}
 	}
 
 	public restoreViewState(state: boolean | undefined): void {
-		if (this.wordHighligher && state) {
-			this.wordHighligher.restore();
+		if (this.wordHighlighter && state) {
+			this.wordHighlighter.restore();
 		}
 	}
 
 	public dispose(): void {
-		if (this.wordHighligher) {
-			this.wordHighligher.dispose();
-			this.wordHighligher = null;
+		if (this.wordHighlighter) {
+			this.wordHighlighter.dispose();
+			this.wordHighlighter = null;
 		}
 		super.dispose();
 	}
@@ -535,14 +535,12 @@ class WordHighlightNavigationAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = WordHighlighterContribution.get(editor);
-		if (!controller) {
-			return;
-		}
-
-		if (this._isNext) {
-			controller.moveNext();
-		} else {
-			controller.moveBack();
+		if (controller) {
+			if (this._isNext) {
+				controller.moveNext();
+			} else {
+				controller.moveBack();
+			}
 		}
 	}
 }
@@ -596,11 +594,9 @@ class TriggerWordHighlightAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const controller = WordHighlighterContribution.get(editor);
-		if (!controller) {
-			return;
+		if (controller) {
+			controller.restoreViewState(true);
 		}
-
-		controller.restoreViewState(true);
 	}
 }
 

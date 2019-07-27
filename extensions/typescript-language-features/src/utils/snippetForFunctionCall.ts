@@ -33,22 +33,22 @@ function appendJoinedPlaceholders(
 	joiner: string
 ) {
 	for (let i = 0; i < parts.length; ++i) {
-		const paramterPart = parts[i];
-		snippet.appendPlaceholder(paramterPart.text);
+		const parameterPart = parts[i];
+		snippet.appendPlaceholder(parameterPart.text);
 		if (i !== parts.length - 1) {
 			snippet.appendText(joiner);
 		}
 	}
 }
 
-interface ParamterListParts {
+interface ParameterListParts {
 	readonly parts: ReadonlyArray<Proto.SymbolDisplayPart>;
 	readonly hasOptionalParameters: boolean;
 }
 
 function getParameterListParts(
 	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
-): ParamterListParts {
+): ParameterListParts {
 	const parts: Proto.SymbolDisplayPart[] = [];
 	let isInMethod = false;
 	let hasOptionalParameters = false;

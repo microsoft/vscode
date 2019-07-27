@@ -103,7 +103,7 @@ export class DefinitionAction extends EditorAction {
 				return this._openReference(editor, editorService, current, false).then(() => undefined);
 
 			} else {
-				// handle multile results
+				// handle multiple results
 				return this._onResult(editorService, symbolNavService, editor, new ReferencesModel(result));
 			}
 

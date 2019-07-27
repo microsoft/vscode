@@ -67,7 +67,7 @@ suite('URI Label', () => {
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
 	});
 
-	test('mulitple authority', function () {
+	test('multiple authority', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			authority: 'not_matching_but_long',

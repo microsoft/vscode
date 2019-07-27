@@ -18,7 +18,7 @@ export const enum ShakeLevel {
 }
 
 export function toStringShakeLevel(shakeLevel: ShakeLevel): string {
-	switch(shakeLevel) {
+	switch (shakeLevel) {
 		case ShakeLevel.Files:
 			return 'Files (0)';
 		case ShakeLevel.InnerFile:
@@ -244,11 +244,11 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
 		if (this._files.hasOwnProperty(fileName)) {
 			return ts.ScriptSnapshot.fromString(this._files[fileName]);
-		} else if (this._libs.hasOwnProperty(fileName)) {
-			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
-		} else {
-			return ts.ScriptSnapshot.fromString('');
 		}
+		if (this._libs.hasOwnProperty(fileName)) {
+			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
+		}
+		return ts.ScriptSnapshot.fromString('');
 	}
 	getScriptKind(_fileName: string): ts.ScriptKind {
 		return ts.ScriptKind.TS;
@@ -381,7 +381,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 			// add to black queue
 			enqueue_black(node);
 
-			// // move from one queue to the other
+			// move from one queue to the other
 			// black_queue.push(node);
 			// setColor(node, NodeColor.Black);
 			return;
@@ -475,7 +475,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		}
 
 		if (black_queue.length === 0) {
-			for (let i = 0; i< gray_queue.length; i++) {
+			for (let i = 0; i < gray_queue.length; i++) {
 				const node = gray_queue[i];
 				const nodeParent = node.parent;
 				if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {

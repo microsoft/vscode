@@ -135,9 +135,9 @@ suite('ConfigurationEditingService', () => {
 
 	function clearServices(): void {
 		if (instantiationService) {
-			const configuraitonService = <WorkspaceService>instantiationService.get(IConfigurationService);
-			if (configuraitonService) {
-				configuraitonService.dispose();
+			const configurationService = <WorkspaceService>instantiationService.get(IConfigurationService);
+			if (configurationService) {
+				configurationService.dispose();
 			}
 			instantiationService = null!;
 		}

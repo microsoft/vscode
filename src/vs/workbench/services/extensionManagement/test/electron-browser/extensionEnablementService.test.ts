@@ -319,7 +319,7 @@ suite('ExtensionEnablementService Test', () => {
 			.then(value => assert.ok(value));
 	});
 
-	test('test enable an extension for workspace when disabled in workspace and gloablly', async () => {
+	test('test enable an extension for workspace when disabled in workspace and globally', async () => {
 		const extension = aLocalExtension('pub.a');
 		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
 		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
@@ -328,7 +328,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.equal(testObject.getEnablementState(extension), EnablementState.EnabledWorkspace);
 	});
 
-	test('test enable an extension globally when disabled in workspace and gloablly', async () => {
+	test('test enable an extension globally when disabled in workspace and globally', async () => {
 		const extension = aLocalExtension('pub.a');
 		await testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
 		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);

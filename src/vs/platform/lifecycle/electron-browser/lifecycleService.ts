@@ -16,7 +16,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class LifecycleService extends AbstractLifecycleService {
 
-	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
+	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecycle.lastShutdownReason';
 
 	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
 

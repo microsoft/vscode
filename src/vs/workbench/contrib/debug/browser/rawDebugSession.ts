@@ -55,8 +55,8 @@ export class RawDebugSession {
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
-	private readonly _onDidTerminateDebugee: Emitter<DebugProtocol.TerminatedEvent>;
-	private readonly _onDidExitDebugee: Emitter<DebugProtocol.ExitedEvent>;
+	private readonly _onDidTerminateDebuggee: Emitter<DebugProtocol.TerminatedEvent>;
+	private readonly _onDidExitDebuggee: Emitter<DebugProtocol.ExitedEvent>;
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
@@ -82,8 +82,8 @@ export class RawDebugSession {
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
-		this._onDidTerminateDebugee = new Emitter<DebugProtocol.TerminatedEvent>();
-		this._onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
+		this._onDidTerminateDebuggee = new Emitter<DebugProtocol.TerminatedEvent>();
+		this._onDidExitDebuggee = new Emitter<DebugProtocol.ExitedEvent>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
@@ -139,10 +139,10 @@ export class RawDebugSession {
 					this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
 					break;
 				case 'terminated':
-					this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
+					this._onDidTerminateDebuggee.fire(<DebugProtocol.TerminatedEvent>event);
 					break;
 				case 'exit':
-					this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
+					this._onDidExitDebuggee.fire(<DebugProtocol.ExitedEvent>event);
 					break;
 				default:
 					this._onDidCustomEvent.fire(event);
@@ -184,12 +184,12 @@ export class RawDebugSession {
 		return this._onDidContinued.event;
 	}
 
-	get onDidTerminateDebugee(): Event<DebugProtocol.TerminatedEvent> {
-		return this._onDidTerminateDebugee.event;
+	get onDidTerminateDebuggee(): Event<DebugProtocol.TerminatedEvent> {
+		return this._onDidTerminateDebuggee.event;
 	}
 
-	get onDidExitDebugee(): Event<DebugProtocol.ExitedEvent> {
-		return this._onDidExitDebugee.event;
+	get onDidExitDebuggee(): Event<DebugProtocol.ExitedEvent> {
+		return this._onDidExitDebuggee.event;
 	}
 
 	get onDidThread(): Event<DebugProtocol.ThreadEvent> {

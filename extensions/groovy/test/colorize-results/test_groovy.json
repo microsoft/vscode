@@ -2256,7 +2256,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2311,7 +2311,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2454,7 +2454,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3158,7 +3158,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5237,7 +5237,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.groovy meta.definition.variable.groovy meta.evaluation.ternary.groovy keyword.operator.ternary.expression-seperator.groovy",
+		"t": "source.groovy meta.definition.variable.groovy meta.evaluation.ternary.groovy keyword.operator.ternary.expression-separator.groovy",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5512,7 +5512,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.groovy meta.evaluation.ternary.groovy keyword.operator.ternary.expression-seperator.groovy",
+		"t": "source.groovy meta.evaluation.ternary.groovy keyword.operator.ternary.expression-separator.groovy",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7987,7 +7987,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9098,7 +9098,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.definition.method.groovy meta.method.body.java meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.definition.method.groovy meta.method.body.java meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9329,7 +9329,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -10352,7 +10352,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.groovy meta.declaration.assertion.groovy meta.method-call.groovy punctuation.definition.seperator.parameter.groovy",
+		"t": "source.groovy meta.declaration.assertion.groovy meta.method-call.groovy punctuation.definition.separator.parameter.groovy",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

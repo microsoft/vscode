@@ -122,9 +122,8 @@ class FolderDetector {
 				this.promise = this.computeTasks();
 			}
 			return this.promise;
-		} else {
-			return [];
 		}
+		return [];
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
@@ -190,7 +189,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting gulp for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(localize('execFailed', 'Auto detection of gulp for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
 			showError();
 			return emptyTasks;
 		}

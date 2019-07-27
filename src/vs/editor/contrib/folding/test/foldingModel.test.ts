@@ -376,7 +376,7 @@ suite('Folding Model', () => {
 		}
 	});
 
-	test('setCollapseStateRecursivly', () => {
+	test('setCollapseStateRecursively', () => {
 		let lines = [
 		/* 1*/	'//#region',
 		/* 2*/	'//#endregion',

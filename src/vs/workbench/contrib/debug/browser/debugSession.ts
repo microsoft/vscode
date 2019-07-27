@@ -710,7 +710,7 @@ export class DebugSession implements IDebugSession {
 			}
 		}));
 
-		this.rawListeners.push(this.raw.onDidTerminateDebugee(event => {
+		this.rawListeners.push(this.raw.onDidTerminateDebuggee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
 				this.debugService.restartSession(this, event.body.restart).then(undefined, onUnexpectedError);
@@ -743,7 +743,7 @@ export class DebugSession implements IDebugSession {
 				return;
 			}
 
-			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
+			// Make sure to append output in the correct order by properly waiting on previous promises #33822
 			const waitFor = outpuPromises.slice();
 			const source = event.body.source && event.body.line ? {
 				lineNumber: event.body.line,

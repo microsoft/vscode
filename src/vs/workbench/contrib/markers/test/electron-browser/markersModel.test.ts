@@ -44,7 +44,7 @@ suite('MarkersModel Test', () => {
 		assert.notEqual(actuals[2].id, actuals[3].id);
 	});
 
-	test('sort palces resources with no errors at the end', function () {
+	test('sort placed resources with no errors at the end', function () {
 		const marker1 = aMarker('a/res1', MarkerSeverity.Warning);
 		const marker2 = aMarker('a/res2');
 		const marker3 = aMarker('res4');

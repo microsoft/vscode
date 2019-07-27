@@ -67,7 +67,7 @@ export function binarySearch<T>(array: ReadonlyArray<T>, key: T, comparator: (op
 /**
  * Takes a sorted array and a function p. The array is sorted in such a way that all elements where p(x) is false
  * are located before all elements where p(x) is true.
- * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
+ * @returns the least x for which p(x) is true or array.length if no element fulfills the given function.
  */
 export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boolean): number {
 	let low = 0, high = array.length;

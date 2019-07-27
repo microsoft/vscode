@@ -69,13 +69,13 @@ export class ExtensionHostMain {
 		extHostLogService.info('extension host started');
 		extHostLogService.trace('initData', initData);
 
-		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
+		const extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
 		this._extensionService = new ExtHostExtensionService(
 			hostUtils,
 			initData,
 			rpcProtocol,
 			extHostWorkspace,
-			extHostConfiguraiton,
+			extHostConfiguration,
 			initData.environment,
 			extHostLogService,
 			uriTransformer

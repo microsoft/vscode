@@ -43,28 +43,28 @@ export class NotificationsAlerts extends Disposable {
 		}
 	}
 
-	private triggerAriaAlert(notifiation: INotificationViewItem): void {
+	private triggerAriaAlert(notification: INotificationViewItem): void {
 
 		// Trigger the alert again whenever the label changes
-		const listener = notifiation.onDidLabelChange(e => {
+		const listener = notification.onDidLabelChange(e => {
 			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
-				this.doTriggerAriaAlert(notifiation);
+				this.doTriggerAriaAlert(notification);
 			}
 		});
 
-		Event.once(notifiation.onDidClose)(() => listener.dispose());
+		Event.once(notification.onDidClose)(() => listener.dispose());
 
-		this.doTriggerAriaAlert(notifiation);
+		this.doTriggerAriaAlert(notification);
 	}
 
-	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
+	private doTriggerAriaAlert(notification: INotificationViewItem): void {
 		let alertText: string;
-		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
-		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
+		if (notification.severity === Severity.Error) {
+			alertText = localize('alertErrorMessage', "Error: {0}", notification.message.value);
+		} else if (notification.severity === Severity.Warning) {
+			alertText = localize('alertWarningMessage', "Warning: {0}", notification.message.value);
 		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
+			alertText = localize('alertInfoMessage', "Info: {0}", notification.message.value);
 		}
 
 		alert(alertText);

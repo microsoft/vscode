@@ -324,11 +324,11 @@
 							"name": "punctuation.definition.tag.html"
 						},
 						"2": {
-							"name": "entity.name.tag.tokenised.html"
+							"name": "entity.name.tag.tokenized.html"
 						}
 					},
 					"end": "(>)",
-					"name": "meta.tag.tokenised.html",
+					"name": "meta.tag.tokenized.html",
 					"patterns": [
 						{
 							"include": "#tag-stuff"

@@ -217,7 +217,7 @@ suite('JSON', () => {
 		assertInvalidParse('[ ,1, 2, 3, ]', [1, 2, 3], { allowTrailingComma: false });
 	});
 
-	test('parse: disallow commments', () => {
+	test('parse: disallow comments', () => {
 		let options = { disallowComments: true };
 
 		assertValidParse('[ 1, 2, null, "foo" ]', [1, 2, null, 'foo'], options);

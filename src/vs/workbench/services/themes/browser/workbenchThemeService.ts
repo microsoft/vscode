@@ -346,7 +346,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const themeData = data;
 			return themeData.ensureLoaded(this.fileService).then(_ => {
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
-					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
+					// the loaded theme is identical to the persisted theme. Don't need to send an event.
 					this.currentColorTheme = themeData;
 					themeData.setCustomColors(this.colorCustomizations);
 					themeData.setCustomTokenColors(this.tokenColorCustomizations);

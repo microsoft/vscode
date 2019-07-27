@@ -347,7 +347,7 @@ suite('PFS', () => {
 
 	test('stat link', async () => {
 		if (isWindows) {
-			return Promise.resolve(); // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return Promise.resolve(); // Symlinks are not the same on win, and we can not create them programmatically without admin privileges
 		}
 
 		const id1 = uuid.generateUuid();

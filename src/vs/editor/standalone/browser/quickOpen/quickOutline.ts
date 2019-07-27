@@ -187,7 +187,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		for (const element of flattened) {
 			let label = strings.trim(element.name);
 
-			// Check for meatch
+			// Check for match
 			let highlights = matchesFuzzy(normalizedSearchValue, label);
 			if (highlights) {
 

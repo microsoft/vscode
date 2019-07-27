@@ -301,7 +301,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			const backup = await this.backupFileService.loadBackupResource(this.resource);
 
 			if (this.isResolved()) {
-				return this; // Make sure meanwhile someone else did not suceed in loading
+				return this; // Make sure meanwhile someone else did not succeed in loading
 			}
 
 			if (backup) {
@@ -323,7 +323,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const resolvedBackup = await this.backupFileService.resolveBackupContent<IBackupMetaData>(backup);
 
 		if (this.isResolved()) {
-			return this; // Make sure meanwhile someone else did not suceed in loading
+			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
 		// Load with backup
@@ -374,7 +374,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(false);
 
 			if (currentVersionId !== this.versionId) {
-				return this; // Make sure meanwhile someone else did not suceed loading
+				return this; // Make sure meanwhile someone else did not succeed loading
 			}
 
 			return this.loadFromContent(content, options);
@@ -679,7 +679,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
 			// We have to protect against being disposed at this point. It could be that the save() operation
-			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
+			// was triggered followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).

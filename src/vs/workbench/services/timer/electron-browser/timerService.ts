@@ -35,7 +35,7 @@ export interface IMemoryInfo {
 /* __GDPR__FRAGMENT__
 	"IStartupMetrics" : {
 		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"elapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"windowKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -43,20 +43,20 @@ export interface IMemoryInfo {
 		"viewletId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"panelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"editorIds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"arch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -139,7 +139,7 @@ export interface IStartupMetrics {
 	 *  * The numbers of windows being restored (when starting 'fresh')
 	 *  * The viewlet being restored (esp. when it's a contributed viewlet)
 	 */
-	readonly ellapsed: number;
+	readonly elapsed: number;
 
 	/**
 	 * Individual timers...
@@ -156,7 +156,7 @@ export interface IStartupMetrics {
 		 * * This is often affected by AV software (and can change with AV software updates outside of our release-cycle).
 		 * * It is not our code running here and we can only observe what's happening.
 		 */
-		readonly ellapsedAppReady?: number;
+		readonly elapsedAppReady?: number;
 
 		/**
 		 * The time it took to generate NLS data.
@@ -166,7 +166,7 @@ export interface IStartupMetrics {
 		 * * This only happens when a non-english locale is being used.
 		 * * It is our code running here and we should monitor this carefully for regressions.
 		 */
-		readonly ellapsedNlsGeneration?: number;
+		readonly elapsedNlsGeneration?: number;
 
 		/**
 		 * The time it took to tell electron to open/restore a renderer (browser window).
@@ -176,7 +176,7 @@ export interface IStartupMetrics {
 		 * * This can be compared between insider and stable builds.
 		 * * It is our code running here and we should monitor this carefully for regressions.
 		 */
-		readonly ellapsedWindowLoad?: number;
+		readonly elapsedWindowLoad?: number;
 
 		/**
 		 * The time it took to create a new renderer (browser window) and to initialize that to the point
@@ -188,7 +188,7 @@ export interface IStartupMetrics {
 		 * * It is mostly not our code running here and we can only observe what's happening.
 		 *
 		 */
-		readonly ellapsedWindowLoadToRequire: number;
+		readonly elapsedWindowLoadToRequire: number;
 
 		/**
 		 * The time it took to require the workspace storage DB, connect to it
@@ -197,7 +197,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willInitWorkspaceStorage` and `didInitWorkspaceStorage` performance marks.
 		 */
-		readonly ellapsedWorkspaceStorageInit: number;
+		readonly elapsedWorkspaceStorageInit: number;
 
 		/**
 		 * The time it took to initialize the workspace and configuration service.
@@ -205,7 +205,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willInitWorkspaceService` and `didInitWorkspaceService` performance marks.
 		 */
-		readonly ellapsedWorkspaceServiceInit: number;
+		readonly elapsedWorkspaceServiceInit: number;
 
 		/**
 		 * The time it took to load the main-bundle of the workbench, e.g. `workbench.main.js`.
@@ -216,7 +216,7 @@ export interface IStartupMetrics {
 		 * * This should be looked at with and without V8 cached data usage and per electron/v8 version
 		 * * This is affected by the size of our code bundle (which  grows about 3-5% per release)
 		 */
-		readonly ellapsedRequire: number;
+		readonly elapsedRequire: number;
 
 		/**
 		 * The time it took to read extensions' package.json-files *and* interpret them (invoking
@@ -230,11 +230,11 @@ export interface IStartupMetrics {
 		 *
 		 * todo@joh/ramya this measures an artifical dealy we have added, see https://github.com/Microsoft/vscode/blob/2f07ddae8bf56e969e3f4ba1447258ebc999672f/src/vs/workbench/services/extensions/electron-browser/extensionService.ts#L311-L326
 		 */
-		readonly ellapsedExtensions: number;
+		readonly elapsedExtensions: number;
 
 		// the time from start till `didLoadExtensions`
 		// remove?
-		readonly ellapsedExtensionsReady: number;
+		readonly elapsedExtensionsReady: number;
 
 		/**
 		 * The time it took to restore the viewlet.
@@ -244,7 +244,7 @@ export interface IStartupMetrics {
 		 * * This should be looked at per viewlet-type/id.
 		 * * Happens in parallel to other things, depends on async timing
 		 */
-		readonly ellapsedViewletRestore: number;
+		readonly elapsedViewletRestore: number;
 
 		/**
 		 * The time it took to restore the panel.
@@ -254,7 +254,7 @@ export interface IStartupMetrics {
 		 * * This should be looked at per panel-type/id.
 		 * * Happens in parallel to other things, depends on async timing
 		 */
-		readonly ellapsedPanelRestore: number;
+		readonly elapsedPanelRestore: number;
 
 		/**
 		 * The time it took to restore editors - that is text editor and complex editor likes the settings UI
@@ -267,7 +267,7 @@ export interface IStartupMetrics {
 		 *
 		 * todo@joh/ramya We should probably measures each editor individually?
 		 */
-		readonly ellapsedEditorRestore: number;
+		readonly elapsedEditorRestore: number;
 
 		/**
 		 * The time it took to create the workbench.
@@ -277,11 +277,11 @@ export interface IStartupMetrics {
 		 *
 		 * todo@joh/ramya Not sure if this is useful because this includes too much
 		 */
-		readonly ellapsedWorkbench: number;
+		readonly elapsedWorkbench: number;
 
 		// the time it took to generate this object.
 		// remove?
-		readonly ellapsedTimersToTimersComputed: number;
+		readonly elapsedTimersToTimersComputed: number;
 	};
 
 	readonly hasAccessibilitySupport: boolean;
@@ -374,7 +374,7 @@ class TimerService implements ITimerService {
 		const activePanel = this._panelService.getActivePanel();
 		return {
 			version: 2,
-			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
+			elapsed: perf.getDuration(startMark, 'didStartWorkbench'),
 
 			// reflections
 			isLatestVersion: Boolean(await this._updateService.isLatestVersion()),
@@ -387,20 +387,20 @@ class TimerService implements ITimerService {
 
 			// timers
 			timers: {
-				ellapsedAppReady: initialStartup ? perf.getDuration('main:started', 'main:appReady') : undefined,
-				ellapsedNlsGeneration: initialStartup ? perf.getDuration('nlsGeneration:start', 'nlsGeneration:end') : undefined,
-				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
-				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
-				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
-				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
-				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
-				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
-				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
-				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
-				ellapsedPanelRestore: perf.getDuration('willRestorePanel', 'didRestorePanel'),
-				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
-				ellapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
-				ellapsedTimersToTimersComputed: Date.now() - now,
+				elapsedAppReady: initialStartup ? perf.getDuration('main:started', 'main:appReady') : undefined,
+				elapsedNlsGeneration: initialStartup ? perf.getDuration('nlsGeneration:start', 'nlsGeneration:end') : undefined,
+				elapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
+				elapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
+				elapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				elapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
+				elapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
+				elapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
+				elapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
+				elapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
+				elapsedPanelRestore: perf.getDuration('willRestorePanel', 'didRestorePanel'),
+				elapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
+				elapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
+				elapsedTimersToTimersComputed: Date.now() - now,
 			},
 
 			// system info

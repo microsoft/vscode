@@ -377,7 +377,7 @@ export class DebugService implements IDebugService {
 							let message: string;
 							if (config.request !== 'attach' && config.request !== 'launch') {
 								message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
-									: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
+									: nls.localize('debugRequestMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
 
 							} else {
 								message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :

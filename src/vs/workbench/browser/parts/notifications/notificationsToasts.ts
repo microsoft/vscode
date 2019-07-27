@@ -98,8 +98,8 @@ export class NotificationsToasts extends Themable {
 		// Wait for the running phase to ensure we can draw notifications properly
 		await this.lifecycleService.when(LifecyclePhase.Ready);
 
-		// Push notificiations out until either workbench is restored
-		// or some time has ellapsed to reduce pressure on the startup
+		// Push notifications out until either workbench is restored
+		// or some time has elapsed to reduce pressure on the startup
 		return Promise.race([
 			this.lifecycleService.when(LifecyclePhase.Restored),
 			timeout(2000)
@@ -466,7 +466,7 @@ export class NotificationsToasts extends Themable {
 
 		if (this.workbenchDimensions) {
 
-			// Make sure notifications are not exceding available width
+			// Make sure notifications are not exceeding available width
 			availableWidth = this.workbenchDimensions.width;
 			availableWidth -= (2 * 8); // adjust for paddings left and right
 

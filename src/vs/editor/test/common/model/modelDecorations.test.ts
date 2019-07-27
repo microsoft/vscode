@@ -1304,8 +1304,8 @@ suite('deltaDecorations', () => {
 			'How are you?'
 		].join('\n'));
 
-		let trackedRangeId = model.changeDecorations((changeAcessor) => {
-			return changeAcessor.addDecoration(
+		let trackedRangeId = model.changeDecorations((changeAccessor) => {
+			return changeAccessor.addDecoration(
 				{
 					startLineNumber: 1,
 					startColumn: 1,

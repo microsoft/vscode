@@ -129,7 +129,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (dimension.height === 0 || dimension.width === 0) {
-			// Do not layout if not visible. Otherwise the size measurment would be computed wrongly
+			// Do not layout if not visible. Otherwise the size measurement would be computed wrongly
 			return;
 		}
 
@@ -279,7 +279,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
 		} else {
 			if (this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
-				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
+				// Compute sizes only if visible. Otherwise the size measurement would be computed wrongly.
 				const currentItemsLength = this.compositeSwitcherBar.viewItems.length;
 				this.compositeSwitcherBar.push(items.map(composite => composite.activityAction));
 				items.map((composite, index) => this.compositeSizeInBar.set(composite.id, this.options.orientation === ActionsOrientation.VERTICAL

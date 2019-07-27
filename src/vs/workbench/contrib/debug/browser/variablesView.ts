@@ -109,7 +109,7 @@ export class VariablesView extends ViewletPanel {
 				return;
 			}
 
-			// Refresh the tree immediately if the user explictly changed stack frames.
+			// Refresh the tree immediately if the user explicitly changed stack frames.
 			// Otherwise postpone the refresh until user stops stepping.
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);

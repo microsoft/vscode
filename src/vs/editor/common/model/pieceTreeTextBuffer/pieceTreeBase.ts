@@ -239,7 +239,7 @@ class PieceTreeSearchCache {
 		this._cache.push(nodePosition);
 	}
 
-	public valdiate(offset: number) {
+	public validate(offset: number) {
 		let hasInvalidVal = false;
 		let tmp: Array<CacheEntry | null> = this._cache;
 		for (let i = 0; i < tmp.length; i++) {
@@ -741,7 +741,7 @@ export class PieceTreeBase {
 
 			if (nodeStartOffset === offset) {
 				this.insertContentToNodeLeft(value, node);
-				this._searchCache.valdiate(offset);
+				this._searchCache.validate(offset);
 			} else if (nodeStartOffset + node.piece.length > offset) {
 				// we are inserting into the middle of a node.
 				let nodesToDel: TreeNode[] = [];
@@ -841,7 +841,7 @@ export class PieceTreeBase {
 					return;
 				}
 				this.deleteNodeHead(startNode, endSplitPosInBuffer);
-				this._searchCache.valdiate(offset);
+				this._searchCache.validate(offset);
 				this.validateCRLFWithPrevNode(startNode);
 				this.computeBufferMetadata();
 				return;
@@ -864,7 +864,7 @@ export class PieceTreeBase {
 
 		let startSplitPosInBuffer = this.positionInBuffer(startNode, startPosition.remainder);
 		this.deleteNodeTail(startNode, startSplitPosInBuffer);
-		this._searchCache.valdiate(offset);
+		this._searchCache.validate(offset);
 		if (startNode.piece.length === 0) {
 			nodesToDel.push(startNode);
 		}
@@ -1128,14 +1128,14 @@ export class PieceTreeBase {
 		let cache = this._searchCache.get2(lineNumber);
 		if (cache) {
 			x = cache.node;
-			let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber - 1);
+			let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber - 1);
 			let buffer = this._buffers[x.piece.bufferIndex].buffer;
 			let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 			if (cache.nodeStartLineNumber + x.piece.lineFeedCnt === lineNumber) {
-				ret = buffer.substring(startOffset + prevAccumualtedValue, startOffset + x.piece.length);
+				ret = buffer.substring(startOffset + prevAccumulatedValue, startOffset + x.piece.length);
 			} else {
-				let accumualtedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber);
-				return buffer.substring(startOffset + prevAccumualtedValue, startOffset + accumualtedValue - endOffset);
+				let accumulatedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber);
+				return buffer.substring(startOffset + prevAccumulatedValue, startOffset + accumulatedValue - endOffset);
 			}
 		} else {
 			let nodeStartOffset = 0;
@@ -1144,8 +1144,8 @@ export class PieceTreeBase {
 				if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
 					x = x.left;
 				} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
-					let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-					let accumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
+					let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
+					let accumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
 					let buffer = this._buffers[x.piece.bufferIndex].buffer;
 					let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 					nodeStartOffset += x.size_left;
@@ -1155,13 +1155,13 @@ export class PieceTreeBase {
 						nodeStartLineNumber: originalLineNumber - (lineNumber - 1 - x.lf_left)
 					});
 
-					return buffer.substring(startOffset + prevAccumualtedValue, startOffset + accumualtedValue - endOffset);
+					return buffer.substring(startOffset + prevAccumulatedValue, startOffset + accumulatedValue - endOffset);
 				} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
-					let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
+					let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
 					let buffer = this._buffers[x.piece.bufferIndex].buffer;
 					let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 
-					ret = buffer.substring(startOffset + prevAccumualtedValue, startOffset + x.piece.length);
+					ret = buffer.substring(startOffset + prevAccumulatedValue, startOffset + x.piece.length);
 					break;
 				} else {
 					lineNumber -= x.lf_left + x.piece.lineFeedCnt;
@@ -1177,10 +1177,10 @@ export class PieceTreeBase {
 			let buffer = this._buffers[x.piece.bufferIndex].buffer;
 
 			if (x.piece.lineFeedCnt > 0) {
-				let accumualtedValue = this.getAccumulatedValue(x, 0);
+				let accumulatedValue = this.getAccumulatedValue(x, 0);
 				let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 
-				ret += buffer.substring(startOffset, startOffset + accumualtedValue - endOffset);
+				ret += buffer.substring(startOffset, startOffset + accumulatedValue - endOffset);
 				return ret;
 			} else {
 				let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
@@ -1207,7 +1207,7 @@ export class PieceTreeBase {
 
 		this._lineCnt = lfCnt;
 		this._length = len;
-		this._searchCache.valdiate(this._length);
+		this._searchCache.validate(this._length);
 	}
 
 	// #region node operations
@@ -1406,25 +1406,25 @@ export class PieceTreeBase {
 			if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
 				x = x.left;
 			} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
-				let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-				let accumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
+				let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
+				let accumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
 				nodeStartOffset += x.size_left;
 
 				return {
 					node: x,
-					remainder: Math.min(prevAccumualtedValue + column - 1, accumualtedValue),
+					remainder: Math.min(prevAccumulatedValue + column - 1, accumulatedValue),
 					nodeStartOffset
 				};
 			} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
-				let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-				if (prevAccumualtedValue + column - 1 <= x.piece.length) {
+				let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
+				if (prevAccumulatedValue + column - 1 <= x.piece.length) {
 					return {
 						node: x,
-						remainder: prevAccumualtedValue + column - 1,
+						remainder: prevAccumulatedValue + column - 1,
 						nodeStartOffset
 					};
 				} else {
-					column -= x.piece.length - prevAccumualtedValue;
+					column -= x.piece.length - prevAccumulatedValue;
 					break;
 				}
 			} else {
@@ -1439,11 +1439,11 @@ export class PieceTreeBase {
 		while (x !== SENTINEL) {
 
 			if (x.piece.lineFeedCnt > 0) {
-				let accumualtedValue = this.getAccumulatedValue(x, 0);
+				let accumulatedValue = this.getAccumulatedValue(x, 0);
 				let nodeStartOffset = this.offsetOfNode(x);
 				return {
 					node: x,
-					remainder: Math.min(column - 1, accumualtedValue),
+					remainder: Math.min(column - 1, accumulatedValue),
 					nodeStartOffset
 				};
 			} else {

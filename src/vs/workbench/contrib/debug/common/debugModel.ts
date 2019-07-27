@@ -632,7 +632,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	get column(): number | undefined {
 		const data = this.getSessionData();
-		// Only respect the column if the user explictly set the column to have an inline breakpoint
+		// Only respect the column if the user explicitly set the column to have an inline breakpoint
 		return data && typeof data.column === 'number' && typeof this._column === 'number' ? data.column : this._column;
 	}
 

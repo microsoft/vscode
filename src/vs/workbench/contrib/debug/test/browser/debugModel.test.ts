@@ -133,7 +133,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getSessions(true).length, 1);
 	});
 
-	test('threads multiple wtih allThreadsStopped', () => {
+	test('threads multiple with allThreadsStopped', () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;

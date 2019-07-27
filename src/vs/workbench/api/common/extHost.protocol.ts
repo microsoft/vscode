@@ -162,7 +162,7 @@ export interface MainThreadDialogSaveOptions {
 	filters?: { [name: string]: string[] };
 }
 
-export interface MainThreadDiaglogsShape extends IDisposable {
+export interface MainThreadDialogsShape extends IDisposable {
 	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<UriComponents[] | undefined>;
 	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<UriComponents | undefined>;
 }
@@ -1314,7 +1314,7 @@ export const MainContext = {
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
-	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
+	MainThreadDialogs: createMainId<MainThreadDialogsShape>('MainThreadDialogs'),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
 	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),

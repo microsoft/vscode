@@ -99,7 +99,7 @@ export interface IInstantiationService {
 	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R;
 
 	/**
-	 * Creates a child of this service which inherts all current services
+	 * Creates a child of this service that inherits all current services
 	 * and adds/overwrites the given services
 	 */
 	createChild(services: ServiceCollection): IInstantiationService;

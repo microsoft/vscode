@@ -168,7 +168,7 @@ export class TelemetryService implements ITelemetryService {
 				if (!result) {
 					break;
 				}
-				// Anoynimize user file paths that do not need to be retained or cleaned up.
+				// Anonymize user file paths that do not need to be retained or cleaned up.
 				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
 					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
 					lastIndex = fileRegex.lastIndex;

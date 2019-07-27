@@ -157,7 +157,7 @@ export class Menubar {
 		// Keep flag when app quits
 		this.lifecycleService.onWillShutdown(() => this.willShutdown = true);
 
-		// // Listen to some events from window service to update menu
+		// Listen to some events from window service to update menu
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
 	}
 

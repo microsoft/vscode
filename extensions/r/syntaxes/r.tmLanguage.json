@@ -174,7 +174,7 @@
 				},
 				{
 					"match": "==",
-					"name": "keyword.operator.comarison.r"
+					"name": "keyword.operator.comparison.r"
 				},
 				{
 					"match": "(:=|<-|<<-|->|->>)",

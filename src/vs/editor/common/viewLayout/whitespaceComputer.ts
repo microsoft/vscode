@@ -31,7 +31,7 @@ export class WhitespaceComputer {
 	private readonly _afterLineNumbers: number[];
 
 	/**
-	 * ordinals[i] is the orinal of the whitespace at index i
+	 * ordinals[i] is the ordinal of the whitespace at index i
 	 */
 	private readonly _ordinals: number[];
 

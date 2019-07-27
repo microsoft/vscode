@@ -84,7 +84,7 @@ class EmptyNotificationService implements INotificationService {
 
 suite('ExtHostMessageService', function () {
 
-	test('propagte handle on select', async function () {
+	test('propagate handle on select', async function () {
 
 		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.equal(notification.actions!.primary!.length, 1);

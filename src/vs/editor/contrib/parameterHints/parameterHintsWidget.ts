@@ -68,7 +68,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		}));
 	}
 
-	private createParamaterHintDOMNodes() {
+	private createParameterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
 		wrapper.tabIndex = -1;
@@ -125,7 +125,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		}
 
 		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
@@ -140,7 +140,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		}
 
 		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.reset();

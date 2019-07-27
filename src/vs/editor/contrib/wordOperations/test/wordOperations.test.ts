@@ -438,7 +438,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('deleteWordRight for cursor at beggining of whitespace', () => {
+	test('deleteWordRight for cursor at beginning of whitespace', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',

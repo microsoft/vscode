@@ -355,7 +355,7 @@ export class LinesLayout {
 		return previousLinesHeight + previousWhitespacesHeight;
 	}
 
-	public getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset: number): number {
+	public getWhitespaceIndexAtOrAfterVerticalOffset(verticalOffset: number): number {
 		verticalOffset = verticalOffset | 0;
 
 		let midWhitespaceIndex: number,
@@ -404,7 +404,7 @@ export class LinesLayout {
 	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
 		verticalOffset = verticalOffset | 0;
 
-		let candidateIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset);
+		let candidateIndex = this.getWhitespaceIndexAtOrAfterVerticalOffset(verticalOffset);
 
 		if (candidateIndex < 0) {
 			return null;
@@ -443,7 +443,7 @@ export class LinesLayout {
 		verticalOffset1 = verticalOffset1 | 0;
 		verticalOffset2 = verticalOffset2 | 0;
 
-		let startIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset1);
+		let startIndex = this.getWhitespaceIndexAtOrAfterVerticalOffset(verticalOffset1);
 		let endIndex = this._whitespaces.getCount() - 1;
 
 		if (startIndex < 0) {

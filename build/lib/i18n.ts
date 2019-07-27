@@ -368,7 +368,7 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private outstandingPromises: ILimitedTaskFactory<any>[];
 
-	constructor(private maxDegreeOfParalellism: number) {
+	constructor(private maxDegreeOfParallelism: number) {
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
 	}
@@ -381,7 +381,7 @@ export class Limiter<T> {
 	}
 
 	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParallelism) {
 			const iLimitedTask = this.outstandingPromises.shift()!;
 			this.runningPromises++;
 
@@ -1220,7 +1220,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
 						}
 						const externalId = externalExtensions[resource];
-						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
+						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segment
 							const secondSlash = path.indexOf('/', firstSlash + 1);
 							extPack.contents[path.substr(secondSlash + 1)] = file.messages;
 						} else {

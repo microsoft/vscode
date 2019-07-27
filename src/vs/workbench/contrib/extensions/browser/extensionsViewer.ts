@@ -158,7 +158,7 @@ class OpenExtensionAction extends Action {
 
 	private _extensionData: IExtensionData;
 
-	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
 	}
 
@@ -171,7 +171,7 @@ class OpenExtensionAction extends Action {
 	}
 
 	run(sideByside: boolean): Promise<any> {
-		return this.extensionsWorkdbenchService.open(this.extensionData.extension, sideByside);
+		return this.extensionsWorkbenchService.open(this.extensionData.extension, sideByside);
 	}
 }
 
@@ -187,7 +187,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IExtensionsWorkbenchService extensionsWorkdbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		const delegate = new VirualDelegate();
 		const dataSource = new AsyncDataSource();
@@ -215,7 +215,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 
 		this.disposables.push(this.onDidChangeSelection(event => {
 			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
-				extensionsWorkdbenchService.open(event.elements[0].extension, false);
+				extensionsWorkbenchService.open(event.elements[0].extension, false);
 			}
 		}));
 	}

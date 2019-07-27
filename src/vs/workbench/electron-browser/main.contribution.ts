@@ -376,7 +376,7 @@ import product from 'vs/platform/product/node/product';
 		group: '5_tools',
 		command: {
 			id: 'workbench.action.openProcessExplorer',
-			title: nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
+			title: nls.localize({ key: 'miOpenProcessExplorer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
 		},
 		order: 2
 	});

@@ -349,7 +349,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 }
 
-// // Explorer Sorter
+// Explorer Sorter
 export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 	constructor(

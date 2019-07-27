@@ -3848,7 +3848,7 @@
 				}
 			],
 			"repository": {
-				"literal_numeric_seperator": {
+				"literal_numeric_separator": {
 					"match": "(?<!')'(?!')",
 					"name": "punctuation.separator.constant.numeric.objcpp"
 				},
@@ -3862,7 +3862,7 @@
 							"name": "constant.numeric.hexadecimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3876,7 +3876,7 @@
 							"name": "constant.numeric.hexadecimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3896,7 +3896,7 @@
 							"name": "constant.numeric.exponent.hexadecimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3904,7 +3904,7 @@
 							"name": "constant.numeric.decimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3918,7 +3918,7 @@
 							"name": "constant.numeric.decimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3938,7 +3938,7 @@
 							"name": "constant.numeric.exponent.decimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3952,7 +3952,7 @@
 							"name": "constant.numeric.binary.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3966,7 +3966,7 @@
 							"name": "constant.numeric.octal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -3980,7 +3980,7 @@
 							"name": "constant.numeric.hexadecimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -4000,7 +4000,7 @@
 							"name": "constant.numeric.exponent.hexadecimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -4008,7 +4008,7 @@
 							"name": "constant.numeric.decimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},
@@ -4028,7 +4028,7 @@
 							"name": "constant.numeric.exponent.decimal.objcpp",
 							"patterns": [
 								{
-									"include": "#literal_numeric_seperator"
+									"include": "#literal_numeric_separator"
 								}
 							]
 						},

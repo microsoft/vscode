@@ -88,7 +88,7 @@ declare module DebugProtocol {
 			reason: string;
 			/** The full reason for the event, e.g. 'Paused on exception'. This string is shown in the UI as is and must be translated. */
 			description?: string;
-			/** The thread which was stopped. */
+			/** The thread that was stopped. */
 			threadId?: number;
 			/** A value of true hints to the frontend that this event should not change the focus. */
 			preserveFocusHint?: boolean;
@@ -110,7 +110,7 @@ declare module DebugProtocol {
 	export interface ContinuedEvent extends Event {
 		// event: 'continued';
 		body: {
-			/** The thread which was continued. */
+			/** The thread that was continued. */
 			threadId: number;
 			/** If 'allThreadsContinued' is true, a debug adapter can announce that all threads have continued. */
 			allThreadsContinued?: boolean;
@@ -1729,7 +1729,7 @@ declare module DebugProtocol {
 	/** This enumeration defines all possible conditions when a thrown exception should result in a break.
 		never: never breaks,
 		always: always breaks,
-		unhandled: breaks when excpetion unhandled,
+		unhandled: breaks when exception is unhandled,
 		userUnhandled: breaks if the exception is not handled by user code.
 	*/
 	export type ExceptionBreakMode = 'never' | 'always' | 'unhandled' | 'userUnhandled';

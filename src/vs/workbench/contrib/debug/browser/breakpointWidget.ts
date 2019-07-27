@@ -37,7 +37,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
-const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
+const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
 export interface IPrivateBreakpointWidgetService {
 	_serviceBrand: any;
 	close(success: boolean): void;

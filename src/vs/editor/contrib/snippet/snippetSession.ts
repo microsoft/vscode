@@ -134,7 +134,7 @@ export class OneSnippet {
 
 		} else {
 			// the selection of the current placeholder might
-			// not acurate any more -> simply restore it
+			// not accurate any more -> simply restore it
 		}
 
 		const newSelections = this._editor.getModel().changeDecorations(accessor => {
@@ -167,7 +167,7 @@ export class OneSnippet {
 				}
 			}
 
-			// change stickness to never grow when typing at its edges
+			// change stickiness to never grow when typing at its edges
 			// so that in-active tabstops never grow
 			this._placeholderDecorations!.forEach((id, placeholder) => {
 				if (!activePlaceholders.has(placeholder)) {
@@ -405,7 +405,7 @@ export class SnippetSession {
 		// `keepWhitespace` should be overruled for secondary selections
 		let firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
 
-		// sort selections by their start position but remeber
+		// sort selections by their start position but remember
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection
@@ -455,7 +455,7 @@ export class SnippetSession {
 			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
 
 			// store snippets with the index of their originating selection.
-			// that ensures the primiary cursor stays primary despite not being
+			// that ensures the primary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
 			snippets[idx] = new OneSnippet(editor, snippet, offset);

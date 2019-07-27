@@ -148,21 +148,21 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	private _addSummaryTable(md: MarkdownBuilder, metrics: IStartupMetrics, stats?: LoaderStats): void {
 
 		const table: Array<Array<string | number | undefined>> = [];
-		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['start => app.isReady', metrics.timers.elapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['nls:start => nls:end', metrics.timers.elapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
-		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
-		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
-		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
-		table.push(['restore viewlet', metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId]);
-		table.push(['restore panel', metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId]);
-		table.push(['restore editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
-		table.push(['overall workbench load', metrics.timers.ellapsedWorkbench, '[renderer]', undefined]);
-		table.push(['workbench ready', metrics.ellapsed, '[main->renderer]', undefined]);
-		table.push(['extensions registered', metrics.timers.ellapsedExtensionsReady, '[renderer]', undefined]);
+		table.push(['app.isReady => window.loadUrl()', metrics.timers.elapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.elapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
+		table.push(['require(workbench.main.js)', metrics.timers.elapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
+		table.push(['require & init workspace storage', metrics.timers.elapsedWorkspaceStorageInit, '[renderer]', undefined]);
+		table.push(['init workspace service', metrics.timers.elapsedWorkspaceServiceInit, '[renderer]', undefined]);
+		table.push(['register extensions & spawn extension host', metrics.timers.elapsedExtensions, '[renderer]', undefined]);
+		table.push(['restore viewlet', metrics.timers.elapsedViewletRestore, '[renderer]', metrics.viewletId]);
+		table.push(['restore panel', metrics.timers.elapsedPanelRestore, '[renderer]', metrics.panelId]);
+		table.push(['restore editors', metrics.timers.elapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
+		table.push(['overall workbench load', metrics.timers.elapsedWorkbench, '[renderer]', undefined]);
+		table.push(['workbench ready', metrics.elapsed, '[main->renderer]', undefined]);
+		table.push(['extensions registered', metrics.timers.elapsedExtensionsReady, '[renderer]', undefined]);
 
 		md.heading(2, 'Performance Marks');
 		md.table(['What', 'Duration', 'Process', 'Info'], table);

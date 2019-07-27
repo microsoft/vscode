@@ -93,7 +93,7 @@ suite('Strings', () => {
 	});
 
 	test('overlap', () => {
-		assert.equal(strings.overlap('foobar', 'arr, I am a priate'), 2);
+		assert.equal(strings.overlap('foobar', 'arr, I am a pirate'), 2);
 		assert.equal(strings.overlap('no', 'overlap'), 1);
 		assert.equal(strings.overlap('no', '0verlap'), 0);
 		assert.equal(strings.overlap('nothing', ''), 0);

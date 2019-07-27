@@ -668,7 +668,7 @@ export class Repository implements Disposable {
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
-		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
+		//	- any change within the first level of the `.git` folder, except the folder itself and `index.lock`
 		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, onDotGitFileChange);
 		onFileChange(this.onFileChange, this, this.disposables);
 
@@ -1362,7 +1362,7 @@ export class Repository implements Disposable {
 				);
 
 				if (shouldRetry) {
-					// quatratic backoff
+					// quadratic backoff
 					await timeout(Math.pow(attempt, 2) * 50);
 				} else {
 					throw err;

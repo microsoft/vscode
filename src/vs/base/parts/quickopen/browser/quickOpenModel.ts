@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessibilityProvider, IRenderer, IRunner, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -491,14 +491,14 @@ export class QuickOpenModel implements
 	IDataSource<QuickOpenEntry>,
 	IFilter<QuickOpenEntry>,
 	IRunner<QuickOpenEntry>,
-	IAccessiblityProvider<QuickOpenEntry>
+	IAccessibilityProvider<QuickOpenEntry>
 {
 	private _entries: QuickOpenEntry[];
 	private _dataSource: IDataSource<QuickOpenEntry>;
 	private _renderer: IRenderer<QuickOpenEntry>;
 	private _filter: IFilter<QuickOpenEntry>;
 	private _runner: IRunner<QuickOpenEntry>;
-	private _accessibilityProvider: IAccessiblityProvider<QuickOpenEntry>;
+	private _accessibilityProvider: IAccessibilityProvider<QuickOpenEntry>;
 
 	constructor(entries: QuickOpenEntry[] = [], actionProvider: IActionProvider = new NoActionProvider()) {
 		this._entries = entries;

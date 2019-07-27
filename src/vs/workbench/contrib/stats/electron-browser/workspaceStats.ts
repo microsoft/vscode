@@ -182,13 +182,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportWorkspaceTags(tags: Tags): void {
 		/* __GDPR__
-			"workspce.tags" : {
+			"workspace.tags" : {
 				"${include}": [
 					"${WorkspaceTags}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog('workspce.tags', tags);
+		this.telemetryService.publicLog('workspace.tags', tags);
 	}
 
 	private reportRemoteDomains(workspaceUris: URI[]): void {

@@ -192,7 +192,7 @@ export class MarkerService implements IMarkerService {
 			return undefined;
 		}
 
-		// santize data
+		// sanitize data
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
 		endLineNumber = endLineNumber >= startLineNumber ? endLineNumber : startLineNumber;
@@ -224,7 +224,7 @@ export class MarkerService implements IMarkerService {
 			for (const resource in map) {
 				const entry = MapMap.get(this._byResource, resource, owner);
 				if (entry) {
-					// remeber what we remove
+					// remember what we remove
 					const [first] = entry;
 					if (first) {
 						changes.push(first.resource);

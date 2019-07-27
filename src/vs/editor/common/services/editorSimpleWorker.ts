@@ -648,7 +648,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		if (this._foreignModuleFactory) {
 			this._foreignModule = this._foreignModuleFactory(ctx, createData);
-			// static foreing module
+			// static foreign module
 			return Promise.resolve(types.getAllMethodNames(this._foreignModule));
 		}
 		// ESM-comment-begin

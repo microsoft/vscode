@@ -20,7 +20,7 @@ class StaticValueReplacePattern {
 }
 
 /**
- * Assigned when the replace pattern has replacemend patterns.
+ * Assigned when the replace pattern has replacement patterns.
  */
 class DynamicPiecesReplacePattern {
 	public readonly kind = ReplacePatternKind.DynamicPieces;

@@ -174,9 +174,8 @@ export class ExplorerItem {
 	}
 
 	/**
-	 * Merges the stat which was resolved from the disk with the local stat by copying over properties
-	 * and children. The merge will only consider resolved stat elements to avoid overwriting data which
-	 * exists locally.
+	 * Merges the stat that was resolved from the disk with the local stat by copying over properties
+	 * and children. The merge will only consider resolved stat elements to avoid overwriting data existing locally.
 	 */
 	static mergeLocalWithDisk(disk: ExplorerItem, local: ExplorerItem): void {
 		if (disk.resource.toString() !== local.resource.toString()) {
@@ -338,7 +337,7 @@ export class ExplorerItem {
 		}
 
 		if (this.isDirectory) {
-			// Ignore separtor to more easily deduct the next name to search
+			// Ignore separator to more easily deduct the next name to search
 			while (index < path.length && path[index] === posix.sep) {
 				index++;
 			}

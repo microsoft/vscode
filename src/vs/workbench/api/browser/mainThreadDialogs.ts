@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../common/extHost.protocol';
+import { MainThreadDialogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { forEach } from 'vs/base/common/collections';
 import { IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 
 @extHostNamedCustomer(MainContext.MainThreadDialogs)
-export class MainThreadDialogs implements MainThreadDiaglogsShape {
+export class MainThreadDialogs implements MainThreadDialogsShape {
 
 	constructor(
 		context: IExtHostContext,

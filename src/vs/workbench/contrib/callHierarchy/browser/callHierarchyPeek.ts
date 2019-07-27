@@ -114,7 +114,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: true, showArrow: true, isResizable: true, isAccessible: true });
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getTheme());

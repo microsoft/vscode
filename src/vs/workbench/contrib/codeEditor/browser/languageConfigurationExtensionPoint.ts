@@ -73,7 +73,7 @@ export class LanguageConfigurationFileHandler {
 	) {
 		this._done = [];
 
-		// Listen for hints that a language configuration is needed/usefull and then load it once
+		// Listen for hints that a language configuration is needed/useful and then load it once
 		this._modeService.onDidCreateMode((mode) => {
 			const languageIdentifier = mode.getLanguageIdentifier();
 			// Modes can be instantiated before the extension points have finished registering
@@ -448,7 +448,7 @@ const schema: IJSONSchema = {
 		},
 		autoCloseBefore: {
 			default: ';:.,=}])> \n\t',
-			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which can not start an expression.'),
+			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters that can not start an expression.'),
 			type: 'string',
 		},
 		surroundingPairs: {

@@ -165,12 +165,10 @@ class TypeScriptLanguageServiceHost {
         if (this._files.hasOwnProperty(fileName)) {
             return ts.ScriptSnapshot.fromString(this._files[fileName]);
         }
-        else if (this._libs.hasOwnProperty(fileName)) {
+        if (this._libs.hasOwnProperty(fileName)) {
             return ts.ScriptSnapshot.fromString(this._libs[fileName]);
         }
-        else {
-            return ts.ScriptSnapshot.fromString('');
-        }
+        return ts.ScriptSnapshot.fromString('');
     }
     getScriptKind(_fileName) {
         return ts.ScriptKind.TS;
@@ -283,7 +281,7 @@ function markNodes(languageService, options) {
             setColor(node, 0 /* White */);
             // add to black queue
             enqueue_black(node);
-            // // move from one queue to the other
+            // move from one queue to the other
             // black_queue.push(node);
             // setColor(node, NodeColor.Black);
             return;

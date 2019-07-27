@@ -589,7 +589,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	if (debugActive && !breakpoint.verified) {
 		return {
 			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
-			message: breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified logpoint") : nls.localize('unverifiedBreakopint', "Unverified breakpoint"),
+			message: breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified logpoint") : nls.localize('unverifiedBreakpoint', "Unverified breakpoint"),
 		};
 	}
 
