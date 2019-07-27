@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 
@@ -213,6 +213,14 @@ export class ApiGit implements Git {
 export class ApiImpl implements API {
 
 	readonly git = new ApiGit(this._model);
+
+	get state(): APIState {
+		return this._model.state;
+	}
+
+	get onDidChangeState(): Event<APIState> {
+		return this._model.onDidChangeState;
+	}
 
 	get onDidOpenRepository(): Event<Repository> {
 		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));

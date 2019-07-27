@@ -7,10 +7,11 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
+import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
 import { Event } from 'vs/base/common/event';
+import { InvisibleSizing } from 'vs/base/browser/ui/splitview/splitview';
 
-export { Orientation, Sizing as GridViewSizing } from './gridview';
+export { Orientation, Sizing as GridViewSizing, IViewSize, orthogonal, LayoutPriority } from './gridview';
 
 export const enum Direction {
 	Up,
@@ -28,9 +29,15 @@ function oppositeDirection(direction: Direction): Direction {
 	}
 }
 
+export interface IView extends IGridViewView {
+	readonly preferredHeight?: number;
+	readonly preferredWidth?: number;
+}
+
 export interface GridLeafNode<T extends IView> {
 	readonly view: T;
 	readonly box: Box;
+	readonly cachedVisibleSize: number | undefined;
 }
 
 export interface GridBranchNode<T extends IView> {
@@ -173,16 +180,23 @@ function getGridLocation(element: HTMLElement): number[] {
 	return [...getGridLocation(ancestor), index];
 }
 
-export const enum Sizing {
-	Distribute = 'distribute',
-	Split = 'split'
+export type DistributeSizing = { type: 'distribute' };
+export type SplitSizing = { type: 'split' };
+export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
+export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+
+export namespace Sizing {
+	export const Distribute: DistributeSizing = { type: 'distribute' };
+	export const Split: SplitSizing = { type: 'split' };
+	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
 export interface IGridStyles extends IGridViewStyles { }
 
 export interface IGridOptions {
-	styles?: IGridStyles;
-	proportionalLayout?: boolean;
+	readonly styles?: IGridStyles;
+	readonly proportionalLayout?: boolean;
+	readonly firstViewVisibleCachedSize?: number;
 }
 
 export class Grid<T extends IView = IView> extends Disposable {
@@ -208,9 +222,13 @@ export class Grid<T extends IView = IView> extends Disposable {
 		this.gridview = new GridView(options);
 		this._register(this.gridview);
 
-		this._register(this.gridview.onDidSashReset(this.doResetViewSize, this));
+		this._register(this.gridview.onDidSashReset(this.onDidSashReset, this));
 
-		this._addView(view, 0, [0]);
+		const size: number | GridViewSizing = typeof options.firstViewVisibleCachedSize === 'number'
+			? GridViewSizing.Invisible(options.firstViewVisibleCachedSize)
+			: 0;
+
+		this._addView(view, size, [0]);
 	}
 
 	style(styles: IGridStyles): void {
@@ -241,10 +259,12 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 		let viewSize: number | GridViewSizing;
 
-		if (size === Sizing.Split) {
+		if (typeof size === 'number') {
+			viewSize = size;
+		} else if (size.type === 'split') {
 			const [, index] = tail(referenceLocation);
 			viewSize = GridViewSizing.Split(index);
-		} else if (size === Sizing.Distribute) {
+		} else if (size.type === 'distribute') {
 			viewSize = GridViewSizing.Distribute;
 		} else {
 			viewSize = size;
@@ -264,7 +284,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 		}
 
 		const location = this.getViewLocation(view);
-		this.gridview.removeView(location, sizing === Sizing.Distribute ? GridViewSizing.Distribute : undefined);
+		this.gridview.removeView(location, (sizing && sizing.type === 'distribute') ? GridViewSizing.Distribute : undefined);
 		this.views.delete(view);
 	}
 
@@ -320,7 +340,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	getViews(): GridBranchNode<T> {
-		return this.gridview.getViews() as GridBranchNode<T>;
+		return this.gridview.getView() as GridBranchNode<T>;
 	}
 
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
@@ -355,8 +375,36 @@ export class Grid<T extends IView = IView> extends Disposable {
 		return getGridLocation(element);
 	}
 
-	private doResetViewSize(location: number[]): void {
-		const [parentLocation,] = tail(location);
+	private onDidSashReset(location: number[]): void {
+		const resizeToPreferredSize = (location: number[]): boolean => {
+			const node = this.gridview.getView(location) as GridNode<T>;
+
+			if (isGridBranchNode(node)) {
+				return false;
+			}
+
+			const direction = getLocationOrientation(this.orientation, location);
+			const size = direction === Orientation.HORIZONTAL ? node.view.preferredWidth : node.view.preferredHeight;
+
+			if (typeof size !== 'number') {
+				return false;
+			}
+
+			const viewSize = direction === Orientation.HORIZONTAL ? { width: Math.round(size) } : { height: Math.round(size) };
+			this.gridview.resizeView(location, viewSize);
+			return true;
+		};
+
+		if (resizeToPreferredSize(location)) {
+			return;
+		}
+
+		const [parentLocation, index] = tail(location);
+
+		if (resizeToPreferredSize([...parentLocation, index + 1])) {
+			return;
+		}
+
 		this.gridview.distributeViewSizes(parentLocation);
 	}
 }
@@ -379,6 +427,7 @@ export interface ISerializedLeafNode {
 	type: 'leaf';
 	data: object | null;
 	size: number;
+	visible?: boolean;
 }
 
 export interface ISerializedBranchNode {
@@ -402,6 +451,10 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const size = orientation === Orientation.VERTICAL ? node.box.width : node.box.height;
 
 		if (!isGridBranchNode(node)) {
+			if (typeof node.cachedVisibleSize === 'number') {
+				return { type: 'leaf', data: node.view.toJSON(), size: node.cachedVisibleSize, visible: false };
+			}
+
 			return { type: 'leaf', data: node.view.toJSON(), size };
 		}
 
@@ -426,25 +479,26 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 					throw new Error('Invalid JSON: \'size\' property of node must be a number.');
 				}
 
+				const childSize = child.type === 'leaf' && child.visible === false ? 0 : child.size;
 				const childBox: Box = orientation === Orientation.HORIZONTAL
-					? { top: box.top, left: box.left + offset, width: child.size, height: box.height }
-					: { top: box.top + offset, left: box.left, width: box.width, height: child.size };
+					? { top: box.top, left: box.left + offset, width: childSize, height: box.height }
+					: { top: box.top + offset, left: box.left, width: box.width, height: childSize };
 
 				children.push(SerializableGrid.deserializeNode(child, orthogonal(orientation), childBox, deserializer));
-				offset += child.size;
+				offset += childSize;
 			}
 
 			return { children, box };
 
 		} else if (json.type === 'leaf') {
 			const view: T = deserializer.fromJSON(json.data);
-			return { view, box };
+			return { view, box, cachedVisibleSize: json.visible === false ? json.size : undefined };
 		}
 
 		throw new Error('Invalid JSON: \'type\' property must be either \'branch\' or \'leaf\'.');
 	}
 
-	private static getFirstLeaf<T extends IView>(node: GridNode<T>): GridLeafNode<T> | undefined {
+	private static getFirstLeaf<T extends IView>(node: GridNode<T>): GridLeafNode<T> {
 		if (!isGridBranchNode(node)) {
 			return node;
 		}
@@ -471,6 +525,10 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 
 		if (!firstLeaf) {
 			throw new Error('Invalid serialized state, first leaf not found');
+		}
+
+		if (typeof firstLeaf.cachedVisibleSize === 'number') {
+			options = { ...options, firstViewVisibleCachedSize: firstLeaf.cachedVisibleSize };
 		}
 
 		const result = new SerializableGrid<T>(firstLeaf.view, options);
@@ -522,13 +580,16 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const firstLeaves = node.children.map(c => SerializableGrid.getFirstLeaf(c));
 
 		for (let i = 1; i < firstLeaves.length; i++) {
-			const size = orientation === Orientation.VERTICAL ? firstLeaves[i]!.box.height : firstLeaves[i]!.box.width;
-			this.addView(firstLeaves[i]!.view, size, referenceView, direction);
-			referenceView = firstLeaves[i]!.view;
+			const node = firstLeaves[i];
+			const size: number | InvisibleSizing = typeof node.cachedVisibleSize === 'number'
+				? GridViewSizing.Invisible(node.cachedVisibleSize)
+				: (orientation === Orientation.VERTICAL ? node.box.height : node.box.width);
+			this.addView(node.view, size, referenceView, direction);
+			referenceView = node.view;
 		}
 
 		for (let i = 0; i < node.children.length; i++) {
-			this.restoreViews(firstLeaves[i]!.view, orthogonal(orientation), node.children[i]);
+			this.restoreViews(firstLeaves[i].view, orthogonal(orientation), node.children[i]);
 		}
 	}
 

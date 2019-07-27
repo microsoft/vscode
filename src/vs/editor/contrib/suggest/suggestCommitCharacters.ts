@@ -36,10 +36,17 @@ export class CommitCharacterController {
 
 	private _onItem(selected: ISelectedSuggestion | undefined): void {
 		if (!selected || !isNonEmptyArray(selected.item.completion.commitCharacters)) {
+			// no item or no commit characters
 			this.reset();
 			return;
 		}
 
+		if (this._active && this._active.item.item === selected.item) {
+			// still the same item
+			return;
+		}
+
+		// keep item and its commit characters
 		const acceptCharacters = new CharacterSet();
 		for (const ch of selected.item.completion.commitCharacters) {
 			if (ch.length > 0) {

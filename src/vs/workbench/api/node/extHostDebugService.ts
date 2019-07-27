@@ -20,7 +20,7 @@ import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstract
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
@@ -318,7 +318,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
@@ -341,10 +341,22 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				} else {
 					resolve(true);
 				}
-			}).then(needNewTerminal => {
+			}).then(async needNewTerminal => {
+
+				const configProvider = await this._configurationService.getConfigProvider();
+				const shell = this._terminalService.getDefaultShell(configProvider);
 
 				if (needNewTerminal || !this._integratedTerminalInstance) {
-					this._integratedTerminalInstance = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
+					const options: vscode.TerminalOptions = {
+						shellPath: shell,
+						// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
+						cwd: args.cwd,
+						name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+						env: args.env
+					};
+					delete args.cwd;
+					delete args.env;
+					this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 				}
 				const terminal: vscode.Terminal = this._integratedTerminalInstance;
 
@@ -352,7 +364,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 				return this._integratedTerminalInstance.processId.then(shellProcessId => {
 
-					const command = prepareCommand(args, config);
+					const command = prepareCommand(args, shell, configProvider);
+
 					terminal.sendText(command, true);
 
 					return shellProcessId;
@@ -361,7 +374,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		} else if (args.kind === 'external') {
 
-			runInExternalTerminal(args, config);
+			runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return Promise.resolve(undefined);
 	}

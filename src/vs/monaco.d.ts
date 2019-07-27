@@ -29,7 +29,8 @@ declare namespace monaco {
 
 
 	export enum MarkerTag {
-		Unnecessary = 1
+		Unnecessary = 1,
+		Deprecated = 2
 	}
 
 	export enum MarkerSeverity {
@@ -585,6 +586,14 @@ declare namespace monaco {
 		 * Test if `otherRange` is in `range`. If the ranges are equal, will return true.
 		 */
 		static containsRange(range: IRange, otherRange: IRange): boolean;
+		/**
+		 * Test if `range` is strictly in this range. `range` must start after and end before this range for the result to be true.
+		 */
+		strictContainsRange(range: IRange): boolean;
+		/**
+		 * Test if `otherRange` is strinctly in `range` (must start after, and end before). If the ranges are equal, will return false.
+		 */
+		static strictContainsRange(range: IRange, otherRange: IRange): boolean;
 		/**
 		 * A reunion of the two ranges.
 		 * The smallest position will be used as the start point, and the largest one as the end point.

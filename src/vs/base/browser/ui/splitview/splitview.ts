@@ -59,8 +59,11 @@ interface ISashEvent {
 	alt: boolean;
 }
 
+type ViewItemSize = number | { cachedVisibleSize: number };
+
 abstract class ViewItem {
 
+	private _size: number;
 	set size(size: number) {
 		this._size = size;
 	}
@@ -69,10 +72,11 @@ abstract class ViewItem {
 		return this._size;
 	}
 
-	private cachedSize: number | undefined = undefined;
+	private _cachedVisibleSize: number | undefined = undefined;
+	get cachedVisibleSize(): number | undefined { return this._cachedVisibleSize; }
 
 	get visible(): boolean {
-		return typeof this.cachedSize === 'undefined';
+		return typeof this._cachedVisibleSize === 'undefined';
 	}
 
 	set visible(visible: boolean) {
@@ -81,10 +85,10 @@ abstract class ViewItem {
 		}
 
 		if (visible) {
-			this.size = this.cachedSize!;
-			this.cachedSize = undefined;
+			this.size = clamp(this._cachedVisibleSize!, this.viewMinimumSize, this.viewMaximumSize);
+			this._cachedVisibleSize = undefined;
 		} else {
-			this.cachedSize = this.size;
+			this._cachedVisibleSize = this.size;
 			this.size = 0;
 		}
 
@@ -104,7 +108,20 @@ abstract class ViewItem {
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
 	get snap(): boolean { return !!this.view.snap; }
 
-	constructor(protected container: HTMLElement, private view: IView, private _size: number, private disposable: IDisposable) {
+	constructor(
+		protected container: HTMLElement,
+		private view: IView,
+		size: ViewItemSize,
+		private disposable: IDisposable
+	) {
+		if (typeof size === 'number') {
+			this._size = size;
+			this._cachedVisibleSize = undefined;
+		} else {
+			this._size = 0;
+			this._cachedVisibleSize = size.cachedVisibleSize;
+		}
+
 		dom.addClass(container, 'visible');
 	}
 
@@ -166,11 +183,13 @@ enum State {
 
 export type DistributeSizing = { type: 'distribute' };
 export type SplitSizing = { type: 'split', index: number };
-export type Sizing = DistributeSizing | SplitSizing;
+export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
+export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
 
 export namespace Sizing {
 	export const Distribute: DistributeSizing = { type: 'distribute' };
 	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
+	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
 export class SplitView extends Disposable {
@@ -279,12 +298,14 @@ export class SplitView extends Disposable {
 		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
 		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
 
-		let viewSize: number;
+		let viewSize: ViewItemSize;
 
 		if (typeof size === 'number') {
 			viewSize = size;
 		} else if (size.type === 'split') {
 			viewSize = this.getViewSize(size.index) / 2;
+		} else if (size.type === 'invisible') {
+			viewSize = { cachedVisibleSize: size.cachedVisibleSize };
 		} else {
 			viewSize = view.minimumSize;
 		}
@@ -315,7 +336,24 @@ export class SplitView extends Disposable {
 			const onChangeDisposable = onChange(this.onSashChange, this);
 			const onEnd = Event.map(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
 			const onEndDisposable = onEnd(this.onSashEnd, this);
-			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
+
+			const onDidResetDisposable = sash.onDidReset(() => {
+				const index = firstIndex(this.sashItems, item => item.sash === sash);
+				const upIndexes = range(index, -1);
+				const downIndexes = range(index + 1, this.viewItems.length);
+				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+
+				if (typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible) {
+					return;
+				}
+
+				if (typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible) {
+					return;
+				}
+
+				this._onDidSashReset.fire(index);
+			});
 
 			const disposable = combinedDisposable(onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash);
 			const sashItem: ISashItem = { sash, disposable };
@@ -418,6 +456,15 @@ export class SplitView extends Disposable {
 
 		this.distributeEmptySpace(index);
 		this.layoutViews();
+	}
+
+	getViewCachedVisibleSize(index: number): number | undefined {
+		if (index < 0 || index >= this.viewItems.length) {
+			throw new Error('Index out of bounds');
+		}
+
+		const viewItem = this.viewItems[index];
+		return viewItem.cachedVisibleSize;
 	}
 
 	layout(size: number): void {
@@ -600,10 +647,19 @@ export class SplitView extends Disposable {
 	}
 
 	distributeViewSizes(): void {
-		const size = Math.floor(this.size / this.viewItems.length);
+		const flexibleViewItems: ViewItem[] = [];
+		let flexibleSize = 0;
 
-		for (let i = 0; i < this.viewItems.length; i++) {
-			const item = this.viewItems[i];
+		for (const item of this.viewItems) {
+			if (item.maximumSize - item.minimumSize > 0) {
+				flexibleViewItems.push(item);
+				flexibleSize += item.size;
+			}
+		}
+
+		const size = Math.floor(flexibleSize / flexibleViewItems.length);
+
+		for (const item of flexibleViewItems) {
 			item.size = clamp(size, item.minimumSize, item.maximumSize);
 		}
 
