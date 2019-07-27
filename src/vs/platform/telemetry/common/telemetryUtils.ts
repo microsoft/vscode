@@ -186,6 +186,7 @@ const configurationValueWhitelist = [
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
+	'workbench.editor.showTitleBar',
 	'workbench.editor.highlightModifiedTabs',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',

@@ -365,7 +365,11 @@ export abstract class TitleControl extends Themable {
 	}
 
 	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+		if (this.accessor.partOptions.showTitleBar) {
+			return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+		} else {
+			return 0;
+		}
 	}
 
 	dispose(): void {

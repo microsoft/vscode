@@ -24,6 +24,11 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
 			},
+			'workbench.editor.showTitleBar': {
+				'type': 'boolean',
+				'description': nls.localize('showEditorTitleBars', "Controls whether opened editors should display a title bar (containing tabs and/or breadcrumbs) or not."),
+				'default': true
+			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
 				'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),

@@ -48,9 +48,13 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) {
+.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) .editorTitle {
 	display: flex; /* when tabs are not shown, use flex layout */
 	flex-wrap: nowrap;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.editorTitle) {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.title-border-bottom::after {

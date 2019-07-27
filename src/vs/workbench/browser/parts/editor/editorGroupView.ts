@@ -399,6 +399,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private updateTitleContainer(): void {
+		toggleClass(this.titleContainer, 'editorTitle', this.accessor.partOptions.showTitleBar);
 		toggleClass(this.titleContainer, 'tabs', this.accessor.partOptions.showTabs);
 		toggleClass(this.titleContainer, 'show-file-icons', this.accessor.partOptions.showIcons);
 	}
@@ -593,6 +594,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
 			this.createTitleAreaControl();
 
+			if (this._group.activeEditor) {
+				this.titleAreaControl.openEditor(this._group.activeEditor);
+			}
+		}
+
+		// Switch between showing editor title bar <=> not showing editor title bar
+		if (event.oldPartOptions.showTitleBar !== event.newPartOptions.showTitleBar) {
 			if (this._group.activeEditor) {
 				this.titleAreaControl.openEditor(this._group.activeEditor);
 			}

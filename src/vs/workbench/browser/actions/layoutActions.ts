@@ -356,6 +356,37 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAc
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
 }), 'View: Toggle Tab Visibility', viewCategory);
 
+// --- Toggle Editor Title Bar Visibility
+
+class ToggleEditorTitleBarVisibilityAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleEditorTitleBarVisibility';
+	static readonly LABEL = nls.localize('toggleEditorTitleBars', "Toggle Editor Title Bar Visibility");
+
+	private static readonly editorTitleBarVisibleKey = 'workbench.editor.showTitleBar';
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		const visibility = this.configurationService.getValue<string>(ToggleEditorTitleBarVisibilityAction.editorTitleBarVisibleKey);
+		const newVisibilityValue = !visibility;
+
+		return this.configurationService.updateValue(ToggleEditorTitleBarVisibilityAction.editorTitleBarVisibleKey, newVisibilityValue);
+	}
+}
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorTitleBarVisibilityAction, ToggleEditorTitleBarVisibilityAction.ID, ToggleEditorTitleBarVisibilityAction.LABEL, {
+	primary: undefined!,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
+}), 'View: Toggle Editor Title Bar Visibility', viewCategory);
+
 // --- Toggle Zen Mode
 
 class ToggleZenMode extends Action {

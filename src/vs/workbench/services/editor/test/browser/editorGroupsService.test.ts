@@ -344,9 +344,11 @@ suite('EditorGroupsService', () => {
 		const currentOptions = part.partOptions;
 		assert.ok(currentOptions);
 
-		part.enforcePartOptions({ showTabs: false });
+		part.enforcePartOptions({ showTabs: false, showTitleBar: true });
 		assert.equal(part.partOptions.showTabs, false);
+		assert.equal(part.partOptions.showTitleBar, true);
 		assert.equal(newOptions.showTabs, false);
+		assert.equal(newOptions.showTitleBar, true);
 		assert.equal(oldOptions, currentOptions);
 
 		part.dispose();

@@ -111,7 +111,11 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT;
+		if (this.accessor.partOptions.showTitleBar) {
+			return EDITOR_TITLE_HEIGHT;
+		} else {
+			return 0;
+		}
 	}
 
 	openEditor(editor: IEditorInput): void {

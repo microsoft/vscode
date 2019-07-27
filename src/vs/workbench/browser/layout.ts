@@ -39,6 +39,7 @@ enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible',
+	SHOW_EDITOR_TITLE_BARS = 'workbench.editor.showTitleBar',
 
 	SIDEBAR_POSITION = 'workbench.sideBar.location',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
@@ -138,6 +139,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			centered: false,
 			restoreCentered: false,
 			restoreEditors: false,
+			showTitleBar: true,
 			editorsToOpen: [] as Promise<IResourceEditor[]> | IResourceEditor[]
 		},
 
@@ -291,6 +293,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
+		// Editor tabs visibility
+		const newEditorTitleBarVisibility = !this.configurationService.getValue<boolean>(Settings.SHOW_EDITOR_TITLE_BARS);
+		this.setEditorTitleBarVisibility(newEditorTitleBarVisibility, !!skipLayout);
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -403,6 +408,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
+
+		// Editor title bar visibility
+		this.state.editor.showTitleBar = !!this.configurationService.getValue<string>(Settings.SHOW_EDITOR_TITLE_BARS);
 
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
@@ -695,6 +703,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.layout();
 			} else {
 				this.workbenchGrid.layout();
+			}
+		}
+	}
+
+	setEditorTitleBarVisibility(visibility: boolean, skipLayout: boolean): void {
+		if (this.state.editor.showTitleBar !== visibility) {
+			this.state.editor.showTitleBar = visibility;
+
+			// Layout
+			if (!skipLayout) {
+				if (this.workbenchGrid instanceof Grid) {
+					this.layout();
+				} else {
+					this.workbenchGrid.layout();
+				}
 			}
 		}
 	}
