@@ -535,14 +535,12 @@ class WordHighlightNavigationAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = WordHighlighterContribution.get(editor);
-		if (!controller) {
-			return;
-		}
-
-		if (this._isNext) {
-			controller.moveNext();
-		} else {
-			controller.moveBack();
+		if (controller) {
+			if (this._isNext) {
+				controller.moveNext();
+			} else {
+				controller.moveBack();
+			}
 		}
 	}
 }
@@ -596,8 +594,8 @@ class TriggerWordHighlightAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const controller = WordHighlighterContribution.get(editor);
-		if (!controller) {
-			return;
+		if (controller) {
+			controller.restoreViewState(true);
 		}
 
 		controller.restoreViewState(true);
