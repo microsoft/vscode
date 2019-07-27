@@ -1187,9 +1187,9 @@ export class TerminalInstance implements ITerminalInstance {
 		const terminal = this._xterm;
 		if (config.cursorBlinking) {
 			if (config.rendererType === 'dom') {
-				const domRenderer = terminal._core._renderService._renderer;
+				// Turn off blinking but refocus the DomRenderer
 				terminal.setOption('cursorBlink', false);
-				domRenderer.onFocus();
+				(terminal._core._renderService._renderer as any).onFocus();
 			} else {
 				// Save the original blur cursor render function
 				const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
