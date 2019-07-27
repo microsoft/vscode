@@ -1187,7 +1187,9 @@ export class TerminalInstance implements ITerminalInstance {
 		const terminal = this._xterm;
 		if (config.cursorBlinking) {
 			if (config.rendererType === 'dom') {
-				// TODO
+				const domRenderer = terminal._core._renderService._renderer;
+				terminal.setOption('cursorBlink', false);
+				domRenderer.onFocus();
 			} else {
 				// Save the original blur cursor render function
 				const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
@@ -1200,11 +1202,17 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _restoreBlurCursor(): void {
-		if (this._canvasBlurCursor) {
-			const terminal = this._xterm;
-			const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
-			cursorRenderLayer._renderBlurCursor = this._canvasBlurCursor;
+		const config = this._configHelper.config;
+		const terminal = this._xterm;
+		if (config.rendererType === 'dom') {
+			terminal.setOption('cursorBlink', config.cursorBlinking);
+		} else {
+			if (this._canvasBlurCursor) {
+				const cursorRenderLayer = terminal._core._renderService._renderer._renderLayers[3];
+				cursorRenderLayer._renderBlurCursor = this._canvasBlurCursor;
+			}
 		}
+
 	}
 
 	private _onCursorMove(): void {
