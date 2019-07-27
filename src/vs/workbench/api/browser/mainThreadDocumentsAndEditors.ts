@@ -30,6 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 namespace delta {
 
@@ -322,7 +323,7 @@ export class MainThreadDocumentsAndEditors {
 		extHostContext: IExtHostContext,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorService private readonly _editorService: EditorServiceImpl,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IModeService modeService: IModeService,
 		@IFileService fileService: IFileService,
@@ -335,7 +336,7 @@ export class MainThreadDocumentsAndEditors {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		const mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService));
+		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService, this._editorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
 		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));

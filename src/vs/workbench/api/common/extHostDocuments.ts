@@ -17,11 +17,13 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	private _onDidAddDocument = new Emitter<vscode.TextDocument>();
 	private _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
+	private _onDidCloseDocument = new Emitter<vscode.TextDocument>();
 	private _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
 	private _onDidSaveDocument = new Emitter<vscode.TextDocument>();
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
+	readonly onDidCloseDocument: Event<vscode.TextDocument> = this._onDidCloseDocument.event;
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
 
@@ -52,6 +54,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public getAllDocumentData(): ExtHostDocumentData[] {
 		return this._documentsAndEditors.allDocuments();
+	}
+
+	public $acceptDocumentClosed(strURL: UriComponents): void {
+		const uri = URI.revive(strURL);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
+
+		this._onDidCloseDocument.fire(data.document);
 	}
 
 	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {

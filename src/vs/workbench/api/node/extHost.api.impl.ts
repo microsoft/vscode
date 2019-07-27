@@ -660,6 +660,9 @@ export function createApiFactory(
 			onDidCloseTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocuments.onDidRemoveDocument(listener, thisArgs, disposables);
 			},
+			onDidCloseDocument: (listener, thisArgs?, disposables?) => {
+				return extHostDocuments.onDidCloseDocument(listener, thisArgs, disposables);
+			},
 			onDidChangeTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocuments.onDidChangeDocument(listener, thisArgs, disposables);
 			},
