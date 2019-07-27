@@ -758,7 +758,6 @@ export interface ExtHostDocumentsShape {
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
 	$acceptModelChanged(strURL: UriComponents, e: IModelChangedEvent, isDirty: boolean): void;
-	$acceptDocumentClosed(strURL: UriComponents): void;
 }
 
 export interface ExtHostDocumentSaveParticipantShape {

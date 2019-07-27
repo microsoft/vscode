@@ -19,8 +19,6 @@ import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/service
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 export class BoundModelReferenceCollection {
 
@@ -90,8 +88,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IEditorService editorService: EditorServiceImpl
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
@@ -109,10 +106,6 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.push(this._modelReferenceCollection);
 		this._toDispose.push(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-
-		this._toDispose.push(editorService.onDidCloseEditor(e => {
-			this._proxy.$acceptDocumentClosed(e.editor.getResource()!);
-		}));
 		this._toDispose.push(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptModelSaved(e.resource);
