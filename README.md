@@ -22,8 +22,6 @@ This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Stu
 
 Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
 
-
-
 ## Contributing
 
 There are many ways in which you can participate in the project, for example:
