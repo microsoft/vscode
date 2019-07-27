@@ -277,8 +277,8 @@ const registerDebugToolBarItem = (id: string, title: string, icon: string, order
 			id,
 			title,
 			iconLocation: {
-				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}.svg`)),
-				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-inverse.svg`))
+				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-light.svg`)),
+				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-dark.svg`))
 			},
 			precondition
 		}
@@ -534,7 +534,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 // Touch Bar
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr, icon: string) => {
+	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr | undefined, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
 				id,

@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
-import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/electron-main/historyStorage';
+import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/common/historyStorage';
 import { exists } from 'vs/base/node/pfs';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -270,7 +270,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
 		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(HistoryMainService.recentlyOpenedStorageKey);
 
-		return restoreRecentlyOpened(storedRecents);
+		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

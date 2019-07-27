@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -12,7 +12,6 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platf
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
@@ -58,22 +57,30 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	termProgram?: string;
 }
 
+export interface IBrowserWindowConfiguration {
+	workspaceId: string;
+	remoteAuthority?: string;
+	webviewEndpoint?: string;
+}
+
 export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(configuration: IWorkbenchConstructionOptions) {
+	constructor(configuration: IBrowserWindowConfiguration) {
 		this.args = { _: [] };
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
 		this.configuration.remoteAuthority = configuration.remoteAuthority;
-
-		this.appSettingsHome = joinPath(URI.revive(JSON.parse(document.getElementById('vscode-remote-user-data-uri')!.getAttribute('data-settings')!)), 'User');
-		this.settingsResource = joinPath(this.appSettingsHome, 'settings.json');
-		this.keybindingsResource = joinPath(this.appSettingsHome, 'keybindings.json');
-		this.keyboardLayoutResource = joinPath(this.appSettingsHome, 'keyboardLayout.json');
+		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
+		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
+		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
+		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
+		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
+		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
+		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, configuration.workspaceId);
 
 		this.logsPath = '/web/logs';
 
@@ -84,6 +91,36 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 
 		this.webviewEndpoint = configuration.webviewEndpoint;
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
+
+		if (document && document.location && document.location.search) {
+
+			const map = new Map<string, string>();
+			const query = document.location.search.substring(1);
+			const vars = query.split('&');
+			for (let p of vars) {
+				const pair = p.split('=');
+				if (pair.length >= 2) {
+					map.set(decodeURIComponent(pair[0]), decodeURIComponent(pair[1]));
+				}
+			}
+
+			const edp = map.get('edp');
+			if (edp) {
+				this.extensionDevelopmentLocationURI = [URI.parse(edp)];
+				this.isExtensionDevelopment = true;
+			}
+
+			const di = map.get('di');
+			if (di) {
+				this.debugExtensionHost.debugId = di;
+			}
+
+			const ibe = map.get('ibe');
+			if (ibe) {
+				this.debugExtensionHost.port = parseInt(ibe);
+				this.debugExtensionHost.break = false;
+			}
+		}
 	}
 
 	untitledWorkspacesHome: URI;
@@ -97,22 +134,22 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	appNameLong: string;
 	appQuality?: string;
 	appSettingsHome: URI;
+	userRoamingDataHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
+	localeResource: URI;
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
 	globalStorageHome: string;
 	workspaceStorageHome: string;
-	backupHome: string;
+	backupHome: URI;
 	backupWorkspacesPath: string;
 	workspacesHome: string;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
-	extensionsPath: string;
+	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -136,8 +173,13 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 	webviewEndpoint?: string;
+	galleryMachineIdResource?: URI;
 
 	get webviewResourceRoot(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource' : 'vscode-resource:';
+		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
+	}
+
+	get webviewCspSource(): string {
+		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
 	}
 }

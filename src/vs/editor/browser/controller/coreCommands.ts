@@ -316,6 +316,9 @@ export namespace CoreNavigationCommands {
 			const result = this._getColumnSelectResult(cursors.context, cursors.getPrimaryCursor(), cursors.getColumnSelectData(), args);
 			cursors.setStates(args.source, CursorChangeReason.Explicit, result.viewStates.map((viewState) => CursorState.fromViewState(viewState)));
 			cursors.setColumnSelectData({
+				isReal: true,
+				fromViewLineNumber: result.fromLineNumber,
+				fromViewVisualColumn: result.fromVisualColumn,
 				toViewLineNumber: result.toLineNumber,
 				toViewVisualColumn: result.toVisualColumn
 			});
@@ -338,15 +341,15 @@ export namespace CoreNavigationCommands {
 
 			// validate `args`
 			const validatedPosition = context.model.validatePosition(args.position);
+			const validatedViewPosition = context.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
 
-			let validatedViewPosition: Position;
-			if (args.viewPosition) {
-				validatedViewPosition = context.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
-			} else {
-				validatedViewPosition = context.convertModelPositionToViewPosition(validatedPosition);
+			let fromViewLineNumber = prevColumnSelectData.fromViewLineNumber;
+			let fromViewVisualColumn = prevColumnSelectData.fromViewVisualColumn;
+			if (!prevColumnSelectData.isReal && args.setAnchorIfNotSet) {
+				fromViewLineNumber = validatedViewPosition.lineNumber;
+				fromViewVisualColumn = args.mouseColumn - 1;
 			}
-
-			return ColumnSelection.columnSelect(context.config, context.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, args.mouseColumn - 1);
+			return ColumnSelection.columnSelect(context.config, context.viewModel, fromViewLineNumber, fromViewVisualColumn, validatedViewPosition.lineNumber, args.mouseColumn - 1);
 		}
 	});
 
@@ -365,7 +368,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectLeft(context.config, context.viewModel, primary.viewState, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectLeft(context.config, context.viewModel, prevColumnSelectData);
 		}
 	});
 
@@ -384,7 +387,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectRight(context.config, context.viewModel, primary.viewState, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectRight(context.config, context.viewModel, prevColumnSelectData);
 		}
 	});
 
@@ -398,7 +401,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectUp(context.config, context.viewModel, primary.viewState, this._isPaged, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectUp(context.config, context.viewModel, prevColumnSelectData, this._isPaged);
 		}
 	}
 
@@ -436,7 +439,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectDown(context.config, context.viewModel, primary.viewState, this._isPaged, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectDown(context.config, context.viewModel, prevColumnSelectData, this._isPaged);
 		}
 	}
 

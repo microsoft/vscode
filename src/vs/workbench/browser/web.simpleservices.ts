@@ -5,344 +5,38 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as browser from 'vs/base/browser/browser';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-// tslint:disable-next-line: import-patterns no-standalone-editor
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IPager } from 'vs/base/common/paging';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, ITelemetryData, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 // tslint:disable-next-line: import-patterns
-// tslint:disable-next-line: import-patterns
-import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
-// tslint:disable-next-line: import-patterns
-import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
-// tslint:disable-next-line: import-patterns
-import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { CommentingRanges } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-
-//#region Backup File
-
-export class SimpleBackupFileService implements IBackupFileService {
-
-	_serviceBrand: any;
-
-	private backups: Map<string, ITextSnapshot> = new Map();
-
-	hasBackups(): Promise<boolean> {
-		return Promise.resolve(this.backups.size > 0);
-	}
-
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
-		const backupResource = this.toBackupResource(resource);
-		if (this.backups.has(backupResource.toString())) {
-			return Promise.resolve(backupResource);
-		}
-
-		return Promise.resolve(undefined);
-	}
-
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		const backupResource = this.toBackupResource(resource);
-		this.backups.set(backupResource.toString(), content);
-
-		return Promise.resolve();
-	}
-
-	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
-		const snapshot = this.backups.get(backupResource.toString());
-		if (snapshot) {
-			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
-		}
-
-		return Promise.reject('Unexpected backup resource to resolve');
-	}
-
-	getWorkspaceFileBackups(): Promise<URI[]> {
-		return Promise.resolve(keys(this.backups).map(key => URI.parse(key)));
-	}
-
-	discardResourceBackup(resource: URI): Promise<void> {
-		this.backups.delete(this.toBackupResource(resource).toString());
-
-		return Promise.resolve();
-	}
-
-	discardAllWorkspaceBackups(): Promise<void> {
-		this.backups.clear();
-
-		return Promise.resolve();
-	}
-
-	toBackupResource(resource: URI): URI {
-		return resource;
-	}
-}
-
-registerSingleton(IBackupFileService, SimpleBackupFileService, true);
-
-//#endregion
-
-//#region Clipboard
-
-export class SimpleClipboardService implements IClipboardService {
-
-	_serviceBrand: any;
-
-	writeText(text: string, type?: string): void { }
-
-	readText(type?: string): string {
-		// @ts-ignore
-		return undefined;
-	}
-
-	readFindText(): string {
-		// @ts-ignore
-		return undefined;
-	}
-
-	writeFindText(text: string): void { }
-
-	writeResources(resources: URI[]): void { }
-
-	readResources(): URI[] {
-		return [];
-	}
-
-	hasResources(): boolean {
-		return false;
-	}
-}
-
-registerSingleton(IClipboardService, SimpleClipboardService, true);
-
-//#endregion
-
-//#region Dialog
-
-// export class SimpleDialogService extends StandaloneEditorDialogService { }
-
-// registerSingleton(IDialogService, SimpleDialogService, true);
-
-//#endregion
-
-//#region Download
-
-export class SimpleDownloadService implements IDownloadService {
-
-	_serviceBrand: any;
-
-	download(uri: URI, to?: string, cancellationToken?: CancellationToken): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IDownloadService, SimpleDownloadService, true);
-
-//#endregion
-
-//#region Extension Gallery
-
-export class SimpleExtensionGalleryService implements IExtensionGalleryService {
-
-	_serviceBrand: any;
-
-	isEnabled(): boolean {
-		return false;
-	}
-
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	// @ts-ignore
-	getCompatibleExtension(extension: IGalleryExtension): Promise<IGalleryExtension>;
-	getCompatibleExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
-	getCompatibleExtension(id: any, version?: any) {
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true);
-
-//#endregion
-
-//#endregion IExtensionsWorkbenchService
-export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchService {
-	_serviceBrand: any;
-	onChange: Event<IExtension2 | undefined>;
-	local: IExtension2[];
-	installed: IExtension2[];
-	outdated: IExtension2[];
-	queryLocal: any;
-	queryGallery: any;
-	canInstall: any;
-	install: any;
-	uninstall: any;
-	installVersion: any;
-	reinstall: any;
-	setEnablement: any;
-	open: any;
-	checkForUpdates: any;
-	allowedBadgeProviders: string[];
-}
-registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregion
-
-//#region ICommentService
-export class SimpleCommentService implements ICommentService {
-	_serviceBrand: any;
-	onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = Event.None;
-	onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = Event.None;
-	onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = Event.None;
-	onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges; }> = Event.None;
-	onDidChangeActiveCommentThread: Event<any> = Event.None;
-	onDidSetDataProvider: Event<void> = Event.None;
-	onDidDeleteDataProvider: Event<string> = Event.None;
-	setDocumentComments: any;
-	setWorkspaceComments: any;
-	removeWorkspaceComments: any;
-	registerCommentController: any;
-	unregisterCommentController: any;
-	getCommentController: any;
-	createCommentThreadTemplate: any;
-	updateCommentThreadTemplate: any;
-	getCommentMenus: any;
-	registerDataProvider: any;
-	unregisterDataProvider: any;
-	updateComments: any;
-	disposeCommentThread: any;
-	createNewCommentThread: any;
-	replyToCommentThread: any;
-	editComment: any;
-	deleteComment: any;
-	getComments() { return Promise.resolve([]); }
-	getCommentingRanges: any;
-	startDraft: any;
-	deleteDraft: any;
-	finishDraft: any;
-	getStartDraftLabel: any;
-	getDeleteDraftLabel: any;
-	getFinishDraftLabel: any;
-	addReaction: any;
-	deleteReaction: any;
-	getReactionGroup: any;
-	hasReactionHandler: any;
-	toggleReaction: any;
-	setActiveCommentThread: any;
-}
-registerSingleton(ICommentService, SimpleCommentService, true);
-//#endregion
-
-//#region Extension Management
-
-//#region Extension Enablement
-
-export class SimpleExtensionEnablementService implements IExtensionEnablementService {
-
-	_serviceBrand: any;
-
-	readonly onEnablementChanged = Event.None;
-
-	readonly allUserExtensionsDisabled = false;
-
-	getEnablementState(extension: IExtension): EnablementState {
-		return EnablementState.Enabled;
-	}
-
-	canChangeEnablement(extension: IExtension): boolean {
-		return false;
-	}
-
-	setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
-		throw new Error('not implemented');
-	}
-
-	isEnabled(extension: IExtension): boolean {
-		return true;
-	}
-
-}
-
-registerSingleton(IExtensionEnablementService, SimpleExtensionEnablementService, true);
-
-//#endregion
+import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+// tslint:disable-next-line: import-patterns
+import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 //#region Extension Tips
 
@@ -375,7 +69,7 @@ export class SimpleExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } {
-		return Object.create(null);
+		return { global: [], workspace: [] };
 	}
 }
 
@@ -422,17 +116,17 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve([]);
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve([]);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		// @ts-ignore
-		return Promise.resolve(undefined);
+		return Promise.resolve(local);
 	}
 }
 
@@ -526,164 +220,6 @@ export class SimpleMultiExtensionsManagementService implements IExtensionManagem
 
 //#endregion
 
-//#region Request
-
-export const IRequestService = createDecorator<IRequestService>('requestService');
-
-export interface IRequestService {
-	_serviceBrand: any;
-
-	request(options: any, token: CancellationToken): Promise<object>;
-}
-
-export class SimpleRequestService implements IRequestService {
-
-	_serviceBrand: any;
-
-	request(options: any, token: CancellationToken): Promise<object> {
-		return Promise.resolve(Object.create(null));
-	}
-}
-
-//#endregion
-
-//#region Storage
-
-export class LocalStorageService extends Disposable implements IStorageService {
-	_serviceBrand = undefined;
-
-	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
-
-	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
-
-	constructor(
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService
-	) {
-		super();
-
-		this._register(lifecycleService.onBeforeShutdown(() => this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN })));
-	}
-
-	private toKey(key: string, scope: StorageScope): string {
-		if (scope === StorageScope.GLOBAL) {
-			return `global://${key}`;
-		}
-
-		return `workspace://${this.workspaceContextService.getWorkspace().id}/${key}`;
-	}
-
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		const value = window.localStorage.getItem(this.toKey(key, scope));
-
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
-		}
-
-		return value;
-	}
-
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		const value = window.localStorage.getItem(this.toKey(key, scope));
-
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
-		}
-
-		return value === 'true';
-	}
-
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		const value = window.localStorage.getItem(this.toKey(key, scope));
-
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
-		}
-
-		return parseInt(value, 10);
-	}
-
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): Promise<void> {
-
-		// We remove the key for undefined/null values
-		if (isUndefinedOrNull(value)) {
-			return this.remove(key, scope);
-		}
-
-		// Otherwise, convert to String and store
-		const valueStr = String(value);
-
-		// Return early if value already set
-		const currentValue = window.localStorage.getItem(this.toKey(key, scope));
-		if (currentValue === valueStr) {
-			return Promise.resolve();
-		}
-
-		// Update in cache
-		window.localStorage.setItem(this.toKey(key, scope), valueStr);
-
-		// Events
-		this._onDidChangeStorage.fire({ scope, key });
-
-		return Promise.resolve();
-	}
-
-	remove(key: string, scope: StorageScope): Promise<void> {
-		const wasDeleted = window.localStorage.getItem(this.toKey(key, scope));
-		window.localStorage.removeItem(this.toKey(key, scope));
-
-		if (!wasDeleted) {
-			return Promise.resolve(); // Return early if value already deleted
-		}
-
-		// Events
-		this._onDidChangeStorage.fire({ scope, key });
-
-		return Promise.resolve();
-	}
-}
-
-registerSingleton(IStorageService, LocalStorageService);
-
-//#endregion
-
-//#region Telemetry
-
-export class SimpleTelemetryService implements ITelemetryService {
-
-	_serviceBrand: undefined;
-
-	isOptedIn: true;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-
-	setEnabled(value: boolean): void {
-	}
-
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
-		});
-	}
-}
-
-registerSingleton(ITelemetryService, SimpleTelemetryService);
-
-//#endregion
-
 //#region Update
 
 export class SimpleUpdateService implements IUpdateService {
@@ -749,13 +285,35 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	readonly windowId = 0;
 
+	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
+		this.addWorkspaceToRecentlyOpened();
+		this.registerListeners();
+	}
+
+	private addWorkspaceToRecentlyOpened(): void {
+		const workspace = this.workspaceService.getWorkspace();
+		switch (this.workspaceService.getWorkbenchState()) {
+			case WorkbenchState.FOLDER:
+				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri }]);
+				break;
+			case WorkbenchState.WORKSPACE:
+				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
+				break;
+		}
+	}
+
+	private registerListeners(): void {
 		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
 			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
 				browser.setFullscreen(true);
@@ -860,11 +418,54 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return Promise.resolve({
-			workspaces: [],
-			files: []
+	async getRecentlyOpened(): Promise<IRecentlyOpened> {
+		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
+		if (recentlyOpenedRaw) {
+			return restoreRecentlyOpened(JSON.parse(recentlyOpenedRaw), this.logService);
+		}
+
+		return { workspaces: [], files: [] };
+	}
+
+	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
+		const recentlyOpened = await this.getRecentlyOpened();
+
+		recents.forEach(recent => {
+			if (isRecentFile(recent)) {
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.fileUri]);
+				recentlyOpened.files.unshift(recent);
+			} else if (isRecentFolder(recent)) {
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.folderUri]);
+				recentlyOpened.workspaces.unshift(recent);
+			} else {
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
+				recentlyOpened.workspaces.unshift(recent);
+			}
 		});
+
+		return this.saveRecentlyOpened(recentlyOpened);
+	}
+
+	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
+		const recentlyOpened = await this.getRecentlyOpened();
+
+		this.doRemoveFromRecentlyOpened(recentlyOpened, paths);
+
+		return this.saveRecentlyOpened(recentlyOpened);
+	}
+
+	private doRemoveFromRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
+		recentlyOpened.files = recentlyOpened.files.filter(file => {
+			return !paths.some(path => path.toString() === file.fileUri.toString());
+		});
+
+		recentlyOpened.workspaces = recentlyOpened.workspaces.filter(workspace => {
+			return !paths.some(path => path.toString() === (isRecentFolder(workspace) ? workspace.folderUri.toString() : workspace.workspace.configPath.toString()));
+		});
+	}
+
+	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
+		return this.storageService.store(SimpleWindowService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
 	}
 
 	focusWindow(): Promise<void> {
@@ -960,23 +561,34 @@ registerSingleton(IWindowService, SimpleWindowService);
 
 //#region ExtensionHostDebugService
 
-export class SimpleExtensionHostDebugService implements IExtensionHostDebugService {
-	_serviceBrand: any;
+export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
-	reload(sessionId: string): void { }
-	onReload: Event<IReloadSessionEvent> = Event.None;
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		//@IWindowService windowService: IWindowService,
+		@IEnvironmentService environmentService: IEnvironmentService
+	) {
+		const connection = remoteAgentService.getConnection();
 
-	close(sessionId: string): void { }
-	onClose: Event<ICloseSessionEvent> = Event.None;
+		if (!connection) {
+			throw new Error('Missing agent connection');
+		}
 
-	attachSession(sessionId: string, port: number, subId?: string): void { }
-	onAttachSession: Event<IAttachSessionEvent> = Event.None;
+		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
 
-	logToSession(sessionId: string, log: IRemoteConsoleLog): void { }
-	onLogToSession: Event<ILogToSessionEvent> = Event.None;
-
-	terminateSession(sessionId: string, subId?: string): void { }
-	onTerminateSession: Event<ITerminateSessionEvent> = Event.None;
+		this._register(this.onReload(event => {
+			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
+				//windowService.reloadWindow();
+				window.location.reload();
+			}
+		}));
+		this._register(this.onClose(event => {
+			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
+				//this._windowService.closeWindow();
+				window.close();
+			}
+		}));
+	}
 }
 registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
 
@@ -1121,6 +733,53 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+
+		// we pass the "ParsedArgs" as query parameters of the URL
+
+		let newAddress = `${document.location.origin}/?`;
+
+		const f = args['folder-uri'];
+		if (f) {
+			let u: URI | undefined;
+			if (Array.isArray(f)) {
+				if (f.length > 0) {
+					u = URI.parse(f[0]);
+				}
+			} else {
+				u = URI.parse(f);
+			}
+			if (u) {
+				newAddress += `folder=${encodeURIComponent(u.path)}`;
+			}
+		}
+
+		const ep = args['extensionDevelopmentPath'];
+		if (ep) {
+			let u: string | undefined;
+			if (Array.isArray(ep)) {
+				if (ep.length > 0) {
+					u = ep[0];
+				}
+			} else {
+				u = ep;
+			}
+			if (u) {
+				newAddress += `&edp=${encodeURIComponent(u)}`;
+			}
+		}
+
+		const di = args['debugId'];
+		if (di) {
+			newAddress += `&di=${encodeURIComponent(di)}`;
+		}
+
+		const ibe = args['inspect-brk-extensions'];
+		if (ibe) {
+			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
+		}
+
+		window.open(newAddress);
+
 		return Promise.resolve();
 	}
 
@@ -1287,5 +946,36 @@ class SimpleTunnelService implements ITunnelService {
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);
+
+//#endregion
+
+//#region experiments
+
+class ExperimentService implements IExperimentService {
+	_serviceBrand: any;
+
+	async getExperimentById(id: string): Promise<IExperiment> {
+		return {
+			enabled: false,
+			id: '',
+			state: ExperimentState.NoRun
+		};
+	}
+
+	async getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
+		return [];
+	}
+
+	async getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
+		return [];
+	}
+
+	markAsCompleted(experimentId: string): void { }
+
+	onExperimentEnabled: Event<IExperiment> = Event.None;
+
+}
+
+registerSingleton(IExperimentService, ExperimentService);
 
 //#endregion

@@ -36,17 +36,17 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 // tslint:disable-next-line: import-patterns
 import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
+import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -192,12 +192,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
-			/* __GDPR__
-				"customKeybindingsChanged" : {
-					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this._telemetryService.publicLog('customKeybindingsChanged', {
+			type CustomKeybindingsChangedClassification = {
+				keyCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true }
+			};
+
+			this._telemetryService.publicLog2<{ keyCount: number }, CustomKeybindingsChangedClassification>('customKeybindingsChanged', {
 				keyCount: this.userKeybindings.keybindings.length
 			});
 			this.updateResolver({
@@ -301,7 +300,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
@@ -324,7 +323,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const parts = item.parts;
 			if (parts.length === 0) {
 				// This might be a removal keybinding item in user settings => accept it
@@ -342,6 +341,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
 		if (!isWeb) {
+			return false;
+		}
+
+		if (browser.isStandalone) {
 			return false;
 		}
 
@@ -527,11 +530,13 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			// ignore ctrl/cmd/alt-combination but not shift-combinatios
 			return false;
 		}
-		if (event.keyCode === KeyCode.Escape) {
+		const code = ScanCodeUtils.toEnum(event.code);
+		const keycode = IMMUTABLE_CODE_TO_KEY_CODE[code];
+		if (keycode !== -1) {
 			// https://github.com/microsoft/vscode/issues/74934
 			return false;
 		}
@@ -556,12 +561,11 @@ class UserKeybindings extends Disposable {
 
 	private _keybindings: IUserFriendlyKeybinding[] = [];
 	get keybindings(): IUserFriendlyKeybinding[] { return this._keybindings; }
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private readonly keybindingsResource: URI,
@@ -569,40 +573,15 @@ class UserKeybindings extends Disposable {
 	) {
 		super();
 
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
-		this._register(toDisposable(() => {
-			this.stopWatchingResource();
-			this.stopWatchingDirectory();
-		}));
-	}
-
-	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.keybindingsResource);
-	}
-
-	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
-	}
-
-	private watchDirectory(): void {
-		const directory = dirname(this.keybindingsResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
-	}
-
-	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keybindingsResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
-		const exists = await this.fileService.exists(this.keybindingsResource);
-		this.onResourceExists(exists);
 		await this.reload();
 	}
 
@@ -616,39 +595,6 @@ class UserKeybindings extends Disposable {
 			this._keybindings = [];
 		}
 		return existing ? !objects.equals(existing, this._keybindings) : true;
-	}
-
-	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
-		const events = event.changes;
-
-		let affectedByChanges = false;
-
-		// Find changes that affect the resource
-		for (const event of events) {
-			affectedByChanges = isEqual(this.keybindingsResource, event.resource);
-			if (affectedByChanges) {
-				if (event.type === FileChangeType.ADDED) {
-					this.onResourceExists(true);
-				} else if (event.type === FileChangeType.DELETED) {
-					this.onResourceExists(false);
-				}
-				break;
-			}
-		}
-
-		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
-		}
-	}
-
-	private onResourceExists(exists: boolean): void {
-		if (exists) {
-			this.stopWatchingDirectory();
-			this.watchResource();
-		} else {
-			this.stopWatchingResource();
-			this.watchDirectory();
-		}
 	}
 }
 
@@ -730,8 +676,8 @@ function updateSchema() {
 	};
 
 	const allCommands = CommandsRegistry.getCommands();
-	for (let commandId in allCommands) {
-		const commandDescription = allCommands[commandId].description;
+	for (const [commandId, command] of allCommands) {
+		const commandDescription = command.description;
 
 		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
 
@@ -759,7 +705,7 @@ function updateSchema() {
 	}
 
 	const menuCommands = MenuRegistry.getCommands();
-	for (let commandId in menuCommands) {
+	for (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -79,7 +78,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (isEqual(resource, this.environmentService.settingsResource, !isLinux)) {
+		if (isEqual(resource, this.environmentService.settingsResource)) {
 			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 

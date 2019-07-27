@@ -131,7 +131,10 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 	}
 
 	// Log it
-	console[entry.severity].apply(console, consoleArgs);
+	if (typeof (console as any)[entry.severity] !== 'function') {
+		throw new Error('Unknown console method');
+	}
+	(console as any)[entry.severity].apply(console, consoleArgs);
 }
 
 function color(color: string): string {

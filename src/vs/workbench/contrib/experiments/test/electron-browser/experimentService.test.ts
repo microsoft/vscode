@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExperimentService, ExperimentActionType, ExperimentState, IExperiment } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
+import { ExperimentActionType, ExperimentState, IExperiment } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { ExperimentService } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import {
-	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier,
-	IExtensionEnablementService, ILocalExtension
+	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -25,7 +26,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 

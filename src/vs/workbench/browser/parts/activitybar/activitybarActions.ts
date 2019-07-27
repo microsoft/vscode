@@ -72,13 +72,11 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 
 	private logAction(action: string) {
-		/* __GDPR__
-			"activityBarAction" : {
-				"viewletId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('activityBarAction', { viewletId: this.activity.id, action });
+		type ActivityBarActionClassification = {
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -165,7 +163,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, iconUrl: URI,
+		id: string, name: string, iconUrl: URI,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -173,7 +171,7 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
 
 		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
-		DOM.createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
+		DOM.createCSSRule(iconClass, `-webkit-mask: url('${DOM.asDomUri(iconUrl) || ''}') no-repeat 50% 50%; -webkit-mask-size: 24px;`);
 	}
 
 	setActivity(activity: IActivity): void {

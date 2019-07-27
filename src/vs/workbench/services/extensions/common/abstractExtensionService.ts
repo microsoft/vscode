@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -51,7 +51,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _installedExtensionsReady: Barrier;
 	protected readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
-	protected readonly _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
+	protected readonly _allRequestedActivateEvents = new Set<string>();
 	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
 	protected readonly _isExtensionDevTestFromCli: boolean;
@@ -82,7 +82,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
-		this._allRequestedActivateEvents = Object.create(null);
 		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
 
 		this._extensionHostProcessManagers = [];
@@ -168,11 +167,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public restartExtensionHost(): void {
 		this._stopExtensionHostProcess();
-		this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents));
+		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
 	public startExtensionHost(): void {
-		this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents));
+		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
 	public stopExtensionHost(): void {
@@ -184,7 +183,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Extensions have been scanned and interpreted
 
 			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents[activationEvent] = true;
+			this._allRequestedActivateEvents.add(activationEvent);
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
 				// There is no extension that is interested in this activation event
@@ -196,7 +195,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Extensions have not been scanned yet.
 
 			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents[activationEvent] = true;
+			this._allRequestedActivateEvents.add(activationEvent);
 
 			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
 		}
@@ -231,14 +230,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
 		return this._installedExtensionsReady.wait().then(() => {
-			let availableExtensions = this._registry.getAllExtensionDescriptions();
+			const availableExtensions = this._registry.getAllExtensionDescriptions();
 
-			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
-			for (let i = 0, len = availableExtensions.length; i < len; i++) {
-				let desc = availableExtensions[i];
-
+			const result: ExtensionPointContribution<T>[] = [];
+			for (const desc of availableExtensions) {
 				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
-					result[resultLen++] = new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name]);
+					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes]));
 				}
 			}
 
@@ -320,9 +317,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
-		for (let i = 0, len = extensionPoints.length; i < len; i++) {
-			if (affectedExtensionPoints[extensionPoints[i].name]) {
-				AbstractExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+		for (const extensionPoint of extensionPoints) {
+			if (affectedExtensionPoints[extensionPoint.name]) {
+				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
 			}
 		}
 	}
@@ -346,35 +343,38 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
-			/* __GDPR__
-				"extensionsMessage" : {
-					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-				}
-			*/
-			this._telemetryService.publicLog('extensionsMessage', {
+			type ExtensionsMessageClassification = {
+				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				extensionPointId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+			type ExtensionsMessageEvent = {
+				type: Severity;
+				extensionId: string;
+				extensionPointId: string;
+				message: string;
+			};
+			this._telemetryService.publicLog2<ExtensionsMessageEvent, ExtensionsMessageClassification>('extensionsMessage', {
 				type, extensionId: extensionId.value, extensionPointId, message
 			});
 		}
 	}
 
 	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
-		let users: IExtensionPointUser<T>[] = [], usersLen = 0;
-		for (let i = 0, len = availableExtensions.length; i < len; i++) {
-			let desc = availableExtensions[i];
-
+		const users: IExtensionPointUser<T>[] = [];
+		for (const desc of availableExtensions) {
 			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
-				users[usersLen++] = {
+				users.push({
 					description: desc,
-					value: desc.contributes[extensionPoint.name],
+					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes],
 					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
-				};
+				});
 			}
 		}
-
+		perf.mark(`willHandleExtensionPoint/${extensionPoint.name}`);
 		extensionPoint.acceptUsers(users);
+		perf.mark(`didHandleExtensionPoint/${extensionPoint.name}`);
 	}
 
 	private _showMessageToUser(severity: Severity, msg: string): void {

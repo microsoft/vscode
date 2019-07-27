@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { originalFSPath } from 'vs/base/common/resources';
 import { Barrier } from 'vs/base/common/async';
-import { dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,7 +15,7 @@ import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/node/ex
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -26,7 +26,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -34,6 +33,7 @@ import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -50,6 +50,16 @@ export interface IHostUtils {
 	exists(path: string): Promise<boolean>;
 	realpath(path: string): Promise<string>;
 }
+
+type TelemetryActivationEventFragment = {
+	id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	extensionVersion: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	activationEvents: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
@@ -81,6 +91,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _started: boolean;
 
+	private readonly _disposables: DisposableStore;
+
 	constructor(
 		hostUtils: IHostUtils,
 		initData: IInitData,
@@ -98,6 +110,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extHostConfiguration = extHostConfiguration;
 		this._environment = environment;
 		this._extHostLogService = extHostLogService;
+		this._disposables = new DisposableStore();
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
 		this._mainThreadTelemetryProxy = this._extHostContext.getProxy(MainContext.MainThreadTelemetry);
@@ -304,32 +317,32 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"extensionActivationTimes" : {
-				"${include}": [
-					"${TelemetryActivationEvent}",
-					"${ExtensionActivationTimes}"
-				],
-				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._mainThreadTelemetryProxy.$publicLog('extensionActivationTimes', {
+		type ExtensionActivationTimesClassification = {
+			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
+
+		type ExtensionActivationTimesEvent = {
+			outcome: string
+		} & ActivationTimesEvent & TelemetryActivationEvent;
+
+		type ActivationTimesEvent = {
+			startup?: boolean;
+			codeLoadingTime?: number;
+			activateCallTime?: number;
+			activateResolvedTime?: number;
+		};
+
+		this._mainThreadTelemetryProxy.$publicLog2<ExtensionActivationTimesEvent, ExtensionActivationTimesClassification>('extensionActivationTimes', {
 			...event,
 			...(activationTimes || {}),
-			outcome,
+			outcome
 		});
 	}
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"activatePlugin" : {
-				"${include}": [
-					"${TelemetryActivationEvent}"
-				]
-			}
-		*/
-		this._mainThreadTelemetryProxy.$publicLog('activatePlugin', event);
+		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
+		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
@@ -414,24 +427,30 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			console.error(err);
 		});
 
-		return this._handleWorkspaceContainsEagerExtensions(this._extHostWorkspace.workspace);
+		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
+		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
+		return this._handleWorkspaceContainsEagerExtensions(folders);
 	}
 
-	private _handleWorkspaceContainsEagerExtensions(workspace: IWorkspace | undefined): Promise<void> {
-		if (!workspace || workspace.folders.length === 0) {
+	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {
+		if (folders.length === 0) {
 			return Promise.resolve(undefined);
 		}
 
 		return Promise.all(
 			this._registry.getAllExtensionDescriptions().map((desc) => {
-				return this._handleWorkspaceContainsEagerExtension(workspace, desc);
+				return this._handleWorkspaceContainsEagerExtension(folders, desc);
 			})
 		).then(() => { });
 	}
 
-	private _handleWorkspaceContainsEagerExtension(workspace: IWorkspace, desc: IExtensionDescription): Promise<void> {
+	private _handleWorkspaceContainsEagerExtension(folders: ReadonlyArray<vscode.WorkspaceFolder>, desc: IExtensionDescription): Promise<void> {
 		const activationEvents = desc.activationEvents;
 		if (!activationEvents) {
+			return Promise.resolve(undefined);
+		}
+
+		if (this.isActivated(desc.identifier)) {
 			return Promise.resolve(undefined);
 		}
 
@@ -453,16 +472,16 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			return Promise.resolve(undefined);
 		}
 
-		const fileNamePromise = Promise.all(fileNames.map((fileName) => this._activateIfFileName(workspace, desc.identifier, fileName))).then(() => { });
-		const globPatternPromise = this._activateIfGlobPatterns(desc.identifier, globPatterns);
+		const fileNamePromise = Promise.all(fileNames.map((fileName) => this._activateIfFileName(folders, desc.identifier, fileName))).then(() => { });
+		const globPatternPromise = this._activateIfGlobPatterns(folders, desc.identifier, globPatterns);
 
 		return Promise.all([fileNamePromise, globPatternPromise]).then(() => { });
 	}
 
-	private async _activateIfFileName(workspace: IWorkspace, extensionId: ExtensionIdentifier, fileName: string): Promise<void> {
+	private async _activateIfFileName(folders: ReadonlyArray<vscode.WorkspaceFolder>, extensionId: ExtensionIdentifier, fileName: string): Promise<void> {
 
 		// find exact path
-		for (const { uri } of workspace.folders) {
+		for (const { uri } of folders) {
 			if (await this._hostUtils.exists(path.join(URI.revive(uri).fsPath, fileName))) {
 				// the file was found
 				return (
@@ -475,7 +494,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return undefined;
 	}
 
-	private async _activateIfGlobPatterns(extensionId: ExtensionIdentifier, globPatterns: string[]): Promise<void> {
+	private async _activateIfGlobPatterns(folders: ReadonlyArray<vscode.WorkspaceFolder>, extensionId: ExtensionIdentifier, globPatterns: string[]): Promise<void> {
 		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId.value}, entryPoint: workspaceContains`);
 
 		if (globPatterns.length === 0) {
@@ -483,7 +502,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 
 		const tokenSource = new CancellationTokenSource();
-		const searchP = this._mainThreadWorkspaceProxy.$checkExists(globPatterns, tokenSource.token);
+		const searchP = this._mainThreadWorkspaceProxy.$checkExists(folders.map(folder => folder.uri), globPatterns, tokenSource.token);
 
 		const timer = setTimeout(async () => {
 			tokenSource.cancel();
@@ -635,12 +654,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		try {
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
+
+			// Split merged API result into separate authority/options
+			const authority: ResolvedAuthority = {
+				authority: remoteAuthority,
+				host: result.host,
+				port: result.port
+			};
+			const options: ResolvedOptions = {
+				extensionHostEnv: result.extensionHostEnv
+			};
+
 			return {
 				type: 'ok',
 				value: {
-					authority: remoteAuthority,
-					host: result.host,
-					port: result.port,
+					authority,
+					options
 				}
 			};
 		} catch (err) {
@@ -736,22 +765,20 @@ function loadCommonJSModule<T>(logService: ILogService, modulePath: string, acti
 	return Promise.resolve(r);
 }
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
+type TelemetryActivationEvent = {
+	id: string;
+	name: string;
+	extensionVersion: string;
+	publisherDisplayName: string;
+	activationEvents: string | null;
+	isBuiltin: boolean;
+	reason: string;
+};
+
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TelemetryActivationEvent {
 	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
 		reason instanceof ExtensionActivatedByAPI ? 'api' :
 			'';
-
-	/* __GDPR__FRAGMENT__
-		"TelemetryActivationEvent" : {
-			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"extensionVersion": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	*/
 	const event = {
 		id: extensionDescription.identifier.value,
 		name: extensionDescription.name,

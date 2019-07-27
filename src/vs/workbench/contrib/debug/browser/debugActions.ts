@@ -398,11 +398,11 @@ export class CopyValueAction extends Action {
 
 		if (this.value instanceof Variable && stackFrame && session && this.value.evaluateName) {
 			return session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context).then(result => {
-				this.clipboardService.writeText(result.body.result);
+				return this.clipboardService.writeText(result.body.result);
 			}, err => this.clipboardService.writeText(this.value.value));
 		}
 
-		this.clipboardService.writeText(this.value);
-		return Promise.resolve(undefined);
+
+		return this.clipboardService.writeText(this.value);
 	}
 }

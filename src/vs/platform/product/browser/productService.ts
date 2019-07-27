@@ -19,19 +19,31 @@ export class ProductService implements IProductService {
 
 	get version(): string { return '1.35.0'; }
 
-	get commit(): string | undefined { return undefined; }
+	get commit(): string | undefined { return this.productConfiguration ? this.productConfiguration.commit : undefined; }
 
 	get nameLong(): string { return ''; }
 
 	get urlProtocol(): string { return ''; }
 
-	get extensionAllowedProposedApi(): string[] { return this.productConfiguration ? this.productConfiguration.extensionAllowedProposedApi : []; }
+	get extensionAllowedProposedApi(): readonly string[] { return this.productConfiguration ? this.productConfiguration.extensionAllowedProposedApi : []; }
 
-	get uiExtensions(): string[] | undefined { return this.productConfiguration ? this.productConfiguration.uiExtensions : undefined; }
+	get uiExtensions(): readonly string[] | undefined { return this.productConfiguration ? this.productConfiguration.uiExtensions : undefined; }
 
 	get enableTelemetry(): boolean { return false; }
 
 	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } | undefined { return this.productConfiguration ? this.productConfiguration.sendASmile : undefined; }
 
 	get extensionsGallery() { return this.productConfiguration ? this.productConfiguration.extensionsGallery : undefined; }
+
+	get settingsSearchBuildId(): number | undefined { return this.productConfiguration ? this.productConfiguration.settingsSearchBuildId : undefined; }
+
+	get settingsSearchUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.settingsSearchUrl : undefined; }
+
+	get experimentsUrl(): string | undefined { return this.productConfiguration ? this.productConfiguration.experimentsUrl : undefined; }
+
+	get extensionKeywords(): { [extension: string]: readonly string[]; } | undefined { return this.productConfiguration ? this.productConfiguration.extensionKeywords : undefined; }
+
+	get extensionAllowedBadgeProviders(): readonly string[] | undefined { return this.productConfiguration ? this.productConfiguration.extensionAllowedBadgeProviders : undefined; }
+
+	get aiConfig() { return this.productConfiguration ? this.productConfiguration.aiConfig : undefined; }
 }

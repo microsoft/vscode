@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
+import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
+import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
 export interface IStorageMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -26,6 +27,10 @@ export interface IStorageMainService {
 	 * Emitted when the storage is about to persist. This is the right time
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
+	 *
+	 * Note: this event may be fired many times, not only on shutdown to prevent
+	 * loss of state in situations where the shutdown is not sufficient to
+	 * persist the data properly.
 	 */
 	readonly onWillSaveState: Event<void>;
 
@@ -70,15 +75,15 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static STORAGE_NAME = 'state.vscdb';
 
 	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;
 
 	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+	readonly onWillSaveState: Event<void> = this._onWillSaveState.event;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
@@ -163,9 +168,5 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Do it
 		return this.storage.close();
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return this.storage.checkIntegrity(full);
 	}
 }

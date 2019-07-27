@@ -153,7 +153,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaSetProvider: {
+		ariaProvider: {
 			getSetSize(node) {
 				return node.parent!.visibleChildrenCount;
 			},
@@ -1183,7 +1183,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);

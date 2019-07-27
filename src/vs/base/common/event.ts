@@ -271,7 +271,7 @@ export namespace Event {
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
-		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
 		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 	}
 
@@ -299,7 +299,7 @@ export namespace Event {
 			return new ChainableEvent(latch(this.event));
 		}
 
-		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
 			return this.event(listener, thisArgs, disposables);
 		}
 
@@ -321,6 +321,20 @@ export namespace Event {
 		const fn = (...args: any[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.on(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
+		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+
+		return result.event;
+	}
+
+	export interface DOMEventEmitter {
+		addEventListener(event: string | symbol, listener: Function): void;
+		removeEventListener(event: string | symbol, listener: Function): void;
+	}
+
+	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
+		const fn = (...args: any[]) => result.fire(map(...args));
+		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
+		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
 		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
 
 		return result.event;

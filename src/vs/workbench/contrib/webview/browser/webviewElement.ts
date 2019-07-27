@@ -32,11 +32,10 @@ export class IFrameWebview extends Disposable implements Webview {
 	private content: WebviewContent;
 	private _focused = false;
 
-	private readonly id: string;
-
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	constructor(
+		private readonly id: string,
 		private _options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
@@ -46,13 +45,15 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		if (typeof environmentService.webviewEndpoint !== 'string') {
+		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
+
+		if (typeof environmentService.webviewEndpoint !== 'string' && !useExternalEndpoint) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			this._options.extension ? this._options.extension.location : undefined,
-			() => this.content.options.portMappings || [],
+			() => this.content.options.portMapping || [],
 			tunnelService
 		));
 
@@ -62,11 +63,9 @@ export class IFrameWebview extends Disposable implements Webview {
 			state: undefined
 		};
 
-		this.id = `webview-${Date.now()}`;
-
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`);
+		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -144,13 +143,23 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._register(themeService.onThemeChange(this.style, this));
 	}
 
+	private get endpoint(): string {
+		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
+		const baseEndpoint = useExternalEndpoint ? 'https://{{uuid}}.vscode-webview-test.com/8fa811108f0f0524c473020ef57b6620f6c201e1' : this.environmentService.webviewEndpoint!;
+		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
+		if (endpoint[endpoint.length - 1] === '/') {
+			return endpoint.slice(0, endpoint.length - 1);
+		}
+		return endpoint;
+	}
+
 	public mountTo(parent: HTMLElement) {
 		if (this.element) {
 			parent.appendChild(this.element);
 		}
 	}
 
-	public set options(options: WebviewContentOptions) {
+	public set contentOptions(options: WebviewContentOptions) {
 		if (areWebviewInputOptionsEqual(options, this.content.options)) {
 			return;
 		}
@@ -174,7 +183,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.environmentService.webviewEndpoint}/vscode-resource${path}${endQuote}`);
+			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -250,27 +259,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.doUpdateContent();
 	}
 
-	selectAll(): void {
-		throw new Error('Method not implemented.');
-	}
-	copy(): void {
-		throw new Error('Method not implemented.');
-	}
-	paste(): void {
-		throw new Error('Method not implemented.');
-	}
-	cut(): void {
-		throw new Error('Method not implemented.');
-	}
-	undo(): void {
-		throw new Error('Method not implemented.');
-	}
-	redo(): void {
-		throw new Error('Method not implemented.');
-	}
 	showFind(): void {
 		throw new Error('Method not implemented.');
 	}
+
 	hideFind(): void {
 		throw new Error('Method not implemented.');
 	}

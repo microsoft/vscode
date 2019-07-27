@@ -103,21 +103,19 @@ export class StartupProfiler implements IWorkbenchContribution {
 		});
 	}
 
-	private _createPerfIssue(files: string[]): Promise<void> {
-		return this._textModelResolverService.createModelReference(PerfviewInput.Uri).then(ref => {
+	private async _createPerfIssue(files: string[]): Promise<void> {
+		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
+		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+		ref.dispose();
 
-			this._clipboardService.writeText(ref.object.textEditorModel.getValue());
-			ref.dispose();
-
-			const body = `
+		const body = `
 1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:
 1. :warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}
 `;
 
-			const baseUrl = product.reportIssueUrl;
-			const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
+		const baseUrl = product.reportIssueUrl;
+		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 
-			window.open(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`);
-		});
+		window.open(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`);
 	}
 }

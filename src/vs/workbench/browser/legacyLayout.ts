@@ -19,7 +19,7 @@ import { Part } from 'vs/workbench/browser/part';
 
 const TITLE_BAR_HEIGHT = isMacintosh && !isWeb ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
-const ACTIVITY_BAR_WIDTH = 50;
+const ACTIVITY_BAR_WIDTH = 48;
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
@@ -626,11 +626,11 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		}
 
 		// Propagate to Part Layouts
-		this.parts.titlebar.layout(this.workbenchSize.width, this.titlebarHeight, -1);
-		this.parts.editor.layout(editorSize.width, editorSize.height, -1);
-		this.parts.sidebar.layout(sidebarSize.width, sidebarSize.height, -1);
-		this.parts.panel.layout(panelDimension.width, panelDimension.height, -1);
-		this.parts.activitybar.layout(activityBarSize.width, activityBarSize.height, -1);
+		this.parts.titlebar.layout(this.workbenchSize.width, this.titlebarHeight);
+		this.parts.editor.layout(editorSize.width, editorSize.height);
+		this.parts.sidebar.layout(sidebarSize.width, sidebarSize.height);
+		this.parts.panel.layout(panelDimension.width, panelDimension.height);
+		this.parts.activitybar.layout(activityBarSize.width, activityBarSize.height);
 
 		// Propagate to Context View
 		this.contextViewService.layout();
@@ -726,8 +726,8 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 				} else {
 					const activeGroup = this.editorGroupService.activeGroup;
 
-					const activeGroupSize = this.editorGroupService.getSize(activeGroup);
-					this.editorGroupService.setSize(activeGroup, activeGroupSize + sizeChangePxWidth);
+					const { width, height } = this.editorGroupService.getSize(activeGroup);
+					this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
 				}
 		}
 

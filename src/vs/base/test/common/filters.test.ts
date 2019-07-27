@@ -13,8 +13,8 @@ function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, hig
 	}
 }
 
-function filterNotOk(filter: IFilter, word: string, suggestion: string) {
-	assert(!filter(word, suggestion));
+function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) {
+	assert(!filter(word, wordToMatchAgainst), `${word} matched ${wordToMatchAgainst}`);
 }
 
 suite('Filters', () => {
@@ -185,23 +185,23 @@ suite('Filters', () => {
 		assert(matchesWords('Debug Console', 'Open: Debug Console'));
 
 		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
-		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 4, end: 6 }]);
+		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 3, end: 4 }, { start: 5, end: 6 }]);
 		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
-		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 14, end: 16 }]);
+		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 13, end: 14 }, { start: 15, end: 16 }]);
 		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17 }]);
 
 		filterNotOk(matchesWords, 'it', 'Git: Pull');
 		filterNotOk(matchesWords, 'll', 'Git: Pull');
 
 		filterOk(matchesWords, 'git: プル', 'git: プル', [{ start: 0, end: 7 }]);
-		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 3 }, { start: 4, end: 7 }]);
+		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 4 }, { start: 5, end: 7 }]);
 
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
-		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
+		// assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 
 		filterOk(matchesWords, 'bar', 'foo-bar');
 		filterOk(matchesWords, 'bar test', 'foo-bar test');
@@ -212,7 +212,12 @@ suite('Filters', () => {
 		filterNotOk(matchesWords, 'bar est', 'foo-bar test');
 		filterNotOk(matchesWords, 'fo ar', 'foo-bar test');
 		filterNotOk(matchesWords, 'for', 'foo-bar test');
-		filterNotOk(matchesWords, 'foo bar', 'foo-bar');
+
+		filterOk(matchesWords, 'foo bar', 'foo-bar');
+		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
+		filterOk(matchesWords, 'foo+bar', 'foo-bar');
+		filterOk(matchesWords, 'foo-bar', 'foo bar');
+		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
@@ -464,5 +469,20 @@ suite('Filters', () => {
 
 	test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
 		assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
+	});
+
+	test('Autocompletion is matched against truncated filterText to 54 characters #74133', () => {
+		assertMatches(
+			'foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
+			'foo',
+			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			undefined,
+			fuzzyScore
+		);
 	});
 });

@@ -8,22 +8,36 @@ import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
 import { BrowserKeyboardMapperFactoryBase } from '../browser/keymapService';
 import { KeymapInfo, IKeymapInfo } from '../common/keymapInfo';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor() {
-		super();
+	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
+		super(notificationService, storageService, commandService);
 
-		let keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
+		const keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
 		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 		this._mru = this._keymapInfos;
 		this._initialized = true;
 		this.onKeyboardLayoutChanged();
+		const usLayout = this.getUSStandardLayout();
+		if (usLayout) {
+			this.setActiveKeyMapping(usLayout.mapping);
+		}
 	}
 }
 
-
 suite('keyboard layout loader', () => {
-	const instance: TestKeyboardMapperFactory = new TestKeyboardMapperFactory();
+	let instantiationService: TestInstantiationService = new TestInstantiationService();
+	let notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
+	let storageService = instantiationService.stub(IStorageService, new TestStorageService());
+
+	let commandService = instantiationService.stub(ICommandService, {});
+	let instance = new TestKeyboardMapperFactory(notitifcationService, storageService, commandService);
 
 	test('load default US keyboard layout', () => {
 		assert.notEqual(instance.activeKeyboardLayout, null);

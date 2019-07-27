@@ -247,7 +247,7 @@ export class WorkbenchList<T> extends List<T> {
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<any /* TODO@joao */, any>[],
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -268,7 +268,7 @@ export class WorkbenchList<T> extends List<T> {
 			}
 		);
 
-		this.disposables.push(workbenchListOptionsDisposable);
+		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.configurationService = configurationService;
@@ -282,31 +282,29 @@ export class WorkbenchList<T> extends List<T> {
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
-		this.disposables.push(
-			this.contextKeyService,
-			(listService as ListService).register(this),
-			attachListStyler(this, themeService),
-			this.onSelectionChange(() => {
-				const selection = this.getSelection();
-				const focus = this.getFocus();
+		this.disposables.add(this.contextKeyService);
+		this.disposables.add((listService as ListService).register(this));
+		this.disposables.add(attachListStyler(this, themeService));
+		this.disposables.add(this.onSelectionChange(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
 
-				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-				this.listMultiSelection.set(selection.length > 1);
-				this.listDoubleSelection.set(selection.length === 2);
-			}),
-			this.onFocusChange(() => {
-				const selection = this.getSelection();
-				const focus = this.getFocus();
+			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			this.listMultiSelection.set(selection.length > 1);
+			this.listDoubleSelection.set(selection.length === 2);
+		}));
+		this.disposables.add(this.onFocusChange(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
 
-				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-			})
-		);
+			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+		}));
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
@@ -719,7 +717,11 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		const isMouseEvent = e.browserEvent && e.browserEvent instanceof MouseEvent;
 
 		if (!isMouseEvent) {
-			this.open(true, false, false, e.browserEvent);
+			const preserveFocus = (e.browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>e.browserEvent).preserveFocus === 'boolean') ?
+				!!(<SelectionKeyboardEvent>e.browserEvent).preserveFocus :
+				true;
+
+			this.open(preserveFocus, false, false, e.browserEvent);
 		}
 	}
 
@@ -785,7 +787,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -811,7 +813,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -838,7 +840,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -856,15 +858,15 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	}
 }
 
-function workbenchTreeDataPreamble<T, TFilterData>(
+function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>>(
 	container: HTMLElement,
-	options: IAbstractTreeOptions<T, TFilterData>,
+	options: TOptions,
 	contextKeyService: IContextKeyService,
 	themeService: IThemeService,
 	configurationService: IConfigurationService,
 	keybindingService: IKeybindingService,
 	accessibilityService: IAccessibilityService,
-): { options: IAbstractTreeOptions<T, TFilterData>, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
+): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
 	WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
 	if (!didBindWorkbenchListAutomaticKeyboardNavigation) {
@@ -905,7 +907,7 @@ function workbenchTreeDataPreamble<T, TFilterData>(
 			horizontalScrolling,
 			openOnSingleClick,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
-		}
+		} as TOptions
 	};
 }
 
@@ -920,7 +922,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	constructor(
 		tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData>,
-		options: IAbstractTreeOptions<T, TFilterData>,
+		options: IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>,
 		getAutomaticKeyboardNavigation: () => boolean | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,

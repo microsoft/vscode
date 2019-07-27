@@ -19,6 +19,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class InspectContextKeysAction extends Action {
 
@@ -193,7 +194,29 @@ export class ToggleScreencastModeAction extends Action {
 	}
 }
 
+export class LogStorageAction extends Action {
+
+	static readonly ID = 'workbench.action.logStorage';
+	static LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
+
+	constructor(
+		id: string,
+		label: string,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWindowService private readonly windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		this.storageService.logStorage();
+
+		return this.windowService.openDevTools();
+	}
+}
+
 const developerCategory = nls.localize('developer', "Developer");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);

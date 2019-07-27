@@ -713,7 +713,7 @@ export namespace Config {
 		/**
 		* If set to true the watcher is in active mode when the task
 		* starts. This is equals of issuing a line that matches the
-		* beginPattern.
+		* beginsPattern.
 		*/
 		activeOnStart?: boolean;
 
@@ -1616,7 +1616,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1718,7 +1718,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 	private matchers: IStringDictionary<NamedProblemMatcher>;
 	private readyPromise: Promise<void>;
 	private readonly _onMatchersChanged: Emitter<void> = new Emitter<void>();
-	public get onMatcherChanged(): Event<void> { return this._onMatchersChanged.event; }
+	public readonly onMatcherChanged: Event<void> = this._onMatchersChanged.event;
 
 
 	constructor() {

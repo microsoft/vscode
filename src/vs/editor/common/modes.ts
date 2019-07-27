@@ -17,8 +17,8 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Open ended enum at runtime
@@ -509,6 +509,11 @@ export interface CompletionContext {
  * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
  */
 export interface CompletionItemProvider {
+
+	/**
+	 * @internal
+	 */
+	_debugDisplayName?: string;
 
 	triggerCharacters?: string[];
 	/**
@@ -1236,19 +1241,7 @@ export interface CommentThreadTemplate {
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
-	commentingRanges?: (IRange[] | CommentingRanges);
-	reply?: Command;
-	draftMode?: DraftMode;
-	template?: CommentThreadTemplate;
-}
-
-/**
- * @internal
- */
-export enum DraftMode {
-	NotSupported,
-	InDraft,
-	NotInDraft
+	commentingRanges: CommentingRanges;
 }
 
 /**
@@ -1288,11 +1281,11 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread2 {
+export interface CommentThread {
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
-	threadId: string | null;
+	threadId: string;
 	resource: string | null;
 	range: IRange;
 	label: string;
@@ -1302,11 +1295,6 @@ export interface CommentThread2 {
 	collapsibleState?: CommentThreadCollapsibleState;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	acceptInputCommand?: Command;
-	additionalCommands?: Command[];
-	deleteCommand?: Command;
-	onDidChangeAcceptInputCommand: Event<Command | undefined>;
-	onDidChangeAdditionalCommands: Event<Command[] | undefined>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
@@ -1320,30 +1308,6 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<CommentThread | undefined>;
-}
-
-/**
- * @internal
- */
-export interface CommentThread {
-	extensionId?: string;
-	threadId: string | null;
-	resource: string | null;
-	range: IRange;
-	comments: Comment[] | undefined;
-	collapsibleState?: CommentThreadCollapsibleState;
-	reply?: Command;
-	isDisposed?: boolean;
-	contextValue?: string;
-}
-
-/**
- * @internal
- */
-export interface NewCommentAction {
-	ranges: IRange[];
-	actions: Command[];
 }
 
 /**
@@ -1369,18 +1333,11 @@ export enum CommentMode {
  * @internal
  */
 export interface Comment {
-	readonly commentId: string;
-	readonly uniqueIdInThread?: number;
+	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
-	readonly canEdit?: boolean;
-	readonly canDelete?: boolean;
-	readonly selectCommand?: Command;
-	readonly editCommand?: Command;
-	readonly deleteCommand?: Command;
-	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
@@ -1393,54 +1350,17 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: (CommentThread | CommentThread2)[];
+	readonly added: CommentThread[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: (CommentThread | CommentThread2)[];
+	readonly removed: CommentThread[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: (CommentThread | CommentThread2)[];
-
-	/**
-	 * changed draft mode.
-	 */
-	readonly draftMode?: DraftMode;
-}
-
-/**
- * @internal
- */
-export interface DocumentCommentProvider {
-	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo | null>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread | null>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread | null>;
-	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
-
-	startDraftLabel?: string;
-	deleteDraftLabel?: string;
-	finishDraftLabel?: string;
-
-	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	reactionGroup?: CommentReaction[];
-
-	onDidChangeCommentThreads?(): Event<CommentThreadChangedEvent>;
-}
-
-/**
- * @internal
- */
-export interface WorkspaceCommentProvider {
-	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+	readonly changed: CommentThread[];
 }
 
 /**

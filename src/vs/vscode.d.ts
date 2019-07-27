@@ -2903,7 +2903,7 @@ declare module 'vscode' {
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
 	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -3826,7 +3826,7 @@ declare module 'vscode' {
 		/**
 		 * Provide selection ranges for the given positions.
 		 *
-		 * Selection ranges should be computed individually and independend for each postion. The editor will merge
+		 * Selection ranges should be computed individually and independent for each position. The editor will merge
 		 * and deduplicate ranges but providers must return hierarchies of selection ranges so that a range
 		 * is [contained](#Range.contains) by its parent.
 		 *
@@ -4754,24 +4754,24 @@ declare module 'vscode' {
 		 * An array to which disposables can be added. When this
 		 * extension is deactivated the disposables will be disposed.
 		 */
-		subscriptions: { dispose(): any }[];
+		readonly subscriptions: { dispose(): any }[];
 
 		/**
 		 * A memento object that stores state in the context
 		 * of the currently opened [workspace](#workspace.workspaceFolders).
 		 */
-		workspaceState: Memento;
+		readonly workspaceState: Memento;
 
 		/**
 		 * A memento object that stores state independent
 		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
-		globalState: Memento;
+		readonly globalState: Memento;
 
 		/**
 		 * The absolute file path of the directory containing the extension.
 		 */
-		extensionPath: string;
+		readonly extensionPath: string;
 
 		/**
 		 * Get the absolute path of a resource contained in the extension.
@@ -4789,7 +4789,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
-		storagePath: string | undefined;
+		readonly storagePath: string | undefined;
 
 		/**
 		 * An absolute file path in which the extension can store global state.
@@ -4798,14 +4798,14 @@ declare module 'vscode' {
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
-		globalStoragePath: string;
+		readonly globalStoragePath: string;
 
 		/**
 		 * An absolute file path of a directory in which the extension can create log files.
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
 		 */
-		logPath: string;
+		readonly logPath: string;
 	}
 
 	/**
@@ -5754,6 +5754,82 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The file system interface exposes the editor's built-in and contributed
+	 * [file system providers](#FileSystemProvider). It allows extensions to work
+	 * with files from the local disk as well as files from remote places, like the
+	 * remote extension host or ftp-servers.
+	 *
+	 * *Note* that an instance of this interface is avaiable as [`workspace.fs`](#workspace.fs).
+	 */
+	export interface FileSystem {
+
+		/**
+		 * Retrieve metadata about a file.
+		 *
+		 * @param uri The uri of the file to retrieve metadata about.
+		 * @return The file metadata about the file.
+		 */
+		stat(uri: Uri): Thenable<FileStat>;
+
+		/**
+		 * Retrieve all entries of a [directory](#FileType.Directory).
+		 *
+		 * @param uri The uri of the folder.
+		 * @return An array of name/type-tuples or a thenable that resolves to such.
+		 */
+		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+
+		/**
+		 * Create a new directory (Note, that new files are created via `write`-calls).
+		 *
+		 * @param uri The uri of the new folder.
+		 */
+		createDirectory(uri: Uri): Thenable<void>;
+
+		/**
+		 * Read the entire contents of a file.
+		 *
+		 * @param uri The uri of the file.
+		 * @return An array of bytes or a thenable that resolves to such.
+		 */
+		readFile(uri: Uri): Thenable<Uint8Array>;
+
+		/**
+		 * Write data to a file, replacing its entire contents.
+		 *
+		 * @param uri The uri of the file.
+		 * @param content The new content of the file.
+		 */
+		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
+
+		/**
+		 * Delete a file.
+		 *
+		 * @param uri The resource that is to be deleted.
+		 * @param options Defines if trash can should be used and if deletion of folders is recursive
+		 */
+		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
+		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
+
+		/**
+		 * Copy files or folders.
+		 *
+		 * @param source The existing file.
+		 * @param destination The destination location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
+		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
+	}
+
+	/**
 	 * Defines a port mapping used for localhost inside the webview.
 	 */
 	export interface WebviewPortMapping {
@@ -6078,6 +6154,12 @@ declare module 'vscode' {
 		 * a specific extension runs remote or not.
 		 */
 		export const remoteName: string | undefined;
+
+		/**
+		 * The detected default shell for the extension host, this is overridden by the
+		 * `terminal.integrated.shell` setting for the extension host's platform.
+		 */
+		export const shell: string;
 
 		/**
 		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
@@ -7520,6 +7602,14 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
+		 * A [file system](#FileSystem) instance that allows to interact with local and remote
+		 * files, e.g. `vscode.workspace.fs.readDirectory(someUri)` allows to retrieve all entries
+		 * of a directory or `vscode.workspace.fs.stat(anotherUri)` returns the meta data for a
+		 * file.
+		 */
+		export const fs: FileSystem;
+
+		/**
 		 * ~~The folder that is open in the editor. `undefined` when no folder
 		 * has been opened.~~
 		 *
@@ -7538,6 +7628,37 @@ declare module 'vscode' {
 		 * has been opened.
 		 */
 		export const name: string | undefined;
+
+		/**
+		 * The location of the workspace file, for example:
+		 *
+		 * `file:///Users/name/Development/myProject.code-workspace`
+		 *
+		 * or
+		 *
+		 * `untitled:1555503116870`
+		 *
+		 * for a workspace that is untitled and not yet saved.
+		 *
+		 * Depending on the workspace that is opened, the value will be:
+		 *  * `undefined` when no workspace or  a single folder is opened
+		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
+		 * is untitled, the returned URI will use the `untitled:` scheme
+		 *
+		 * The location can e.g. be used with the `vscode.openFolder` command to
+		 * open the workspace again after it has been closed.
+		 *
+		 * **Example:**
+		 * ```typescript
+		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
+		 * ```
+		 *
+		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
+		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
+		 * for that purpose which will work both when a single folder is opened as
+		 * well as an untitled or saved workspace.
+		 */
+		export const workspaceFile: Uri | undefined;
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.

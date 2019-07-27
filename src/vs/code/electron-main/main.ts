@@ -26,7 +26,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
@@ -161,7 +161,7 @@ class CodeMain {
 			environmentService.logsPath,
 			environmentService.globalStorageHome,
 			environmentService.workspaceStorageHome,
-			environmentService.backupHome
+			environmentService.backupHome.fsPath
 		].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 		// Configuration service
@@ -332,7 +332,9 @@ class CodeMain {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),
-				localize('startupDataDirErrorDetail', "Please make sure the directories {0} and {1} are writeable.", environmentService.userDataPath, environmentService.extensionsPath)
+				environmentService.extensionsPath
+					? localize('startupUserDataAndExtensionsDirErrorDetail', "Please make sure the directories {0} and {1} are writeable.", environmentService.userDataPath, environmentService.extensionsPath)
+					: localize('startupUserDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
 			);
 		}
 	}

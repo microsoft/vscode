@@ -11,9 +11,12 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
+import { stat } from 'vs/base/node/pfs';
+import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { URI } from 'vs/base/common/uri';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
@@ -65,16 +68,43 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			conptyInheritCursor: true
 		};
 
-		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
-		// fs.stat(shellLaunchConfig.executable!, (err) => {
-		// 	if (err && err.code === 'ENOENT') {
-		// 		this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-		// 		this._queueProcessExit();
-		// 		this._processStartupComplete = Promise.resolve(undefined);
-		// 		return;
-		// 	}
-		this.setupPtyProcess(shellLaunchConfig, options);
-		// });
+		const cwdVerification = stat(cwd).then(async stat => {
+			if (!stat.isDirectory()) {
+				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
+			}
+		}, async err => {
+			if (err && err.code === 'ENOENT') {
+				// So we can include in the error message the specified CWD
+				shellLaunchConfig.cwd = cwd;
+				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
+			}
+		});
+
+		const exectuableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
+			if (!stat.isFile() && !stat.isSymbolicLink()) {
+				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
+			}
+		}, async (err) => {
+			if (err && err.code === 'ENOENT') {
+				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
+				const executable = await findExecutable(shellLaunchConfig.executable!, cwd);
+				if (!executable) {
+					return Promise.reject(SHELL_PATH_INVALID_EXIT_CODE);
+				}
+			}
+		});
+
+		Promise.all([cwdVerification, exectuableVerification]).then(() => {
+			this.setupPtyProcess(shellLaunchConfig, options);
+		}).catch((exitCode: number) => {
+			return this._launchFailed(exitCode);
+		});
+	}
+
+	private _launchFailed(exitCode: number): void {
+		this._exitCode = exitCode;
+		this._queueProcessExit();
+		this._processStartupComplete = Promise.resolve(undefined);
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {

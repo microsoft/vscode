@@ -33,10 +33,10 @@ export interface IOpenCallbacks {
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
-	get onMetadataChanged(): Event<void> { return this._onMetadataChanged.event; }
+	readonly onMetadataChanged: Event<void> = this._onMetadataChanged.event;
 
 	private readonly _onDidOpenInPlace: Emitter<void> = this._register(new Emitter<void>());
-	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
+	readonly onDidOpenInPlace: Event<void> = this._onDidOpenInPlace.event;
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;

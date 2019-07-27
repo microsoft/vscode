@@ -24,7 +24,7 @@ import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDispo
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
@@ -61,7 +61,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private tabResourceLabels: ResourceLabels;
 	private tabLabels: IEditorInputLabel[] = [];
-	private tabDisposeables: IDisposable[] = [];
+	private tabDisposables: IDisposable[] = [];
 
 	private dimension: Dimension;
 	private readonly layoutScheduled = this._register(new MutableDisposable());
@@ -301,7 +301,7 @@ export class TabsTitleControl extends TitleControl {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
-				this.tabDisposeables.pop()!.dispose();
+				this.tabDisposables.pop()!.dispose();
 			}
 
 			// A removal of a label requires to recompute all labels
@@ -315,7 +315,7 @@ export class TabsTitleControl extends TitleControl {
 		else {
 			clearNode(this.tabsContainer);
 
-			this.tabDisposeables = dispose(this.tabDisposeables);
+			this.tabDisposables = dispose(this.tabDisposables);
 			this.tabResourceLabels.clear();
 			this.tabLabels = [];
 
@@ -454,7 +454,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
+		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
 
 		return tabContainer;
 	}
@@ -695,7 +695,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
 		const isTab = (typeof index === 'number');
-		const editor = typeof index === 'number' ? this.group.getEditor(index) : null;
+		const editor = typeof index === 'number' ? this.group.getEditor(index) : undefined;
 		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
 
 		// Background
@@ -725,7 +725,7 @@ export class TabsTitleControl extends TitleControl {
 		const labels = this.group.editors.map(editor => ({
 			editor,
 			name: editor.getName()!,
-			description: withNullAsUndefined(editor.getDescription(verbosity)),
+			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG))
 		}));
 
@@ -778,7 +778,7 @@ export class TabsTitleControl extends TitleControl {
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
 				duplicateTitles.forEach(label => {
-					label.description = withNullAsUndefined(label.editor.getDescription(Verbosity.LONG));
+					label.description = label.editor.getDescription(Verbosity.LONG);
 					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				});
 			}
@@ -1149,12 +1149,20 @@ export class TabsTitleControl extends TitleControl {
 	dispose(): void {
 		super.dispose();
 
-		this.tabDisposeables = dispose(this.tabDisposeables);
+		this.tabDisposables = dispose(this.tabDisposables);
 	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-
+	// Add border between tabs and breadcrumbs in high contrast mode.
+	if (theme.type === HIGH_CONTRAST) {
+		const borderColor = (theme.getColor(TAB_BORDER) || theme.getColor(contrastBorder));
+		collector.addRule(`
+		.monaco-workbench div.tabs-and-actions-container {
+			border-bottom: 1px solid ${borderColor};
+		}
+		`);
+	}
 	// Styling with Outline color (e.g. high contrast theme)
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {

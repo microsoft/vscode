@@ -48,12 +48,14 @@ import './mainThreadStorage';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
 import './mainThreadTreeViews';
+import './mainThreadDownloadService';
 import './mainThreadUrls';
 import './mainThreadWindow';
 import './mainThreadWebview';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadTask';
+import './mainThreadLabelService';
 import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {

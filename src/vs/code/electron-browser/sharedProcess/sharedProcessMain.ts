@@ -13,14 +13,14 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -37,8 +37,8 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
@@ -51,6 +51,12 @@ import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
+import { Schemas } from 'vs/base/common/network';
+import { IProductService } from 'vs/platform/product/common/product';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -85,31 +91,31 @@ class MainProcessService implements IMainProcessService {
 async function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): Promise<void> {
 	const services = new ServiceCollection();
 
-	const disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 
-	const onExit = () => dispose(disposables);
+	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
 	ipcRenderer.once('handshake:goodbye', onExit);
 
-	disposables.push(server);
+	disposables.add(server);
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', mainRouter));
 	const logService = new FollowerLogService(logLevelClient, new SpdLogService('sharedprocess', environmentService.logsPath, initData.logLevel));
-	disposables.push(logService);
+	disposables.add(logService);
 	logService.info('main', JSON.stringify(configuration));
 
 	const configurationService = new ConfigurationService(environmentService.settingsResource);
-	disposables.push(configurationService);
+	disposables.add(configurationService);
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IDownloadService, new SyncDescriptor(DownloadService));
+	services.set(IProductService, new SyncDescriptor(ProductService));
 
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
@@ -121,6 +127,17 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 	const dialogChannel = server.getChannel('dialog', activeWindowRouter);
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
+
+	// Files
+	const fileService = new FileService(logService);
+	services.set(IFileService, fileService);
+	disposables.add(fileService);
+
+	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+	disposables.add(diskFileSystemProvider);
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -137,12 +154,12 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
-				disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+				disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 			}
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 
 			telemetryService = new TelemetryService(config, configurationService);
@@ -179,13 +196,13 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			// update localizations cache
 			(localizationsService as LocalizationsService).update();
 			// cache clean ups
-			disposables.push(combinedDisposable(
+			disposables.add(combinedDisposable(
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
 				instantiationService2.createInstance(LogsDataCleaner)
 			));
-			disposables.push(extensionManagementService as ExtensionManagementService);
+			disposables.add(extensionManagementService as ExtensionManagementService);
 		});
 	});
 }

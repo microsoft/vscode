@@ -183,6 +183,7 @@ export interface IOpenSettings {
 	forceReuseWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	noRecentEntry?: boolean;
 	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;
@@ -206,15 +207,15 @@ export interface IFileToOpen {
 }
 
 export function isWorkspaceToOpen(uriToOpen: IURIToOpen): uriToOpen is IWorkspaceToOpen {
-	return !!uriToOpen['workspaceUri'];
+	return !!(uriToOpen as IWorkspaceToOpen)['workspaceUri'];
 }
 
 export function isFolderToOpen(uriToOpen: IURIToOpen): uriToOpen is IFolderToOpen {
-	return !!uriToOpen['folderUri'];
+	return !!(uriToOpen as IFolderToOpen)['folderUri'];
 }
 
 export function isFileToOpen(uriToOpen: IURIToOpen): uriToOpen is IFileToOpen {
-	return !!uriToOpen['fileUri'];
+	return !!(uriToOpen as IFileToOpen)['fileUri'];
 }
 
 
@@ -242,6 +243,8 @@ export interface IWindowService {
 	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
+	addRecentlyOpened(recents: IRecent[]): Promise<void>;
+	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
@@ -417,6 +420,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;

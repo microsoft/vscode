@@ -295,6 +295,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 			forceReuseWindow: options.forceReuseWindow,
 			diffMode: options.diffMode,
 			addMode: options.addMode,
+			gotoLineMode: options.gotoLineMode,
 			noRecentEntry: options.noRecentEntry,
 			waitMarkerFileURI: options.waitMarkerFileURI
 		});
@@ -334,14 +335,28 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	}
 
 	async log(severity: string, ...messages: string[]): Promise<void> {
-		console[severity].apply(console, ...messages);
+		let consoleFn = console.log;
+
+		switch (severity) {
+			case 'error':
+				consoleFn = console.error;
+				break;
+			case 'warn':
+				consoleFn = console.warn;
+				break;
+			case 'info':
+				consoleFn = console.info;
+				break;
+		}
+
+		consoleFn(...messages);
 	}
 
-	async showItemInFolder(path: URI): Promise<void> {
+	async showItemInFolder(resource: URI): Promise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 
-		if (path.scheme === Schemas.file) {
-			shell.showItemInFolder(path.fsPath);
+		if (resource.scheme === Schemas.file) {
+			shell.showItemInFolder(resource.fsPath);
 		}
 	}
 
@@ -352,7 +367,8 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async openExternal(url: string): Promise<boolean> {
 		this.logService.trace('windowsService#openExternal');
 
-		return shell.openExternal(url);
+		shell.openExternal(url);
+		return true;
 	}
 
 	async startCrashReporter(config: Electron.CrashReporterStartOptions): Promise<void> {
@@ -444,10 +460,10 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	}
 
 	private openFileForURI(uri: IURIToOpen): void {
-		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
+		const cli = assign(Object.create(null), this.environmentService.args);
 		const urisToOpen = [uri];
 
-		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen });
+		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
 	}
 
 	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {

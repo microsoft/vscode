@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, SingleCursorState, IColumnSelectData } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 
 export interface IColumnSelectResult {
 	viewStates: SingleCursorState[];
 	reversed: boolean;
+	fromLineNumber: number;
+	fromVisualColumn: number;
 	toLineNumber: number;
 	toVisualColumn: number;
 }
 
 export class ColumnSelection {
 
-	private static _columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IColumnSelectResult {
+	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromLineNumber: number, fromVisibleColumn: number, toLineNumber: number, toVisibleColumn: number): IColumnSelectResult {
 		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
 		let reversed = (fromLineNumber > toLineNumber);
 		let isRTL = (fromVisibleColumn > toVisibleColumn);
@@ -61,64 +62,65 @@ export class ColumnSelection {
 			));
 		}
 
+		if (result.length === 0) {
+			// We are after all the lines, so add cursor at the end of each line
+			for (let i = 0; i < lineCount; i++) {
+				const lineNumber = fromLineNumber + (reversed ? -i : i);
+				const maxColumn = model.getLineMaxColumn(lineNumber);
+
+				result.push(new SingleCursorState(
+					new Range(lineNumber, maxColumn, lineNumber, maxColumn), 0,
+					new Position(lineNumber, maxColumn), 0
+				));
+			}
+		}
+
 		return {
 			viewStates: result,
 			reversed: reversed,
+			fromLineNumber: fromLineNumber,
+			fromVisualColumn: fromVisibleColumn,
 			toLineNumber: toLineNumber,
 			toVisualColumn: toVisibleColumn
 		};
 	}
 
-	public static columnSelect(config: CursorConfiguration, model: ICursorSimpleModel, fromViewSelection: Selection, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		const fromViewPosition = new Position(fromViewSelection.selectionStartLineNumber, fromViewSelection.selectionStartColumn);
-		const fromViewVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, fromViewPosition);
-		return ColumnSelection._columnSelect(config, model, fromViewPosition.lineNumber, fromViewVisibleColumn, toViewLineNumber, toViewVisualColumn);
-	}
-
-	public static columnSelectLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+	public static columnSelectLeft(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData): IColumnSelectResult {
+		let toViewVisualColumn = prevColumnSelectData.toViewVisualColumn;
 		if (toViewVisualColumn > 1) {
 			toViewVisualColumn--;
 		}
 
-		return this.columnSelect(config, model, cursor.selection, toViewLineNumber, toViewVisualColumn);
+		return ColumnSelection.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, prevColumnSelectData.toViewLineNumber, toViewVisualColumn);
 	}
 
-	public static columnSelectRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
+	public static columnSelectRight(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData): IColumnSelectResult {
 		let maxVisualViewColumn = 0;
-		let minViewLineNumber = Math.min(cursor.position.lineNumber, toViewLineNumber);
-		let maxViewLineNumber = Math.max(cursor.position.lineNumber, toViewLineNumber);
+		const minViewLineNumber = Math.min(prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.toViewLineNumber);
+		const maxViewLineNumber = Math.max(prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.toViewLineNumber);
 		for (let lineNumber = minViewLineNumber; lineNumber <= maxViewLineNumber; lineNumber++) {
-			let lineMaxViewColumn = model.getLineMaxColumn(lineNumber);
-			let lineMaxVisualViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, lineMaxViewColumn));
+			const lineMaxViewColumn = model.getLineMaxColumn(lineNumber);
+			const lineMaxVisualViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, new Position(lineNumber, lineMaxViewColumn));
 			maxVisualViewColumn = Math.max(maxVisualViewColumn, lineMaxVisualViewColumn);
 		}
 
+		let toViewVisualColumn = prevColumnSelectData.toViewVisualColumn;
 		if (toViewVisualColumn < maxVisualViewColumn) {
 			toViewVisualColumn++;
 		}
 
-		return this.columnSelect(config, model, cursor.selection, toViewLineNumber, toViewVisualColumn);
+		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, prevColumnSelectData.toViewLineNumber, toViewVisualColumn);
 	}
 
-	public static columnSelectUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		let linesCount = isPaged ? config.pageSize : 1;
-
-		toViewLineNumber -= linesCount;
-		if (toViewLineNumber < 1) {
-			toViewLineNumber = 1;
-		}
-
-		return this.columnSelect(config, model, cursor.selection, toViewLineNumber, toViewVisualColumn);
+	public static columnSelectUp(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData, isPaged: boolean): IColumnSelectResult {
+		const linesCount = isPaged ? config.pageSize : 1;
+		const toViewLineNumber = Math.max(1, prevColumnSelectData.toViewLineNumber - linesCount);
+		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
 	}
 
-	public static columnSelectDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, isPaged: boolean, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		let linesCount = isPaged ? config.pageSize : 1;
-
-		toViewLineNumber += linesCount;
-		if (toViewLineNumber > model.getLineCount()) {
-			toViewLineNumber = model.getLineCount();
-		}
-
-		return this.columnSelect(config, model, cursor.selection, toViewLineNumber, toViewVisualColumn);
+	public static columnSelectDown(config: CursorConfiguration, model: ICursorSimpleModel, prevColumnSelectData: IColumnSelectData, isPaged: boolean): IColumnSelectResult {
+		const linesCount = isPaged ? config.pageSize : 1;
+		const toViewLineNumber = Math.min(model.getLineCount(), prevColumnSelectData.toViewLineNumber + linesCount);
+		return this.columnSelect(config, model, prevColumnSelectData.fromViewLineNumber, prevColumnSelectData.fromViewVisualColumn, toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
 	}
 }

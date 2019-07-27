@@ -6,3 +6,4 @@ extension.webpack.config.js
 CONTRIBUTING.md
 cgmanifest.json
 yarn.lock
+.vscode

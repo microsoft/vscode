@@ -673,7 +673,6 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
-				console.log('WHAT');
 				resource = this.getSCMResource();
 			}
 
@@ -738,6 +737,8 @@ export class CommandCenter {
 		}
 
 		const HEAD = await this.getLeftResource(resource);
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const title = `${basename} (HEAD)`;
 
 		if (!HEAD) {
 			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
@@ -748,7 +749,7 @@ export class CommandCenter {
 			preview
 		};
 
-		return await commands.executeCommand<void>('vscode.open', HEAD, opts);
+		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
 	@command('git.openChange')
@@ -1114,7 +1115,7 @@ export class CommandCenter {
 
 		if (scmResources.length === 1) {
 			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
 				if (scmResources[0].type === Status.DELETED) {
@@ -1133,7 +1134,7 @@ export class CommandCenter {
 			}
 
 			if (untrackedCount > 0) {
-				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
+				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST.", untrackedCount)}`;
 			}
 		}
 
@@ -1174,7 +1175,7 @@ export class CommandCenter {
 			await repository.clean(resources.map(r => r.resourceUri));
 			return;
 		} else if (resources.length === 1) {
-			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resources[0].resourceUri.fsPath));
 			const yes = localize('delete file', "Delete file");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1570,8 +1571,11 @@ export class CommandCenter {
 
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
-		const placeHolder = localize('provide branch name', "Please provide a branch name");
-		const name = await window.showInputBox({ placeHolder });
+		const name = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			value: repository.HEAD && repository.HEAD.name
+		});
 
 		if (!name || name.trim().length === 0) {
 			return;

@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
-import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
+import { removeMarkdownEscapes, IMarkdownString, parseHrefAndDimensions } from 'vs/base/common/htmlContent';
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -75,12 +75,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		return encodeURIComponent(JSON.stringify(data));
 	};
 
-	const _href = function (href: string): string {
+	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
 		if (!data) {
 			return href;
 		}
 		let uri = URI.revive(data);
+		if (isDomUri) {
+			uri = DOM.asDomUri(uri);
+		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
@@ -97,29 +100,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
-		href = _href(href);
 		let dimensions: string[] = [];
-		if (href) {
-			const splitted = href.split('|').map(s => s.trim());
-			href = splitted[0];
-			const parameters = splitted[1];
-			if (parameters) {
-				const heightFromParams = /height=(\d+)/.exec(parameters);
-				const widthFromParams = /width=(\d+)/.exec(parameters);
-				const height = heightFromParams ? heightFromParams[1] : '';
-				const width = widthFromParams ? widthFromParams[1] : '';
-				const widthIsFinite = isFinite(parseInt(width));
-				const heightIsFinite = isFinite(parseInt(height));
-				if (widthIsFinite) {
-					dimensions.push(`width="${width}"`);
-				}
-				if (heightIsFinite) {
-					dimensions.push(`height="${height}"`);
-				}
-			}
-		}
 		let attributes: string[] = [];
 		if (href) {
+			({ href, dimensions } = parseHrefAndDimensions(href));
+			href = _href(href, true);
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -138,7 +123,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		if (href === text) { // raw link case
 			text = removeMarkdownEscapes(text);
 		}
-		href = _href(href);
+		href = _href(href, false);
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (

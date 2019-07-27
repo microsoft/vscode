@@ -76,8 +76,14 @@ export class BreakpointsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: IEnablement) => element.getId() },
 				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e }
-			}) as WorkbenchList<IEnablement>;
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
+				ariaProvider: {
+					getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
+					getPosInSet: (_: IEnablement, index: number) => index,
+					getRole: (breakpoint: IEnablement) => 'checkbox',
+					isChecked: (breakpoint: IEnablement) => breakpoint.enabled
+				}
+			});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 

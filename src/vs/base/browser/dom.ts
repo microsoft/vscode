@@ -14,6 +14,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -32,7 +34,7 @@ export function isInDOM(node: Node | null): boolean {
 		if (node === document.body) {
 			return true;
 		}
-		node = node.parentNode;
+		node = node.parentNode || (node as ShadowRoot).host;
 	}
 	return false;
 }
@@ -804,7 +806,8 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	if (!style || !cssText) {
 		return;
 	}
-	style.textContent = `${selector}{${cssText}}\n${style.textContent}`;
+
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
@@ -1180,4 +1183,24 @@ export function animate(fn: () => void): IDisposable {
 
 	let stepDisposable = scheduleAtNextAnimationFrame(step);
 	return toDisposable(() => stepDisposable.dispose());
+}
+
+
+
+const _location = URI.parse(window.location.href);
+
+export function asDomUri(uri: URI): URI {
+	if (!uri) {
+		return uri;
+	}
+	if (!platform.isWeb) {
+		//todo@joh remove this once we have sw in electron going
+		return uri;
+	}
+	if (Schemas.vscodeRemote === uri.scheme) {
+		// rewrite vscode-remote-uris to uris of the window location
+		// so that they can be intercepted by the service worker
+		return _location.with({ path: '/vscode-resources/fetch', query: `u=${JSON.stringify(uri)}` });
+	}
+	return uri;
 }

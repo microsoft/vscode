@@ -15,6 +15,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	private readonly _commandRegistrations = new Map<string, IDisposable>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
+	private _onDidExecuteCommandListener?: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -36,10 +37,9 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
 			// add local commands
 			const commands = CommandsRegistry.getCommands();
-			for (let id in commands) {
-				let { description } = commands[id];
-				if (description) {
-					result[id] = description;
+			for (const [id, command] of commands) {
+				if (command.description) {
+					result[id] = command.description;
 				}
 			}
 
@@ -78,8 +78,21 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
+	$registerCommandListener() {
+		if (!this._onDidExecuteCommandListener) {
+			this._onDidExecuteCommandListener = this._commandService.onDidExecuteCommand(command => this._proxy.$handleDidExecuteCommand(command));
+		}
+	}
+
+	$unregisterCommandListener() {
+		if (this._onDidExecuteCommandListener) {
+			this._onDidExecuteCommandListener.dispose();
+			this._onDidExecuteCommandListener = undefined;
+		}
+	}
+
 	$getCommands(): Promise<string[]> {
-		return Promise.resolve(Object.keys(CommandsRegistry.getCommands()));
+		return Promise.resolve([...CommandsRegistry.getCommands().keys()]);
 	}
 }
 

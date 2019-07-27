@@ -6,7 +6,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic, TextDocumentSyncKind
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, Diagnostic
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -106,7 +106,7 @@ let languageService = getLanguageService({
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments(TextDocumentSyncKind.Incremental);
+const documents: TextDocuments = new TextDocuments();
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events
@@ -154,7 +154,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 
 	return { capabilities };
@@ -433,7 +434,8 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
+
+connection.onSelectionRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {

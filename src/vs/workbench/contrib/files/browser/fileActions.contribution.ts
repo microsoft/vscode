@@ -23,7 +23,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
+import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, OpenWorkspaceAction, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
 
@@ -200,9 +200,10 @@ const copyRelativePathCommand = {
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
 appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ContextKeyExpr.and(IsWebContext.toNegated(), ResourceContextKey.Scheme.isEqualTo(Schemas.userData)));
 appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
-function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, group?: string): void {
+function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr | undefined, group?: string): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -214,12 +215,12 @@ function appendEditorTitleContextMenuItem(id: string, title: string, when: Conte
 
 // Editor Title Menu for Conflict Resolution
 appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check.svg`)),
-	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-inverse.svg`))
+	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-light.svg`)),
+	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-dark.svg`))
 }, -10, acceptLocalChangesCommand);
 appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo.svg`)),
-	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-inverse.svg`))
+	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-light.svg`)),
+	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-dark.svg`))
 }, -9, revertLocalChangesCommand);
 
 function appendSaveConflictEditorTitleAction(id: string, title: string, iconLocation: { dark: URI; light?: URI; }, order: number, command: ICommandHandler): void {
@@ -261,8 +262,8 @@ appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, { value: nls.localize('com
 appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category);
 appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, { value: SAVE_FILE_AS_LABEL, original: 'Save As...' }, category);
 appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, { value: nls.localize('closeEditor', "Close Editor"), original: 'Close Editor' }, { value: nls.localize('view', "View"), original: 'View' });
-appendToCommandPalette(NEW_FILE_COMMAND_ID, { value: NEW_FILE_LABEL, original: 'New File' }, category);
-appendToCommandPalette(NEW_FOLDER_COMMAND_ID, { value: NEW_FOLDER_LABEL, original: 'New Folder' }, category);
+appendToCommandPalette(NEW_FILE_COMMAND_ID, { value: NEW_FILE_LABEL, original: 'New File' }, category, WorkspaceFolderCountContext.notEqualsTo('0'));
+appendToCommandPalette(NEW_FOLDER_COMMAND_ID, { value: NEW_FOLDER_LABEL, original: 'New Folder' }, category, WorkspaceFolderCountContext.notEqualsTo('0'));
 appendToCommandPalette(DOWNLOAD_COMMAND_ID, { value: downloadLabel, original: 'Download' }, category, ContextKeyExpr.and(IsWebContext.toNegated(), ResourceContextKey.Scheme.notEqualsTo(Schemas.file)));
 
 // Menu registration - open editors

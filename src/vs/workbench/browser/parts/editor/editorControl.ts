@@ -11,7 +11,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } fr
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -30,7 +30,7 @@ export class EditorControl extends Disposable {
 	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }
@@ -38,7 +38,7 @@ export class EditorControl extends Disposable {
 	private _activeControl: BaseEditor | null;
 	private controls: BaseEditor[] = [];
 
-	private readonly activeControlDisposeables = this._register(new DisposableStore());
+	private readonly activeControlDisposables = this._register(new DisposableStore());
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
@@ -47,11 +47,11 @@ export class EditorControl extends Disposable {
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILocalProgressService localProgressService: ILocalProgressService
+		@IEditorProgressService editorProgressService: IEditorProgressService
 	) {
 		super();
 
-		this.editorOperation = this._register(new LongRunningOperation(localProgressService));
+		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 	}
 
 	get activeControl(): IVisibleEditor | null {
@@ -139,12 +139,12 @@ export class EditorControl extends Disposable {
 		this._activeControl = control;
 
 		// Clear out previous active control listeners
-		this.activeControlDisposeables.clear();
+		this.activeControlDisposables.clear();
 
 		// Listen to control changes
 		if (control) {
-			this.activeControlDisposeables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
-			this.activeControlDisposeables.add(control.onDidFocus(() => this._onDidFocus.fire()));
+			this.activeControlDisposables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposables.add(control.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor

@@ -37,6 +37,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileKind } from 'vs/platform/files/common/files';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -47,7 +50,7 @@ interface ISuggestionTemplateData {
 	iconLabel: IconLabel;
 	typeLabel: HTMLElement;
 	readMore: HTMLElement;
-	disposables: IDisposable[];
+	disposables: DisposableStore;
 }
 
 /**
@@ -103,8 +106,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
-		const disposables = new DisposableStore();
-		data.disposables = [disposables];
+		data.disposables = new DisposableStore();
 
 		data.root = container;
 		addClass(data.root, 'show-file-icons');
@@ -116,7 +118,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const main = append(text, $('.main'));
 
 		data.iconLabel = new IconLabel(main, { supportHighlights: true });
-		disposables.add(data.iconLabel);
+		data.disposables.add(data.iconLabel);
 
 		data.typeLabel = append(main, $('span.type-label'));
 
@@ -144,7 +146,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		configureFont();
 
-		disposables.add(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		data.disposables.add(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo || e.contribInfo)
 			.on(configureFont, null));
 
@@ -215,7 +217,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+		templateData.disposables.dispose();
 	}
 }
 
@@ -228,6 +230,18 @@ const enum State {
 	Details
 }
 
+
+let _explainMode = false;
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'suggest.toggleExplainMode',
+	handler() {
+		_explainMode = !_explainMode;
+	},
+	when: SuggestContext.Visible,
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+});
+
 class SuggestionDetails {
 
 	private el: HTMLElement;
@@ -238,7 +252,7 @@ class SuggestionDetails {
 	private type: HTMLElement;
 	private docs: HTMLElement;
 	private ariaLabel: string | null;
-	private disposables: IDisposable[];
+	private readonly disposables: DisposableStore;
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
 
@@ -247,18 +261,18 @@ class SuggestionDetails {
 		private readonly widget: SuggestWidget,
 		private readonly editor: ICodeEditor,
 		private readonly markdownRenderer: MarkdownRenderer,
-		private readonly triggerKeybindingLabel: string
+		private readonly triggerKeybindingLabel: string,
 	) {
-		this.disposables = [];
+		this.disposables = new DisposableStore();
 
 		this.el = append(container, $('.details'));
-		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
+		this.disposables.add(toDisposable(() => container.removeChild(this.el)));
 
 		this.body = $('.body');
 
 		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
-		this.disposables.push(this.scrollbar);
+		this.disposables.add(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.close'));
@@ -289,7 +303,19 @@ class SuggestionDetails {
 	renderItem(item: CompletionItem): void {
 		this.renderDisposeable = dispose(this.renderDisposeable);
 
-		if (!item || !canExpandCompletionItem(item)) {
+		let { documentation, detail } = item.completion;
+		// --- documentation
+
+		if (_explainMode) {
+			let md = '';
+			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || item.completion.label}' with '${item.word}'` : ' (no prefix)'}\n`;
+			md += `distance: ${item.distance}, see localityBonus-setting\n`;
+			md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
+			documentation = new MarkdownString().appendCodeblock('empty', md);
+			detail = `Provider: ${item.provider._debugDisplayName}`;
+		}
+
+		if (!_explainMode && !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
 			this.docs.textContent = '';
 			addClass(this.el, 'no-docs');
@@ -297,19 +323,20 @@ class SuggestionDetails {
 			return;
 		}
 		removeClass(this.el, 'no-docs');
-		if (typeof item.completion.documentation === 'string') {
+		if (typeof documentation === 'string') {
 			removeClass(this.docs, 'markdown-docs');
-			this.docs.textContent = item.completion.documentation;
+			this.docs.textContent = documentation;
 		} else {
 			addClass(this.docs, 'markdown-docs');
 			this.docs.innerHTML = '';
-			const renderedContents = this.markdownRenderer.render(item.completion.documentation);
+			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
 		}
 
-		if (item.completion.detail) {
-			this.type.innerText = item.completion.detail;
+		// --- details
+		if (detail) {
+			this.type.innerText = detail;
 			show(this.type);
 		} else {
 			this.type.innerText = '';
@@ -333,8 +360,8 @@ class SuggestionDetails {
 
 		this.ariaLabel = strings.format(
 			'{0}{1}',
-			item.completion.detail || '',
-			item.completion.documentation ? (typeof item.completion.documentation === 'string' ? item.completion.documentation : item.completion.documentation.value) : '');
+			detail || '',
+			documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 	}
 
 	getAriaLabel() {
@@ -386,7 +413,7 @@ class SuggestionDetails {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		this.renderDisposeable = dispose(this.renderDisposeable);
 	}
 }
@@ -464,7 +491,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	) {
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
-		const markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
+		const markdownRenderer = this.toDispose.add(new MarkdownRenderer(editor, modeService, openerService));
 
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -479,7 +506,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
+		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
 
 		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getConfiguration().contribInfo.suggest.showIcons);
 		applyIconStyle();
@@ -644,7 +671,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			});
 
 			this.currentSuggestionDetails.then(() => {
-				if (this.list.length < index) {
+				if (index >= this.list.length || item !== this.list.element(index)) {
 					return;
 				}
 
@@ -661,11 +688,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				}
 
 				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
-			}).catch(onUnexpectedError).then(() => {
-				if (this.focusedItem === item) {
-					this.currentSuggestionDetails = null;
-				}
-			});
+			}).catch(onUnexpectedError);
 		}
 
 		// emit an event
@@ -782,12 +805,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					"suggestWidget" : {
 						"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"${include}": [
-							"${ICompletionStats}",
-							"${EditorTelemetryData}"
+							"${ICompletionStats}"
 						]
 					}
 				*/
-				this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
+				this.telemetryService.publicLog('suggestWidget', { ...stats });
 			}
 
 			this.focusedItem = null;
@@ -921,14 +943,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
 			}
 		}
-		/* __GDPR__
-			"suggestWidget:toggleDetailsFocus" : {
-				"${include}": [
-					"${EditorTelemetryData}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('suggestWidget:toggleDetailsFocus', this.editor.getTelemetryData());
+		this.telemetryService.publicLog2('suggestWidget:toggleDetailsFocus');
 	}
 
 	toggleDetails(): void {
@@ -942,14 +957,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
-			/* __GDPR__
-				"suggestWidget:collapseDetails" : {
-					"${include}": [
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
+			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 		} else {
 			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
 				return;
@@ -958,14 +966,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.updateExpandDocsSetting(true);
 			this.showDetails(false);
 			this._ariaAlert(this.details.getAriaLabel());
-			/* __GDPR__
-				"suggestWidget:expandDetails" : {
-					"${include}": [
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('suggestWidget:expandDetails', this.editor.getTelemetryData());
+			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
 
