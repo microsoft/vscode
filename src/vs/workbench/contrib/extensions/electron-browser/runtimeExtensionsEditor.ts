@@ -405,7 +405,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false
-		}) as WorkbenchList<IRuntimeExtension>;
+		});
 
 		this._list.splice(0, this._list.length, this._elements || undefined);
 

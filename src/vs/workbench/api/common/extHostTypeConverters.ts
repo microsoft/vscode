@@ -108,6 +108,8 @@ export namespace DiagnosticTag {
 		switch (value) {
 			case types.DiagnosticTag.Unnecessary:
 				return MarkerTag.Unnecessary;
+			case types.DiagnosticTag.Deprecated:
+				return MarkerTag.Deprecated;
 		}
 		return undefined;
 	}
@@ -988,8 +990,9 @@ export namespace GlobPattern {
 
 	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
 	export function from(pattern: undefined): undefined;
-	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined;
-	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined {
+	export function from(pattern: null): null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
 		if (pattern instanceof types.RelativePattern) {
 			return pattern;
 		}

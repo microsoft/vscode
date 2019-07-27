@@ -7,6 +7,7 @@ import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IReloadSessionEvent, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent, IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
 
@@ -51,11 +52,13 @@ export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChan
 	}
 }
 
-export class ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
+export class ExtensionHostDebugChannelClient extends Disposable implements IExtensionHostDebugService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IChannel) { }
+	constructor(private channel: IChannel) {
+		super();
+	}
 
 	reload(sessionId: string): void {
 		this.channel.call('reload', [sessionId]);

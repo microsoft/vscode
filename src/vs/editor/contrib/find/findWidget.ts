@@ -13,6 +13,7 @@ import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findIn
 import { HistoryInputBox, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Delayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -31,6 +32,7 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 export interface IFindController {
 	replace(): void;
@@ -46,6 +48,7 @@ const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind'
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
+const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseCheckbox', "Preserve Case");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
@@ -100,6 +103,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _nextBtn: SimpleButton;
 	private _toggleSelectionFind: SimpleCheckbox;
 	private _closeBtn: SimpleButton;
+	private _preserveCase: Checkbox;
 	private _replaceBtn: SimpleButton;
 	private _replaceAllBtn: SimpleButton;
 
@@ -372,12 +376,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		} else {
 			label = NLS_NO_RESULTS;
 		}
+
 		this._matchesCount.appendChild(document.createTextNode(label));
 
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions
+
+	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+		}
+		return currentMatch
+			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
+			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
+	}
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
@@ -576,14 +593,26 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
+		this._preserveCase.style(inputStyles);
 	}
 
 	private _tryUpdateWidgetWidth() {
 		if (!this._isVisible) {
 			return;
 		}
-		let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-		let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+
+		const editorContentWidth = this._codeEditor.getConfiguration().layoutInfo.contentWidth;
+
+		if (editorContentWidth <= 0) {
+			// for example, diff view original editor
+			dom.addClass(this._domNode, 'hiddenEditor');
+			return;
+		} else if (dom.hasClass(this._domNode, 'hiddenEditor')) {
+			dom.removeClass(this._domNode, 'hiddenEditor');
+		}
+
+		const editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+		const minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -899,6 +928,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
 		}));
 
+		this._preserveCase = this._register(new Checkbox({
+			actionClassName: 'monaco-case-sensitive',
+			title: NLS_PRESERVE_CASE_LABEL,
+			isChecked: false,
+		}));
+		this._preserveCase.checked = !!this._state.preserveCase;
+		this._register(this._preserveCase.onChange(viaKeyboard => {
+			if (!viaKeyboard) {
+				this._state.change({ preserveCase: !this._state.preserveCase }, false);
+				this._replaceInputBox.focus();
+			}
+		}));
+
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
@@ -922,6 +964,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._controller.replaceAll();
 			}
 		}));
+
+		let controls = document.createElement('div');
+		controls.className = 'controls';
+		controls.style.display = 'block';
+		controls.appendChild(this._preserveCase.domNode);
+		replaceInput.appendChild(controls);
 
 		let replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';

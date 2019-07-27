@@ -519,8 +519,8 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			if (env.logLevel <= LogLevel.Info) {
-				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}'. Ref is most likely packed.`);
+			if (env.logLevel <= LogLevel.Error) {
+				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}', is most likely packed.\n${err.stack || err}`);
 			}
 		}
 	}
@@ -651,19 +651,30 @@ export class Repository implements Disposable {
 		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
 		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
-		const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
-		this.disposables.push(dotGitFileWatcher);
+		let onDotGitFileChange: Event<Uri>;
+
+		try {
+			const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
+			onDotGitFileChange = dotGitFileWatcher.event;
+			this.disposables.push(dotGitFileWatcher);
+		} catch (err) {
+			if (env.logLevel <= LogLevel.Error) {
+				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+			}
+
+			onDotGitFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => /\/\.git($|\/)/.test(uri.path));
+		}
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
 		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
-		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event);
+		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, onDotGitFileChange);
 		onFileChange(this.onFileChange, this, this.disposables);
 
 		// Relevate repository changes should trigger virtual document change events
-		dotGitFileWatcher.event(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+		onDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event, outputChannel));
+		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
@@ -713,7 +724,6 @@ export class Repository implements Disposable {
 		this.disposables.push(progressManager);
 
 		this.updateCommitTemplate();
-		this.status();
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {

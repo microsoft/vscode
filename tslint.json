@@ -516,6 +516,13 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/contrib/extensions/browser/**",
+				"restrictions": [
+					"semver-umd",
+					"**/vs/**"
+				]
+			},
+			{
 				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
@@ -563,7 +570,11 @@
 				]
 			},
 			{
-				"target": "**/{node,electron-browser,electron-main,extensions}/**",
+				"target": "**/{node,electron-browser,electron-main}/**",
+				"restrictions": "**/*"
+			},
+			{
+				"target": "**/extensions/**",
 				"restrictions": "**/*"
 			},
 			{

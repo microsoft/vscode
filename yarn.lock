@@ -3907,14 +3907,15 @@ gulp-plumber@^1.2.0:
     plugin-error "^0.1.2"
     through2 "^2.0.3"
 
-gulp-remote-src@^0.4.4:
-  version "0.4.4"
-  resolved "https://registry.yarnpkg.com/gulp-remote-src/-/gulp-remote-src-0.4.4.tgz#4a4d18fac0ffedde94a7855953de90db00a1d1b1"
-  integrity sha512-mo7lGgZmNXyTbcUzfjSnUVkx1pnqqiwv/pPaIrYdTO77hq0WNTxXLAzQdoYOnyJ0mfVLNmNl9AGqWLiAzTPMMA==
+gulp-remote-retry-src@^0.6.0:
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/gulp-remote-retry-src/-/gulp-remote-retry-src-0.6.0.tgz#fdcb5d5c9e67c31ae378a2a886ddad3d47913bb1"
+  integrity sha512-lFxpwwbM/GEIdYiNumxiUcPHZUROFJaF1zTBne1H8b3Pwx6Te6O9uEYp++JZPP62jdheOWcHUTBREiMkpdbm4Q==
   dependencies:
     event-stream "3.3.4"
     node.extend "~1.1.2"
     request "^2.88.0"
+    requestretry "^4.0.0"
     through2 "~2.0.3"
     vinyl "~2.0.1"
 
@@ -4160,6 +4161,13 @@ has@^1.0.1:
   integrity sha1-hGFzP1OLCDfJNh45qauelwTcLyg=
   dependencies:
     function-bind "^1.0.2"
+
+has@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/has/-/has-1.0.3.tgz#722d7cbfc1f6aa8241f16dd814e011e1f41e8796"
+  integrity sha512-f2dvO0VU6Oej7RkWJGrehjbzMAjFp5/VKPp5tTpWIV4JHHZK1/BxbFRtf/siA2SWTe09caDmVtYYzWEIbBS4zw==
+  dependencies:
+    function-bind "^1.1.1"
 
 hash-base@^3.0.0:
   version "3.0.4"
@@ -6088,11 +6096,12 @@ node-pty@0.9.0-beta19:
     nan "^2.13.2"
 
 node.extend@~1.1.2:
-  version "1.1.6"
-  resolved "https://registry.yarnpkg.com/node.extend/-/node.extend-1.1.6.tgz#a7b882c82d6c93a4863a5504bd5de8ec86258b96"
-  integrity sha1-p7iCyC1sk6SGOlUEvV3o7IYli5Y=
+  version "1.1.8"
+  resolved "https://registry.yarnpkg.com/node.extend/-/node.extend-1.1.8.tgz#0aab3e63789f4e6d68b42bc00073ad1881243cf0"
+  integrity sha512-L/dvEBwyg3UowwqOUTyDsGBU6kjBQOpOhshio9V3i3BMPv5YUb9+mWNN8MK0IbWqT0AqaTSONZf0aTuMMahWgA==
   dependencies:
-    is "^3.1.0"
+    has "^1.0.3"
+    is "^3.2.1"
 
 noop-logger@^0.1.1:
   version "0.1.1"
@@ -7736,6 +7745,15 @@ request@^2.86.0, request@^2.88.0:
     tough-cookie "~2.4.3"
     tunnel-agent "^0.6.0"
     uuid "^3.3.2"
+
+requestretry@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/requestretry/-/requestretry-4.0.0.tgz#4e9e7280a7d8561bf33e9925264cf026e2be3e89"
+  integrity sha512-ST8m0+5FQH2FA+gbzUQyOQjUwHf22kbPQnd6TexveR0p+2UV1YYBg+Roe7BnKQ1Bb/+LtJwwm0QzxK2NA20Cug==
+  dependencies:
+    extend "^3.0.2"
+    lodash "^4.17.10"
+    when "^3.7.7"
 
 require-directory@^2.1.1:
   version "2.1.1"
@@ -9684,6 +9702,11 @@ webpack@^4.16.5, webpack@^4.7.0:
     watchpack "^1.5.0"
     webpack-sources "^1.0.1"
 
+when@^3.7.7:
+  version "3.7.8"
+  resolved "https://registry.yarnpkg.com/when/-/when-3.7.8.tgz#c7130b6a7ea04693e842cdc9e7a1f2aa39a39f82"
+  integrity sha1-xxMLan6gRpPoQs3J56Hyqjmjn4I=
+
 whet.extend@~0.9.9:
   version "0.9.9"
   resolved "https://registry.yarnpkg.com/whet.extend/-/whet.extend-0.9.9.tgz#f877d5bf648c97e5aa542fadc16d6a259b9c11a1"
@@ -9862,20 +9885,20 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-search@0.2.0-beta2:
-  version "0.2.0-beta2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0-beta2.tgz#c3173f0a6f207ee9f1848849174ee5d6b6ce8262"
-  integrity sha512-XEcwi2TeFGk2MuIFjiI/OpVXSNO5dGQBvHH3o+9KzqG3ooVqhhDqzwxs092QGNcNCGh8hGn/PWZiczaBBnKm/g==
+xterm-addon-search@0.2.0-beta3:
+  version "0.2.0-beta3"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0-beta3.tgz#710ce14658e269c5a4791f5a9e2f520883a2e62b"
+  integrity sha512-KzVdkEtGbKJe9ER2TmrI7XjF/wUq1lir9U63vPJi0t2ymQvIECl1V63f9QtOp1vvpdhbZiXBxO+vGTj+y0tRow==
 
 xterm-addon-web-links@0.1.0-beta10:
   version "0.1.0-beta10"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta71:
-  version "3.15.0-beta71"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta71.tgz#2728c9800ca3b08423e835e9504bd1f4b5de6253"
-  integrity sha512-8M/cLaxZ+iDopRxLPdPfKuDGaNNyYTdCeytdxjMSH0N7dZzbx6fbaEygQdCrV5pO9cGnT92MefSjVPGRXRiBLA==
+xterm@3.15.0-beta89:
+  version "3.15.0-beta89"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta89.tgz#255962e2595deefb42b8c0043001256526163a3f"
+  integrity sha512-rNaoUamacPRg+ejbKDGRDNqR3SZ3Uf/pUW0mO+FF25/lIgdLq8x7RgZVBgFweCZ/dijPjxoyMcgfNDTH9h8LOg==
 
 y18n@^3.2.1:
   version "3.2.1"

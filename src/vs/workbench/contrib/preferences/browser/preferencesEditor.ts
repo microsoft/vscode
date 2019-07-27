@@ -548,8 +548,11 @@ class PreferencesRenderersController extends Disposable {
 		const targetKey = resource.toString();
 		if (!this._prefsModelsForSearch.has(targetKey)) {
 			try {
-				const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
-				this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+				const model = await this.preferencesService.createPreferencesEditorModel(resource);
+				if (model) {
+					this._register(model);
+					this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+				}
 			} catch (e) {
 				// Will throw when the settings file doesn't exist.
 				return undefined;
@@ -1116,16 +1119,19 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): Promise<IPreferencesRenderer<ISetting> | null> {
 		return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
 			.then(associatedPreferencesEditorModel => {
-				return this.preferencesRendererCreationPromise!.then(preferencesRenderer => {
-					if (preferencesRenderer) {
-						const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
-						if (associatedPreferencesModel) {
-							associatedPreferencesModel.dispose();
+				if (associatedPreferencesEditorModel) {
+					return this.preferencesRendererCreationPromise!.then(preferencesRenderer => {
+						if (preferencesRenderer) {
+							const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+							if (associatedPreferencesModel) {
+								associatedPreferencesModel.dispose();
+							}
+							preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
 						}
-						preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
-					}
-					return preferencesRenderer;
-				});
+						return preferencesRenderer;
+					});
+				}
+				return null;
 			});
 	}
 
@@ -1154,7 +1160,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 	abstract getId(): string;
 }
 
-class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
+export class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.defaultsettings';
 
@@ -1193,12 +1199,14 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 	}
 
 	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null {
-		if (this.isSettingsModel()) {
-			return this.preferencesService.createPreferencesEditorModel(this.editor.getModel()!.uri)
+		const model = this.editor.getModel();
+		if (model) {
+			return this.preferencesService.createPreferencesEditorModel(model.uri)
 				.then<any>(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER_LOCAL:
+							case ConfigurationTarget.USER_REMOTE:
 								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE:
 								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);
@@ -1217,31 +1225,6 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		}
 		return null;
 	}
-
-	private isSettingsModel(): boolean {
-		const model = this.editor.getModel();
-		if (!model) {
-			return false;
-		}
-
-		if (this.preferencesService.userSettingsResource && this.preferencesService.userSettingsResource.toString() === model.uri.toString()) {
-			return true;
-		}
-
-		if (this.preferencesService.workspaceSettingsResource && this.preferencesService.workspaceSettingsResource.toString() === model.uri.toString()) {
-			return true;
-		}
-
-		for (const folder of this.workspaceContextService.getWorkspace().folders) {
-			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
-			if (folderSettingsResource && folderSettingsResource.toString() === model.uri.toString()) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 }
 
 registerEditorContribution(SettingsEditorContribution);

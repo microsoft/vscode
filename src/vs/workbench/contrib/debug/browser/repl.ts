@@ -378,12 +378,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
-			this.instantiationService.createInstance(VariablesRenderer),
-			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
-			new ReplExpressionsRenderer(),
-			new ReplRawObjectsRenderer()
-		], new ReplDataSource(), {
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree,
+			treeContainer,
+			this.replDelegate,
+			[
+				this.instantiationService.createInstance(VariablesRenderer),
+				this.instantiationService.createInstance(ReplSimpleElementsRenderer),
+				new ReplExpressionsRenderer(),
+				new ReplRawObjectsRenderer()
+			],
+			// https://github.com/microsoft/TypeScript/issues/32526
+			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			{
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
@@ -392,7 +399,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap
-			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(this.tree.onMouseClick(() => {

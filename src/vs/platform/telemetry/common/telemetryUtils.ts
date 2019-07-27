@@ -33,17 +33,17 @@ export const NullTelemetryService = new class implements ITelemetryService {
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	dispose(): Promise<any> | undefined;
+	flush(): Promise<any>;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		dispose: () => Promise.all(appenders.map(a => a.dispose()))
+		flush: () => Promise.all(appenders.map(a => a.flush()))
 	};
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => Promise.resolve(null) };
+export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
 
 
 export class LogAppender implements ITelemetryAppender {
@@ -51,7 +51,7 @@ export class LogAppender implements ITelemetryAppender {
 	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
 	constructor(@ILogService private readonly _logService: ILogService) { }
 
-	dispose(): Promise<any> {
+	flush(): Promise<any> {
 		return Promise.resolve(undefined);
 	}
 

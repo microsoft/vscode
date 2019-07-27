@@ -237,7 +237,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			'workbench.useExperimentalGridLayout': {
 				'type': 'boolean',
 				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
-				'default': false,
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION
 			}
 		}

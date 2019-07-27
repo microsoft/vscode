@@ -154,7 +154,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 
 	return { capabilities };

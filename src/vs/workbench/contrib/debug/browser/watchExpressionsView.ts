@@ -66,7 +66,7 @@ export class WatchExpressionsView extends ViewletPanel {
 				identityProvider: { getId: (element: IExpression) => element.getId() },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e },
 				dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			}) as WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
+			});
 
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);

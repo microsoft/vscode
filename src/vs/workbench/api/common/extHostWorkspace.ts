@@ -24,6 +24,7 @@ import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, M
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -407,7 +408,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- search ---
 
-	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+	/**
+	 * Note, null/undefined have different and important meanings for "exclude"
+	 */
+	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
 		let includePattern: string | undefined;
@@ -438,7 +442,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return Promise.resolve([]);
 		}
 
-		return this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, token)
+		return this._proxy.$startFileSearch(
+			withUndefinedAsNull(includePattern),
+			withUndefinedAsNull(includeFolder),
+			withUndefinedAsNull(excludePatternOrDisregardExcludes),
+			withUndefinedAsNull(maxResults),
+			token
+		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
 	}
 

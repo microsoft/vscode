@@ -104,7 +104,7 @@ export class WebTelemetryAppender implements ITelemetryAppender {
 		this._aiClient.trackEvent('monacoworkbench/' + eventName, data.properties, data.measurements);
 	}
 
-	dispose(): Promise<any> | undefined {
+	flush(): Promise<void> {
 		if (this._aiClient) {
 			return new Promise(resolve => {
 				this._aiClient!.flush();
@@ -113,7 +113,7 @@ export class WebTelemetryAppender implements ITelemetryAppender {
 			});
 		}
 
-		return undefined;
+		return Promise.resolve();
 	}
 }
 

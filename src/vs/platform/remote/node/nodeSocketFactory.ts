@@ -5,9 +5,9 @@
 
 import * as net from 'net';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IWebSocketFactory, IConnectCallback } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ISocketFactory, IConnectCallback } from 'vs/platform/remote/common/remoteAgentConnection';
 
-export const nodeWebSocketFactory = new class implements IWebSocketFactory {
+export const nodeSocketFactory = new class implements ISocketFactory {
 	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
 		const errorListener = (err: any) => callback(err, undefined);
 

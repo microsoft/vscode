@@ -42,7 +42,6 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-// import { VSBuffer } from 'vs/base/common/buffer';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -1603,7 +1602,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	// 			}
 	// 		});
 	// 	});
-	// 	await instantiationService.get(IFileService).writeFile(URI.file(remoteSettingsFile), VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
+	// 	fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
 	// 	return promise;
 	// });
 

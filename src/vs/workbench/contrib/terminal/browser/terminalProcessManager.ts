@@ -31,7 +31,7 @@ const LATENCY_MEASURING_INTERVAL = 1000;
 
 enum ProcessType {
 	Process,
-	VirtualProcess
+	ExtensionTerminal
 }
 
 /**
@@ -70,6 +70,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideShellLaunchConfig = new Emitter<IShellLaunchConfig>();
+	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -111,8 +113,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<void> {
-		if (shellLaunchConfig.isVirtualProcess) {
-			this._processType = ProcessType.VirtualProcess;
+		if (shellLaunchConfig.isExtensionTerminal) {
+			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
@@ -169,6 +171,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this._process.onProcessExit(exitCode => this._onExit(exitCode));
 		if (this._process.onProcessOverrideDimensions) {
 			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));
+		}
+		if (this._process.onProcessResolvedShellLaunchConfig) {
+			this._process.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e));
 		}
 
 		setTimeout(() => {
@@ -234,7 +239,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public write(data: string): void {
-		if (this.shellProcessId || this._processType === ProcessType.VirtualProcess) {
+		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {
 				// Send data if the pty is ready
 				this._process.input(data);

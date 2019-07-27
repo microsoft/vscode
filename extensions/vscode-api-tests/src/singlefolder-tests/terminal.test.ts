@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Terminal, TerminalVirtualProcess, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget } from 'vscode';
+import { window, Terminal, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget } from 'vscode';
 import { doesNotThrow, equal, ok } from 'assert';
 
 suite('window namespace tests', () => {
@@ -264,14 +264,16 @@ suite('window namespace tests', () => {
 					});
 					term.dispose();
 				});
-				const virtualProcess: TerminalVirtualProcess = {
-					onDidWrite: new EventEmitter<string>().event
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					open: () => {},
+					close: () => {}
 				};
-				window.createTerminal({ name: 'c', virtualProcess });
+				window.createTerminal({ name: 'c', pty });
 			});
 
 			test('should fire Terminal.onData on write', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
+				const reg1 = window.onDidOpenTerminal(async term => {
 					equal(terminal, term);
 					reg1.dispose();
 					const reg2 = terminal.onDidWriteData(data => {
@@ -283,13 +285,18 @@ suite('window namespace tests', () => {
 						});
 						terminal.dispose();
 					});
+					await startPromise;
 					writeEmitter.fire('bar');
 				});
+				let startResolve: () => void;
+				const startPromise: Promise<void> = new Promise<void>(r => startResolve = r);
 				const writeEmitter = new EventEmitter<string>();
-				const virtualProcess: TerminalVirtualProcess = {
-					onDidWrite: writeEmitter.event
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					open: () => startResolve(),
+					close: () => {}
 				};
-				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
 			test('should fire provide dimensions on start as the terminal has been shown', (done) => {
@@ -297,9 +304,9 @@ suite('window namespace tests', () => {
 					equal(terminal, term);
 					reg1.dispose();
 				});
-				const virtualProcess: TerminalVirtualProcess = {
+				const pty: Pseudoterminal = {
 					onDidWrite: new EventEmitter<string>().event,
-					start: (dimensions) => {
+					open: (dimensions) => {
 						ok(dimensions!.columns > 0);
 						ok(dimensions!.rows > 0);
 						const reg3 = window.onDidCloseTerminal(() => {
@@ -307,9 +314,10 @@ suite('window namespace tests', () => {
 							done();
 						});
 						terminal.dispose();
-					}
+					},
+					close: () => {}
 				};
-				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
 			test('should respect dimension overrides', (done) => {
@@ -332,11 +340,13 @@ suite('window namespace tests', () => {
 				});
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
-				const virtualProcess: TerminalVirtualProcess = {
+				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
-					onDidOverrideDimensions: overrideDimensionsEmitter.event
+					onDidOverrideDimensions: overrideDimensionsEmitter.event,
+					open: () => {},
+					close: () => {}
 				};
-				const terminal = window.createTerminal({ name: 'foo', virtualProcess });
+				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 		});
 	});

@@ -30,7 +30,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -564,7 +564,9 @@ registerSingleton(IWindowService, SimpleWindowService);
 export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		//@IWindowService windowService: IWindowService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const connection = remoteAgentService.getConnection();
 
@@ -573,6 +575,19 @@ export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelCl
 		}
 
 		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
+
+		this._register(this.onReload(event => {
+			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
+				//windowService.reloadWindow();
+				window.location.reload();
+			}
+		}));
+		this._register(this.onClose(event => {
+			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
+				//this._windowService.closeWindow();
+				window.close();
+			}
+		}));
 	}
 }
 registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);

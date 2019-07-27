@@ -59,6 +59,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	readonly snap = true;
 
+	get preferredHeight(): number | undefined {
+		const sidebarDimension = this.layoutService.getDimension(Parts.SIDEBAR_PART);
+		return sidebarDimension.height * 0.4;
+	}
+
+	get preferredWidth(): number | undefined {
+		const statusbarPart = this.layoutService.getDimension(Parts.STATUSBAR_PART);
+		return statusbarPart.width * 0.4;
+	}
+
 	//#endregion
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
@@ -74,7 +84,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
 
 	private blockOpeningPanel: boolean;
-	private dimension: Dimension;
+	private _contentDimension: Dimension;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -293,21 +303,21 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this.dimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
+			this._contentDimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
 		} else {
-			this.dimension = new Dimension(width, height!);
+			this._contentDimension = new Dimension(width, height!);
 		}
 
 		// Layout contents
-		super.layout(this.dimension.width, this.dimension.height);
+		super.layout(this._contentDimension.width, this._contentDimension.height);
 
 		// Layout composite bar
 		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {
-		if (this.dimension) {
-			let availableWidth = this.dimension.width - 40; // take padding into account
+		if (this._contentDimension) {
+			let availableWidth = this._contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
 				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}

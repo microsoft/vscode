@@ -21,6 +21,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('t
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+/** A context key that is set when the user is navigating the accessibility tree */
+export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
@@ -186,14 +188,14 @@ export interface IShellLaunchConfig {
 	initialText?: string;
 
 	/**
-	 * @deprecated use `isVirtualProcess`
+	 * @deprecated use `isExtensionTerminal`
 	 */
 	isRendererOnly?: boolean;
 
 	/**
-	 * When true an extension is acting as the terminal's process.
+	 * Whether an extension is controlling the terminal via a `vscode.Pseudoterminal`.
 	 */
-	isVirtualProcess?: boolean;
+	isExtensionTerminal?: boolean;
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -229,8 +231,8 @@ export interface ITerminalService {
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
-	onInstanceRequestVirtualProcess: Event<ITerminalVirtualProcessRequest>;
+	onInstanceRequestSpawnExtHostProcess: Event<ISpawnExtHostProcessRequest>;
+	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
@@ -251,7 +253,7 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
@@ -297,8 +299,8 @@ export interface ITerminalService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
-	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
+	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
 }
 
 /**
@@ -483,6 +485,8 @@ export interface ITerminalInstance {
 	 */
 	readonly commandTracker: ITerminalCommandTracker;
 
+	readonly navigationMode: INavigationMode | undefined;
+
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
@@ -584,7 +588,7 @@ export interface ITerminalInstance {
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
 	 */
-	paste(): void;
+	paste(): Promise<void>;
 
 	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
@@ -628,17 +632,6 @@ export interface ITerminalInstance {
 	 * @param container The element to attach the terminal instance to.
 	 */
 	attachToElement(container: HTMLElement): void;
-
-	/**
-	 * Updates the configuration of the terminal instance.
-	 */
-	updateConfig(): void;
-
-	/**
-	 * Updates the accessibility support state of the terminal instance.
-	 * @param isEnabled Whether it's enabled.
-	 */
-	updateAccessibilitySupport(isEnabled: boolean): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.
@@ -687,6 +680,12 @@ export interface ITerminalCommandTracker {
 	selectToNextLine(): void;
 }
 
+export interface INavigationMode {
+	exitNavigationMode(): void;
+	focusPreviousLine(): void;
+	focusNextLine(): void;
+}
+
 export interface IBeforeProcessDataEvent {
 	/**
 	 * The data of the event, this can be modified by the event listener to change what gets sent
@@ -709,6 +708,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 
 	dispose(immediate?: boolean): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
@@ -747,6 +747,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
+	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
@@ -759,7 +760,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	onRequestLatency: Event<void>;
 }
 
-export interface ITerminalProcessExtHostRequest {
+export interface ISpawnExtHostProcessRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
 	activeWorkspaceRootUri: URI;
@@ -768,7 +769,7 @@ export interface ITerminalProcessExtHostRequest {
 	isWorkspaceShellAllowed: boolean;
 }
 
-export interface ITerminalVirtualProcessRequest {
+export interface IStartExtensionTerminalRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	cols: number;
 	rows: number;
@@ -802,6 +803,7 @@ export interface ITerminalChildProcess {
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 
 	/**
 	 * Shutdown the terminal process.

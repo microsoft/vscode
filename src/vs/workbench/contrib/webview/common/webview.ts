@@ -55,7 +55,7 @@ export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
 	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMappings?: ReadonlyArray<modes.IWebviewPortMapping>;
+	readonly portMapping?: ReadonlyArray<modes.IWebviewPortMapping>;
 	readonly enableCommandUris?: boolean;
 }
 
@@ -97,6 +97,8 @@ export interface WebviewEditorOverlay extends Webview {
 
 	claim(owner: any): void;
 	release(owner: any): void;
+
+	getInnerWebview(): Webview | undefined;
 }
 
 export const webviewDeveloperCategory = nls.localize('developer', "Developer");

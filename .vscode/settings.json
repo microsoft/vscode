@@ -59,5 +59,6 @@
 	"git.ignoreLimitWarning": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
-	}
+	},
+	"files.insertFinalNewline": true
 }

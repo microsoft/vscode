@@ -30,7 +30,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<ServiceIdentifier<any>>b).type;
 	a = (<IHighlight>b).start;
 	a = (<IHighlight>b).end;
-	a = (<SimpleWorkerClient<any>>b).getProxyObject; // IWorkerClient
+	a = (<SimpleWorkerClient<any, any>>b).getProxyObject; // IWorkerClient
 	a = create1;
 	a = create2;
 	a = (<DocumentRangeFormattingEditProvider>b).extensionId;
