@@ -139,180 +139,27 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 			`);
 			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 		},
-		doubleClick: (windowId, selector) => Promise.resolve(),
-		setValue: async (windowId, selector, text) => {
-			return page.evaluate(`
-				(function() {
-					const element = document.querySelector('${selector}');
-
-					if (!element) {
-						throw new Error('Element not found: ${selector}');
-					}
-
-					const inputElement = element;
-					inputElement.value = '${text}';
-
-					const event = new Event('input', { bubbles: true, cancelable: true });
-					inputElement.dispatchEvent(event);
-					return true;
-				})();
-			`);
+		doubleClick: async (windowId, selector) => {
+			await this.click(windowId, selector, 0, 0);
+			await timeout(60);
+			await this.click(windowId, selector, 0, 0);
+			await timeout(100);
 		},
-		getTitle: (windowId) => page.title(),
-		isActiveElement: (windowId, selector) => {
-			return page.evaluate(`document.querySelector('${selector}') === document.activeElement`);
-		},
-		getElements: (windowId, selector, recursive) => {
-			return page.evaluate(`
-				(function() {
-					function convertToPixels(element, value) {
-						return parseFloat(value) || 0;
-					}
-					function getDimension(element, cssPropertyName, jsPropertyName) {
-						let computedStyle = getComputedStyle(element);
-						let value = '0';
-						if (computedStyle) {
-							if (computedStyle.getPropertyValue) {
-								value = computedStyle.getPropertyValue(cssPropertyName);
-							} else {
-								// IE8
-								value = (computedStyle).getAttribute(jsPropertyName);
-							}
-						}
-						return convertToPixels(element, value);
-					}
-					function getBorderLeftWidth(element) {
-						return getDimension(element, 'border-left-width', 'borderLeftWidth');
-					}
-					function getBorderRightWidth(element) {
-						return getDimension(element, 'border-right-width', 'borderRightWidth');
-					}
-					function getBorderTopWidth(element) {
-						return getDimension(element, 'border-top-width', 'borderTopWidth');
-					}
-					function getBorderBottomWidth(element) {
-						return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-					}
-					function getTopLeftOffset(element) {
-						// Adapted from WinJS.Utilities.getPosition
-						// and added borders to the mix
-
-						let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
-
-						while ((element = element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
-							top -= element.scrollTop;
-							let c = getComputedStyle(element);
-							if (c) {
-								left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
-							}
-
-							if (element === offsetParent) {
-								left += getBorderLeftWidth(element);
-								top += getBorderTopWidth(element);
-								top += element.offsetTop;
-								left += element.offsetLeft;
-								offsetParent = element.offsetParent;
-							}
-						}
-
-						return {
-							left: left,
-							top: top
-						};
-					}
-					function serializeElement(element, recursive) {
-						const attributes = Object.create(null);
-
-						for (let j = 0; j < element.attributes.length; j++) {
-							const attr = element.attributes.item(j);
-							if (attr) {
-								attributes[attr.name] = attr.value;
-							}
-						}
-
-						const children = [];
-
-						if (recursive) {
-							for (let i = 0; i < element.children.length; i++) {
-								const child = element.children.item(i);
-								if (child) {
-									children.push(serializeElement(child, true));
-								}
-							}
-						}
-
-						const { left, top } = getTopLeftOffset(element);
-
-						return {
-							tagName: element.tagName,
-							className: element.className,
-							textContent: element.textContent || '',
-							attributes,
-							children,
-							left,
-							top
-						};
-					}
-
-					const query = document.querySelectorAll('${selector}');
-					const result = [];
-
-					for (let i = 0; i < query.length; i++) {
-						const element = query.item(i);
-						result.push(serializeElement(element, ${recursive}));
-					}
-
-					return result;
-				})();
-			`);
-		},
-		typeInEditor: (windowId, selector, text) => Promise.resolve(),
-		getTerminalBuffer: (windowId, selector) => {
-			return page.evaluate(`
-				(function () {
-					const element = document.querySelector('${selector}');
-
-					if (!element) {
-						throw new Error('Terminal not found: ${selector}');
-					}
-
-					const xterm = element.xterm;
-
-					if (!xterm) {
-						throw new Error('Xterm not found: ${selector}');
-					}
-
-					const lines = [];
-
-					for (let i = 0; i < xterm.buffer.length; i++) {
-						lines.push(xterm.buffer.getLine(i).translateToString(true));
-					}
-
-					return lines;
-				})();
-			`);
-		},
-		writeInTerminal: (windowId, selector, text) => {
-			return page.evaluate(`
-				(function () {
-					const element = document.querySelector('${selector}');
-
-					if (!element) {
-						throw new Error('Element not found: ${selector}');
-					}
-
-					const xterm = element.xterm;
-
-					if (!xterm) {
-						throw new Error('Xterm not found: ${selector}');
-					}
-
-					xterm._core._coreService.triggerDataEvent('${text}');
-				})();
-			`);
-		}
+		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`),
+		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),
+		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
+		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
+		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
+		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
+		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`)
 	};
 }
+
+function timeout(ms: number): Promise<void> {
+	return new Promise<void>(r => setTimeout(r, ms));
+}
+
+// function runInDriver(call: string, args: (string | boolean)[]): Promise<any> {}
 
 let args;
 

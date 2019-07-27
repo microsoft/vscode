@@ -18,6 +18,7 @@
     "@types/mocha": "2.2.41",
     "@types/ncp": "2.0.1",
     "@types/node": "^10.14.8",
+    "@types/puppeteer": "^1.19.0",
     "@types/rimraf": "2.0.2",
     "@types/webdriverio": "4.6.1",
     "concurrently": "^3.5.1",

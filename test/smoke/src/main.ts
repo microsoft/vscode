@@ -236,7 +236,9 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-setupDataMigrationTests(stableCodePath, testDataPath);
+if (!opts.web) {
+	setupDataMigrationTests(stableCodePath, testDataPath);
+}
 
 describe('Running Code', () => {
 	before(async function () {
@@ -271,6 +273,7 @@ describe('Running Code', () => {
 	}
 
 	if (opts.web) {
+		console.log('setup term tests only');
 		setupTerminalTests();
 		return;
 	}
@@ -290,4 +293,6 @@ describe('Running Code', () => {
 	setupDataLocalizationTests();
 });
 
-setupLaunchTests();
+if (!opts.web) {
+	setupLaunchTests();
+}
