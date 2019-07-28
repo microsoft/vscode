@@ -238,6 +238,9 @@ export class ContributableViewsModel extends Disposable {
 	private _onDidMove = this._register(new Emitter<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>());
 	readonly onDidMove: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }> = this._onDidMove.event;
 
+	private _onDidChangeViewState = this._register(new Emitter<IViewDescriptorRef>());
+	protected readonly onDidChangeViewState: Event<IViewDescriptorRef> = this._onDidChangeViewState.event;
+
 	constructor(
 		container: ViewContainer,
 		viewsService: IViewsService,
@@ -301,8 +304,11 @@ export class ContributableViewsModel extends Disposable {
 	}
 
 	setCollapsed(id: string, collapsed: boolean): void {
-		const { state } = this.find(id);
-		state.collapsed = collapsed;
+		const { index, state, viewDescriptor } = this.find(id);
+		if (state.collapsed !== collapsed) {
+			state.collapsed = collapsed;
+			this._onDidChangeViewState.fire({ viewDescriptor, index });
+		}
 	}
 
 	getSize(id: string): number | undefined {
@@ -316,8 +322,11 @@ export class ContributableViewsModel extends Disposable {
 	}
 
 	setSize(id: string, size: number): void {
-		const { state } = this.find(id);
-		state.size = size;
+		const { index, state, viewDescriptor } = this.find(id);
+		if (state.size !== size) {
+			state.size = size;
+			this._onDidChangeViewState.fire({ viewDescriptor, index });
+		}
 	}
 
 	move(from: string, to: string): void {
@@ -474,12 +483,15 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		this.hiddenViewsStorageId = hiddenViewsStorageId;
 		this.storageService = storageService;
 
-		this._register(this.onDidAdd(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
-		this._register(this.onDidRemove(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
-		this._register(this.storageService.onWillSaveState(() => this.saveViewsStates()));
+		this._register(Event.any(
+			this.onDidAdd,
+			this.onDidRemove,
+			Event.map(this.onDidMove, ({ from, to }) => [from, to]),
+			Event.map(this.onDidChangeViewState, viewDescriptorRef => [viewDescriptorRef]))
+			(viewDescriptorRefs => this.saveViewsStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
 	}
 
-	private saveViewsStates(): void {
+	private saveViewsStates(viewDescriptors: IViewDescriptor[]): void {
 		const storedViewsStates: { [id: string]: { collapsed: boolean, size?: number, order?: number } } = {};
 
 		let hasState = false;
@@ -496,6 +508,8 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		} else {
 			this.storageService.remove(this.viewletStateStorageId, StorageScope.WORKSPACE);
 		}
+
+		this.saveVisibilityStates(viewDescriptors);
 	}
 
 	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
