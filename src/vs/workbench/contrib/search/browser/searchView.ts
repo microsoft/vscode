@@ -896,13 +896,13 @@ export class SearchView extends ViewletPanel {
 			0 :
 			dom.getTotalHeight(this.messagesElement);
 
-		const searchResultContainerSize = this.size.height -
+		const searchResultContainerHeight = this.size.height -
 			messagesSize -
 			dom.getTotalHeight(this.searchWidgetsContainerElement);
 
-		this.resultsElement.style.height = searchResultContainerSize + 'px';
+		this.resultsElement.style.height = searchResultContainerHeight + 'px';
 
-		this.tree.layout(searchResultContainerSize, this.size.width);
+		this.tree.layout(searchResultContainerHeight, this.size.width);
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -1542,7 +1542,7 @@ export class SearchView extends ViewletPanel {
 
 	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
 		const selection = this.getSelectionFrom(element);
-		const resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
+		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -1600,7 +1600,7 @@ export class SearchView extends ViewletPanel {
 		if (!this.untitledEditorService.isDirty(resource)) {
 			const matches = this.viewModel.searchResult.matches();
 			for (let i = 0, len = matches.length; i < len; i++) {
-				if (resource.toString() === matches[i].resource().toString()) {
+				if (resource.toString() === matches[i].resource.toString()) {
 					this.viewModel.searchResult.remove(matches[i]);
 				}
 			}
@@ -1614,11 +1614,8 @@ export class SearchView extends ViewletPanel {
 
 		const matches = this.viewModel.searchResult.matches();
 
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.contains(matches[i].resource(), FileChangeType.DELETED)) {
-				this.viewModel.searchResult.remove(matches[i]);
-			}
-		}
+		const changedMatches = matches.filter(m => e.contains(m.resource, FileChangeType.DELETED));
+		this.viewModel.searchResult.remove(changedMatches);
 	}
 
 	getActions(): IAction[] {
