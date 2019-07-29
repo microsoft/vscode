@@ -28,7 +28,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import pkg from 'vs/platform/product/node/package';
 
-const RUN_TEXTMATE_IN_WORKER = true;
+const RUN_TEXTMATE_IN_WORKER = false;
 
 export interface IWindowCreationOptions {
 	state: IWindowState;

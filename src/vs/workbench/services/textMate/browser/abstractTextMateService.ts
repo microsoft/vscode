@@ -228,9 +228,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 					onUnexpectedError(e);
 					return null;
 				});
-				if (modeId !== 'typescript') {
-					this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, promise));
-				}
+				this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, promise));
 			}
 		} catch (err) {
 			onUnexpectedError(err);

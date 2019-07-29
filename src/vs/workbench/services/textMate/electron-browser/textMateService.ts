@@ -25,7 +25,7 @@ import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGramma
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
-const RUN_TEXTMATE_IN_WORKER = true;
+const RUN_TEXTMATE_IN_WORKER = false;
 
 class ModelWorkerTextMateTokenizer extends Disposable {
 
