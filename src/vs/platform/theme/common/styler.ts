@@ -258,7 +258,7 @@ export const defaultListStyles: IColorMapping = {
 	listFilterWidgetOutline: listFilterWidgetOutline,
 	listFilterWidgetNoMatchesOutline: listFilterWidgetNoMatchesOutline,
 	listMatchesShadow: widgetShadow,
-	treeIndentGuidesStroke
+	treeIndentGuidesStroke: treeIndentGuidesStroke
 };
 
 export interface IButtonStyleOverrides extends IStyleOverrides {
