@@ -10,6 +10,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -119,18 +120,35 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, userHome: string, root?: Uri, customCwd?: string): string {
+export function getCwd(
+	shell: IShellLaunchConfig,
+	userHome: string,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
+	root: Uri | undefined,
+	customCwd: string | undefined,
+	logService: ILogService
+): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
 
 	let cwd: string | undefined;
 
-	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd && customCwd) {
-		if (path.isAbsolute(customCwd)) {
+		if (configurationResolverService) {
+			try {
+				cwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
+			} catch (e) {
+				// There was an issue resolving a variable, just use the unresolved customCwd which
+				// which will fail, and log the error in the console.
+				cwd = customCwd;
+				logService.error('Resolving terminal.integrated.cwd', e);
+			}
+		}
+		if (path.isAbsolute(customCwd) && !cwd) {
 			cwd = customCwd;
-		} else if (root) {
+		} else if (root && !cwd) {
 			cwd = path.join(root.fsPath, customCwd);
 		}
 	}
