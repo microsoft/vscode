@@ -506,6 +506,7 @@ export class ExtHostApiCommands {
 					if (codeAction.command) {
 						ret.command = this._commands.converter.fromInternal(codeAction.command);
 					}
+					ret.isPreferred = codeAction.isPreferred;
 					return ret;
 				}
 			}));
