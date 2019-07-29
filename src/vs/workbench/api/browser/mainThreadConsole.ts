@@ -9,7 +9,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)
 export class MainThreadConsole implements MainThreadConsoleShape {
@@ -40,7 +40,7 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 
 		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			this._windowsService.log(entry.severity, ...parse(entry).args);
+			this._windowsService.log(entry.severity, parse(entry).args);
 		}
 
 		// Broadcast to other windows if we are in development mode

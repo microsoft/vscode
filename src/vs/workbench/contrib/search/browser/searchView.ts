@@ -154,7 +154,7 @@ export class SearchView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 	) {
-		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -633,7 +633,7 @@ export class SearchView extends ViewletPanel {
 		};
 
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
 			[
@@ -896,13 +896,13 @@ export class SearchView extends ViewletPanel {
 			0 :
 			dom.getTotalHeight(this.messagesElement);
 
-		const searchResultContainerSize = this.size.height -
+		const searchResultContainerHeight = this.size.height -
 			messagesSize -
 			dom.getTotalHeight(this.searchWidgetsContainerElement);
 
-		this.resultsElement.style.height = searchResultContainerSize + 'px';
+		this.resultsElement.style.height = searchResultContainerHeight + 'px';
 
-		this.tree.layout(searchResultContainerSize, this.size.width);
+		this.tree.layout(searchResultContainerHeight, this.size.width);
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -1151,6 +1151,10 @@ export class SearchView extends ViewletPanel {
 	}
 
 	onQueryChanged(preserveFocus?: boolean): void {
+		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
+			return;
+		}
+
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1538,7 +1542,7 @@ export class SearchView extends ViewletPanel {
 
 	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
 		const selection = this.getSelectionFrom(element);
-		const resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
+		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -1596,7 +1600,7 @@ export class SearchView extends ViewletPanel {
 		if (!this.untitledEditorService.isDirty(resource)) {
 			const matches = this.viewModel.searchResult.matches();
 			for (let i = 0, len = matches.length; i < len; i++) {
-				if (resource.toString() === matches[i].resource().toString()) {
+				if (resource.toString() === matches[i].resource.toString()) {
 					this.viewModel.searchResult.remove(matches[i]);
 				}
 			}
@@ -1610,11 +1614,8 @@ export class SearchView extends ViewletPanel {
 
 		const matches = this.viewModel.searchResult.matches();
 
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.contains(matches[i].resource(), FileChangeType.DELETED)) {
-				this.viewModel.searchResult.remove(matches[i]);
-			}
-		}
+		const changedMatches = matches.filter(m => e.contains(m.resource, FileChangeType.DELETED));
+		this.viewModel.searchResult.remove(changedMatches);
 	}
 
 	getActions(): IAction[] {

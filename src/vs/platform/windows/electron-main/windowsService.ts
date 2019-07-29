@@ -295,6 +295,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 			forceReuseWindow: options.forceReuseWindow,
 			diffMode: options.diffMode,
 			addMode: options.addMode,
+			gotoLineMode: options.gotoLineMode,
 			noRecentEntry: options.noRecentEntry,
 			waitMarkerFileURI: options.waitMarkerFileURI
 		});
@@ -333,7 +334,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		return this.windowsMainService.getWindows().length;
 	}
 
-	async log(severity: string, ...messages: string[]): Promise<void> {
+	async log(severity: string, args: string[]): Promise<void> {
 		let consoleFn = console.log;
 
 		switch (severity) {
@@ -348,7 +349,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 				break;
 		}
 
-		consoleFn(...messages);
+		consoleFn.call(console, ...args);
 	}
 
 	async showItemInFolder(resource: URI): Promise<void> {
@@ -459,10 +460,10 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	}
 
 	private openFileForURI(uri: IURIToOpen): void {
-		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
+		const cli = assign(Object.create(null), this.environmentService.args);
 		const urisToOpen = [uri];
 
-		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen });
+		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
 	}
 
 	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {

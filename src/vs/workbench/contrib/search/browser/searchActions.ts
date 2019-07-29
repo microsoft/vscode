@@ -654,14 +654,14 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasSameParent(element: RenderableMatch): boolean {
-		return element && element instanceof Match && element.parent().resource() === this.element.parent().resource();
+		return element && element instanceof Match && element.parent().resource === this.element.parent().resource;
 	}
 
 	private hasToOpenFile(): boolean {
 		const activeEditor = this.editorService.activeEditor;
 		const file = activeEditor ? activeEditor.getResource() : undefined;
 		if (file) {
-			return file.toString() === this.element.parent().resource().toString();
+			return file.toString() === this.element.parent().resource.toString();
 		}
 		return false;
 	}
@@ -671,11 +671,11 @@ function uriToClipboardString(resource: URI): string {
 	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath)) : resource.toString();
 }
 
-export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {
+export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
-	const text = uriToClipboardString(fileMatch.resource());
-	clipboardService.writeText(text);
+	const text = uriToClipboardString(fileMatch.resource);
+	await clipboardService.writeText(text);
 };
 
 function matchToString(match: Match, indent = 0): string {
@@ -712,7 +712,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 		.slice(0, maxMatches)
 		.map(match => matchToString(match, 2));
 	return {
-		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		text: `${uriToClipboardString(fileMatch.resource)}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
 	};
 }
@@ -736,7 +736,7 @@ function folderMatchToString(folderMatch: FolderMatch | BaseFolderMatch, maxMatc
 }
 
 const maxClipboardMatches = 1e4;
-export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMatch) => {
+export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
 	let text: string | undefined;
@@ -749,7 +749,7 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 	}
 
 	if (text) {
-		clipboardService.writeText(text);
+		await clipboardService.writeText(text);
 	}
 };
 
@@ -768,7 +768,7 @@ function allFolderMatchesToString(folderMatches: Array<FolderMatch | BaseFolderM
 	return folderResults.join(lineDelimiter + lineDelimiter);
 }
 
-export const copyAllCommand: ICommandHandler = accessor => {
+export const copyAllCommand: ICommandHandler = async (accessor) => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const clipboardService = accessor.get(IClipboardService);
@@ -778,7 +778,7 @@ export const copyAllCommand: ICommandHandler = accessor => {
 		const root = searchView.searchResult;
 
 		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
-		clipboardService.writeText(text);
+		await clipboardService.writeText(text);
 	}
 };
 

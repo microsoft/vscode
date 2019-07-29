@@ -17,7 +17,7 @@ const gunzip = require('gulp-gunzip');
 const untar = require('gulp-untar');
 const File = require('vinyl');
 const fs = require('fs');
-const remote = require('gulp-remote-src');
+const remote = require('gulp-remote-retry-src');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const cp = require('child_process');
@@ -43,11 +43,11 @@ gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
 gulp.task('vscode-reh-linux-alpine-min', noop);
 
-gulp.task('vscode-web-win32-ia32-min', noop);
-gulp.task('vscode-web-win32-x64-min', noop);
-gulp.task('vscode-web-darwin-min', noop);
-gulp.task('vscode-web-linux-x64-min', noop);
-gulp.task('vscode-web-linux-alpine-min', noop);
+gulp.task('vscode-reh-web-win32-ia32-min', noop);
+gulp.task('vscode-reh-web-win32-x64-min', noop);
+gulp.task('vscode-reh-web-darwin-min', noop);
+gulp.task('vscode-reh-web-linux-x64-min', noop);
+gulp.task('vscode-reh-web-linux-alpine-min', noop);
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');

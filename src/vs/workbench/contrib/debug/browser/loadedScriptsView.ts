@@ -402,7 +402,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -433,7 +433,7 @@ export class LoadedScriptsView extends ViewletPanel {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 			}
-		) as WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
+		);
 
 		this.tree.setInput(root);
 

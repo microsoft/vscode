@@ -3,40 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/node/product';
-
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { language } from 'vs/base/common/platform';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
-import { asJson } from 'vs/base/node/request';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { WorkspaceStats } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
-import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExperimentState, IExperimentAction, IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { IProductService } from 'vs/platform/product/common/product';
+import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 
 interface IExperimentStorageState {
 	enabled: boolean;
 	state: ExperimentState;
 	editCount?: number;
 	lastEditedDate?: string;
-}
-
-export const enum ExperimentState {
-	Evaluating,
-	NoRun,
-	Run,
-	Complete
 }
 
 interface IRawExperiment {
@@ -65,57 +55,11 @@ interface IRawExperiment {
 	action?: IExperimentAction;
 }
 
-interface IExperimentAction {
-	type: ExperimentActionType;
-	properties: any;
-}
-
-export enum ExperimentActionType {
-	Custom = 'Custom',
-	Prompt = 'Prompt',
-	AddToRecommendations = 'AddToRecommendations',
-	ExtensionSearchResults = 'ExtensionSearchResults'
-}
-
-export type LocalizedPromptText = { [locale: string]: string; };
-
-export interface IExperimentActionPromptProperties {
-	promptText: string | LocalizedPromptText;
-	commands: IExperimentActionPromptCommand[];
-}
-
-export interface IExperimentActionPromptCommand {
-	text: string | { [key: string]: string };
-	externalLink?: string;
-	curatedExtensionsKey?: string;
-	curatedExtensionsList?: string[];
-}
-
-export interface IExperiment {
-	id: string;
-	enabled: boolean;
-	state: ExperimentState;
-	action?: IExperimentAction;
-}
-
-export interface IExperimentService {
-	_serviceBrand: any;
-	getExperimentById(id: string): Promise<IExperiment>;
-	getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]>;
-	getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]>;
-	markAsCompleted(experimentId: string): void;
-
-	onExperimentEnabled: Event<IExperiment>;
-}
-
-export const IExperimentService = createDecorator<IExperimentService>('experimentService');
-
 export class ExperimentService extends Disposable implements IExperimentService {
 	_serviceBrand: any;
 	private _experiments: IExperiment[] = [];
 	private _loadExperimentsPromise: Promise<void>;
 	private _curatedMapping = Object.create(null);
-	private _disposables: IDisposable[] = [];
 
 	private readonly _onExperimentEnabled = this._register(new Emitter<IExperiment>());
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
@@ -128,7 +72,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
 	) {
 		super();
 
@@ -172,10 +118,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected getExperiments(): Promise<IRawExperiment[]> {
-		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
+		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return Promise.resolve([]);
 		}
-		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
+		return this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
 				return Promise.resolve(null);
 			}
@@ -274,12 +220,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 			});
 			return Promise.all(promises).then(() => {
-				/* __GDPR__
-					"experiments" : {
-						"experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('experiments', { experiments: this._experiments });
+				type ExperimentsClassification = {
+					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				};
+				this.telemetryService.publicLog2<{ experiments: IExperiment[] }, ExperimentsClassification>('experiments', { experiments: this._experiments });
 			});
 		});
 	}
@@ -411,7 +355,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					onSaveHandler.dispose();
 					return;
 				}
-				e.forEach(event => {
+				e.forEach(async event => {
 					if (event.kind !== StateChange.SAVED
 						|| latestExperimentState.state !== ExperimentState.Evaluating
 						|| date === latestExperimentState.lastEditedDate
@@ -426,10 +370,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						filePathCheck = match(fileEdits.filePathPattern, event.resource.fsPath);
 					}
 					if (Array.isArray(fileEdits.workspaceIncludes) && fileEdits.workspaceIncludes.length) {
-						workspaceCheck = !!WorkspaceStats.TAGS && fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
+						const tags = await this.workspaceStatsService.getTags();
+						workspaceCheck = !!tags && fileEdits.workspaceIncludes.some(x => !!tags[x]);
 					}
 					if (workspaceCheck && Array.isArray(fileEdits.workspaceExcludes) && fileEdits.workspaceExcludes.length) {
-						workspaceCheck = !!WorkspaceStats.TAGS && !fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
+						const tags = await this.workspaceStatsService.getTags();
+						workspaceCheck = !!tags && !fileEdits.workspaceExcludes.some(x => !!tags[x]);
 					}
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;
@@ -445,13 +391,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				}
 			});
-			this._disposables.push(onSaveHandler);
+			this._register(onSaveHandler);
 			return ExperimentState.Evaluating;
 		});
-	}
-
-	dispose() {
-		this._disposables = dispose(this._disposables);
 	}
 }
 

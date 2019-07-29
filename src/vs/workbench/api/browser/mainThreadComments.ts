@@ -57,7 +57,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 	}
 
 	private _onDidChangeLabel = new Emitter<string>();
-	get onDidChangeLabel(): Event<string> { return this._onDidChangeLabel.event; }
+	readonly onDidChangeLabel: Event<string> = this._onDidChangeLabel.event;
 
 	private _comments: modes.Comment[] | undefined;
 
@@ -306,10 +306,6 @@ export class MainThreadCommentController {
 	async getCommentingRanges(resource: URI, token: CancellationToken): Promise<IRange[]> {
 		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
 		return commentingRanges || [];
-	}
-
-	getReactionGroup(): modes.CommentReaction[] | undefined {
-		return this._features.reactionGroup;
 	}
 
 	async toggleReaction(uri: URI, thread: modes.CommentThread, comment: modes.Comment, reaction: modes.CommentReaction, token: CancellationToken): Promise<void> {

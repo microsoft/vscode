@@ -168,8 +168,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
-	public static TemplateTelemetryEventName: string = 'taskService.template';
-
 	public _serviceBrand: any;
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
@@ -472,7 +470,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
+	private isBadTsConfig(taskId: string | TaskIdentifier | undefined): taskId is string {
+		const badTsconfig = '\\tsconfig.json';
+		const tsc = 'tsc';
+		return typeof taskId === 'string' && (taskId.length > badTsconfig.length) && strings.equalsIgnoreCase(taskId.substring(taskId.length - badTsconfig.length, taskId.length), badTsconfig) && (taskId.substring(0, tsc.length) === tsc);
+	}
+
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+		if (this.isBadTsConfig(identifier)) {
+			return Promise.reject(new Error(nls.localize('badTsConfig', "Task '{0}' contains \"\\\\\". Typescript tasks must use \"/\"", identifier)));
+		}
+
 		const name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -2047,14 +2055,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
-					/* __GDPR__
-						"taskService.template" : {
-							"templateId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"autoDetect" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
-					*/
+					type TaskServiceTemplateClassification = {
+						templateId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						autoDetect: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type TaskServiceEvent = {
+						templateId?: string;
+						autoDetect: boolean;
+					};
 					return this.textFileService.create(resource, content).then((result): URI => {
-						this.telemetryService.publicLog(AbstractTaskService.TemplateTelemetryEventName, {
+						this.telemetryService.publicLog2<TaskServiceEvent, TaskServiceTemplateClassification>('taskService.template', {
 							templateId: selection.id,
 							autoDetect: selection.autoDetect
 						});

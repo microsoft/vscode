@@ -23,6 +23,7 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const RUN_TEXTMATE_IN_WORKER = true;
 
@@ -145,9 +146,10 @@ export class TextMateService extends AbstractTextMateService {
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService);
+		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);

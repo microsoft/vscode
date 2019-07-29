@@ -115,7 +115,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
-		this._commentThreadContextValue = contextKeyService.createKey('commentThread', _commentThread.contextValue);
+		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
 
 		this._resizeObserver = null;
 		this._isExpanded = _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded;
@@ -161,14 +161,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
-	public reveal(commentId?: string) {
+	public reveal(commentUniqueId?: number) {
 		if (!this._isExpanded) {
 			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
 
-		if (commentId) {
+		if (commentUniqueId !== undefined) {
 			let height = this.editor.getLayoutInfo().height;
-			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === commentId);
+			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
 			if (matchedNode && matchedNode.length) {
 				const commentThreadCoords = dom.getDomNodePagePosition(this._commentElements[0].domNode);
 				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
@@ -247,9 +247,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
 	}
 
+	private deleteCommentThread(): void {
+		this.dispose();
+		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
+	}
+
 	public collapse(): Promise<void> {
 		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-			this.dispose();
+			this.deleteCommentThread();
 			return Promise.resolve();
 		}
 
@@ -268,7 +273,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._isExpanded) {
 			this.hide();
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this.dispose();
+				this.deleteCommentThread();
 			}
 		} else {
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
@@ -284,7 +289,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		let commentElementsToDelIndex: number[] = [];
 		for (let i = 0; i < oldCommentsLen; i++) {
 			let comment = this._commentElements[i].comment;
-			let newComment = commentThread.comments ? commentThread.comments.filter(c => c.commentId === comment.commentId) : [];
+			let newComment = commentThread.comments ? commentThread.comments.filter(c => c.uniqueIdInThread === comment.uniqueIdInThread) : [];
 
 			if (newComment.length) {
 				this._commentElements[i].update(newComment[0]);
@@ -304,9 +309,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		let newCommentNodeList: CommentNode[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			let currentComment = commentThread.comments![i];
-			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === currentComment.commentId);
+			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
 			if (oldCommentNode.length) {
-				oldCommentNode[0].update(currentComment);
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {
@@ -601,13 +605,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._disposables.add(newCommentNode);
 		this._disposables.add(newCommentNode.onDidDelete(deletedNode => {
-			const deletedNodeId = deletedNode.comment.commentId;
-			const deletedElementIndex = arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.commentId === deletedNodeId);
+			const deletedNodeId = deletedNode.comment.uniqueIdInThread;
+			const deletedElementIndex = arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === deletedNodeId);
 			if (deletedElementIndex > -1) {
 				this._commentElements.splice(deletedElementIndex, 1);
 			}
 
-			const deletedCommentIndex = arrays.firstIndex(this._commentThread.comments!, comment => comment.commentId === deletedNodeId);
+			const deletedCommentIndex = arrays.firstIndex(this._commentThread.comments!, comment => comment.uniqueIdInThread === deletedNodeId);
 			if (deletedCommentIndex > -1) {
 				this._commentThread.comments!.splice(deletedCommentIndex, 1);
 			}

@@ -80,7 +80,7 @@ export class OpenEditorsView extends ViewletPanel {
 		super({
 			...(options as IViewletPanelOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -219,7 +219,7 @@ export class OpenEditorsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			}) as WorkbenchList<OpenEditor | IEditorGroup>;
+			});
 		this._register(this.list);
 		this._register(this.listLabels);
 

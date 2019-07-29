@@ -30,6 +30,17 @@ export interface IProductService {
 		readonly reportIssueUrl: string;
 		readonly requestFeatureUrl: string;
 	};
+
+	readonly settingsSearchBuildId?: number;
+	readonly settingsSearchUrl?: string;
+
+	readonly experimentsUrl?: string;
+	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
+	readonly extensionAllowedBadgeProviders?: readonly string[];
+
+	readonly aiConfig?: {
+		readonly asimovKey: string;
+	};
 }
 
 export interface IProductConfiguration {
@@ -61,8 +72,8 @@ export interface IProductConfiguration {
 		readonly recommendationsUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
-	readonly exeBasedExtensionTips: { [id: string]: { friendlyName: string, windowsPath?: string, recommendations: readonly string[] }; };
+	extensionImportantTips: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly exeBasedExtensionTips: { [id: string]: IExeBasedExtensionTip; };
 	readonly extensionKeywords: { [extension: string]: readonly string[]; };
 	readonly extensionAllowedBadgeProviders: readonly string[];
 	readonly extensionAllowedProposedApi: readonly string[];
@@ -107,6 +118,14 @@ export interface IProductConfiguration {
 	readonly logUploaderUrl: string;
 	readonly portable?: string;
 	readonly uiExtensions?: readonly string[];
+}
+
+export interface IExeBasedExtensionTip {
+	friendlyName: string;
+	windowsPath?: string;
+	recommendations: readonly string[];
+	important?: boolean;
+	exeFriendlyName?: string;
 }
 
 export interface ISurveyData {

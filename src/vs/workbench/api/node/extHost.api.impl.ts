@@ -49,6 +49,7 @@ import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
+import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
@@ -62,12 +63,15 @@ import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { values } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -95,6 +99,10 @@ export function createApiFactory(
 	uriTransformer: IURITransformer | null
 ): IExtensionApiFactory {
 
+	// bootstrap services
+	const services = new ServiceCollection(...getSingletonServiceDescriptors());
+	const instaService = new InstantiationService(services);
+
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
@@ -107,6 +115,7 @@ export function createApiFactory(
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostLogService));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
+	rpcProtocol.set(ExtHostContext.ExtHostDownloadService, new ExtHostDownloadService(rpcProtocol.getProxy(MainContext.MainThreadDownloadService), extHostCommands));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
@@ -116,7 +125,7 @@ export function createApiFactory(
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostWorkspace, extHostDocumentsAndEditors, extHostLogService));
-	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
+	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, instaService.createInstance(ExtHostDebugService, rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, uriTransformer, extHostLogService));
@@ -235,7 +244,11 @@ export function createApiFactory(
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
-			}
+			},
+			onDidExecuteCommand: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension);
+				return extHostCommands.onDidExecuteCommand(listener, thisArgs, disposables);
+			}),
 		};
 
 		// namespace: env
@@ -264,15 +277,7 @@ export function createApiFactory(
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
 			},
 			get remoteName() {
-				if (!initData.remote.authority) {
-					return undefined;
-				}
-				const pos = initData.remote.authority.indexOf('+');
-				if (pos < 0) {
-					// funky? bad authority?
-					return initData.remote.authority;
-				}
-				return initData.remote.authority.substr(0, pos);
+				return getRemoteName(initData.remote.authority);
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -523,10 +528,10 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.TerminalVirtualProcessOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
-					if ('virtualProcess' in nameOrOptions) {
-						return extHostTerminalService.createVirtualProcessTerminal(nameOrOptions);
+					if ('pty' in nameOrOptions) {
+						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					} else {
 						nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
 						return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
@@ -596,7 +601,8 @@ export function createApiFactory(
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(withNullAsUndefined(exclude)), maxResults, extension.identifier, token);
+				// Note, undefined/null have different meanings on "exclude"
+				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				let options: vscode.FindTextInFilesOptions;

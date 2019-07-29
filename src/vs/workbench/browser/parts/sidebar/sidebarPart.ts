@@ -30,7 +30,6 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
@@ -46,15 +45,33 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
-	readonly snapSize: number = 50;
-	readonly priority: LayoutPriority = LayoutPriority.Low;
+	readonly snap = true;
+
+	get preferredWidth(): number | undefined {
+		const viewlet = this.getActiveViewlet();
+
+		if (!viewlet) {
+			return;
+		}
+
+		const width = viewlet.getOptimalWidth();
+
+		if (typeof width !== 'number') {
+			return;
+		}
+
+		return width;
+	}
 
 	//#endregion
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 
+	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
-	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
+	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
 
 	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
 	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
@@ -253,6 +270,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				});
 			}
 		}
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

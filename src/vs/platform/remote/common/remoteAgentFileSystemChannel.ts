@@ -28,7 +28,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
 
 	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	get onDidErrorOccur(): Event<string> { return this._onDidWatchErrorOccur.event; }
+	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
 
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;

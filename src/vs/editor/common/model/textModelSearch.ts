@@ -545,6 +545,12 @@ export class Searcher {
 			const matchStartIndex = m.index;
 			const matchLength = m[0].length;
 			if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
+				if (matchLength === 0) {
+					// the search result is an empty string and won't advance `regex.lastIndex`, so `regex.exec` will stuck here
+					// we attempt to recover from that by advancing by one
+					this._searchRegex.lastIndex += 1;
+					continue;
+				}
 				// Exit early if the regex matches the same range twice
 				return null;
 			}

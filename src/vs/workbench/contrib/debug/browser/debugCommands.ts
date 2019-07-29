@@ -71,11 +71,11 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
-		handler: (accessor: ServicesAccessor, _: string, frame: IStackFrame) => {
+		handler: async (accessor: ServicesAccessor, _: string, frame: IStackFrame) => {
 			const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 			const clipboardService = accessor.get(IClipboardService);
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
-			clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
 		}
 	});
 

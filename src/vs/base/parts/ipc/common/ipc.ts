@@ -23,7 +23,7 @@ export interface IChannel {
 }
 
 /**
- * An `IServerChannel` is the couter part to `IChannel`,
+ * An `IServerChannel` is the counter part to `IChannel`,
  * on the server-side. You should implement this interface
  * if you'd like to handle remote promises or events.
  */

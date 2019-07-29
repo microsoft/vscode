@@ -5,15 +5,15 @@
 
 import * as cp from 'child_process';
 import * as env from 'vs/base/common/platform';
-import { ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
+import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): void {
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): void {
 	if (!externalTerminalService) {
 		if (env.isWindows) {
 			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
@@ -24,6 +24,7 @@ export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestAr
 		}
 	}
 	if (externalTerminalService) {
+		const config = configProvider.getConfiguration('terminal');
 		externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 	}
 }
@@ -60,24 +61,25 @@ export function hasChildProcesses(processId: number): boolean {
 
 const enum ShellType { cmd, powershell, bash }
 
-export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): string {
+export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, shell: string, configProvider: ExtHostConfigProvider): string {
 
-	let shellType: ShellType;
+	let shellType = env.isWindows ? ShellType.cmd : ShellType.bash;	// pick a good default
 
-	// get the shell configuration for the current platform
-	let shell: string;
-	const shell_config = config.integrated.shell;
-	if (env.isWindows) {
-		shell = shell_config.windows || getSystemShell(env.Platform.Windows);
-		shellType = ShellType.cmd;
-	} else if (env.isLinux) {
-		shell = shell_config.linux || getSystemShell(env.Platform.Linux);
-		shellType = ShellType.bash;
-	} else if (env.isMacintosh) {
-		shell = shell_config.osx || getSystemShell(env.Platform.Mac);
-		shellType = ShellType.bash;
-	} else {
-		throw new Error('Unknown platform');
+	if (shell) {
+
+		const config = configProvider.getConfiguration('terminal');
+
+		// get the shell configuration for the current platform
+		const shell_config = config.integrated.shell;
+		if (env.isWindows) {
+			shell = shell_config.windows || getSystemShell(env.Platform.Windows);
+		} else if (env.isLinux) {
+			shell = shell_config.linux || getSystemShell(env.Platform.Linux);
+		} else if (env.isMacintosh) {
+			shell = shell_config.osx || getSystemShell(env.Platform.Mac);
+		} else {
+			throw new Error('Unknown platform');
+		}
 	}
 
 	// try to determine the shell type

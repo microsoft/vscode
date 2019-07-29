@@ -35,7 +35,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqualOrParent } from 'vs/base/common/resources';
 
@@ -434,7 +434,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			this._windowsService.log(entry.severity, ...parse(entry).args);
+			this._windowsService.log(entry.severity, parse(entry).args);
 		}
 
 		// Broadcast to other windows if we are in development mode

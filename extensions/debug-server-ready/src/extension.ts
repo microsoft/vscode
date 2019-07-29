@@ -137,8 +137,7 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 			case 'debugWithChrome':
 
-				const chrome = vscode.extensions.getExtension('msjsdiag.debugger-for-chrome');
-				if (chrome) {
+				if (vscode.env.remoteName === 'wsl' || !!vscode.extensions.getExtension('msjsdiag.debugger-for-chrome')) {
 					vscode.debug.startDebugging(session.workspaceFolder, {
 						type: 'chrome',
 						name: 'Chrome Debug',

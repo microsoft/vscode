@@ -45,7 +45,7 @@ import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_
 import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';

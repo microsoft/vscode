@@ -90,7 +90,7 @@ export class ExplorerView extends ViewletPanel {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -302,7 +302,7 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
-			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+			});
 		this._register(this.tree);
 
 		// Bind context keys

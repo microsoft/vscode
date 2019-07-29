@@ -13,7 +13,6 @@ import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
@@ -24,27 +23,6 @@ import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme }
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
-
-export interface WebviewPortMapping {
-	readonly port: number;
-	readonly resolvedPort: number;
-}
-
-export interface WebviewOptions {
-	readonly allowSvgs?: boolean;
-	readonly extension?: {
-		readonly location: URI;
-		readonly id?: ExtensionIdentifier;
-	};
-	readonly enableFindWidget?: boolean;
-}
-
-export interface WebviewContentOptions {
-	readonly allowScripts?: boolean;
-	readonly svgWhiteList?: string[];
-	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMappings?: ReadonlyArray<WebviewPortMapping>;
-}
 
 interface IKeydownEvent {
 	key: string;
@@ -285,7 +263,7 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-export class WebviewElement extends Disposable implements Webview {
+export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	private _webview: Electron.WebviewTag | undefined;
 	private _ready: Promise<void>;
 
@@ -296,7 +274,7 @@ export class WebviewElement extends Disposable implements Webview {
 	private _focused = false;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	constructor(
 		private readonly _options: WebviewOptions,
@@ -349,7 +327,7 @@ export class WebviewElement extends Disposable implements Webview {
 		this._register(new WebviewPortMappingProvider(
 			session,
 			_options.extension ? _options.extension.location : undefined,
-			() => (this.content.options.portMappings || []),
+			() => (this.content.options.portMapping || []),
 			tunnelService,
 		));
 
@@ -508,7 +486,7 @@ export class WebviewElement extends Disposable implements Webview {
 		};
 	}
 
-	public set options(options: WebviewContentOptions) {
+	public set contentOptions(options: WebviewContentOptions) {
 		if (areWebviewInputOptionsEqual(options, this.content.options)) {
 			return;
 		}

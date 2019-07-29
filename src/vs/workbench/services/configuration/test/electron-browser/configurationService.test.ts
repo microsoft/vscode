@@ -36,13 +36,12 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-// import { VSBuffer } from 'vs/base/common/buffer';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -1603,7 +1602,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	// 			}
 	// 		});
 	// 	});
-	// 	await instantiationService.get(IFileService).writeFile(URI.file(remoteSettingsFile), VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
+	// 	fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
 	// 	return promise;
 	// });
 

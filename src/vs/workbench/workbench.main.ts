@@ -53,7 +53,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -64,12 +64,12 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityService } from 'vs/workbench/services/accessibility/node/accessibilityService';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/browser/requestService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -124,12 +124,11 @@ import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
-import 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
-import 'vs/workbench/services/extensions/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';
-import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/window/electron-browser/windowService';
@@ -137,8 +136,9 @@ import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/extensionManagementService';
 
-
+registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IListService, ListService, true);
@@ -167,6 +167,7 @@ registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);
 
 //#endregion
 
@@ -200,7 +201,7 @@ import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
-import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/electron-browser/preferencesSearch';
+import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 // Logs
@@ -255,9 +256,10 @@ import 'vs/workbench/contrib/webview/browser/webview.contribution';
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 
 // Extensions Management
+import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
-import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
+import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output Panel
 import 'vs/workbench/contrib/output/browser/output.contribution';
@@ -343,5 +345,6 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { IWorkspaceStatsService, WorkspaceStatsService } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 
 //#endregion

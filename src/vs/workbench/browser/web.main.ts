@@ -20,7 +20,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remot
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,6 +40,9 @@ import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/workbench/services/request/browser/requestService';
+import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -132,7 +135,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
@@ -155,12 +158,14 @@ class CodeRendererMain extends Disposable {
 			}
 		}
 
-		// User Data Provider
-		if (userDataProvider) {
-			fileService.registerProvider(Schemas.userData, userDataProvider);
+		if (!userDataProvider) {
+			userDataProvider = this._register(new InMemoryUserDataProvider());
 		}
 
-		const services = await Promise.all([
+		// User Data Provider
+		fileService.registerProvider(Schemas.userData, userDataProvider);
+
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -181,7 +186,10 @@ class CodeRendererMain extends Disposable {
 			})
 		]);
 
-		return { serviceCollection, logService, storageService: services[1] };
+		// Request Service
+		serviceCollection.set(IRequestService, new RequestService(this.configuration.requestHandler, remoteAgentService, configurationService, logService));
+
+		return { serviceCollection, logService, storageService };
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

@@ -115,11 +115,11 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
 		const folderMatch = node.element;
 		if (folderMatch.hasResource()) {
-			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource());
-			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource())) {
-				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
+			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource);
+			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource)) {
+				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
 			} else {
-				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
+				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.FOLDER });
 			}
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
@@ -185,8 +185,8 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
-		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
-		templateData.label.setFile(fileMatch.resource(), { hideIcon: false });
+		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
+		templateData.label.setFile(fileMatch.resource, { hideIcon: false });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
@@ -316,7 +316,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 		}
 
 		if (element instanceof FileMatch) {
-			const path = this.labelService.getUriLabel(element.resource(), { relative: true }) || element.resource().fsPath;
+			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
@@ -362,7 +362,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 
 		const element = elements[0];
 		return element instanceof FileMatch ?
-			resources.basename(element.resource()) :
+			resources.basename(element.resource) :
 			undefined;
 	}
 
@@ -370,7 +370,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
 		const resources: URI[] = elements
 			.filter(e => e instanceof FileMatch)
-			.map((fm: FileMatch) => fm.resource());
+			.map((fm: FileMatch) => fm.resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application

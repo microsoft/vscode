@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions } from 'vs/workbench/common/views';
+import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -56,9 +56,9 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IViewsService viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
@@ -108,7 +108,7 @@ class TitleMenus extends Disposable {
 	private titleSecondaryActions: IAction[] = [];
 
 	private _onDidChangeTitle = this._register(new Emitter<void>());
-	get onDidChangeTitle(): Event<void> { return this._onDidChangeTitle.event; }
+	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
 	constructor(
 		id: string,
@@ -385,13 +385,17 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				collapseByDefault: (e: ITreeItem): boolean => {
 					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 				}
-			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+			}));
 		aligner.tree = this.tree;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e)));
 		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
 		this._register(this.tree.onDidChangeCollapseState(e => {
+			if (!e.node.element) {
+				return;
+			}
+
 			const element: ITreeItem = Array.isArray(e.node.element.element) ? e.node.element.element[0] : e.node.element.element;
 			if (e.node.collapsed) {
 				this._onDidCollapseItem.fire(element);

@@ -378,12 +378,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
-			this.instantiationService.createInstance(VariablesRenderer),
-			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
-			new ReplExpressionsRenderer(),
-			new ReplRawObjectsRenderer()
-		], new ReplDataSource(), {
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree,
+			treeContainer,
+			this.replDelegate,
+			[
+				this.instantiationService.createInstance(VariablesRenderer),
+				this.instantiationService.createInstance(ReplSimpleElementsRenderer),
+				new ReplExpressionsRenderer(),
+				new ReplRawObjectsRenderer()
+			],
+			// https://github.com/microsoft/TypeScript/issues/32526
+			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			{
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
@@ -392,7 +399,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap
-			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(this.tree.onMouseClick(() => {
@@ -472,16 +479,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, () => {
+		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, async () => {
 			const nativeSelection = window.getSelection();
 			if (nativeSelection) {
-				this.clipboardService.writeText(nativeSelection.toString());
+				await this.clipboardService.writeText(nativeSelection.toString());
 			}
 			return Promise.resolve();
 		}));
-		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
-			this.clipboardService.writeText(this.getVisibleContent());
-			return Promise.resolve(undefined);
+		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, async () => {
+			await this.clipboardService.writeText(this.getVisibleContent());
+			return Promise.resolve();
 		}));
 		actions.push(new Action('debug.collapseRepl', nls.localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();
@@ -902,7 +909,7 @@ class ReplCopyAllAction extends EditorAction {
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+		return clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
 

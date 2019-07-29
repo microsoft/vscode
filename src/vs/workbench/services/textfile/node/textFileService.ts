@@ -13,7 +13,7 @@ import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOper
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -490,7 +490,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			for (const override of this.encodingOverrides) {
 
 				// check if the resource is child of encoding override path
-				if (override.parent && isEqualOrParent(resource, override.parent, !isLinux /* ignorecase */)) {
+				if (override.parent && isEqualOrParent(resource, override.parent)) {
 					return override.encoding;
 				}
 

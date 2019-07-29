@@ -312,7 +312,7 @@ export class IssueReporter extends Disposable {
 			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
 			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', pkg.version, configuration.machineId, this.environmentService.installSourcePath);
-			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
+			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);

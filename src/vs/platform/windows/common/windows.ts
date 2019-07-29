@@ -156,7 +156,7 @@ export interface IWindowsService {
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): Promise<number>;
-	log(severity: string, ...messages: string[]): Promise<void>;
+	log(severity: string, args: string[]): Promise<void>;
 	showItemInFolder(path: URI): Promise<void>;
 	getActiveWindowId(): Promise<number | undefined>;
 
@@ -183,6 +183,7 @@ export interface IOpenSettings {
 	forceReuseWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	noRecentEntry?: boolean;
 	waitMarkerFileURI?: URI;
 	args?: ParsedArgs;

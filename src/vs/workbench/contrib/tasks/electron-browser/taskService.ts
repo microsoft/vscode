@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Objects from 'vs/base/common/objects';
-import * as semver from 'semver';
+import * as semver from 'semver-umd';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';

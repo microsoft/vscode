@@ -773,6 +773,7 @@ export class SnippetString {
 
 export enum DiagnosticTag {
 	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum DiagnosticSeverity {
@@ -1773,19 +1774,19 @@ export class CustomExecution implements vscode.CustomExecution {
 }
 
 export class CustomExecution2 implements vscode.CustomExecution2 {
-	private _callback: () => Thenable<vscode.TerminalVirtualProcess>;
-	constructor(callback: () => Thenable<vscode.TerminalVirtualProcess>) {
+	private _callback: () => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: () => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: () => Thenable<vscode.TerminalVirtualProcess>) {
+	public set callback(value: () => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): (() => Thenable<vscode.TerminalVirtualProcess>) {
+	public get callback(): (() => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }

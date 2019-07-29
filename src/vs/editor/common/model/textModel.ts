@@ -2703,6 +2703,10 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 		return this._resolvedColor;
 	}
 
+	public invalidateCachedColor(): void {
+		this._resolvedColor = undefined;
+	}
+
 	private _resolveColor(color: string | ThemeColor, theme: ITheme): Color | undefined {
 		if (typeof color === 'string') {
 			return Color.fromHex(color);

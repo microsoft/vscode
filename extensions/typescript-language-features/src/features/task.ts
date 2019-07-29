@@ -72,6 +72,12 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	public resolveTask(_task: vscode.Task): vscode.Task | undefined {
+		const definition = <TypeScriptTaskDefinition>_task.definition;
+		const badTsconfig = '\\tsconfig.json';
+		if ((definition.tsconfig.length > badTsconfig.length) && (definition.tsconfig.substring(definition.tsconfig.length - badTsconfig.length, definition.tsconfig.length) === badTsconfig)) {
+			// Warn that the task has the wrong slash type
+			vscode.window.showWarningMessage(localize('badTsConfig', "Typescript Task in tasks.json contains \"\\\\\". Typescript tasks must use \"/\""));
+		}
 		return undefined;
 	}
 

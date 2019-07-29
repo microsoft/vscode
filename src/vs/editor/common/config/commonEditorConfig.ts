@@ -460,7 +460,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
@@ -696,7 +696,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
-			default: { keyword: true },
+			default: { keyword: true, snippet: true },
 			markdownDescription: nls.localize('suggest.filtered', "Controls whether some suggestion types should be filtered from IntelliSense. A list of suggestion types can be found here: https://code.visualstudio.com/docs/editor/intellisense#_types-of-completions."),
 			properties: {
 				method: {
@@ -901,10 +901,11 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderWhitespace': {
 			'type': 'string',
-			'enum': ['none', 'boundary', 'all'],
+			'enum': ['none', 'boundary', 'selection', 'all'],
 			'enumDescriptions': [
 				'',
-				nls.localize('renderWhiteSpace.boundary', "Render whitespace characters except for single spaces between words."),
+				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
+				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
 				''
 			],
 			default: EDITOR_DEFAULTS.viewInfo.renderWhitespace,

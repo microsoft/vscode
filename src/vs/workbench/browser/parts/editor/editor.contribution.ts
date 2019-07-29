@@ -51,6 +51,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { toLocalResource } from 'vs/base/common/resources';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -205,7 +206,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
 
 			if (detailsInput && masterInput) {
-				return new SideBySideEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
+				return new SideBySideEditorInput(deserialized.name, withNullAsUndefined(deserialized.description), detailsInput, masterInput);
 			}
 		}
 
@@ -447,7 +448,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 
 interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
 
-function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr, order: number, alternative?: IEditorToolItem): void {
+function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,
