@@ -14,6 +14,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { MultilineTokens } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -778,6 +779,11 @@ export interface ITextModel {
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
+
+	/**
+	 * @internal
+	 */
+	setTokens(tokens: MultilineTokens[]): void;
 
 	/**
 	 * Flush all tokenization state.

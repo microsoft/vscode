@@ -251,6 +251,7 @@ export class Model {
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this.globalState, this.outputChannel);
 
 			this.open(repository);
+			await repository.status();
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 				return;

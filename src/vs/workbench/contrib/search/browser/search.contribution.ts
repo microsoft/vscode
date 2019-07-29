@@ -219,7 +219,7 @@ CommandsRegistry.registerCommand({
 		const viewletService = accessor.get(IViewletService);
 		const explorerService = accessor.get(IExplorerService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const uri = fileMatch.resource();
+		const uri = fileMatch.resource;
 
 		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet: ExplorerViewlet) => {
 			if (uri && contextService.isInsideWorkspace(uri)) {

@@ -80,7 +80,7 @@ export class OpenEditorsView extends ViewletPanel {
 		super({
 			...(options as IViewletPanelOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
