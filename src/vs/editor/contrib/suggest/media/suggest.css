@@ -97,10 +97,7 @@
 	font-weight: bold;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .inline-deprecated {
-	text-decoration: none; /* override normal inline behavior due to HTML structure */
-}
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .inline-deprecated span {
+.monaco-editor .suggest-widget-deprecated span {
 	text-decoration: line-through;
 }
 

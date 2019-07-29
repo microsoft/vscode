@@ -9,7 +9,6 @@ import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
@@ -63,6 +62,10 @@ export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 
+/**
+ * Suggest widget styles
+ */
+const editorSuggestWidgetDeprecatedClassName = "suggest-widget-deprecated";
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function extractColor(item: CompletionItem, out: string[]): boolean {
@@ -197,7 +200,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		}
 
 		if (suggestion.label && suggestion.deprecated) {
-			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat([ClassName.EditorDeprecatedInlineDecoration]);
+			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat([editorSuggestWidgetDeprecatedClassName]);
 		}
 
 		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);
