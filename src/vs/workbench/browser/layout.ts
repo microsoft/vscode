@@ -27,7 +27,7 @@ import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid, GridBranchNode, GridLeafNode, isGridBranchNode } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid, GridBranchNode, isGridBranchNode, GridLeafNode } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -399,7 +399,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Panel size before maximized
-		this.state.panel.sizeBeforeMaximize = this.storageService.getNumber(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, StorageScope.GLOBAL, 0);
+		this.state.panel.sizeBeforeMaximize = this.storageService.getNumber(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, StorageScope.WORKSPACE, 0);
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
@@ -719,7 +719,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			let workbenchGrid: SerializableGrid<ISerializableView> | undefined;
 
-			const savedGrid = this.storageService.get(Storage.GRID_LAYOUT, StorageScope.GLOBAL, undefined);
+			const savedGrid = this.storageService.get(Storage.GRID_LAYOUT, StorageScope.WORKSPACE, undefined);
 			if (savedGrid) {
 				const parsedGrid: ISerializedGrid = JSON.parse(savedGrid);
 
@@ -788,7 +788,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
 					const serializedGrid = grid.serialize();
 
-					this.storageService.store(Storage.GRID_LAYOUT, JSON.stringify(serializedGrid), StorageScope.GLOBAL);
+					this.storageService.store(Storage.GRID_LAYOUT, JSON.stringify(serializedGrid), StorageScope.WORKSPACE);
 
 					resolve();
 				}));
@@ -1151,7 +1151,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.state.panel.sizeBeforeMaximize = curSize.width;
 				}
 
-				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
+				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.WORKSPACE);
 			} else {
 				if (this.state.panel.position === Position.BOTTOM) {
 					size.height = this.state.panel.sizeBeforeMaximize;
