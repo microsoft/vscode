@@ -789,6 +789,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setPanelHidden(!visible, true);
 			}));
 
+			this._register((this.editorPartView as PanelPart).onDidVisibilityChange((visible) => {
+				this.setEditorHidden(!visible, true);
+			}));
+
 			this._register(this.lifecycleService.onBeforeShutdown(beforeShutdownEvent => {
 				beforeShutdownEvent.veto(new Promise((resolve) => {
 					const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
@@ -1163,6 +1167,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					size.height = this.state.panel.sizeBeforeMaximize;
 				} else {
 					size.width = this.state.panel.sizeBeforeMaximize;
+				}
+
+				// Unhide the editor if needed
+				if (this.state.editor.hidden) {
+					this.setEditorHidden(false);
 				}
 			}
 
