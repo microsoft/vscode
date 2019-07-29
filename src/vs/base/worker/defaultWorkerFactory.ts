@@ -63,7 +63,7 @@ class WebWorker implements IWorker {
 		} else {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
-		this.postMessage(moduleId);
+		this.postMessage(moduleId, []);
 		this.worker.then((w) => {
 			w.onmessage = function (ev: any) {
 				onMessageCallback(ev.data);
@@ -79,9 +79,9 @@ class WebWorker implements IWorker {
 		return this.id;
 	}
 
-	public postMessage(msg: string): void {
+	public postMessage(message: any, transfer: Transferable[]): void {
 		if (this.worker) {
-			this.worker.then(w => w.postMessage(msg));
+			this.worker.then(w => w.postMessage(message, transfer));
 		}
 	}
 
