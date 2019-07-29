@@ -109,6 +109,10 @@
 			"name": "Docker",
 			"pattern": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml}"
 		},
+		"ms-mssql.mssql": {
+			"name": "mssql",
+			"pattern": "{**/*.sql}"
+		},
 		"octref.vetur": {
 			"name": "Vetur",
 			"pattern": "{**/*.vue}"
