@@ -147,10 +147,13 @@ export function main(desc: ProductDescription, args: string[]): void {
 				cwd
 			});
 		} else {
+			const cwd = _path.dirname(cliCommand);
+			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+			newCommandline.unshift('resources/app/out/cli.js');
 			if (parsedArgs['verbose']) {
 				console.log(`Invoking: ${cliCommand} ${newCommandline.join(' ')} in ${cwd}`);
 			}
-			const child = _cp.spawn(cliCommand, newCommandline, { cwd, stdio: [process.stdin, 'pipe', 'pipe'] });
+			const child = _cp.spawn(cliCommand, newCommandline, { cwd, env, stdio: [process.stdin, 'pipe', 'pipe'] });
 			child.stdout.on('data', data => process.stdout.write(data.toString().replace(/\r?\n/g, '\n')));
 			child.stderr.on('data', data => process.stderr.write(data.toString().replace(/\r?\n/g, '\n')));
 		}
