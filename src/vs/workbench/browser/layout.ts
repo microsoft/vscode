@@ -750,6 +750,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					workbenchGrid = SerializableGrid.deserialize(parsedGrid, { fromJSON }, { proportionalLayout: false });
 
 					const root = workbenchGrid.getViews();
+					const titleBarSection = root.children[0];
+
+					if (isGridBranchNode(titleBarSection) || titleBarSection.view !== this.titleBarPartView) {
+						throw new Error('Bad grid');
+					}
+
 					const middleSection = root.children[1] as GridBranchNode<ISerializableView>;
 					this.state.sideBar.position = (middleSection.children[0] as GridLeafNode<ISerializableView>).view === this.activityBarPartView ? Position.LEFT : Position.RIGHT;
 					this.state.panel.position = isGridBranchNode(middleSection.children[2]) ? Position.BOTTOM : Position.RIGHT;
