@@ -21,6 +21,7 @@ const args = minimist(process.argv.slice(2), {
 		'port',
 		'disable-telemetry',
 		'connectionToken',
+		'host',
 		'folder',
 		'extensions-dir'
 	]
@@ -37,6 +38,7 @@ const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 const PORT = (args as any)['port'] || 8000;
 const CONNECTION_AUTH_TOKEN = (args as any)['connectionToken'] || generateUuid();
+const HOST = (args as any)['host'];
 
 args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
 
@@ -78,7 +80,7 @@ if (shouldSpawnCli(args)) {
 	logService.info(license);
 	console.log(license);
 	const server = new RemoteExtensionHostAgentServer(CONNECTION_AUTH_TOKEN, environmentService, logService);
-	server.start(PORT);
+	server.start(HOST, PORT);
 	process.on('exit', () => {
 		server.dispose();
 	});

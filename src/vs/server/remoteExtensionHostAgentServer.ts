@@ -61,14 +61,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		this._managementConnections = Object.create(null);
 	}
 
-	public async start(port: number) {
+	public async start(host: string, port: number) {
 		// Wait for the extension management server to be set up, cache the result so it can be accessed sync while handling requests
 		const server = await RemoteExtensionManagementServer.create(this._environmentService, this._logService);
 		this._remoteExtensionManagementServer = this._register(server);
-		return this._start(port);
+		return this._start(host, port);
 	}
 
-	private async _start(port: number) {
+	private async _start(host: string, port: number) {
 		const ifaces = os.networkInterfaces();
 		const logService = this._logService;
 		Object.keys(ifaces).forEach(function (ifname) {
@@ -246,7 +246,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			console.error(`Error occurred in server`);
 			console.error(err);
 		});
-		server.listen(port, () => {
+		server.listen({ host, port }, () => {
 			// Do not change this line. VS Code looks for this in
 			// the output.
 			const address = server.address();
