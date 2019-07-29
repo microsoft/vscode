@@ -1477,7 +1477,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, ..._messages: string[]): Promise<void> {
+	log(_severity: string, _args: string[]): Promise<void> {
 		return Promise.resolve();
 	}
 
