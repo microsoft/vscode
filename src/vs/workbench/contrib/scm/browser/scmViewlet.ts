@@ -234,7 +234,7 @@ export class MainPanel extends ViewletPanel {
 		@IMenuService private readonly menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -733,7 +733,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);

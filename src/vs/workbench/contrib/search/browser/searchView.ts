@@ -154,7 +154,7 @@ export class SearchView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 	) {
-		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);

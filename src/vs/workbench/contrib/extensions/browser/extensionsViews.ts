@@ -47,6 +47,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/product';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -101,8 +102,9 @@ export class ExtensionsListView extends ViewletPanel {
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService protected readonly productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.server = options.server;
 	}
 
@@ -849,9 +851,10 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService, contextKeyService);
 		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
