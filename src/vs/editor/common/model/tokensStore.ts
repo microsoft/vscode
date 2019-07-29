@@ -320,14 +320,8 @@ export class TokensStore {
 	}
 
 	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer {
-		if (!_tokens || _tokens.byteLength === 0) {
-			const tokens = new Uint32Array(2);
-			tokens[0] = lineTextLength;
-			tokens[1] = getDefaultMetadata(topLevelLanguageId);
-			return tokens.buffer;
-		}
 
-		const tokens = toUint32Array(_tokens);
+		const tokens = _tokens ? toUint32Array(_tokens) : null;
 
 		if (lineTextLength === 0) {
 			let hasDifferentLanguageId = false;
@@ -338,6 +332,13 @@ export class TokensStore {
 			if (!hasDifferentLanguageId) {
 				return EMPTY_LINE_TOKENS;
 			}
+		}
+
+		if (!tokens || tokens.length === 0) {
+			const tokens = new Uint32Array(2);
+			tokens[0] = lineTextLength;
+			tokens[1] = getDefaultMetadata(topLevelLanguageId);
+			return tokens.buffer;
 		}
 
 		// Ensure the last token covers the end of the text
