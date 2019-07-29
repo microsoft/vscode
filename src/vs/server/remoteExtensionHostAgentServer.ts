@@ -29,8 +29,7 @@ import { ManagementConnection, RemoteExtensionManagementServer } from 'vs/server
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-
-const CONNECTION_AUTH_TOKEN = generateUuid();
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const textMmimeType = {
 	'.html': 'text/html',
@@ -53,6 +52,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private shutdownTimer: NodeJS.Timer | undefined;
 
 	constructor(
+		private readonly _connectionToken: string,
 		private readonly _environmentService: EnvironmentService,
 		private readonly _logService: ILogService
 	) {
@@ -139,7 +139,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							webviewEndpoint,
 						})))
 						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
-						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
 						.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
 						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
@@ -253,6 +252,12 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const address = server.address();
 			console.log(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
 			this._logService.info(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
+
+			const webRootFile = getPathFromAmdModule(require, 'vs/code/browser/workbench/workbench.html');
+			if (typeof address !== 'string' && fs.existsSync(webRootFile)) {
+				// ships the web ui!
+				console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/#tkn=${this._connectionToken}`);
+			}
 		});
 
 		this._register({ dispose: () => server.close() });
@@ -443,7 +448,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 				let valid = false;
 
-				if (msg.signedData === CONNECTION_AUTH_TOKEN) {
+				if (msg.signedData === this._connectionToken) {
 					// web client
 					valid = true;
 				}
