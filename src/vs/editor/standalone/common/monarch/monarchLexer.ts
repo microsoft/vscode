@@ -857,6 +857,11 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			return null;
 		}
 
+		if (mimetypeOrModeId === this._modeId) {
+			// embedding myself...
+			return mimetypeOrModeId;
+		}
+
 		let modeId = this._modeService.getModeId(mimetypeOrModeId);
 
 		if (modeId) {

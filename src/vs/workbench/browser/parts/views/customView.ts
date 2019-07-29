@@ -405,7 +405,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const customTreeNavigator = new TreeResourceNavigator2(this.tree);
+		const customTreeNavigator = new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false });
 		this._register(customTreeNavigator);
 		this._register(customTreeNavigator.onDidOpenResource(e => {
 			if (!e.browserEvent) {
