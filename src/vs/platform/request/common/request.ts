@@ -90,7 +90,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.proxy': {
 				type: 'string',
 				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
-				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables.")
+				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables.")
 			},
 			'http.proxyStrictSSL': {
 				type: 'boolean',
@@ -100,7 +100,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],
 				default: null,
-				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
+				markdownDescription: localize('proxyAuthorization', "The value to send as the `Proxy-Authorization` header for every network request.")
 			},
 			'http.proxySupport': {
 				type: 'string',

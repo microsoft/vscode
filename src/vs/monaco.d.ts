@@ -29,7 +29,8 @@ declare namespace monaco {
 
 
 	export enum MarkerTag {
-		Unnecessary = 1
+		Unnecessary = 1,
+		Deprecated = 2
 	}
 
 	export enum MarkerSeverity {

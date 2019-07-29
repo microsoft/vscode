@@ -434,7 +434,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			this._windowsService.log(entry.severity, ...parse(entry).args);
+			this._windowsService.log(entry.severity, parse(entry).args);
 		}
 
 		// Broadcast to other windows if we are in development mode

@@ -39,6 +39,7 @@ export interface IRelatedInformation {
 
 export const enum MarkerTag {
 	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum MarkerSeverity {

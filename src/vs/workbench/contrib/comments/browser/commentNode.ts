@@ -181,7 +181,7 @@ export class CommentNode extends Disposable {
 		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
+			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			actions.push(toggleReactionAction);
 		}
 
@@ -208,7 +208,7 @@ export class CommentNode extends Disposable {
 
 	actionViewItemProvider(action: Action) {
 		let options = {};
-		if (action.id === 'comment.delete' || action.id === 'comment.edit' || action.id === ToggleReactionsAction.ID) {
+		if (action.id === ToggleReactionsAction.ID) {
 			options = { label: false, icon: true };
 		} else {
 			options = { label: false, icon: true };
@@ -226,7 +226,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker2(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
+	private createReactionPicker(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -321,14 +321,8 @@ export class CommentNode extends Disposable {
 		});
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
+			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-		} else {
-			// let reactionGroup = this.commentService.getReactionGroup(this.owner);
-			// if (reactionGroup && reactionGroup.length) {
-			// 	let toggleReactionAction = this.createReactionPicker2(reactionGroup || []);
-			// 	this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-			// }
 		}
 	}
 

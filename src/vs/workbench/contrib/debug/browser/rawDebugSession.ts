@@ -587,7 +587,13 @@ export class RawDebugSession {
 					}
 
 				} else {
-					args._.push(a2);
+					const match = /^--(.+)$/.exec(a2);
+					if (match && match.length === 2) {
+						const key = match[1];
+						(<any>args)[key] = true;
+					} else {
+						args._.push(a2);
+					}
 				}
 			}
 		}

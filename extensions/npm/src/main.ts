@@ -7,7 +7,7 @@ import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { invalidateTasksCache, NpmTaskProvider } from './tasks';
+import { invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { runSelectedScript } from './commands';
 
@@ -41,6 +41,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(d);
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
+
+	if (await hasPackageJson()) {
+		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
+	}
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {

@@ -43,7 +43,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	private _grammarDefinitions: IValidGrammarDefinition[] | null;
 	private _grammarFactory: TMGrammarFactory | null;
 	private _tokenizersRegistrations: IDisposable[];
-	private _currentTokenColors: ITokenColorizationRule[] | null;
+	protected _currentTheme: IRawTheme | null;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
@@ -63,6 +63,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		this._grammarDefinitions = null;
 		this._grammarFactory = null;
 		this._tokenizersRegistrations = [];
+
+		this._currentTheme = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			this._grammarDefinitions = null;
@@ -242,11 +244,11 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IColorTheme, forceUpdate: boolean): void {
-		if (!forceUpdate && AbstractTextMateService.equalsTokenRules(this._currentTokenColors, colorTheme.tokenColors)) {
+		if (!forceUpdate && this._currentTheme && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors)) {
 			return;
 		}
-		this._currentTokenColors = colorTheme.tokenColors;
-		this._doUpdateTheme(grammarFactory, { name: colorTheme.label, settings: colorTheme.tokenColors });
+		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
+		this._doUpdateTheme(grammarFactory, this._currentTheme);
 	}
 
 	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {

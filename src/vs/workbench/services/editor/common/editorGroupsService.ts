@@ -179,7 +179,7 @@ export interface IEditorGroupsService {
 	/**
 	 * The size of the editor groups area.
 	 */
-	readonly dimension: IDimension;
+	readonly contentDimension: IDimension;
 
 	/**
 	 * An active group is the default location for new editors to open.
