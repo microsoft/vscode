@@ -402,7 +402,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 

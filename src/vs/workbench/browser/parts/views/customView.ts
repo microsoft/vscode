@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions } from 'vs/workbench/common/views';
+import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -56,9 +56,9 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IViewsService viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));

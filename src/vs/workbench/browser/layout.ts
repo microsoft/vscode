@@ -763,6 +763,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 							this.state.panel.position = Position.RIGHT;
 						}
 					}
+
+					// Reset workbench state if corrupted
+					if (workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Right).length > 0 ||
+						workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Left).length > 0) {
+						workbenchGrid = undefined;
+					}
 				} catch (err) {
 					console.error(err);
 				}
@@ -781,6 +787,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
 				this.setPanelHidden(!visible, true);
+			}));
+
+			this._register((this.editorPartView as PanelPart).onDidVisibilityChange((visible) => {
+				this.setEditorHidden(!visible, true);
 			}));
 
 			this._register(this.lifecycleService.onBeforeShutdown(beforeShutdownEvent => {
@@ -849,8 +859,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			statusBarInGrid = true;
 		}
 
-		if (!titlebarInGrid && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (!titlebarInGrid) {
 			this.workbenchGrid.addView(this.titleBarPartView, Sizing.Split, this.editorPartView, Direction.Up);
+
 			titlebarInGrid = true;
 		}
 
@@ -1156,6 +1167,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					size.height = this.state.panel.sizeBeforeMaximize;
 				} else {
 					size.width = this.state.panel.sizeBeforeMaximize;
+				}
+
+				// Unhide the editor if needed
+				if (this.state.editor.hidden) {
+					this.setEditorHidden(false);
 				}
 			}
 

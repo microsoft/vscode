@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, ITerminalVirtualProcessRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -47,8 +47,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.add(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
-		this._toDispose.add(_terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
-		this._toDispose.add(_terminalService.onInstanceRequestVirtualProcess(e => this._onTerminalRequestVirtualProcess(e)));
+		this._toDispose.add(_terminalService.onInstanceRequestSpawnExtHostProcess(request => this._onRequestSpawnExtHostProcess(request)));
+		this._toDispose.add(_terminalService.onInstanceRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 		this._toDispose.add(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
@@ -90,7 +90,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			isVirtualProcess: launchConfig.isVirtualProcess
+			isExtensionTerminal: launchConfig.isExtensionTerminal
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		this._terminalProcesses.set(terminal.id, new Promise<ITerminalProcessExtHostProxy>(r => this._terminalProcessesReady.set(terminal.id, r)));
@@ -240,7 +240,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalMaximumDimensions(instance.id, instance.maxCols, instance.maxRows);
 	}
 
-	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
+	private _onRequestSpawnExtHostProcess(request: ISpawnExtHostProcessRequest): void {
 		// Only allow processes on remote ext hosts
 		if (!this._remoteAuthority) {
 			return;
@@ -261,7 +261,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			cwd: request.shellLaunchConfig.cwd,
 			env: request.shellLaunchConfig.env
 		};
-		this._proxy.$createProcess(proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows, request.isWorkspaceShellAllowed);
+		this._proxy.$spawnExtHostProcess(proxy.terminalId, shellLaunchConfigDto, request.activeWorkspaceRootUri, request.cols, request.rows, request.isWorkspaceShellAllowed);
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
@@ -270,7 +270,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		proxy.onRequestLatency(() => this._onRequestLatency(proxy.terminalId));
 	}
 
-	private _onTerminalRequestVirtualProcess(request: ITerminalVirtualProcessRequest): void {
+	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
 		const proxy = request.proxy;
 		const ready = this._terminalProcessesReady.get(proxy.terminalId);
 		if (!ready) {
@@ -286,7 +286,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			columns: request.cols,
 			rows: request.rows
 		} : undefined;
-		this._proxy.$startVirtualProcess(proxy.terminalId, initialDimensions);
+		this._proxy.$startExtensionTerminal(proxy.terminalId, initialDimensions);
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
 		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.terminalId));
