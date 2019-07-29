@@ -763,6 +763,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 							this.state.panel.position = Position.RIGHT;
 						}
 					}
+
+					// Reset workbench state if corrupted
+					if (workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Right).length > 0 ||
+						workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Left).length > 0) {
+						workbenchGrid = undefined;
+					}
 				} catch (err) {
 					console.error(err);
 				}
@@ -849,8 +855,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			statusBarInGrid = true;
 		}
 
-		if (!titlebarInGrid && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (!titlebarInGrid) {
 			this.workbenchGrid.addView(this.titleBarPartView, Sizing.Split, this.editorPartView, Direction.Up);
+
 			titlebarInGrid = true;
 		}
 
