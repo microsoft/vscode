@@ -65,7 +65,7 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 /**
  * Suggest widget styles
  */
-const editorSuggestWidgetDeprecatedClassName = "suggest-widget-deprecated";
+const editorSuggestWidgetDeprecatedClassName = 'suggest-widget-deprecated';
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function extractColor(item: CompletionItem, out: string[]): boolean {
