@@ -120,19 +120,23 @@ function _getLangEnvVariable(locale?: string) {
 
 export function getCwd(shell: IShellLaunchConfig, userHome: string, lastActiveWorkspace: IWorkspaceFolder | undefined, configurationResolverService: IConfigurationResolverService | undefined, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
-		let cwd = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
-		if (configurationResolverService) {
-			return configurationResolverService.resolve(lastActiveWorkspace, cwd);
-		}
+		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
 
 	let cwd: string | undefined;
 
 	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd && customCwd) {
-		if (path.isAbsolute(customCwd)) {
+		if (configurationResolverService) {
+			try {
+				cwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
+			} catch {
+				cwd = undefined;
+			}
+		}
+		if (path.isAbsolute(customCwd) && !cwd) {
 			cwd = customCwd;
-		} else if (root) {
+		} else if (root && !cwd) {
 			cwd = path.join(root.fsPath, customCwd);
 		}
 	}
