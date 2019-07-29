@@ -217,6 +217,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 	get element(): HTMLElement { return this.gridview.element; }
 
+	private didLayout = false;
+
 	constructor(view: T, options: IGridOptions = {}) {
 		super();
 		this.gridview = new GridView(options);
@@ -237,6 +239,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 	layout(width: number, height: number): void {
 		this.gridview.layout(width, height);
+		this.didLayout = true;
 	}
 
 	hasView(view: T): boolean {
@@ -344,6 +347,10 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
+		if (!this.didLayout) {
+			throw new Error('Can\'t call getNeighborViews before first layout');
+		}
+
 		const location = this.getViewLocation(view);
 		const root = this.getViews();
 		const node = getGridNode(root, location);
