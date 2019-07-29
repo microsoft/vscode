@@ -1316,7 +1316,7 @@ declare module 'vscode' {
 
 	export enum DiagnosticTag {
 		/**
-		 * Deprecated or obsolete code
+		 * Deprecated or obsolete code.
 		 *
 		 * Diagnostics with this tag are rendered with a strike through.
 		 */
