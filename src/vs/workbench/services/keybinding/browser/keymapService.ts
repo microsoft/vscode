@@ -71,9 +71,9 @@ export class BrowserKeyboardMapperFactoryBase {
 	}
 
 	protected constructor(
-		private _notificationService: INotificationService,
-		private _storageService: IStorageService,
-		private _commandService: ICommandService
+		// private _notificationService: INotificationService,
+		// private _storageService: IStorageService,
+		// private _commandService: ICommandService
 	) {
 		this._keyboardMapper = null;
 		this._initialized = false;
@@ -428,7 +428,8 @@ export class BrowserKeyboardMapperFactoryBase {
 
 export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		super(notificationService, storageService, commandService);
+		// super(notificationService, storageService, commandService);
+		super();
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
