@@ -12,7 +12,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { sortedDiff, firstIndex, move, isNonEmptyArray } from 'vs/base/common/arrays';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, isUndefined } from 'vs/base/common/types';
 import { MenuId, MenuRegistry, ICommandAction } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
@@ -205,9 +205,9 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 }
 
 export interface IViewState {
-	visibleGlobal: boolean;
-	visibleWorkspace: boolean;
-	collapsed: boolean;
+	visibleGlobal: boolean | undefined;
+	visibleWorkspace: boolean | undefined;
+	collapsed: boolean | undefined;
 	order?: number;
 	size?: number;
 }
@@ -287,7 +287,7 @@ export class ContributableViewsModel extends Disposable {
 		}
 
 		if (visible) {
-			this._onDidAdd.fire([{ index: visibleIndex, viewDescriptor, size: state.size, collapsed: state.collapsed }]);
+			this._onDidAdd.fire([{ index: visibleIndex, viewDescriptor, size: state.size, collapsed: !!state.collapsed }]);
 		} else {
 			this._onDidRemove.fire([{ index: visibleIndex, viewDescriptor }]);
 		}
@@ -300,7 +300,7 @@ export class ContributableViewsModel extends Disposable {
 			throw new Error(`Unknown view ${id}`);
 		}
 
-		return state.collapsed;
+		return !!state.collapsed;
 	}
 
 	setCollapsed(id: string, collapsed: boolean): void {
@@ -354,7 +354,7 @@ export class ContributableViewsModel extends Disposable {
 		if (!viewState) {
 			throw new Error(`Unknown view ${viewDescriptor.id}`);
 		}
-		return viewDescriptor.workspace ? viewState.visibleWorkspace : viewState.visibleGlobal;
+		return viewDescriptor.workspace ? !!viewState.visibleWorkspace : !!viewState.visibleGlobal;
 	}
 
 	private find(id: string): { index: number, visibleIndex: number, viewDescriptor: IViewDescriptor, state: IViewState } {
@@ -444,7 +444,7 @@ export class ContributableViewsModel extends Disposable {
 				const state = this.viewStates.get(viewDescriptor.id)!;
 
 				if (this.isViewDescriptorVisible(viewDescriptor)) {
-					toAdd.push({ index: startIndex++, viewDescriptor, size: state.size, collapsed: state.collapsed });
+					toAdd.push({ index: startIndex++, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
 				}
 			}
 		}
@@ -461,10 +461,23 @@ export class ContributableViewsModel extends Disposable {
 	}
 }
 
+interface IStoredWorkspaceViewState {
+	collapsed: boolean;
+	isHidden: boolean;
+	size?: number;
+	order?: number;
+}
+
+interface IStoredGlobalViewState {
+	id: string;
+	isHidden: boolean;
+	order?: number;
+}
+
 export class PersistentContributableViewsModel extends ContributableViewsModel {
 
-	private viewletStateStorageId: string;
-	private readonly hiddenViewsStorageId: string;
+	private readonly workspaceViewsStateStorageId: string;
+	private readonly globalViewsStateStorageId: string;
 
 	private storageService: IStorageService;
 
@@ -474,13 +487,13 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		@IViewsService viewsService: IViewsService,
 		@IStorageService storageService: IStorageService,
 	) {
-		const hiddenViewsStorageId = `${viewletStateStorageId}.hidden`;
-		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, hiddenViewsStorageId, storageService);
+		const globalViewsStateStorageId = `${viewletStateStorageId}.hidden`;
+		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
 
 		super(container, viewsService, viewStates);
 
-		this.viewletStateStorageId = viewletStateStorageId;
-		this.hiddenViewsStorageId = hiddenViewsStorageId;
+		this.workspaceViewsStateStorageId = viewletStateStorageId;
+		this.globalViewsStateStorageId = globalViewsStateStorageId;
 		this.storageService = storageService;
 
 		this._register(Event.any(
@@ -492,84 +505,106 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 
 	private saveViewsStates(viewDescriptors: IViewDescriptor[]): void {
-		const storedViewsStates: { [id: string]: { collapsed: boolean, size?: number, order?: number } } = {};
+		this.saveWorkspaceViewsStates();
+		this.saveGlobalViewsStates();
+	}
+
+	private saveWorkspaceViewsStates(): void {
+		const storedViewsStates: { [id: string]: IStoredWorkspaceViewState } = {};
 
 		let hasState = false;
 		for (const viewDescriptor of this.viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			if (viewState) {
-				storedViewsStates[viewDescriptor.id] = { collapsed: viewState.collapsed, size: viewState.size, order: viewState.order };
+				storedViewsStates[viewDescriptor.id] = {
+					collapsed: !!viewState.collapsed,
+					isHidden: !viewState.visibleWorkspace,
+					size: viewState.size,
+					order: viewDescriptor.workspace && viewState ? viewState.order : undefined
+				};
 				hasState = true;
 			}
 		}
 
 		if (hasState) {
-			this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
+			this.storageService.store(this.workspaceViewsStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(this.viewletStateStorageId, StorageScope.WORKSPACE);
-		}
-
-		this.saveVisibilityStates(viewDescriptors);
-	}
-
-	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
-		const globalViews: IViewDescriptor[] = viewDescriptors.filter(v => !v.workspace);
-		const workspaceViews: IViewDescriptor[] = viewDescriptors.filter(v => v.workspace);
-		if (globalViews.length) {
-			this.saveVisibilityStatesInScope(globalViews, StorageScope.GLOBAL);
-		}
-		if (workspaceViews.length) {
-			this.saveVisibilityStatesInScope(workspaceViews, StorageScope.WORKSPACE);
+			this.storageService.remove(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE);
 		}
 	}
 
-	private saveVisibilityStatesInScope(viewDescriptors: IViewDescriptor[], scope: StorageScope): void {
-		const storedViewsVisibilityStates = PersistentContributableViewsModel.loadViewsVisibilityState(this.hiddenViewsStorageId, this.storageService, scope);
-		for (const viewDescriptor of viewDescriptors) {
-			if (viewDescriptor.canToggleVisibility) {
-				const viewState = this.viewStates.get(viewDescriptor.id);
-				storedViewsVisibilityStates.set(viewDescriptor.id, { id: viewDescriptor.id, isHidden: viewState ? (scope === StorageScope.GLOBAL ? !viewState.visibleGlobal : !viewState.visibleWorkspace) : false });
-			}
+	private saveGlobalViewsStates(): void {
+		const storedViewsVisibilityStates = PersistentContributableViewsModel.loadGlobalViewsState(this.globalViewsStateStorageId, this.storageService, StorageScope.GLOBAL);
+		for (const viewDescriptor of this.viewDescriptors) {
+			const viewState = this.viewStates.get(viewDescriptor.id);
+			storedViewsVisibilityStates.set(viewDescriptor.id, {
+				id: viewDescriptor.id,
+				isHidden: viewState && viewDescriptor.canToggleVisibility ? !viewState.visibleGlobal : false,
+				order: !viewDescriptor.workspace && viewState ? viewState.order : undefined
+			});
 		}
-		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(values(storedViewsVisibilityStates)), scope);
+		this.storageService.store(this.globalViewsStateStorageId, JSON.stringify(values(storedViewsVisibilityStates)), StorageScope.GLOBAL);
 	}
 
-	private static loadViewsStates(viewletStateStorageId: string, hiddenViewsStorageId: string, storageService: IStorageService): Map<string, IViewState> {
+
+	private static loadViewsStates(workspaceViewsStateStorageId: string, globalViewsStateStorageId: string, storageService: IStorageService): Map<string, IViewState> {
 		const viewStates = new Map<string, IViewState>();
-		const storedViewsStates = JSON.parse(storageService.get(viewletStateStorageId, StorageScope.WORKSPACE, '{}'));
-		const globalVisibilityStates = this.loadViewsVisibilityState(hiddenViewsStorageId, storageService, StorageScope.GLOBAL);
-		const workspaceVisibilityStates = this.loadViewsVisibilityState(hiddenViewsStorageId, storageService, StorageScope.WORKSPACE);
+		const workspaceViewsStates = <{ [id: string]: IStoredWorkspaceViewState }>JSON.parse(storageService.get(workspaceViewsStateStorageId, StorageScope.WORKSPACE, '{}'));
+		for (const id of Object.keys(workspaceViewsStates)) {
+			const workspaceViewState = workspaceViewsStates[id];
+			viewStates.set(id, {
+				visibleGlobal: undefined,
+				visibleWorkspace: isUndefined(workspaceViewState.isHidden) ? undefined : !workspaceViewState.isHidden,
+				collapsed: workspaceViewState.collapsed,
+				order: workspaceViewState.order
+			});
+		}
 
-		for (const { id, isHidden } of values(globalVisibilityStates)) {
-			const viewState = storedViewsStates[id];
-			if (viewState) {
-				viewStates.set(id, <IViewState>{ ...viewState, ...{ visibleGlobal: !isHidden } });
-			} else {
-				// New workspace
-				viewStates.set(id, <IViewState>{ ...{ visibleGlobal: !isHidden } });
+		// Migrate to `viewletStateStorageId`
+		const workspaceVisibilityStates = this.loadGlobalViewsState(globalViewsStateStorageId, storageService, StorageScope.WORKSPACE);
+		if (workspaceVisibilityStates.size > 0) {
+			for (const { id, isHidden } of values(workspaceVisibilityStates)) {
+				let viewState = viewStates.get(id);
+				// Not migrated to `viewletStateStorageId`
+				if (viewState) {
+					if (isUndefined(viewState.visibleWorkspace)) {
+						viewState.visibleWorkspace = !isHidden;
+					}
+				} else {
+					viewStates.set(id, {
+						collapsed: undefined,
+						visibleGlobal: undefined,
+						visibleWorkspace: !isHidden,
+					});
+				}
 			}
+			storageService.remove(globalViewsStateStorageId, StorageScope.WORKSPACE);
 		}
-		for (const { id, isHidden } of values(workspaceVisibilityStates)) {
-			const viewState = storedViewsStates[id];
+
+		const globalViewsStates = this.loadGlobalViewsState(globalViewsStateStorageId, storageService, StorageScope.GLOBAL);
+		for (const { id, isHidden, order } of values(globalViewsStates)) {
+			let viewState = viewStates.get(id);
 			if (viewState) {
-				viewStates.set(id, <IViewState>{ ...viewState, ...{ visibleWorkspace: !isHidden } });
+				viewState.visibleGlobal = !isHidden;
+				if (!isUndefined(order)) {
+					viewState.order = order;
+				}
 			} else {
-				// New workspace
-				viewStates.set(id, <IViewState>{ ...{ visibleWorkspace: !isHidden } });
-			}
-		}
-		for (const id of Object.keys(storedViewsStates)) {
-			if (!viewStates.has(id)) {
-				viewStates.set(id, <IViewState>{ ...storedViewsStates[id] });
+				viewStates.set(id, {
+					visibleGlobal: !isHidden,
+					order,
+					collapsed: undefined,
+					visibleWorkspace: undefined,
+				});
 			}
 		}
 		return viewStates;
 	}
 
-	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, scope: StorageScope): Map<string, { id: string, isHidden: boolean }> {
-		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, scope, '[]'));
+	private static loadGlobalViewsState(globalViewsStateStorageId: string, storageService: IStorageService, scope: StorageScope): Map<string, IStoredGlobalViewState> {
+		const storedValue = <Array<string | IStoredGlobalViewState>>JSON.parse(storageService.get(globalViewsStateStorageId, scope, '[]'));
 		let hasDuplicates = false;
-		const storedViewsVisibilityStates = storedVisibilityStates.reduce((result, storedState) => {
+		const storedGlobalViewsState = storedValue.reduce((result, storedState) => {
 			if (typeof storedState === 'string' /* migration */) {
 				hasDuplicates = hasDuplicates || result.has(storedState);
 				result.set(storedState, { id: storedState, isHidden: true });
@@ -578,13 +613,13 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 				result.set(storedState.id, storedState);
 			}
 			return result;
-		}, new Map<string, { id: string, isHidden: boolean }>());
+		}, new Map<string, IStoredGlobalViewState>());
 
 		if (hasDuplicates) {
-			storageService.store(hiddenViewsStorageId, JSON.stringify(values(storedViewsVisibilityStates)), scope);
+			storageService.store(globalViewsStateStorageId, JSON.stringify(values(storedGlobalViewsState)), scope);
 		}
 
-		return storedViewsVisibilityStates;
+		return storedGlobalViewsState;
 	}
 }
 
