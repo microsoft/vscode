@@ -13,9 +13,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
-import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -52,6 +52,7 @@ import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { URI } from 'vs/base/common/uri';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
@@ -276,6 +277,20 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
+	private onClick(element: HTMLElement, callback: () => void): IDisposable {
+		const disposables: DisposableStore = new DisposableStore();
+		disposables.add(addDisposableListener(element, EventType.CLICK, finalHandler(callback)));
+		disposables.add(addDisposableListener(element, EventType.KEY_UP, e => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.equals(KeyCode.Space) || keyboardEvent.equals(KeyCode.Enter)) {
+				e.preventDefault();
+				e.stopPropagation();
+				callback();
+			}
+		}));
+		return disposables;
+	}
+
 	async setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		const runningExtensions = await this.extensionService.getExtensions();
 		const colorThemes = await this.workbenchThemeService.getColorThemes();
@@ -324,35 +339,29 @@ export class ExtensionEditor extends BaseEditor {
 		toggleClass(this.publisher, 'clickable', !!extension.url);
 		toggleClass(this.rating, 'clickable', !!extension.url);
 		if (extension.url) {
-			this.name.onclick = finalHandler(() => window.open(extension.url));
-			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
-			this.publisher.onclick = finalHandler(() => {
+			this.transientDisposables.add(this.onClick(this.name, () => window.open(extension.url)));
+			this.transientDisposables.add(this.onClick(this.rating, () => window.open(`${extension.url}#review-details`)));
+			this.transientDisposables.add(this.onClick(this.publisher, () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
-			});
+			}));
 
 			if (extension.licenseUrl) {
-				this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
+				this.transientDisposables.add(this.onClick(this.license, () => window.open(extension.licenseUrl)));
 				this.license.style.display = 'initial';
 			} else {
-				this.license.onclick = null;
 				this.license.style.display = 'none';
 			}
 		} else {
-			this.name.onclick = null;
-			this.rating.onclick = null;
-			this.publisher.onclick = null;
-			this.license.onclick = null;
 			this.license.style.display = 'none';
 		}
 
 		if (extension.repository) {
-			this.repository.onclick = finalHandler(() => window.open(extension.repository));
+			this.transientDisposables.add(this.onClick(this.repository, () => window.open(extension.repository)));
 			this.repository.style.display = 'initial';
 		}
 		else {
-			this.repository.onclick = null;
 			this.repository.style.display = 'none';
 		}
 
