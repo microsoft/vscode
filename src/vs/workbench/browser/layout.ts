@@ -27,7 +27,7 @@ import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid, GridBranchNode, GridLeafNode, isGridBranchNode } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -749,26 +749,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				try {
 					workbenchGrid = SerializableGrid.deserialize(parsedGrid, { fromJSON }, { proportionalLayout: false });
 
-					// Set some layout state
-					this.state.sideBar.position = Position.LEFT;
-					for (let view of workbenchGrid.getNeighborViews(this.sideBarPartView, Direction.Right)) {
-						if (view === this.activityBarPartView) {
-							this.state.sideBar.position = Position.RIGHT;
-						}
-					}
-
-					this.state.panel.position = Position.BOTTOM;
-					for (let view of workbenchGrid.getNeighborViews(this.panelPartView, Direction.Left)) {
-						if (view === this.editorPartView) {
-							this.state.panel.position = Position.RIGHT;
-						}
-					}
-
-					// Reset workbench state if corrupted
-					if (workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Right).length > 0 ||
-						workbenchGrid.getNeighborViews(this.titleBarPartView, Direction.Left).length > 0) {
-						workbenchGrid = undefined;
-					}
+					const root = workbenchGrid.getViews();
+					const middleSection = root.children[1] as GridBranchNode<ISerializableView>;
+					this.state.sideBar.position = (middleSection.children[0] as GridLeafNode<ISerializableView>).view === this.activityBarPartView ? Position.LEFT : Position.RIGHT;
+					this.state.panel.position = isGridBranchNode(middleSection.children[2]) ? Position.BOTTOM : Position.RIGHT;
 				} catch (err) {
 					console.error(err);
 				}
