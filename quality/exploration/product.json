@@ -116,11 +116,6 @@
 		"vsciot-vscode.vscode-arduino": {
 			"name": "Arduino",
 			"pattern": "{**/*.ino}"
-		},
-		"ms-vscode-remote.remote-wsl": {
-			"name": "Remote WSL",
-			"pattern": "file://wsl%24/**",
-			"isLocationPattern": true
 		}
 	},
 	"keymapExtensionTips": [
@@ -358,6 +353,15 @@
 				"ms-azuretools.vscode-docker",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
 				"GoogleCloudTools.cloudcode"
+			]
+		},
+		"wsl": {
+			"friendlyName": "Remote WSL",
+			"windowsPath": "%WINDIR%\\system32\\wsl.exe",
+			"exeFriendlyName": "Windows Linux Subsystem (WSL)",
+			"important": true,
+			"recommendations": [
+				"ms-vscode-remote.remote-wsl"
 			]
 		}
 	},
