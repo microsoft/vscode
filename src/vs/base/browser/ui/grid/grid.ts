@@ -7,7 +7,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize } from './gridview';
+import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, ILayoutController, LayoutController } from './gridview';
 import { Event } from 'vs/base/common/event';
 import { InvisibleSizing } from 'vs/base/browser/ui/splitview/splitview';
 
@@ -197,6 +197,7 @@ export interface IGridOptions {
 	readonly styles?: IGridStyles;
 	readonly proportionalLayout?: boolean;
 	readonly firstViewVisibleCachedSize?: number;
+	readonly layoutController?: ILayoutController;
 }
 
 export class Grid<T extends IView = IView> extends Disposable {
@@ -534,6 +535,9 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid serialized state, first leaf not found');
 		}
 
+		const layoutController = new LayoutController(false);
+		options = { ...options, layoutController };
+
 		if (typeof firstLeaf.cachedVisibleSize === 'number') {
 			options = { ...options, firstViewVisibleCachedSize: firstLeaf.cachedVisibleSize };
 		}
@@ -543,6 +547,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		result.restoreViews(firstLeaf.view, orientation, root);
 		result.initialLayoutContext = { width, height, root };
 
+		layoutController.isLayoutEnabled = true;
 		return result;
 	}
 
