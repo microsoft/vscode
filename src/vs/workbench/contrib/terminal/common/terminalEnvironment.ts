@@ -127,7 +127,7 @@ export function getCwd(
 	configurationResolverService: IConfigurationResolverService | undefined,
 	root: Uri | undefined,
 	customCwd: string | undefined,
-	logService: ILogService
+	logService?: ILogService
 ): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
@@ -143,7 +143,9 @@ export function getCwd(
 				// There was an issue resolving a variable, just use the unresolved customCwd which
 				// which will fail, and log the error in the console.
 				cwd = customCwd;
-				logService.error('Resolving terminal.integrated.cwd', e);
+				if (logService) {
+					logService.error('Resolving terminal.integrated.cwd', e);
+				}
 			}
 		}
 		if (path.isAbsolute(customCwd) && !cwd) {
