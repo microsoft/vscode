@@ -1318,7 +1318,7 @@ declare module 'vscode' {
 		/**
 		 * Deprecated or obsolete code
 		 *
-		 * Can be used to style with strikeout or other "obsolete" styling.
+		 * Diagnostics with this tag are rendered with a strike through.
 		 */
 		Deprecated = 2,
 	}
