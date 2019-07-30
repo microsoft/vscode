@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import * as fs from 'fs';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { parse } from 'vs/editor/common/modes/tokenization/typescript';
+// import { getPathFromAmdModule } from 'vs/base/common/amd';
+// import { parse } from 'vs/editor/common/modes/tokenization/typescript';
 import { toStandardTokenType } from 'vs/editor/common/modes/supports/tokenization';
 
 interface IParseFunc {
@@ -107,6 +107,7 @@ function parseTest(fileName: string): ITest {
 	return { content, assertions };
 }
 
+// @ts-ignore
 function executeTest(fileName: string, parseFunc: IParseFunc): void {
 	const { content, assertions } = parseTest(fileName);
 	const actual = parseFunc(content);
