@@ -384,7 +384,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
 				collapseByDefault: (e: ITreeItem): boolean => {
 					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
-				}
+				},
+				multipleSelectionSupport: false
 			}));
 		aligner.tree = this.tree;
 
