@@ -6,14 +6,11 @@
 import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetNode';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getNode } from './util';
-import { getLanguageService, TextDocument, TokenType } from 'vscode-html-languageservice';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getEmbeddedCssNodeIfAny, isStyleAttribute, getNode } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	private lastCompletionType: string | undefined;
-
-	private htmlLS = getLanguageService();
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const completionResult = this.provideCompletionItemsInternal(document, position, context);
@@ -79,36 +76,19 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			}
 			if (validateLocation) {
-				const lsDoc = TextDocument.create(document.uri.toString(), 'html', 0, document.getText());
-				const parsedLsDoc = this.htmlLS.parseHTMLDocument(lsDoc);
-				const positionOffset = document.offsetAt(position);
-				const node = parsedLsDoc.findNodeAt(positionOffset);
-
-				if (node.tag === 'script') {
-					return;
-				}
-				if (node.tag === 'style') {
+				rootNode = parseDocument(document, false);
+				currentNode = getNode(rootNode, position, true);
+				if (isStyleAttribute(currentNode, position)) {
 					syntax = 'css';
 					validateLocation = false;
 				} else {
-					if (node.attributes && node.attributes['style']) {
-						const scanner = this.htmlLS.createScanner(document.getText(), node.start);
-						let tokenType = scanner.scan();
-						let prevAttr = undefined;
-						while (tokenType !== TokenType.EOS && (scanner.getTokenEnd() <= positionOffset)) {
-							tokenType = scanner.scan();
-							if (tokenType === TokenType.AttributeName) {
-								prevAttr = scanner.getTokenText();
-							}
-						}
-						if (prevAttr === 'style') {
-							syntax = 'css';
-							validateLocation = false;
-						}
+					const embeddedCssNode = getEmbeddedCssNodeIfAny(document, currentNode, position);
+					if (embeddedCssNode) {
+						currentNode = getNode(embeddedCssNode, position, true);
+						syntax = 'css';
 					}
 				}
 			}
-
 
 		}
 

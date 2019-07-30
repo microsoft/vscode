@@ -269,7 +269,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(13, 14, 13, 14);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected completion promise instead of undefined`);
+			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
