@@ -405,7 +405,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			triggerCharacters: ['@'],
 			sortKey: (item: string) => {
 				if (item.indexOf(':') === -1) { return 'a'; }
-				else if (/ext:/.test(item) || /tag:/.test(item)) { return 'b'; }
+				else if (/ext:/.test(item) || /id:/.test(item) || /tag:/.test(item)) { return 'b'; }
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
