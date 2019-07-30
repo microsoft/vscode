@@ -346,7 +346,7 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 	}
 
 	protected getInstallLabel(): string {
-		return this.extensionManagementServerService.remoteExtensionManagementServer ? localize('Install on Server', "Install on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : InstallInOtherServerAction.INSTALL_LABEL;
+		return this.extensionManagementServerService.remoteExtensionManagementServer ? localize('Install on Server', "Install in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : InstallInOtherServerAction.INSTALL_LABEL;
 	}
 
 }
@@ -3014,7 +3014,7 @@ interface IExtensionPickItem extends IQuickPickItem {
 	extension?: IExtension;
 }
 
-export class InstallLocalExtensionsOnRemoteAction extends Action {
+export class InstallLocalExtensionsInRemoteAction extends Action {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -3026,14 +3026,14 @@ export class InstallLocalExtensionsOnRemoteAction extends Action {
 		@IProgressService private readonly progressService: IProgressService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super('workbench.extensions.actions.installLocalExtensionsOnRemote');
+		super('workbench.extensions.actions.installLocalExtensionsInRemote');
 		this.update();
 		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
 	}
 
 	get label(): string {
 		return this.extensionManagementServerService.remoteExtensionManagementServer ?
-			localize('install local extensions', "Install Local Extensions on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : '';
+			localize('install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label) : '';
 	}
 
 	private update(): void {
