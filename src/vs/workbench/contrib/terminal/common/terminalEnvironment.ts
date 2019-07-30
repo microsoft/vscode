@@ -148,9 +148,9 @@ export function getCwd(
 				return customCwd;
 			}
 		}
-		if (path.isAbsolute(customCwd) && !cwd) {
+		if (path.isAbsolute(customCwd)) {
 			cwd = customCwd;
-		} else if (root && !cwd) {
+		} else if (root) {
 			cwd = path.join(root.fsPath, customCwd);
 		}
 	}
