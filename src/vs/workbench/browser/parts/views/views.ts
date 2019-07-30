@@ -556,7 +556,8 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 				visibleGlobal: undefined,
 				visibleWorkspace: isUndefined(workspaceViewState.isHidden) ? undefined : !workspaceViewState.isHidden,
 				collapsed: workspaceViewState.collapsed,
-				order: workspaceViewState.order
+				order: workspaceViewState.order,
+				size: workspaceViewState.size
 			});
 		}
 
