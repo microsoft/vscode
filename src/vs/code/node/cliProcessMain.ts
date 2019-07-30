@@ -112,7 +112,7 @@ export class Main {
 
 	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		if (category) {
+		if (category && category !== '') {
 			extensions = extensions.filter(e => {
 				if (e.manifest.categories) {
 					const lowerCaseCategories: string[] = e.manifest.categories.map(c => c.toLowerCase());
@@ -120,6 +120,13 @@ export class Main {
 				}
 				return false;
 			});
+		} else if (category === '') {
+			const categories = ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'];
+			console.log('Possible Categories: ');
+			categories.forEach(category => {
+				console.log(category);
+			});
+			return;
 		}
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
