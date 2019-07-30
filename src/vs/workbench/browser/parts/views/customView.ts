@@ -329,11 +329,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._onDidChangeVisibility.fire(this.isVisible);
 	}
 
-	focus(): void {
+	focus(reveal: boolean = true): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement) {
+			if (selectedElement && reveal) {
 				this.tree.reveal(selectedElement, 0.5);
 			}
 
@@ -599,7 +599,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
-				this.focus();
+				this.focus(false);
 			}
 		}
 	}
