@@ -58,14 +58,14 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 		// Request a process if needed, if this is a virtual process this step can be skipped as
 		// there is no real "process" and we know it's ready on the ext host already.
-		if (shellLaunchConfig.isVirtualProcess) {
-			this._terminalService.requestVirtualProcess(this, cols, rows);
+		if (shellLaunchConfig.isExtensionTerminal) {
+			this._terminalService.requestStartExtensionTerminal(this, cols, rows);
 		} else {
 			remoteAgentService.getEnvironment().then(env => {
 				if (!env) {
 					throw new Error('Could not fetch environment');
 				}
-				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
+				this._terminalService.requestSpawnExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
 			});
 			if (!hasReceivedResponse) {
 				setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);

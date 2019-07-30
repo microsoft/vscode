@@ -600,8 +600,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (!this._isVisible) {
 			return;
 		}
-		let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-		let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+
+		const editorContentWidth = this._codeEditor.getConfiguration().layoutInfo.contentWidth;
+
+		if (editorContentWidth <= 0) {
+			// for example, diff view original editor
+			dom.addClass(this._domNode, 'hiddenEditor');
+			return;
+		} else if (dom.hasClass(this._domNode, 'hiddenEditor')) {
+			dom.removeClass(this._domNode, 'hiddenEditor');
+		}
+
+		const editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+		const minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -918,7 +929,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._preserveCase = this._register(new Checkbox({
-			actionClassName: 'monaco-case-sensitive',
+			actionClassName: 'monaco-preserve-case',
 			title: NLS_PRESERVE_CASE_LABEL,
 			isChecked: false,
 		}));

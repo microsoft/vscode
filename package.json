@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.37.0",
-  "distro": "60ca9cac46049ff774e34d11e335d172587da608",
+  "distro": "11ab6b1c5be090591adc26a81f72a16908697165",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -51,7 +51,7 @@
     "vscode-ripgrep": "^1.5.5",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "3.15.0-beta88",
+    "xterm": "3.15.0-beta89",
     "xterm-addon-search": "0.2.0-beta3",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
@@ -94,7 +94,7 @@
     "gulp-gunzip": "^1.0.0",
     "gulp-json-editor": "^2.5.0",
     "gulp-plumber": "^1.2.0",
-    "gulp-remote-src": "^0.4.4",
+    "gulp-remote-retry-src": "^0.6.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",

@@ -341,19 +341,29 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				} else {
 					resolve(true);
 				}
-			}).then(needNewTerminal => {
+			}).then(async needNewTerminal => {
+
+				const configProvider = await this._configurationService.getConfigProvider();
+				const shell = this._terminalService.getDefaultShell(configProvider);
 
 				if (needNewTerminal || !this._integratedTerminalInstance) {
-					this._integratedTerminalInstance = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
+					const options: vscode.TerminalOptions = {
+						shellPath: shell,
+						// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
+						cwd: args.cwd,
+						name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+						env: args.env
+					};
+					delete args.cwd;
+					delete args.env;
+					this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 				}
 				const terminal: vscode.Terminal = this._integratedTerminalInstance;
 
 				terminal.show();
 
-				return this._integratedTerminalInstance.processId.then(async shellProcessId => {
+				return this._integratedTerminalInstance.processId.then(shellProcessId => {
 
-					const configProvider = await this._configurationService.getConfigProvider();
-					const shell = this._terminalService.getDefaultShell(configProvider);
 					const command = prepareCommand(args, shell, configProvider);
 
 					terminal.sendText(command, true);

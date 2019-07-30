@@ -528,10 +528,10 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.TerminalVirtualProcessOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
-					if ('virtualProcess' in nameOrOptions) {
-						return extHostTerminalService.createVirtualProcessTerminal(nameOrOptions);
+					if ('pty' in nameOrOptions) {
+						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					} else {
 						nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
 						return extHostTerminalService.createTerminalFromOptions(nameOrOptions);

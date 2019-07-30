@@ -65,7 +65,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	dipsose(): void {
+	dispose(): void {
 		this.disposables.dispose();
 		super.dispose();
 	}

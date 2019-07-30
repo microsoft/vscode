@@ -31,7 +31,7 @@ const LATENCY_MEASURING_INTERVAL = 1000;
 
 enum ProcessType {
 	Process,
-	VirtualProcess
+	ExtensionTerminal
 }
 
 /**
@@ -113,8 +113,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<void> {
-		if (shellLaunchConfig.isVirtualProcess) {
-			this._processType = ProcessType.VirtualProcess;
+		if (shellLaunchConfig.isExtensionTerminal) {
+			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
@@ -211,7 +211,15 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		}
 
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
+		const initialCwd = terminalEnvironment.getCwd(
+			shellLaunchConfig,
+			this._environmentService.userHome,
+			lastActiveWorkspace ? lastActiveWorkspace : undefined,
+			this._configurationResolverService,
+			activeWorkspaceRootUri,
+			this._configHelper.config.cwd,
+			this._logService
+		);
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		this._configHelper.showRecommendations(shellLaunchConfig);
@@ -239,7 +247,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public write(data: string): void {
-		if (this.shellProcessId || this._processType === ProcessType.VirtualProcess) {
+		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {
 				// Send data if the pty is ready
 				this._process.input(data);

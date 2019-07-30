@@ -13,9 +13,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
-import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -52,6 +52,7 @@ import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { URI } from 'vs/base/common/uri';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
@@ -276,6 +277,20 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
+	private onClick(element: HTMLElement, callback: () => void): IDisposable {
+		const disposables: DisposableStore = new DisposableStore();
+		disposables.add(addDisposableListener(element, EventType.CLICK, finalHandler(callback)));
+		disposables.add(addDisposableListener(element, EventType.KEY_UP, e => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.equals(KeyCode.Space) || keyboardEvent.equals(KeyCode.Enter)) {
+				e.preventDefault();
+				e.stopPropagation();
+				callback();
+			}
+		}));
+		return disposables;
+	}
+
 	async setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		const runningExtensions = await this.extensionService.getExtensions();
 		const colorThemes = await this.workbenchThemeService.getColorThemes();
@@ -324,35 +339,29 @@ export class ExtensionEditor extends BaseEditor {
 		toggleClass(this.publisher, 'clickable', !!extension.url);
 		toggleClass(this.rating, 'clickable', !!extension.url);
 		if (extension.url) {
-			this.name.onclick = finalHandler(() => window.open(extension.url));
-			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
-			this.publisher.onclick = finalHandler(() => {
+			this.transientDisposables.add(this.onClick(this.name, () => window.open(extension.url)));
+			this.transientDisposables.add(this.onClick(this.rating, () => window.open(`${extension.url}#review-details`)));
+			this.transientDisposables.add(this.onClick(this.publisher, () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
-			});
+			}));
 
 			if (extension.licenseUrl) {
-				this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
+				this.transientDisposables.add(this.onClick(this.license, () => window.open(extension.licenseUrl)));
 				this.license.style.display = 'initial';
 			} else {
-				this.license.onclick = null;
 				this.license.style.display = 'none';
 			}
 		} else {
-			this.name.onclick = null;
-			this.rating.onclick = null;
-			this.publisher.onclick = null;
-			this.license.onclick = null;
 			this.license.style.display = 'none';
 		}
 
 		if (extension.repository) {
-			this.repository.onclick = finalHandler(() => window.open(extension.repository));
+			this.transientDisposables.add(this.onClick(this.repository, () => window.open(extension.repository)));
 			this.repository.style.display = 'initial';
 		}
 		else {
-			this.repository.onclick = null;
 			this.repository.style.display = 'none';
 		}
 
@@ -696,7 +705,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('settings', "Settings ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('setting name', "Name")),
@@ -724,7 +733,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('debuggers', "Debuggers ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('debugger name', "Name")),
@@ -755,7 +764,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
+			$('summary', { tabindex: '0' }, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
 				...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
@@ -781,7 +790,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('views', "Views ({0})", views.length)),
+			$('summary', { tabindex: '0' }, localize('views', "Views ({0})", views.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
 				...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
@@ -801,7 +810,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('localizations', "Localizations ({0})", localizations.length)),
+			$('summary', { tabindex: '0' }, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language Id")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
 				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
@@ -821,7 +830,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('colorThemes', "Color Themes ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('colorThemes', "Color Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
@@ -838,7 +847,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
@@ -867,7 +876,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('colors', "Colors ({0})", colors.length)),
+			$('summary', { tabindex: '0' }, localize('colors', "Colors ({0})", colors.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('colorId', "Id")),
@@ -900,7 +909,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
+			$('summary', { tabindex: '0' }, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('fileMatch', "File Match")),
@@ -974,7 +983,7 @@ export class ExtensionEditor extends BaseEditor {
 		};
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('commands', "Commands ({0})", commands.length)),
+			$('summary', { tabindex: '0' }, localize('commands', "Commands ({0})", commands.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('command name', "Name")),
@@ -1041,7 +1050,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', undefined, localize('languages', "Languages ({0})", languages.length)),
+			$('summary', { tabindex: '0' }, localize('languages', "Languages ({0})", languages.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('language id', "ID")),

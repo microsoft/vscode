@@ -131,7 +131,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService();
+		const signService = new SignService(this.configuration.connectionToken);
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent

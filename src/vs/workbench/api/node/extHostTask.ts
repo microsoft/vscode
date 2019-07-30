@@ -588,7 +588,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, execution2);
-			await this._terminalService.attachVirtualProcessToTerminal(terminalId, await execution2.callback());
+			await this._terminalService.attachPtyToTerminal(terminalId, await execution2.callback());
 		}
 
 		// Once a terminal is spun up for the custom execution task this event will be fired.
@@ -741,12 +741,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 			throw new Error('Unexpected: Task cannot be resolved.');
 		}
 
+		if (resolvedTask.definition !== task.definition) {
+			throw new Error('Unexpected: The resolved task definition must be the same object as the original task definition. The task definition cannot be changed.');
+		}
+
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution(taskDTO, <vscode.Task2>task);
+			await this.addCustomExecution(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
 
 		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution2(taskDTO, <vscode.Task2>task);
+			await this.addCustomExecution2(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
 
 		return resolvedTaskDTO;

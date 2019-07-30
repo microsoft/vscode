@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
-suite.only('workspace-namespace', () => {
+suite('workspace-namespace', () => {
 
 	suite('Tasks', () => {
 
@@ -35,17 +35,18 @@ suite.only('workspace-namespace', () => {
 						customProp1: 'testing task one'
 					};
 					const writeEmitter = new vscode.EventEmitter<string>();
-					const execution = new vscode.CustomExecution2((): Thenable<vscode.TerminalVirtualProcess> => {
-						return Promise.resolve(<vscode.TerminalVirtualProcess>{
+					const execution = new vscode.CustomExecution2((): Thenable<vscode.Pseudoterminal> => {
+						const pty: vscode.Pseudoterminal = {
 							onDidWrite: writeEmitter.event,
-							start: () => {
+							open: () => {
 								writeEmitter.fire('testing\r\n');
 							},
-							shutdown: () => {
+							close: () => {
 								taskProvider.dispose();
 								done();
 							}
-						});
+						};
+						return Promise.resolve(pty);
 					});
 					const task = new vscode.Task2(kind, vscode.TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
