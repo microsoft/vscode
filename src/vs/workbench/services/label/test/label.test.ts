@@ -98,11 +98,11 @@ suite('URI Label', () => {
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
 	});
 
-	test('custom qs', function () {
+	test('custom query', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			formatting: {
-				label: 'LABEL${qs.prefix}: ${qs.path}/END',
+				label: 'LABEL${query.prefix}: ${query.path}/END',
 				separator: '/',
 				tildify: true,
 				normalizeDriveLetter: true
@@ -113,11 +113,11 @@ suite('URI Label', () => {
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABELprefix: path/END');
 	});
 
-	test('custom qs without value', function () {
+	test('custom query without value', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			formatting: {
-				label: 'LABEL${qs.prefix}: ${qs.path}/END',
+				label: 'LABEL${query.prefix}: ${query.path}/END',
 				separator: '/',
 				tildify: true,
 				normalizeDriveLetter: true
@@ -128,11 +128,11 @@ suite('URI Label', () => {
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: path/END');
 	});
 
-	test('custom qs without query json', function () {
+	test('custom query without query json', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			formatting: {
-				label: 'LABEL${qs.prefix}: ${qs.path}/END',
+				label: 'LABEL${query.prefix}: ${query.path}/END',
 				separator: '/',
 				tildify: true,
 				normalizeDriveLetter: true
@@ -143,11 +143,11 @@ suite('URI Label', () => {
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
 	});
 
-	test('custom qs without query', function () {
+	test('custom query without query', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			formatting: {
-				label: 'LABEL${qs.prefix}: ${qs.path}/END',
+				label: 'LABEL${query.prefix}: ${query.path}/END',
 				separator: '/',
 				tildify: true,
 				normalizeDriveLetter: true
