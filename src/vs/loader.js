@@ -963,6 +963,7 @@ var AMDLoader;
             this._errorback = errorback;
             this.moduleIdResolver = moduleIdResolver;
             this.exports = {};
+            this.error = null;
             this.exportsPassedIn = false;
             this.unresolvedDependenciesCount = this.dependencies.length;
             this._isComplete = false;
@@ -1017,6 +1018,7 @@ var AMDLoader;
                 var err = AMDLoader.ensureError(producedError);
                 err.phase = 'factory';
                 err.moduleId = this.strId;
+                this.error = err;
                 config.onError(err);
             }
             this.dependencies = null;
@@ -1028,6 +1030,8 @@ var AMDLoader;
          * One of the direct dependencies or a transitive dependency has failed to load.
          */
         Module.prototype.onDependencyError = function (err) {
+            this._isComplete = true;
+            this.error = err;
             if (this._errorback) {
                 this._errorback(err);
                 return true;
@@ -1278,6 +1282,9 @@ var AMDLoader;
             if (!m.isComplete()) {
                 throw new Error('Check dependency list! Synchronous require cannot resolve module \'' + _strModuleId + '\'. This module has not been resolved completely yet.');
             }
+            if (m.error) {
+                throw m.error;
+            }
             return m.exports;
         };
         ModuleManager.prototype.configure = function (params, shouldOverwrite) {
@@ -1323,6 +1330,9 @@ var AMDLoader;
          */
         ModuleManager.prototype._onLoadError = function (moduleId, err) {
             var error = this._createLoadError(moduleId, err);
+            if (!this._modules2[moduleId]) {
+                this._modules2[moduleId] = new Module(moduleId, this._moduleIdProvider.getStrModuleId(moduleId), [], function () { }, function () { }, null);
+            }
             // Find any 'local' error handlers, walk the entire chain of inverse dependencies if necessary.
             var seenModuleId = [];
             for (var i = 0, len = this._moduleIdProvider.getMaxModuleId(); i < len; i++) {
@@ -1530,6 +1540,10 @@ var AMDLoader;
                     }
                     var dependencyModule = this._modules2[dependency.id];
                     if (dependencyModule && dependencyModule.isComplete()) {
+                        if (dependencyModule.error) {
+                            module.onDependencyError(dependencyModule.error);
+                            return;
+                        }
                         module.unresolvedDependenciesCount--;
                         continue;
                     }
