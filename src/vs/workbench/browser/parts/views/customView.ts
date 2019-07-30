@@ -329,11 +329,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._onDidChangeVisibility.fire(this.isVisible);
 	}
 
-	focus(): void {
+	focus(reveal: boolean = true): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement) {
+			if (selectedElement && reveal) {
 				this.tree.reveal(selectedElement, 0.5);
 			}
 
@@ -384,7 +384,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
 				collapseByDefault: (e: ITreeItem): boolean => {
 					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
-				}
+				},
+				multipleSelectionSupport: false
 			}));
 		aligner.tree = this.tree;
 
@@ -405,7 +406,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const customTreeNavigator = new TreeResourceNavigator2(this.tree);
+		const customTreeNavigator = new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false });
 		this._register(customTreeNavigator);
 		this._register(customTreeNavigator.onDidOpenResource(e => {
 			if (!e.browserEvent) {
@@ -595,10 +596,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree) {
 			this.refreshing = true;
 			await Promise.all(elements.map(element => this.tree.updateChildren(element, true)));
+			elements.map(element => this.tree.rerender(element));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
-				this.focus();
+				this.focus(false);
 			}
 		}
 	}

@@ -73,6 +73,8 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
+		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
+
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
@@ -121,7 +123,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
 			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
-			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected/${this.remoteAuthority!}' : this.remoteAuthority!);
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? `disconnected/${this.remoteAuthority!}` : this.remoteAuthority!);
 			this.updateWindowIndicator();
 		}
 	}
