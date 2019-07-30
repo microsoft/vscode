@@ -741,6 +741,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 			throw new Error('Unexpected: Task cannot be resolved.');
 		}
 
+		if (resolvedTask.definition !== task.definition) {
+			throw new Error('Unexpected: A task definition cannot be modified when resolving a task.');
+		}
+
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
 			await this.addCustomExecution(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
