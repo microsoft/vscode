@@ -602,9 +602,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return nodes.map(n => n!.element as T);
 	}
 
-	open(elements: T[]): void {
+	open(elements: T[], browserEvent?: UIEvent): void {
 		const nodes = elements.map(e => this.getDataNode(e));
-		this.tree.open(nodes);
+		this.tree.open(nodes, browserEvent);
 	}
 
 	reveal(element: T, relativeTop?: number): void {
