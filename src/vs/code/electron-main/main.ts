@@ -23,7 +23,7 @@ import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } 
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -330,11 +330,19 @@ class CodeMain {
 
 	private handleStartupDataDirError(environmentService: IEnvironmentService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
+			const directories = [environmentService.userDataPath];
+
+			if (environmentService.extensionsPath) {
+				directories.push(environmentService.extensionsPath);
+			}
+
+			if (xdgRuntimeDir) {
+				directories.push(xdgRuntimeDir);
+			}
+
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),
-				environmentService.extensionsPath
-					? localize('startupUserDataAndExtensionsDirErrorDetail', "Please make sure the directories {0} and {1} are writeable.", environmentService.userDataPath, environmentService.extensionsPath)
-					: localize('startupUserDataDirErrorDetail', "Please make sure the directory {0} is writeable.", environmentService.userDataPath)
+				localize('startupUserDataAndExtensionsDirErrorDetail', "Please make sure the following directories are writeable:\n\n{0}", directories.join('\n'))
 			);
 		}
 	}
