@@ -121,6 +121,7 @@ export class Main {
 				return false;
 			});
 		} else if (category === '') {
+			// TODO: we should save this array in a common place so that the command and extensionQuery can use it that way changing it is easier
 			const categories = ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'];
 			console.log('Possible Categories: ');
 			categories.forEach(category => {
