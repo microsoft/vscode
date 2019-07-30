@@ -93,14 +93,21 @@ steps:
 
 - script: |
     set -e
-    yarn gulp "electron-x64"
-
-    # xvfb seems to be crashing often, let's make sure it's always up
     service xvfb start
+  displayName: Start xvfb
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+- script: |
+    set -e
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
-    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
   displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
+    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
+  displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
