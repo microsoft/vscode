@@ -17,6 +17,17 @@ export const enum ShakeLevel {
 	ClassMembers = 2
 }
 
+export function toStringShakeLevel(shakeLevel: ShakeLevel): string {
+	switch(shakeLevel) {
+		case ShakeLevel.Files:
+			return 'Files (0)';
+		case ShakeLevel.InnerFile:
+			return 'InnerFile (1)';
+		case ShakeLevel.ClassMembers:
+			return 'ClassMembers (2)';
+	}
+}
+
 export interface ITreeShakingOptions {
 	/**
 	 * The full path to the root where sources are.
@@ -513,6 +524,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 								|| memberName === 'toJSON'
 								|| memberName === 'toString'
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
+								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
 							) {
 								enqueue_black(member);
 							}
@@ -640,10 +652,6 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 					const member = node.members[i];
 					if (getColor(member) === NodeColor.Black || !member.name) {
 						// keep method
-						continue;
-					}
-					if (/^_(.*)Brand$/.test(member.name.getText())) {
-						// TODO: keep all members ending with `Brand`...
 						continue;
 					}
 

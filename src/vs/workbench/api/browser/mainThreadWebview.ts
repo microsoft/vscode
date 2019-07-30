@@ -22,6 +22,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IProductService } from 'vs/platform/product/common/product';
 import { startsWith } from 'vs/base/common/strings';
+import { Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 interface OldMainThreadWebviewState {
 	readonly viewType: string;
@@ -41,9 +42,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	private static revivalPool = 0;
 
-
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviews = new Map<WebviewPanelHandle, WebviewEditorInput>();
+	private readonly _webviewEditorInputs = new Map<string, WebviewEditorInput>();
+	private readonly _webviews = new Map<string, Webview>();
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	private _activeWebview: WebviewPanelHandle | undefined = undefined;
@@ -103,7 +104,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		});
 		this.hookupWebviewEventDelegate(handle, webview);
 
-		this._webviews.set(handle, webview);
+		this._webviewEditorInputs.set(handle, webview);
+		this._webviews.set(handle, webview.webview);
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
@@ -114,32 +116,32 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	public $disposeWebview(handle: WebviewPanelHandle): void {
-		const webview = this.getWebview(handle);
+		const webview = this.getWebviewEditorInput(handle);
 		webview.dispose();
 	}
 
 	public $setTitle(handle: WebviewPanelHandle, value: string): void {
-		const webview = this.getWebview(handle);
+		const webview = this.getWebviewEditorInput(handle);
 		webview.setName(value);
 	}
 
 	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
-		const webview = this.getWebview(handle);
+		const webview = this.getWebviewEditorInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
 	}
 
 	public $setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
-		webview.webview.html = value;
+		webview.html = value;
 	}
 
 	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebview(handle);
-		webview.webview.contentOptions = reviveWebviewOptions(options as any /*todo@mat */);
+		webview.contentOptions = reviveWebviewOptions(options as any /*todo@mat */);
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
-		const webview = this.getWebview(handle);
+		const webview = this.getWebviewEditorInput(handle);
 		if (webview.isDisposed()) {
 			return;
 		}
@@ -152,7 +154,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	public async $postMessage(handle: WebviewPanelHandle, message: any): Promise<boolean> {
 		const webview = this.getWebview(handle);
-		webview.webview.sendMessage(message);
+		webview.sendMessage(message);
 		return true;
 	}
 
@@ -173,8 +175,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				}
 
 				const handle = `revival-${MainThreadWebviews.revivalPool++}`;
-				this._webviews.set(handle, webviewEditorInput);
+				this._webviewEditorInputs.set(handle, webviewEditorInput);
+				this._webviews.set(handle, webviewEditorInput.webview);
 				this.hookupWebviewEventDelegate(handle, webviewEditorInput);
+
 				let state = undefined;
 				if (webviewEditorInput.webview.state) {
 					try {
@@ -229,11 +233,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
 		input.onDispose(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
+				this._webviewEditorInputs.delete(handle);
 				this._webviews.delete(handle);
 			});
 		});
 		input.webview.onDidUpdateState((newState: any) => {
-			const webview = this.tryGetWebview(handle);
+			const webview = this.tryGetWebviewEditorInput(handle);
 			if (!webview || webview.isDisposed()) {
 				return;
 			}
@@ -245,8 +250,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		const activeEditor = this._editorService.activeControl;
 		let newActiveWebview: { input: WebviewEditorInput, handle: WebviewPanelHandle } | undefined = undefined;
 		if (activeEditor && activeEditor.input instanceof WebviewEditorInput) {
-			for (const handle of map.keys(this._webviews)) {
-				const input = this._webviews.get(handle)!;
+			for (const handle of map.keys(this._webviewEditorInputs)) {
+				const input = this._webviewEditorInputs.get(handle)!;
 				if (input.matches(activeEditor.input)) {
 					newActiveWebview = { input, handle };
 					break;
@@ -266,7 +271,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		// Broadcast view state update for currently active
 		if (typeof this._activeWebview !== 'undefined') {
-			const oldActiveWebview = this._webviews.get(this._activeWebview);
+			const oldActiveWebview = this._webviewEditorInputs.get(this._activeWebview);
 			if (oldActiveWebview) {
 				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
 					active: false,
@@ -290,7 +295,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	private onVisibleEditorsChanged(): void {
-		this._webviews.forEach((input, handle) => {
+		this._webviewEditorInputs.forEach((input, handle) => {
 			for (const workbenchEditor of this._editorService.visibleControls) {
 				if (workbenchEditor.input && workbenchEditor.input.matches(input)) {
 					const editorPosition = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group!);
@@ -312,7 +317,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			return;
 		}
 
-		const webview = this.getWebview(handle);
+		const webview = this.getWebviewEditorInput(handle);
 		if (this.isSupportedLink(webview, link)) {
 			this._openerService.open(link);
 		}
@@ -328,7 +333,19 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === 'command';
 	}
 
-	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
+	private getWebviewEditorInput(handle: WebviewPanelHandle): WebviewEditorInput {
+		const webview = this.tryGetWebviewEditorInput(handle);
+		if (!webview) {
+			throw new Error('Unknown webview handle:' + handle);
+		}
+		return webview;
+	}
+
+	private tryGetWebviewEditorInput(handle: WebviewPanelHandle): WebviewEditorInput | undefined {
+		return this._webviewEditorInputs.get(handle);
+	}
+
+	private getWebview(handle: WebviewPanelHandle): Webview {
 		const webview = this.tryGetWebview(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);
@@ -336,7 +353,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return webview;
 	}
 
-	private tryGetWebview(handle: WebviewPanelHandle): WebviewEditorInput | undefined {
+	private tryGetWebview(handle: WebviewPanelHandle): Webview | undefined {
 		return this._webviews.get(handle);
 	}
 

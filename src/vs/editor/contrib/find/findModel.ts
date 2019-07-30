@@ -59,6 +59,7 @@ export const FIND_IDS = {
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
 	ToggleSearchScopeCommand: 'toggleFindInSelection',
+	TogglePreserveCaseCommand: 'togglePreserveCase',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches'
@@ -416,11 +417,11 @@ export class FindModelBoundToEditorModel {
 
 		let replacePattern = this._getReplacePattern();
 		let selection = this._editor.getSelection();
-		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns, false);
+		let nextMatch = this._getNextMatch(selection.getStartPosition(), true, false);
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!
-				let replaceString = replacePattern.buildReplaceString(nextMatch.matches);
+				let replaceString = replacePattern.buildReplaceString(nextMatch.matches, this._state.preserveCase);
 
 				let command = new ReplaceCommand(selection, replaceString);
 
@@ -482,12 +483,14 @@ export class FindModelBoundToEditorModel {
 
 		const replacePattern = this._getReplacePattern();
 		let resultText: string;
-		if (replacePattern.hasReplacementPatterns) {
+		const preserveCase = this._state.preserveCase;
+
+		if (replacePattern.hasReplacementPatterns || preserveCase) {
 			resultText = modelText.replace(searchRegex, function () {
-				return replacePattern.buildReplaceString(<string[]><any>arguments);
+				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
 			});
 		} else {
-			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null));
+			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
 		}
 
 		let command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
@@ -497,11 +500,11 @@ export class FindModelBoundToEditorModel {
 	private _regularReplaceAll(findScope: Range | null): void {
 		const replacePattern = this._getReplacePattern();
 		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Constants.MAX_SAFE_SMALL_INTEGER);
+		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns || this._state.preserveCase, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		let replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {
-			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches);
+			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches, this._state.preserveCase);
 		}
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);

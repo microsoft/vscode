@@ -130,7 +130,7 @@ suite('SearchModel', () => {
 		const actual = testObject.searchResult.matches();
 
 		assert.equal(2, actual.length);
-		assert.equal('file://c:/1', actual[0].resource().toString());
+		assert.equal('file://c:/1', actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
 		assert.equal(2, actuaMatches.length);

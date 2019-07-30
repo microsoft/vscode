@@ -130,7 +130,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> {
-		throw new Error('Not Supported');
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.zip(extension);
+		}
+		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {

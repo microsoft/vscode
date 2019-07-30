@@ -81,10 +81,10 @@ class PartsSplash {
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
 			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)),
-			activityBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)),
-			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)),
-			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)),
+			titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)) : 0,
+			activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)) : 0,
+			sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)) : 0,
+			statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)) : 0,
 		};
 		this._textFileService.write(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),

@@ -14,12 +14,16 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IOnigLib } from 'vscode-textmate';
+import { IOnigLib, IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
+import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
+import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -28,6 +32,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 	private readonly _worker: TextMateWorker;
 	private readonly _model: ITextModel;
 	private _isSynced: boolean;
+	private _pendingChanges: IModelContentChangedEvent[] = [];
 
 	constructor(worker: TextMateWorker, model: ITextModel) {
 		super();
@@ -41,6 +46,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 		this._register(this._model.onDidChangeContent((e) => {
 			if (this._isSynced) {
 				this._worker.acceptModelChanged(this._model.uri.toString(), e);
+				this._pendingChanges.push(e);
 			}
 		}));
 
@@ -83,17 +89,47 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 		super.dispose();
 		this._endSync();
 	}
+
+	private _confirm(versionId: number): void {
+		while (this._pendingChanges.length > 0 && this._pendingChanges[0].versionId <= versionId) {
+			this._pendingChanges.shift();
+		}
+	}
+
+	public setTokens(versionId: number, rawTokens: ArrayBuffer): void {
+		this._confirm(versionId);
+		const tokens = MultilineTokensBuilder.deserialize(new Uint8Array(rawTokens));
+
+		for (let i = 0; i < this._pendingChanges.length; i++) {
+			const change = this._pendingChanges[i];
+			for (let j = 0; j < tokens.length; j++) {
+				for (let k = 0; k < change.changes.length; k++) {
+					tokens[j].applyEdit(change.changes[k].range, change.changes[k].text);
+				}
+			}
+		}
+
+		this._model.setTokens(tokens);
+	}
 }
 
 export class TextMateWorkerHost {
 
-	constructor(@IFileService private readonly _fileService: IFileService) {
+	constructor(
+		private readonly textMateService: TextMateService,
+		@IFileService private readonly _fileService: IFileService
+	) {
 	}
 
 	async readFile(_resource: UriComponents): Promise<string> {
 		const resource = URI.revive(_resource);
 		const content = await this._fileService.readFile(resource);
 		return content.value.toString();
+	}
+
+	async setTokens(_resource: UriComponents, versionId: number, tokens: Uint8Array): Promise<void> {
+		const resource = URI.revive(_resource);
+		this.textMateService.setTokens(resource, versionId, tokens);
 	}
 }
 
@@ -110,9 +146,10 @@ export class TextMateService extends AbstractTextMateService {
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		super(modeService, themeService, fileService, notificationService, logService, configurationService);
+		super(modeService, themeService, fileService, notificationService, logService, configurationService, storageService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);
@@ -153,7 +190,7 @@ export class TextMateService extends AbstractTextMateService {
 		this._killWorker();
 
 		if (RUN_TEXTMATE_IN_WORKER) {
-			const workerHost = new TextMateWorkerHost(this._fileService);
+			const workerHost = new TextMateWorkerHost(this, this._fileService);
 			const worker = createWebWorker<TextMateWorker>(this._modelService, {
 				createData: {
 					grammarDefinitions
@@ -170,8 +207,18 @@ export class TextMateService extends AbstractTextMateService {
 					return;
 				}
 				this._workerProxy = proxy;
+				if (this._currentTheme) {
+					this._workerProxy.acceptTheme(this._currentTheme);
+				}
 				this._modelService.getModels().forEach((model) => this._onModelAdded(model));
 			});
+		}
+	}
+
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
+		super._doUpdateTheme(grammarFactory, theme);
+		if (this._currentTheme && this._workerProxy) {
+			this._workerProxy.acceptTheme(this._currentTheme);
 		}
 	}
 
@@ -190,6 +237,14 @@ export class TextMateService extends AbstractTextMateService {
 			this._worker = null;
 		}
 		this._workerProxy = null;
+	}
+
+	setTokens(resource: URI, versionId: number, tokens: ArrayBuffer): void {
+		const key = resource.toString();
+		if (!this._tokenizers[key]) {
+			return;
+		}
+		this._tokenizers[key].setTokens(versionId, tokens);
 	}
 }
 

@@ -452,13 +452,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
-		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)],
-			{
-				identityProvider: { getId: (e: IListEntry) => e.id },
-				ariaLabel: localize('keybindingsLabel', "Keybindings"),
-				setRowLineHeight: false,
-				horizontalScrolling: false
-			})) as WorkbenchList<IListEntry>;
+		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)], {
+			identityProvider: { getId: (e: IListEntry) => e.id },
+			ariaLabel: localize('keybindingsLabel', "Keybindings"),
+			setRowLineHeight: false,
+			horizontalScrolling: false
+		}));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {

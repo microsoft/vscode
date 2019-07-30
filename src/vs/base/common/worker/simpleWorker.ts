@@ -12,7 +12,7 @@ const INITIALIZE = '$initialize';
 
 export interface IWorker extends IDisposable {
 	getId(): number;
-	postMessage(message: string): void;
+	postMessage(message: any, transfer: Transferable[]): void;
 }
 
 export interface IWorkerCallback {
@@ -60,7 +60,7 @@ interface IMessageReply {
 }
 
 interface IMessageHandler {
-	sendMessage(msg: string): void;
+	sendMessage(msg: any, transfer?: ArrayBuffer[]): void;
 	handleMessage(method: string, args: any[]): Promise<any>;
 }
 
@@ -98,14 +98,7 @@ class SimpleWorkerProtocol {
 		});
 	}
 
-	public handleMessage(serializedMessage: string): void {
-		let message: IMessage;
-		try {
-			message = JSON.parse(serializedMessage);
-		} catch (e) {
-			// nothing
-			return;
-		}
+	public handleMessage(message: IMessage): void {
 		if (!message || !message.vsWorker) {
 			return;
 		}
@@ -167,9 +160,21 @@ class SimpleWorkerProtocol {
 	}
 
 	private _send(msg: IRequestMessage | IReplyMessage): void {
-		let strMsg = JSON.stringify(msg);
-		// console.log('SENDING: ' + strMsg);
-		this._handler.sendMessage(strMsg);
+		let transfer: ArrayBuffer[] = [];
+		if (msg.req) {
+			const m = <IRequestMessage>msg;
+			for (let i = 0; i < m.args.length; i++) {
+				if (m.args[i] instanceof ArrayBuffer) {
+					transfer.push(m.args[i]);
+				}
+			}
+		} else {
+			const m = <IReplyMessage>msg;
+			if (m.res instanceof ArrayBuffer) {
+				transfer.push(m.res);
+			}
+		}
+		this._handler.sendMessage(msg, transfer);
 	}
 }
 
@@ -195,7 +200,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 
 		this._worker = this._register(workerFactory.create(
 			'vs/base/common/worker/simpleWorker',
-			(msg: string) => {
+			(msg: any) => {
 				this._protocol.handleMessage(msg);
 			},
 			(err: any) => {
@@ -208,8 +213,8 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 		));
 
 		this._protocol = new SimpleWorkerProtocol({
-			sendMessage: (msg: string): void => {
-				this._worker.postMessage(msg);
+			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
+				this._worker.postMessage(msg, transfer);
 			},
 			handleMessage: (method: string, args: any[]): Promise<any> => {
 				if (typeof (host as any)[method] !== 'function') {
@@ -240,7 +245,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
 			this._worker.getId(),
-			loaderConfiguration,
+			JSON.parse(JSON.stringify(loaderConfiguration)),
 			moduleId,
 			hostMethods,
 		]);
@@ -297,18 +302,18 @@ export class SimpleWorkerServer<H extends object> {
 	private _requestHandler: IRequestHandler | null;
 	private _protocol: SimpleWorkerProtocol;
 
-	constructor(postSerializedMessage: (msg: string) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
+	constructor(postMessage: (msg: any, transfer?: Transferable[]) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
 		this._requestHandlerFactory = requestHandlerFactory;
 		this._requestHandler = null;
 		this._protocol = new SimpleWorkerProtocol({
-			sendMessage: (msg: string): void => {
-				postSerializedMessage(msg);
+			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
+				postMessage(msg, transfer);
 			},
 			handleMessage: (method: string, args: any[]): Promise<any> => this._handleMessage(method, args)
 		});
 	}
 
-	public onmessage(msg: string): void {
+	public onmessage(msg: any): void {
 		this._protocol.handleMessage(msg);
 	}
 

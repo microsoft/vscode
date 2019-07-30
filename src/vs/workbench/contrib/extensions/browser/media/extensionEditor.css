@@ -256,11 +256,8 @@
 	font-weight: bold;
 	font-size: 120%;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
-	padding-bottom: 6px;
-}
-
-.extension-editor > .body > .content details > summary:focus {
-	outline: none;
+	padding: 3px 6px;
+	line-height: 22px;
 }
 
 .extension-editor > .body > .content details > summary::-webkit-details-marker {

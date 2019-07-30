@@ -1508,9 +1508,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
-	/* __GDPR__FRAGMENT__
-		"EditorTelemetryData" : {}
-	*/
 	public getTelemetryData(): { [key: string]: any; } | undefined {
 		return this._telemetryData;
 	}
@@ -1851,4 +1848,6 @@ registerThemingParticipant((theme, collector) => {
 	if (unnecessaryBorder) {
 		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
 	}
+
+	collector.addRule(`.monaco-editor .${ClassName.EditorDeprecatedInlineDecoration} { text-decoration: line-through; }`);
 });

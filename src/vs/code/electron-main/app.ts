@@ -77,7 +77,7 @@ import { HistoryMainService } from 'vs/platform/history/electron-main/historyMai
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -167,9 +167,11 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-current-web-contents', event => {
-			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
-
-			event.preventDefault();
+			// The driver needs access to web contents
+			if (!this.environmentService.args.driver) {
+				this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+				event.preventDefault();
+			}
 		});
 		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
@@ -708,7 +710,7 @@ export class CodeApplication extends Disposable {
 				const options: IConnectionOptions = {
 					isBuilt,
 					commit: product.commit,
-					webSocketFactory: nodeWebSocketFactory,
+					socketFactory: nodeSocketFactory,
 					addressProvider: {
 						getAddress: () => {
 							return Promise.resolve({ host, port });

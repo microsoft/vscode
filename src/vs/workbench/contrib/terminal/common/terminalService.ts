@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition, IAvailableShellsRequest, ITerminalVirtualProcessRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalNativeService, IShellDefinition, IAvailableShellsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -20,10 +20,14 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { timeout } from 'vs/base/common/async';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IPickOptions, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+
+interface IExtHostReadyEntry {
+	promise: Promise<void>;
+	resolve: () => void;
+}
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -38,7 +42,7 @@ export abstract class TerminalService implements ITerminalService {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
-	private _extHostsReady: { [authority: string]: boolean } = {};
+	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
@@ -53,10 +57,10 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	protected readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	protected readonly _onInstanceRequestExtHostProcess = new Emitter<ITerminalProcessExtHostRequest>();
-	public get onInstanceRequestExtHostProcess(): Event<ITerminalProcessExtHostRequest> { return this._onInstanceRequestExtHostProcess.event; }
-	protected readonly _onInstanceRequestVirtualProcess = new Emitter<ITerminalVirtualProcessRequest>();
-	public get onInstanceRequestVirtualProcess(): Event<ITerminalVirtualProcessRequest> { return this._onInstanceRequestVirtualProcess.event; }
+	protected readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
+	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
+	protected readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
+	public get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
 	protected readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	protected readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
@@ -119,7 +123,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
-	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
@@ -131,26 +135,39 @@ export abstract class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
+	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
 		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			// Wait for the remoteAuthority to be ready (and listening for events) before proceeding
+			// Wait for the remoteAuthority to be ready (and listening for events) before firing
+			// the event to spawn the ext host process
 			const conn = this._remoteAgentService.getConnection();
 			const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-			let retries = 0;
-			while (!this._extHostsReady[remoteAuthority] && ++retries < 50) {
-				await timeout(100);
-			}
-			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
+			await this._whenExtHostReady(remoteAuthority);
+			this._onInstanceRequestSpawnExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
 	}
 
-	public requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
-		// Don't need to wait on extensions here as this can only be triggered by an extension
-		this._onInstanceRequestVirtualProcess.fire({ proxy, cols, rows });
+	public requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
+		this._onInstanceRequestStartExtensionTerminal.fire({ proxy, cols, rows });
 	}
 
-	public extHostReady(remoteAuthority: string): void {
-		this._extHostsReady[remoteAuthority] = true;
+	public async extHostReady(remoteAuthority: string): Promise<void> {
+		this._createExtHostReadyEntry(remoteAuthority);
+		this._extHostsReady[remoteAuthority]!.resolve();
+	}
+
+	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
+		this._createExtHostReadyEntry(remoteAuthority);
+		return this._extHostsReady[remoteAuthority]!.promise;
+	}
+
+	private _createExtHostReadyEntry(remoteAuthority: string): void {
+		if (this._extHostsReady[remoteAuthority]) {
+			return;
+		}
+
+		let resolve!: () => void;
+		const promise = new Promise<void>(r => resolve = r);
+		this._extHostsReady[remoteAuthority] = { promise, resolve };
 	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {

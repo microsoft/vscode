@@ -8,6 +8,7 @@ import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';
 import { IRequestOptions, IRequestContext } from 'vs/platform/request/common/request';
+import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -16,6 +17,11 @@ export interface IWorkbenchConstructionOptions {
 	 * from. It is for example being used for the websocket connections as address.
 	 */
 	remoteAuthority: string;
+
+	/**
+	 * The connection token to send to the server.
+	 */
+	connectionToken?: string;
 
 	/**
 	 * Experimental: An endpoint to serve iframe content ("webview") from. This is required
@@ -44,6 +50,11 @@ export interface IWorkbenchConstructionOptions {
 	 * In case not provided, workbench uses <code>XMLHttpRequest</code>.
 	 */
 	requestHandler?: (requestOptions: IRequestOptions) => Promise<IRequestContext>;
+
+	/**
+	 * A factory for web sockets.
+	 */
+	webSocketFactory?: IWebSocketFactory;
 }
 
 /**

@@ -234,7 +234,7 @@ export class MainPanel extends ViewletPanel {
 		@IMenuService private readonly menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -245,7 +245,7 @@ export class MainPanel extends ViewletPanel {
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMRepository>;
+		});
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
 		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
@@ -324,7 +324,7 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0 && e.browserEvent) {
+		if (e.elements.length > 0) {
 			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
 			this.list.scrollTop = scrollTop;
@@ -495,6 +495,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
+		template.actionBar.clear();
 		template.actionBar.context = resource;
 
 		const disposables = new DisposableStore();
@@ -733,7 +734,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -850,7 +851,7 @@ export class RepositoryPanel extends ViewletPanel {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		});
 
 		this._register(Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])

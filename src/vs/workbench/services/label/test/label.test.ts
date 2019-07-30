@@ -97,4 +97,64 @@ suite('URI Label', () => {
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
 	});
+
+	test('custom query', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			formatting: {
+				label: 'LABEL${query.prefix}: ${query.path}/END',
+				separator: '/',
+				tildify: true,
+				normalizeDriveLetter: true
+			}
+		});
+
+		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ prefix: 'prefix', path: 'path' }))}`);
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABELprefix: path/END');
+	});
+
+	test('custom query without value', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			formatting: {
+				label: 'LABEL${query.prefix}: ${query.path}/END',
+				separator: '/',
+				tildify: true,
+				normalizeDriveLetter: true
+			}
+		});
+
+		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ path: 'path' }))}`);
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: path/END');
+	});
+
+	test('custom query without query json', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			formatting: {
+				label: 'LABEL${query.prefix}: ${query.path}/END',
+				separator: '/',
+				tildify: true,
+				normalizeDriveLetter: true
+			}
+		});
+
+		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5?path=foo');
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
+	});
+
+	test('custom query without query', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			formatting: {
+				label: 'LABEL${query.prefix}: ${query.path}/END',
+				separator: '/',
+				tildify: true,
+				normalizeDriveLetter: true
+			}
+		});
+
+		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
+	});
 });
