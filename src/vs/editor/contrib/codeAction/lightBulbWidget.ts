@@ -74,7 +74,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
-			dom.EventHelper.stop(e, true);
+			e.preventDefault();
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);

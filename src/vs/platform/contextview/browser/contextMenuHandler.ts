@@ -85,6 +85,10 @@ export class ContextMenuHandler {
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 				domEvent(window, EventType.MOUSE_DOWN)((e: MouseEvent) => {
+					if (e.defaultPrevented) {
+						return;
+					}
+
 					let event = new StandardMouseEvent(e);
 					let element: HTMLElement | null = event.target;
 
