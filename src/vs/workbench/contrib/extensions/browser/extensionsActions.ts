@@ -3066,6 +3066,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 		const localExtensionsToInstall = this.getLocalExtensionsToInstall();
 		quickPick.busy = false;
 		if (localExtensionsToInstall.length) {
+			quickPick.title = localize('install local extensions title', "Install Local Extensions in {0}", this.extensionManagementServerService.remoteExtensionManagementServer!.label);
 			quickPick.placeholder = localize('select extensions to install', "Select extensions to install");
 			quickPick.canSelectMany = true;
 			localExtensionsToInstall.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
