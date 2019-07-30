@@ -235,6 +235,17 @@ var AMDLoader;
  *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
+    function ensureError(err) {
+        if (err instanceof Error) {
+            return err;
+        }
+        var result = new Error(err.message || String(err) || 'Unknown Error');
+        if (err.stack) {
+            result.stack = err.stack;
+        }
+        return result;
+    }
+    AMDLoader.ensureError = ensureError;
     ;
     var ConfigurationOptionsUtil = /** @class */ (function () {
         function ConfigurationOptionsUtil() {
@@ -244,22 +255,16 @@ var AMDLoader;
          */
         ConfigurationOptionsUtil.validateConfigurationOptions = function (options) {
             function defaultOnError(err) {
-                if (err.errorCode === 'load') {
+                if (err.phase === 'loading') {
                     console.error('Loading "' + err.moduleId + '" failed');
-                    console.error('Detail: ', err.detail);
-                    if (err.detail && err.detail.stack) {
-                        console.error(err.detail.stack);
-                    }
+                    console.error(err);
                     console.error('Here are the modules that depend on it:');
                     console.error(err.neededBy);
                     return;
                 }
-                if (err.errorCode === 'factory') {
+                if (err.phase === 'factory') {
                     console.error('The factory method of "' + err.moduleId + '" has thrown an exception');
-                    console.error(err.detail);
-                    if (err.detail && err.detail.stack) {
-                        console.error(err.detail.stack);
-                    }
+                    console.error(err);
                     return;
                 }
             }
@@ -302,7 +307,7 @@ var AMDLoader;
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
             }
-            if (typeof options.nodeCachedData === 'object') {
+            if (options.nodeCachedData && typeof options.nodeCachedData === 'object') {
                 if (typeof options.nodeCachedData.seed !== 'string') {
                     options.nodeCachedData.seed = 'seed';
                 }
@@ -310,7 +315,9 @@ var AMDLoader;
                     options.nodeCachedData.writeDelay = 1000 * 7;
                 }
                 if (!options.nodeCachedData.path || typeof options.nodeCachedData.path !== 'string') {
-                    options.onError('INVALID cached data configuration, \'path\' MUST be set');
+                    var err = ensureError(new Error('INVALID cached data configuration, \'path\' MUST be set'));
+                    err.phase = 'configuration';
+                    options.onError(err);
                     options.nodeCachedData = undefined;
                 }
             }
@@ -1007,11 +1014,10 @@ var AMDLoader;
                 }
             }
             if (producedError) {
-                config.onError({
-                    errorCode: 'factory',
-                    moduleId: this.strId,
-                    detail: producedError
-                });
+                var err = AMDLoader.ensureError(producedError);
+                err.phase = 'factory';
+                err.moduleId = this.strId;
+                config.onError(err);
             }
             this.dependencies = null;
             this._callback = null;
@@ -1301,16 +1307,15 @@ var AMDLoader;
                 this.defineModule(this._moduleIdProvider.getStrModuleId(moduleId), defineCall.dependencies, defineCall.callback, null, defineCall.stack);
             }
         };
-        ModuleManager.prototype._createLoadError = function (moduleId, err) {
+        ModuleManager.prototype._createLoadError = function (moduleId, _err) {
             var _this = this;
             var strModuleId = this._moduleIdProvider.getStrModuleId(moduleId);
             var neededBy = (this._inverseDependencies2[moduleId] || []).map(function (intModuleId) { return _this._moduleIdProvider.getStrModuleId(intModuleId); });
-            return {
-                errorCode: 'load',
-                moduleId: strModuleId,
-                neededBy: neededBy,
-                detail: err
-            };
+            var err = AMDLoader.ensureError(_err);
+            err.phase = 'loading';
+            err.moduleId = strModuleId;
+            err.neededBy = neededBy;
+            return err;
         };
         /**
          * Callback from the scriptLoader when a module hasn't been loaded.
