@@ -990,12 +990,12 @@ declare module 'vscode' {
 		 *
 		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
 		 * ```typescript
-		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
+		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidOverrideDimensions: dimensionsEmitter.event,
 		 *   open: () => {
-		 *       dimensionsEmitter.fire({
+		 *     dimensionsEmitter.fire({
 		 *       columns: 20,
 		 *       rows: 10
 		 *     });
@@ -1013,17 +1013,17 @@ declare module 'vscode' {
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<number>();
+		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
 		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
 		 *   close: () => {}
-		 *   handleInput: {
+		 *   handleInput: data => {
 		 *     if (data !== 'y') {
 		 *       vscode.window.showInformationMessage('Something went wrong');
 		 *     }
-		 *     data => closeEmitter.fire();
+		 *     closeEmitter.fire();
 		 *   }
 		 * };
 		 * vscode.window.createTerminal({ name: 'Exit example', pty });
