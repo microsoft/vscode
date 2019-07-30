@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetNode';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getNode, isStyleAttribute, getEmbeddedCssNodeIfAny } from './util';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getNode } from './util';
 import { getLanguageService, TextDocument, TokenType } from 'vscode-html-languageservice';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
