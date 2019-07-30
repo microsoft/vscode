@@ -742,7 +742,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 
 		if (resolvedTask.definition !== task.definition) {
-			throw new Error('Unexpected: A task definition cannot be modified when resolving a task.');
+			throw new Error('Unexpected: The resolved task definition must be the same object as the original task definition. The task definition cannot be changed.');
 		}
 
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
