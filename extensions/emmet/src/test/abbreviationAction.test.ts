@@ -264,16 +264,6 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		});
 	});
 
-	test('No expanding text in completion list inside style tag if position is not for property name (HTML)', () => {
-		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
-			editor.selection = new Selection(13, 14, 13, 14);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
-			return Promise.resolve();
-		});
-	});
-
 	test('Expand css when inside style attribute (HTML)', () => {
 		const styleAttributeContent = '<div style="m10" class="hello"></div>';
 		return withRandomFileEditor(styleAttributeContent, 'html', async (editor, _doc) => {
