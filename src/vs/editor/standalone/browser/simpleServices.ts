@@ -468,7 +468,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
-			folders: {}
+			folders: []
 		};
 	}
 }
