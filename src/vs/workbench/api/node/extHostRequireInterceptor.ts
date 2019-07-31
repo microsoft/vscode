@@ -231,23 +231,19 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 		if (!this._extensionId) {
 			return;
 		}
-		/* __GDPR__
-			"shimming.open" : {
-				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._mainThreadTelemerty.$publicLog('shimming.open', { extension: this._extensionId });
+		type ShimmingOpenClassification = {
+			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this._mainThreadTelemerty.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
 	}
 
 	private sendNoForwardTelemetry(): void {
 		if (!this._extensionId) {
 			return;
 		}
-		/* __GDPR__
-			"shimming.open.call.noForward" : {
-				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._mainThreadTelemerty.$publicLog('shimming.open.call.noForward', { extension: this._extensionId });
+		type ShimmingOpenCallNoForwardClassification = {
+			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this._mainThreadTelemerty.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
 	}
 }

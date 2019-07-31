@@ -320,12 +320,14 @@ export interface ISnippetSessionInsertOptions {
 	overwriteBefore: number;
 	overwriteAfter: number;
 	adjustWhitespace: boolean;
+	clipboardText: string | undefined;
 }
 
 const _defaultOptions: ISnippetSessionInsertOptions = {
 	overwriteBefore: 0,
 	overwriteAfter: 0,
-	adjustWhitespace: true
+	adjustWhitespace: true,
+	clipboardText: undefined
 };
 
 export class SnippetSession {
@@ -376,7 +378,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 
@@ -385,9 +387,11 @@ export class SnippetSession {
 		}
 		const model = editor.getModel();
 
-		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
 		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService, optional));
 		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService, optional), model));
+
+		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
+		clipboardText = clipboardText || clipboardService && clipboardService.readTextSync();
 
 		let delta = 0;
 
@@ -440,7 +444,7 @@ export class SnippetSession {
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
-				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
+				new ClipboardBasedVariableResolver(clipboardText, idx, indexedSelections.length),
 				new SelectionBasedVariableResolver(model, selection),
 				new CommentBasedVariableResolver(model),
 				new TimeBasedVariableResolver,
@@ -488,7 +492,7 @@ export class SnippetSession {
 		const model = this._editor.getModel();
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText);
 		this._snippets = snippets;
 
 		const selections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
@@ -507,7 +511,7 @@ export class SnippetSession {
 			return;
 		}
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText);
 
 		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 

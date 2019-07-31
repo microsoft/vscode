@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -215,7 +215,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
-		if (!isEqual(this.firstFolderResource, newFirstFolderResource, !isLinux)) {
+		if (!isEqual(this.firstFolderResource, newFirstFolderResource)) {
 			this.firstFolderResource = newFirstFolderResource;
 
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart

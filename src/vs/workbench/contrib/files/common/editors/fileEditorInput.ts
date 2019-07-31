@@ -19,6 +19,12 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 
+const enum ForceOpenAs {
+	None,
+	Text,
+	Binary
+}
+
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
@@ -26,8 +32,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private preferredEncoding: string;
 	private preferredMode: string;
 
-	private forceOpenAsBinary: boolean;
-	private forceOpenAsText: boolean;
+	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
 	private textModelReference: Promise<IReference<ITextEditorModel>> | null;
 	private name: string;
@@ -107,7 +112,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-		this.forceOpenAsText = true; // encoding is a good hint to open the file as text
+		this.forceOpenAs = ForceOpenAs.Text; // encoding is a good hint to open the file as text
 	}
 
 	getPreferredMode(): string | undefined {
@@ -125,17 +130,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredMode(mode: string): void {
 		this.preferredMode = mode;
-		this.forceOpenAsText = true; // mode is a good hint to open the file as text
+		this.forceOpenAs = ForceOpenAs.Text; // mode is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {
-		this.forceOpenAsText = true;
-		this.forceOpenAsBinary = false;
+		this.forceOpenAs = ForceOpenAs.Text;
 	}
 
 	setForceOpenAsBinary(): void {
-		this.forceOpenAsBinary = true;
-		this.forceOpenAsText = false;
+		this.forceOpenAs = ForceOpenAs.Binary;
 	}
 
 	getTypeId(): string {
@@ -256,13 +259,13 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getPreferredEditorId(candidates: string[]): string {
-		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
+		return this.forceOpenAs === ForceOpenAs.Binary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
 	resolve(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
-		if (this.forceOpenAsBinary) {
+		if (this.forceOpenAs === ForceOpenAs.Binary) {
 			return this.doResolveAsBinary();
 		}
 
@@ -278,7 +281,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
-				allowBinary: this.forceOpenAsText,
+				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
 				reason: LoadReason.EDITOR
 			});
 

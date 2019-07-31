@@ -18,7 +18,8 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
@@ -42,7 +43,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	private _grammarDefinitions: IValidGrammarDefinition[] | null;
 	private _grammarFactory: TMGrammarFactory | null;
 	private _tokenizersRegistrations: IDisposable[];
-	private _currentTokenColors: ITokenColorizationRule[] | null;
+	protected _currentTheme: IRawTheme | null;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
@@ -50,7 +51,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		@IFileService protected readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();
@@ -61,6 +63,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		this._grammarDefinitions = null;
 		this._grammarFactory = null;
 		this._tokenizersRegistrations = [];
+
+		this._currentTheme = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			this._grammarDefinitions = null;
@@ -219,7 +223,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 							this._onDidEncounterLanguage.fire(languageId);
 						}
 					});
-					return new TMTokenizationSupport(r.languageId, tokenization, this._notificationService, this._configurationService);
+					return new TMTokenizationSupport(r.languageId, tokenization, this._notificationService, this._configurationService, this._storageService);
 				}, e => {
 					onUnexpectedError(e);
 					return null;
@@ -240,11 +244,11 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IColorTheme, forceUpdate: boolean): void {
-		if (!forceUpdate && AbstractTextMateService.equalsTokenRules(this._currentTokenColors, colorTheme.tokenColors)) {
+		if (!forceUpdate && this._currentTheme && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors)) {
 			return;
 		}
-		this._currentTokenColors = colorTheme.tokenColors;
-		this._doUpdateTheme(grammarFactory, { name: colorTheme.label, settings: colorTheme.tokenColors });
+		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
+		this._doUpdateTheme(grammarFactory, this._currentTheme);
 	}
 
 	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
@@ -328,6 +332,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected abstract _loadOnigLib(): Promise<IOnigLib> | undefined;
 }
 
+const donotAskUpdateKey = 'editor.maxTokenizationLineLength.donotask';
+
 class TMTokenizationSupport implements ITokenizationSupport {
 	private readonly _languageId: LanguageId;
 	private readonly _actual: TMTokenization;
@@ -338,11 +344,12 @@ class TMTokenizationSupport implements ITokenizationSupport {
 		languageId: LanguageId,
 		actual: TMTokenization,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._languageId = languageId;
 		this._actual = actual;
-		this._tokenizationWarningAlreadyShown = false;
+		this._tokenizationWarningAlreadyShown = !!(this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL));
 		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
@@ -368,7 +375,15 @@ class TMTokenizationSupport implements ITokenizationSupport {
 		if (line.length >= this._maxTokenizationLineLength) {
 			if (!this._tokenizationWarningAlreadyShown) {
 				this._tokenizationWarningAlreadyShown = true;
-				this._notificationService.warn(nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. The length of a long line can be configured via `editor.maxTokenizationLineLength`."));
+				this._notificationService.prompt(
+					Severity.Warning,
+					nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. The length of a long line can be configured via `editor.maxTokenizationLineLength`."),
+					[{
+						label: nls.localize('neverAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+					}]
+				);
 			}
 			console.log(`Line (${line.substr(0, 15)}...): longer than ${this._maxTokenizationLineLength} characters, tokenization skipped.`);
 			return nullTokenize2(this._languageId, line, state, offsetDelta);

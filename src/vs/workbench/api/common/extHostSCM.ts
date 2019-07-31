@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
-import { dispose, IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, CommandDto } from './extHost.protocol';
@@ -263,7 +263,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	readonly handle = ExtHostSourceControlResourceGroup._handlePool++;
-	private _disposables: IDisposable[] = [];
 
 	constructor(
 		private _proxy: MainThreadSCMShape,
@@ -353,7 +352,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	dispose(): void {
 		this._proxy.$unregisterGroup(this._sourceControlHandle, this.handle);
-		this._disposables = dispose(this._disposables);
 		this._onDidDispose.fire();
 	}
 }

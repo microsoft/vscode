@@ -436,13 +436,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, notificationService: INotificationService, labelService: ILabelService): void {
+async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, notificationService: INotificationService, labelService: ILabelService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
 		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
 			.join(lineDelimiter);
-		clipboardService.writeText(text);
+		await clipboardService.writeText(text);
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
@@ -456,9 +456,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
-		resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
+		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
 });
 
@@ -470,9 +470,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C)
 	},
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
-		resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
+		await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
 });
 
@@ -481,12 +481,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: (accessor) => {
+	handler: async (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
 		const resource = activeInput ? activeInput.getResource() : null;
 		const resources = resource ? [resource] : [];
-		resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
+		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
 });
 

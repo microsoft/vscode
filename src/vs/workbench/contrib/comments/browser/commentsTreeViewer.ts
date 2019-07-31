@@ -20,10 +20,10 @@ export class CommentsDataSource implements IDataSource {
 			return 'root';
 		}
 		if (element instanceof ResourceWithCommentThreads) {
-			return element.id;
+			return `${element.owner}-${element.id}`;
 		}
 		if (element instanceof CommentNode) {
-			return `${element.resource.toString()}-${element.comment.commentId}`;
+			return `${element.owner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}` + (element.isRoot ? '-root' : '');
 		}
 		return '';
 	}

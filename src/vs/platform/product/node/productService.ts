@@ -29,4 +29,14 @@ export class ProductService implements IProductService {
 	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } { return product.sendASmile; }
 
 	get extensionsGallery() { return product.extensionsGallery; }
+
+	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
+
+	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
+
+	get experimentsUrl(): string | undefined { return product.experimentsUrl; }
+
+	get extensionKeywords(): { [extension: string]: readonly string[]; } | undefined { return product.extensionKeywords; }
+
+	get extensionAllowedBadgeProviders(): readonly string[] | undefined { return product.extensionAllowedBadgeProviders; }
 }

@@ -1947,6 +1947,42 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('replaceAll preserving case', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', replaceString: 'goodbye', isRegex: false, matchCase: false, preserveCase: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.replaceAll();
+
+		assert.equal(editor.getModel()!.getLineContent(6), '    cout << "goodbye world, Goodbye!" << endl;');
+		assert.equal(editor.getModel()!.getLineContent(7), '    cout << "goodbye world again" << endl;');
+		assert.equal(editor.getModel()!.getLineContent(8), '    cout << "Goodbye world again" << endl;');
+		assert.equal(editor.getModel()!.getLineContent(9), '    cout << "goodbyeworld again" << endl;');
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('issue #18711 replaceAll with empty string', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: '', wholeWord: true }, false);

@@ -52,10 +52,10 @@ export interface ICompositeBar {
 export class ActivityAction extends Action {
 
 	private _onDidChangeActivity = new Emitter<this>();
-	get onDidChangeActivity(): Event<this> { return this._onDidChangeActivity.event; }
+	readonly onDidChangeActivity: Event<this> = this._onDidChangeActivity.event;
 
 	private _onDidChangeBadge = new Emitter<this>();
-	get onDidChangeBadge(): Event<this> { return this._onDidChangeBadge.event; }
+	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
 
 	private badge?: IBadge;
 	private clazz: string | undefined;

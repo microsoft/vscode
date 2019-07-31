@@ -28,6 +28,7 @@ class ForceRetokenizeAction extends EditorAction {
 		model.forceTokenization(model.getLineCount());
 		sw.stop();
 		console.log(`tokenization took ${sw.elapsed()}`);
+
 	}
 }
 

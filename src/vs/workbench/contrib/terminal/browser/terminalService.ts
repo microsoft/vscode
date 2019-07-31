@@ -49,7 +49,7 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this.terminalNativeService.linuxDistro);
 	}
 
-	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
+	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
@@ -60,8 +60,7 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 			const instance = this.createInstance(this._terminalFocusContextKey,
 				this.configHelper,
 				undefined,
-				shell,
-				true);
+				shell);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;

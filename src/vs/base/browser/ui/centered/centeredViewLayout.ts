@@ -6,7 +6,7 @@
 import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 
@@ -68,6 +68,7 @@ export class CenteredViewLayout implements IDisposable {
 	get maximumWidth(): number { return this.splitView ? this.splitView.maximumSize : this.view.maximumWidth; }
 	get minimumHeight(): number { return this.view.minimumHeight; }
 	get maximumHeight(): number { return this.view.maximumHeight; }
+	get onDidChange(): Event<IViewSize | undefined> { return this.view.onDidChange; }
 
 	layout(width: number, height: number): void {
 		this.width = width;

@@ -247,7 +247,7 @@ export class WorkbenchList<T> extends List<T> {
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<any /* TODO@joao */, any>[],
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -787,7 +787,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -813,7 +813,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -840,7 +840,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,

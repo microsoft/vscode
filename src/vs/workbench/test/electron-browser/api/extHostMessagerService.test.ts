@@ -26,6 +26,7 @@ const emptyDialogService = new class implements IDialogService {
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
+	onDidExecuteCommand: () => ({ dispose: () => { } }),
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}

@@ -470,4 +470,19 @@ suite('Filters', () => {
 	test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
 		assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
 	});
+
+	test('Autocompletion is matched against truncated filterText to 54 characters #74133', () => {
+		assertMatches(
+			'foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
+			'foo',
+			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			undefined,
+			fuzzyScore
+		);
+	});
 });

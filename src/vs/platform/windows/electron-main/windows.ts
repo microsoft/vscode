@@ -132,6 +132,7 @@ export interface IOpenConfiguration {
 	readonly forceEmpty?: boolean;
 	readonly diffMode?: boolean;
 	addMode?: boolean;
+	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
 }

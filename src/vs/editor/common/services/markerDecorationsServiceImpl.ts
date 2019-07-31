@@ -221,6 +221,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
 				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
 			}
+			if (marker.tags.indexOf(MarkerTag.Deprecated) !== -1) {
+				inlineClassName = ClassName.EditorDeprecatedInlineDecoration;
+			}
 		}
 
 		return {

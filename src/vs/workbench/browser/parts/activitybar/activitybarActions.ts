@@ -72,13 +72,11 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 
 	private logAction(action: string) {
-		/* __GDPR__
-			"activityBarAction" : {
-				"viewletId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('activityBarAction', { viewletId: this.activity.id, action });
+		type ActivityBarActionClassification = {
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -165,7 +163,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, iconUrl: URI,
+		id: string, name: string, iconUrl: URI,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService

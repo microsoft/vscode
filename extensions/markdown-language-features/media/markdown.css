@@ -186,6 +186,7 @@ pre.hljs code > div {
 
 pre code {
 	color: var(--vscode-editor-foreground);
+	tab-size: 4;
 }
 
 

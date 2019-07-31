@@ -30,10 +30,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 export abstract class Composite extends Component implements IComposite {
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
-	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
+	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _onDidFocus: Emitter<void>;
 	get onDidFocus(): Event<void> {

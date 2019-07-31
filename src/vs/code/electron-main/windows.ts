@@ -207,46 +207,17 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this);
 
 		this.lifecycleService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
-		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.setupNativeHelpers());
+		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.installWindowsMutex());
 	}
 
-	private setupNativeHelpers(): void {
+	private installWindowsMutex(): void {
 		if (isWindows) {
-
-			// Setup Windows mutex
 			try {
 				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
 				const mutex = new WindowsMutex(product.win32MutexName);
 				once(this.lifecycleService.onWillShutdown)(() => mutex.release());
 			} catch (e) {
 				this.logService.error(e);
-
-				if (!this.environmentService.isBuilt) {
-					this.showMessageBox({
-						title: product.nameLong,
-						type: 'warning',
-						message: 'Failed to load windows-mutex!',
-						detail: e.toString(),
-						noLink: true
-					});
-				}
-			}
-
-			// Dev only: Ensure Windows foreground love module is present
-			if (!this.environmentService.isBuilt) {
-				try {
-					require.__$__nodeRequire('windows-foreground-love');
-				} catch (e) {
-					this.logService.error(e);
-
-					this.showMessageBox({
-						title: product.nameLong,
-						type: 'warning',
-						message: 'Failed to load windows-foreground-love!',
-						detail: e.toString(),
-						noLink: true
-					});
-				}
 			}
 		}
 	}
@@ -873,8 +844,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const cli = openConfig.cli;
-		const parseOptions: IPathParseOptions = { gotoLineMode: cli && cli.goto };
+		const parseOptions: IPathParseOptions = { gotoLineMode: openConfig.gotoLineMode };
 		for (const pathToOpen of openConfig.urisToOpen || []) {
 			if (!pathToOpen) {
 				continue;

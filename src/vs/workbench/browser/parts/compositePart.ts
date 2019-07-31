@@ -466,6 +466,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 
 		// Layout contents
 		this.contentAreaSize = super.layoutContents(width, height).contentSize;

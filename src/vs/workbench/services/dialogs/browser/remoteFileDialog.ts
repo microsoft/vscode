@@ -30,6 +30,8 @@ import { isValidBasename } from 'vs/base/common/extpath';
 import { RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -63,6 +65,7 @@ export class RemoteFileDialog {
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null;
 	private separator: string;
 	private onBusyChangeEmitter = new Emitter<boolean>();
+	private updatingPromise: CancelablePromise<void> | undefined;
 
 	protected disposables: IDisposable[] = [
 		this.onBusyChangeEmitter
@@ -212,7 +215,7 @@ export class RemoteFileDialog {
 			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
-			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
+			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
 				let action;
@@ -232,7 +235,7 @@ export class RemoteFileDialog {
 
 			let isResolving: number = 0;
 			let isAcceptHandled = false;
-			this.currentFolder = homedir;
+			this.currentFolder = resources.dirname(homedir);
 			this.userEnteredPathSegment = '';
 			this.autoCompletePathSegment = '';
 
@@ -707,25 +710,41 @@ export class RemoteFileDialog {
 		this.autoCompletePathSegment = '';
 		const newValue = trailing ? this.pathAppend(newFolder, trailing) : this.pathFromUri(newFolder, true);
 		this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
-		return this.createItems(this.currentFolder).then(items => {
-			this.filePickBox.items = items;
-			if (this.allowFolderSelection) {
-				this.filePickBox.activeItems = [];
-			}
-			// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
-			if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {
-				this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
-				this.insertText(newValue, newValue);
-			}
-			if (force && trailing) {
-				// Keep the cursor position in front of the save as name.
-				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - trailing.length];
-			} else if (!trailing) {
-				// If there is trailing, we don't move the cursor. If there is no trailing, cursor goes at the end.
-				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
-			}
-			this.busy = false;
+
+		const updatingPromise = createCancelablePromise(async token => {
+			return this.createItems(this.currentFolder, token).then(items => {
+				if (token.isCancellationRequested) {
+					this.busy = false;
+					return;
+				}
+
+				this.filePickBox.items = items;
+				if (this.allowFolderSelection) {
+					this.filePickBox.activeItems = [];
+				}
+				// the user might have continued typing while we were updating. Only update the input box if it doesn't matche directory.
+				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {
+					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+					this.insertText(newValue, newValue);
+				}
+				if (force && trailing) {
+					// Keep the cursor position in front of the save as name.
+					this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - trailing.length];
+				} else if (!trailing) {
+					// If there is trailing, we don't move the cursor. If there is no trailing, cursor goes at the end.
+					this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
+				}
+				this.busy = false;
+				this.updatingPromise = undefined;
+			});
 		});
+
+		if (this.updatingPromise !== undefined) {
+			this.updatingPromise.cancel();
+		}
+		this.updatingPromise = updatingPromise;
+
+		return updatingPromise;
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
@@ -777,14 +796,14 @@ export class RemoteFileDialog {
 		return null;
 	}
 
-	private async createItems(currentFolder: URI): Promise<FileQuickPickItem[]> {
+	private async createItems(currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
 		const result: FileQuickPickItem[] = [];
 
 		const backDir = this.createBackItem(currentFolder);
 		try {
 			const folder = await this.fileService.resolve(currentFolder);
 			const fileNames = folder.children ? folder.children.map(child => child.name) : [];
-			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder)));
+			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder, token)));
 			for (let item of items) {
 				if (item) {
 					result.push(item);
@@ -793,6 +812,9 @@ export class RemoteFileDialog {
 		} catch (e) {
 			// ignore
 			console.log(e);
+		}
+		if (token.isCancellationRequested) {
+			return [];
 		}
 		const sorted = result.sort((i1, i2) => {
 			if (i1.isFolder !== i2.isFolder) {
@@ -824,7 +846,10 @@ export class RemoteFileDialog {
 		return true;
 	}
 
-	private async createItem(filename: string, parent: URI): Promise<FileQuickPickItem | undefined> {
+	private async createItem(filename: string, parent: URI, token: CancellationToken): Promise<FileQuickPickItem | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		let fullPath = resources.joinPath(parent, filename);
 		try {
 			const stat = await this.fileService.resolve(fullPath);

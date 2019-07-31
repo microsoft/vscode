@@ -534,7 +534,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 // Touch Bar
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr, icon: string) => {
+	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr | undefined, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
 				id,

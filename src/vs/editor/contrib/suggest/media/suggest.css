@@ -179,7 +179,6 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.suggest-icon::before {
 	content: ' ';
-	background-image: url('Misc_16x.svg');
 	background-repeat: no-repeat;
 	background-position: center;
 	background-size: 75%;
@@ -305,9 +304,6 @@
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	background-image: url('./info-dark.svg');
 }
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before { background-image: url('Misc_inverse_16x.svg'); }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,

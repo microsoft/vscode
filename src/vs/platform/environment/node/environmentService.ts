@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
-const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
@@ -131,12 +131,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
-
-	@memoize
-	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
-
-	@memoize
-	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
 
 	@memoize
 	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
@@ -271,6 +265,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
+
+	@memoize
+	get galleryMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }

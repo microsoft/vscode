@@ -13,7 +13,7 @@ const File = require("vinyl");
 const vsce = require("vsce");
 const stats_1 = require("./stats");
 const util2 = require("./util");
-const remote = require("gulp-remote-src");
+const remote = require("gulp-remote-retry-src");
 const vzip = require('gulp-vinyl-zip');
 const filter = require("gulp-filter");
 const rename = require("gulp-rename");
@@ -111,12 +111,6 @@ function fromLocalWebpack(extensionPath) {
                 data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
                     return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
                 }), 'utf8');
-                if (/\.js\.map$/.test(data.path)) {
-                    if (!fs.existsSync(path.dirname(data.path))) {
-                        fs.mkdirSync(path.dirname(data.path));
-                    }
-                    fs.writeFileSync(data.path, data.contents);
-                }
                 this.emit('data', data);
             }));
         });
@@ -195,20 +189,21 @@ function packageLocalExtensionsStream() {
     })
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name));
-    return es.merge(gulp.src('extensions/node_modules/**', { base: '.' }), ...localExtensionDescriptions.map(extension => {
+    const nodeModules = gulp.src('extensions/node_modules/**', { base: '.' });
+    const localExtensions = localExtensionDescriptions.map(extension => {
         return fromLocal(extension.path)
             .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    }))
-        .pipe(util2.setExecutableBit(['**/*.sh']))
-        .pipe(filter(['**', '!**/*.js.map']));
+    });
+    return es.merge(nodeModules, ...localExtensions)
+        .pipe(util2.setExecutableBit(['**/*.sh']));
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 function packageMarketplaceExtensionsStream() {
-    return es.merge(builtInExtensions.map(extension => {
+    const extensions = builtInExtensions.map(extension => {
         return fromMarketplace(extension.name, extension.version, extension.metadata)
             .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    }))
-        .pipe(util2.setExecutableBit(['**/*.sh']))
-        .pipe(filter(['**', '!**/*.js.map']));
+    });
+    return es.merge(extensions)
+        .pipe(util2.setExecutableBit(['**/*.sh']));
 }
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;

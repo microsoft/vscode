@@ -33,6 +33,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 
 export interface IFindInputStyles extends IInputBoxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionBackground?: Color;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -48,6 +49,7 @@ export class FindInput extends Widget {
 	private fixFocusOnOptionClickEnabled = true;
 
 	private inputActiveOptionBorder?: Color;
+	private inputActiveOptionBackground?: Color;
 	private inputBackground?: Color;
 	private inputForeground?: Color;
 	private inputBorder?: Color;
@@ -97,6 +99,7 @@ export class FindInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
+		this.inputActiveOptionBackground = options.inputActiveOptionBackground;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
 		this.inputBorder = options.inputBorder;
@@ -173,6 +176,7 @@ export class FindInput extends Widget {
 
 	public style(styles: IFindInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+		this.inputActiveOptionBackground = styles.inputActiveOptionBackground;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
 		this.inputBorder = styles.inputBorder;
@@ -194,6 +198,7 @@ export class FindInput extends Widget {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
+				inputActiveOptionBackground: this.inputActiveOptionBackground,
 			};
 			this.regex.style(checkBoxStyles);
 			this.wholeWords.style(checkBoxStyles);
@@ -294,7 +299,8 @@ export class FindInput extends Widget {
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: appendRegexLabel,
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionBackground: this.inputActiveOptionBackground
 		}));
 		this._register(this.regex.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
@@ -310,7 +316,8 @@ export class FindInput extends Widget {
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionBackground: this.inputActiveOptionBackground
 		}));
 		this._register(this.wholeWords.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
@@ -323,7 +330,8 @@ export class FindInput extends Widget {
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionBackground: this.inputActiveOptionBackground
 		}));
 		this._register(this.caseSensitive.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);

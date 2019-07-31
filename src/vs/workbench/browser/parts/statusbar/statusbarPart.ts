@@ -611,6 +611,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 		super.layoutContents(width, height);
 	}
 

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
@@ -37,7 +37,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private _state: ProfileSessionState;
 
 	private profilingStatusBarIndicator: IStatusbarEntryAccessor | undefined;
-	private profilingStatusBarIndicatorLabelUpdater: IDisposable | undefined;
+	private readonly profilingStatusBarIndicatorLabelUpdater = this._register(new MutableDisposable());
 
 	public get state() { return this._state; }
 	public get lastProfile() { return this._profile; }
@@ -77,10 +77,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	}
 
 	private updateProfilingStatusBarIndicator(visible: boolean): void {
-		if (this.profilingStatusBarIndicatorLabelUpdater) {
-			this.profilingStatusBarIndicatorLabelUpdater.dispose();
-			this.profilingStatusBarIndicatorLabelUpdater = undefined;
-		}
+		this.profilingStatusBarIndicatorLabelUpdater.clear();
 
 		if (visible) {
 			const indicator: IStatusbarEntry = {
@@ -95,7 +92,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "$(sync~spin) Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 				}
 			}, 1000);
-			this.profilingStatusBarIndicatorLabelUpdater = toDisposable(() => clearInterval(handle));
+			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
 
 			if (!this.profilingStatusBarIndicator) {
 				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', nls.localize('status.profiler', "Extension Profiler"), StatusbarAlignment.RIGHT);

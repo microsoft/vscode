@@ -80,10 +80,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private static STORAGE_NAME = 'state.vscdb';
 
 	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;
 
 	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+	readonly onWillSaveState: Event<void> = this._onWillSaveState.event;
 
 	get items(): Map<string, string> { return this.storage.items; }
 

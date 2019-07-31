@@ -407,7 +407,12 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public fulfill(type: MouseTargetType, position: Position | null = null, range: EditorRange | null = null, detail: any = null): MouseTarget {
-		return new MouseTarget(this.target, type, this.mouseColumn, position, range, detail);
+		let mouseColumn = this.mouseColumn;
+		if (position && position.column < this._ctx.model.getLineMaxColumn(position.lineNumber)) {
+			// Most likely, the line contains foreign decorations...
+			mouseColumn = position.column;
+		}
+		return new MouseTarget(this.target, type, mouseColumn, position, range, detail);
 	}
 
 	public withTarget(target: Element | null): HitTestRequest {

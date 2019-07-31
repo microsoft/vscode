@@ -25,10 +25,10 @@ export class StorageService extends Disposable implements IStorageService {
 	private static WORKSPACE_META_NAME = 'workspace.json';
 
 	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
 
 	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
+	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
 
 	private globalStorage: IStorage;
 

@@ -27,7 +27,7 @@ import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/
 import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -40,16 +40,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region events
 
 	private readonly _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
+	readonly onDidActiveEditorChange: Event<void> = this._onDidActiveEditorChange.event;
 
 	private readonly _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
+	readonly onDidVisibleEditorsChange: Event<void> = this._onDidVisibleEditorsChange.event;
 
 	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
+	readonly onDidCloseEditor: Event<IEditorCloseEvent> = this._onDidCloseEditor.event;
 
 	private readonly _onDidOpenEditorFail: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
-	get onDidOpenEditorFail(): Event<IEditorIdentifier> { return this._onDidOpenEditorFail.event; }
+	readonly onDidOpenEditorFail: Event<IEditorIdentifier> = this._onDidOpenEditorFail.event;
 
 	//#endregion
 
@@ -503,7 +503,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Side by Side Support
-		const resourceSideBySideInput = <IResourceSideBySideInput>input;
+		const resourceSideBySideInput = input as IResourceSideBySideInput;
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
 			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, forceFile: resourceSideBySideInput.forceFile });
 			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, forceFile: resourceSideBySideInput.forceFile });
@@ -518,23 +518,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Diff Editor Support
-		const resourceDiffInput = <IResourceDiffInput>input;
+		const resourceDiffInput = input as IResourceDiffInput;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
 			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
-			return new DiffEditorInput(label, withUndefinedAsNull(resourceDiffInput.description), leftInput, rightInput);
+			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
 
 		// Untitled file support
-		const untitledInput = <IUntitledResourceInput>input;
+		const untitledInput = input as IUntitledResourceInput;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
 			return this.untitledEditorService.createOrGet(untitledInput.resource, untitledInput.mode, untitledInput.contents, untitledInput.encoding);
 		}
 
 		// Resource Editor Support
-		const resourceInput = <IResourceInput>input;
+		const resourceInput = input as IResourceInput;
 		if (resourceInput.resource instanceof URI) {
 			let label = resourceInput.label;
 			if (!label && resourceInput.resource.scheme !== Schemas.data) {

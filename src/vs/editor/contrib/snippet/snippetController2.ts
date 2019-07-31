@@ -26,6 +26,7 @@ export interface ISnippetInsertOptions {
 	adjustWhitespace: boolean;
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
+	clipboardText: string | undefined;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -34,6 +35,7 @@ const _defaultOptions: ISnippetInsertOptions = {
 	undoStopBefore: true,
 	undoStopAfter: true,
 	adjustWhitespace: true,
+	clipboardText: undefined
 };
 
 export class SnippetController2 implements IEditorContribution {

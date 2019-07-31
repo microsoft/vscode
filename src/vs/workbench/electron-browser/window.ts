@@ -135,13 +135,11 @@ export class ElectronWindow extends Disposable {
 			try {
 				await this.commandService.executeCommand(request.id, ...args);
 
-				/* __GDPR__
-					"commandExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
+				type CommandExecutedClassifcation = {
+					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				};
+				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
 			} catch (error) {
 				this.notificationService.error(error);
 			}
@@ -408,7 +406,7 @@ export class ElectronWindow extends Disposable {
 		const options = {
 			companyName: product.crashReporter.companyName,
 			productName: product.crashReporter.productName,
-			submitURL: isWindows ? product.hockeyApp[`win32-${process.arch}`] : isLinux ? product.hockeyApp[`linux-${process.arch}`] : product.hockeyApp.darwin,
+			submitURL: isWindows ? product.hockeyApp[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? product.hockeyApp[`linux-x64`] : product.hockeyApp.darwin,
 			extra: {
 				vscode_version: pkg.version,
 				vscode_commit: product.commit

@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -56,9 +57,10 @@ export class BreakpointsView extends ViewletPanel {
 		@IThemeService private readonly themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
@@ -83,7 +85,7 @@ export class BreakpointsView extends ViewletPanel {
 					getRole: (breakpoint: IEnablement) => 'checkbox',
 					isChecked: (breakpoint: IEnablement) => breakpoint.enabled
 				}
-			}) as WorkbenchList<IEnablement>;
+			});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 

@@ -19,7 +19,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
+		super(_contextViewService, _contextKeyService, findState, true, true);
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
@@ -50,7 +50,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		// Ignore input changes for now
 		const instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
-			return instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+			return instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
 		}
 		return false;
 	}

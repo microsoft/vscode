@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
-import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
+import { removeMarkdownEscapes, IMarkdownString, parseHrefAndDimensions } from 'vs/base/common/htmlContent';
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -100,29 +100,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
-		href = _href(href, true);
 		let dimensions: string[] = [];
-		if (href) {
-			const splitted = href.split('|').map(s => s.trim());
-			href = splitted[0];
-			const parameters = splitted[1];
-			if (parameters) {
-				const heightFromParams = /height=(\d+)/.exec(parameters);
-				const widthFromParams = /width=(\d+)/.exec(parameters);
-				const height = heightFromParams ? heightFromParams[1] : '';
-				const width = widthFromParams ? widthFromParams[1] : '';
-				const widthIsFinite = isFinite(parseInt(width));
-				const heightIsFinite = isFinite(parseInt(height));
-				if (widthIsFinite) {
-					dimensions.push(`width="${width}"`);
-				}
-				if (heightIsFinite) {
-					dimensions.push(`height="${height}"`);
-				}
-			}
-		}
 		let attributes: string[] = [];
 		if (href) {
+			({ href, dimensions } = parseHrefAndDimensions(href));
+			href = _href(href, true);
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {

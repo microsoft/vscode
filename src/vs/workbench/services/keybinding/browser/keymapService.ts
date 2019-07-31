@@ -26,9 +26,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper
@@ -71,9 +71,9 @@ export class BrowserKeyboardMapperFactoryBase {
 	}
 
 	protected constructor(
-		private _notificationService: INotificationService,
-		private _storageService: IStorageService,
-		private _commandService: ICommandService
+		// private _notificationService: INotificationService,
+		// private _storageService: IStorageService,
+		// private _commandService: ICommandService
 	) {
 		this._keyboardMapper = null;
 		this._initialized = false;
@@ -178,30 +178,34 @@ export class BrowserKeyboardMapperFactoryBase {
 	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
 		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
 		if (matchedKeyboardLayout) {
-			let score = matchedKeyboardLayout.score;
+			// let score = matchedKeyboardLayout.score;
 
-			if (keymap && score < 0) {
-				const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
-				if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
-					return;
-				}
+			// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=977609, any key after a dead key will generate a wrong mapping,
+			// we shoud avoid yielding the false error.
+			// if (keymap && score < 0) {
+			// const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
+			// if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
+			// 	return;
+			// }
 
-				// the keyboard layout doesn't actually match the key event or the keymap from chromium
-				this._notificationService.prompt(
-					Severity.Info,
-					nls.localize('missing.keyboardlayout', 'Fail to find matching keyboard layout'),
-					[{
-						label: nls.localize('keyboardLayoutMissing.configure', "Configure"),
-						run: () => this._commandService.executeCommand('workbench.action.openKeyboardLayoutPicker')
-					}, {
-						label: nls.localize('neverAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
-					}]
-				);
+			// // the keyboard layout doesn't actually match the key event or the keymap from chromium
+			// this._notificationService.prompt(
+			// 	Severity.Info,
+			// 	nls.localize('missing.keyboardlayout', 'Fail to find matching keyboard layout'),
+			// 	[{
+			// 		label: nls.localize('keyboardLayoutMissing.configure', "Configure"),
+			// 		run: () => this._commandService.executeCommand('workbench.action.openKeyboardLayoutPicker')
+			// 	}, {
+			// 		label: nls.localize('neverAgain', "Don't Show Again"),
+			// 		isSecondary: true,
+			// 		run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+			// 	}]
+			// );
 
-				return;
-			}
+			// console.warn('Active keymap/keyevent does not match current keyboard layout', JSON.stringify(keymap), this._activeKeymapInfo ? JSON.stringify(this._activeKeymapInfo.layout) : '');
+
+			// return;
+			// }
 
 			if (!this._activeKeymapInfo) {
 				this._activeKeymapInfo = matchedKeyboardLayout.result;
@@ -334,7 +338,7 @@ export class BrowserKeyboardMapperFactoryBase {
 		}
 
 		if (mapping.value === '') {
-			// we don't undetstand
+			// The value is empty when the key is not a printable character, we skip validation.
 			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
 				setTimeout(() => {
 					this._getBrowserKeyMapping().then((keymap: IKeyboardMapping) => {
@@ -424,7 +428,8 @@ export class BrowserKeyboardMapperFactoryBase {
 
 export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		super(notificationService, storageService, commandService);
+		// super(notificationService, storageService, commandService);
+		super();
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 

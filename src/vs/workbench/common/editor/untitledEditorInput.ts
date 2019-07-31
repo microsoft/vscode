@@ -28,10 +28,10 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
+	readonly onDidModelChangeContent: Event<void> = this._onDidModelChangeContent.event;
 
 	private readonly _onDidModelChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	get onDidModelChangeEncoding(): Event<void> { return this._onDidModelChangeEncoding.event; }
+	readonly onDidModelChangeEncoding: Event<void> = this._onDidModelChangeEncoding.event;
 
 	constructor(
 		private readonly resource: URI,
@@ -77,9 +77,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(dirname(this.resource));
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | null {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 		if (!this.hasAssociatedFilePath) {
-			return null;
+			return undefined;
 		}
 
 		switch (verbosity) {

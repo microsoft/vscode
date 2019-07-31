@@ -252,7 +252,7 @@ export class QuickInputList {
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false
-		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
+		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {

@@ -300,7 +300,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
@@ -323,7 +323,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const parts = item.parts;
 			if (parts.length === 0) {
 				// This might be a removal keybinding item in user settings => accept it

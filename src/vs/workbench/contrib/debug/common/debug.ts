@@ -24,9 +24,7 @@ import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExte
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -573,12 +571,7 @@ export interface IDebugAdapterTrackerFactory {
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
-}
-
-export interface ITerminalSettings {
-	external: IExternalTerminalSettings;
-	integrated: ITerminalConfiguration;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 }
 
 export interface IConfigurationManager {
@@ -623,7 +616,7 @@ export interface IConfigurationManager {
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 }
 
 export interface ILaunch {

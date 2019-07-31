@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
+import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -109,12 +109,14 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		}
 
 		const logTelemetry = (optout?: boolean) => {
-			/* __GDPR__
-				"experiments:optout" : {
-					"optOut": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('experiments:optout', typeof optout === 'boolean' ? { optout } : {});
+			type ExperimentsOptOutClassification = {
+				optout?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			};
+
+			type ExperimentsOptOutEvent = {
+				optout?: boolean;
+			};
+			this.telemetryService.publicLog2<ExperimentsOptOutEvent, ExperimentsOptOutClassification>('experiments:optout', typeof optout === 'boolean' ? { optout } : {});
 		};
 
 		queryPromise.then(() => {

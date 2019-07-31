@@ -15,7 +15,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
@@ -112,7 +112,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined> {
+	async $tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined> {
 		const uri = URI.revive(resource);
 
 		const editorOptions: ITextEditorOptions = {
@@ -121,91 +121,95 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			selection: options.selection
 		};
 
-		const input = {
+		const input: IResourceInput = {
 			resource: uri,
 			options: editorOptions
 		};
 
-		return this._editorService.openEditor(input, viewColumnToEditorGroup(this._editorGroupService, options.position)).then(editor => {
-			if (!editor) {
-				return undefined;
-			}
-			return this._documentsAndEditors.findTextEditorIdFor(editor);
-		});
+		const editor = await this._editorService.openEditor(input, viewColumnToEditorGroup(this._editorGroupService, options.position));
+		if (!editor) {
+			return undefined;
+		}
+		return this._documentsAndEditors.findTextEditorIdFor(editor);
 	}
 
-	$tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
+	async $tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			const model = mainThreadEditor.getModel();
-			return this._editorService.openEditor({
+			await this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, viewColumnToEditorGroup(this._editorGroupService, position)).then(() => { return; });
+			}, viewColumnToEditorGroup(this._editorGroupService, position));
+			return;
 		}
-		return Promise.resolve();
 	}
 
-	$tryHideEditor(id: string): Promise<void> {
+	async $tryHideEditor(id: string): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			const editors = this._editorService.visibleControls;
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
-					return editor.group.closeEditor(editor.input).then(() => { return; });
+					return editor.group.closeEditor(editor.input);
 				}
 			}
 		}
-		return Promise.resolve();
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).setSelections(selections);
+		editor.setSelections(selections);
 		return Promise.resolve(undefined);
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
+		editor.setDecorations(key, ranges);
 		return Promise.resolve(undefined);
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
+		editor.setDecorationsFast(key, ranges);
 		return Promise.resolve(undefined);
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
+		editor.revealRange(range, revealType);
 		return Promise.resolve();
 	}
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).setConfiguration(options);
+		editor.setConfiguration(options);
 		return Promise.resolve(undefined);
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return Promise.resolve(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
+		return Promise.resolve(editor.applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Promise<boolean> {
@@ -214,10 +218,11 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
-		if (!this._documentsAndEditors.getEditor(id)) {
+		const editor = this._documentsAndEditors.getEditor(id);
+		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return Promise.resolve(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
+		return Promise.resolve(editor.insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

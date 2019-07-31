@@ -25,6 +25,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
+	ArrayOfString = 'array-of-string',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
@@ -61,6 +62,7 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	arrayItemType?: string;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
@@ -196,7 +198,7 @@ export interface IPreferencesService {
 	getFolderSettingsResource(resource: URI): URI | null;
 
 	resolveModel(uri: URI): Promise<ITextModel | null>;
-	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
+	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T> | null>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): Promise<IEditor | null>;

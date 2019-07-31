@@ -203,7 +203,7 @@ appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, Re
 appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ContextKeyExpr.and(IsWebContext.toNegated(), ResourceContextKey.Scheme.isEqualTo(Schemas.userData)));
 appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
-function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, group?: string): void {
+function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr | undefined, group?: string): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {

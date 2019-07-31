@@ -159,10 +159,10 @@ export class CopyTerminalSelectionAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.copySelection();
+			await terminalInstance.copySelection();
 		}
 		return Promise.resolve(undefined);
 	}
@@ -607,12 +607,11 @@ export class TerminalPasteAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public async run(event?: any): Promise<any> {
 		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (instance) {
-			instance.paste();
+			await instance.paste();
 		}
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -749,12 +748,13 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(terminalService.onInstancesChanged(this._updateItems, this));
 		this._register(terminalService.onActiveTabChanged(this._updateItems, this));
 		this._register(terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this._register(terminalService.onTabDisposed(this._updateItems, this));
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {
 		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
-		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
+		items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
 		items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
 		this.setOptions(items, this.terminalService.activeTabIndex);
 	}
@@ -881,6 +881,71 @@ export class ScrollToTopTerminalAction extends Action {
 		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollToTop();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class NavigationModeExitTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.exitNavigationMode();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+
+
+export class NavigationModeFocusPreviousTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusPreviousLine();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class NavigationModeFocusNextTerminalAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		const terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.navigationMode) {
+			terminalInstance.navigationMode.focusNextLine();
 		}
 		return Promise.resolve(undefined);
 	}

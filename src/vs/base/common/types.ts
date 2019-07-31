@@ -170,9 +170,9 @@ export function getAllPropertyNames(obj: object): string[] {
 }
 
 export function getAllMethodNames(obj: object): string[] {
-	let methods: string[] = [];
+	const methods: string[] = [];
 	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof obj[prop] === 'function') {
+		if (typeof (obj as any)[prop] === 'function') {
 			methods.push(prop);
 		}
 	}

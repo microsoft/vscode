@@ -15,7 +15,7 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
@@ -41,7 +41,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		private readonly _invertDefaultDirection: boolean = false
 	) {
 		super();
 
@@ -93,13 +94,13 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
-				this.find(false);
+				this.find(this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(true);
+				this.find(!this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
@@ -180,6 +181,7 @@ export abstract class SimpleFindWidget extends Widget {
 	public updateTheme(theme: ITheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),

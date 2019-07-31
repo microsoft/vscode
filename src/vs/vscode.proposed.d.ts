@@ -94,6 +94,12 @@ declare module 'vscode' {
 		constructor(host: string, port: number);
 	}
 
+	export interface ResolvedOptions {
+		extensionHostEnv?: { [key: string]: string | null };
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
 		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
@@ -102,7 +108,7 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
-		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolvedAuthority | Thenable<ResolvedAuthority>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -559,6 +565,22 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Joh: onDidExecuteCommand
+
+	export interface CommandExecutionEvent {
+		command: string;
+		arguments: any[];
+	}
+
+	export namespace commands {
+		/**
+		 * An event that is emitted when a [command](#Command) is executed.
+		 */
+		export const onDidExecuteCommand: Event<CommandExecutionEvent>;
+	}
+
+	//#endregion
+
 	//#region Joh: decorations
 
 	//todo@joh -> make class
@@ -713,368 +735,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Comments
-	/**
-	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
-	 */
-
-	interface CommentInfo {
-		/**
-		 * All of the comment threads associated with the document.
-		 */
-		threads: CommentThread[];
-
-		/**
-		 * The ranges of the document which support commenting.
-		 */
-		commentingRanges?: Range[];
-
-		/**
-		 * If it's in draft mode or not
-		 */
-		inDraftMode?: boolean;
-	}
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The display name of the user who created the comment
-		 */
-		readonly userName: string;
-
-		/**
-		 * The icon path for the user who created the comment
-		 */
-		readonly userIconPath?: Uri;
-
-		/**
-		 * The id of the comment
-		 *
-		 * @deprecated Use Id instead
-		 */
-		readonly commentId: string;
-
-		/**
-		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
-		 */
-		gravatar?: string;
-
-		/**
-		 * Whether the current user has permission to edit the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
-		 *
-		 * DEPRECATED, use editCommand
-		 */
-		canEdit?: boolean;
-
-		/**
-		 * Whether the current user has permission to delete the comment.
-		 *
-		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
-		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
-		 *
-		 * DEPRECATED, use deleteCommand
-		 */
-		canDelete?: boolean;
-
-		/**
-		 * @deprecated
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		command?: Command;
-
-		/**
-		 * Deprecated
-		 */
-		isDraft?: boolean;
-
-		/**
-		 * The command to be executed when users try to delete the comment
-		 */
-		deleteCommand?: Command;
-
-		/**
-		 * Proposed Comment Reaction
-		 */
-		commentReactions?: CommentReaction[];
-	}
-
-	/**
-	 * Deprecated
-	 */
-	export interface CommentThreadChangedEvent {
-		/**
-		 * Added comment threads.
-		 */
-		readonly added: ReadonlyArray<CommentThread>;
-
-		/**
-		 * Removed comment threads.
-		 */
-		readonly removed: ReadonlyArray<CommentThread>;
-
-		/**
-		 * Changed comment threads.
-		 */
-		readonly changed: ReadonlyArray<CommentThread>;
-
-		/**
-		 * Changed draft mode
-		 */
-		readonly inDraftMode: boolean;
-	}
-
-	/**
-	 * Comment Reactions
-	 * Stay in proposed.
-	 */
-	interface CommentReaction {
-		readonly hasReacted?: boolean;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface DocumentCommentProvider {
-		/**
-		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
-		 */
-		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-
-		/**
-		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
-		 */
-		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
-		 */
-		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		/**
-		 * Called when a user edits the comment body to the be new text.
-		 */
-		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-
-		/**
-		 * Called when a user deletes the comment.
-		 */
-		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
-
-		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
-
-		startDraftLabel?: string;
-		deleteDraftLabel?: string;
-		finishDraftLabel?: string;
-
-		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-		reactionGroup?: CommentReaction[];
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * DEPRECATED
-	 */
-	interface WorkspaceCommentProvider {
-		/**
-		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
-		 * from the panel runs the comment's command.
-		 */
-		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-
-		/**
-		 * Notify of updates to comment threads.
-		 */
-		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
-	}
-
-	/**
-	 * Stay in proposed
-	 */
-	export interface CommentReactionProvider {
-		availableReactions: CommentReaction[];
-		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
-	}
-
-	export interface CommentThread {
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		readonly resource: Uri;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		deleteCommand?: Command;
-	}
-
-
-	export interface CommentController {
-		/**
-		 * Optional reaction provider
-		 * Stay in proposed.
-		 */
-		reactionProvider?: CommentReactionProvider;
-	}
-
-	namespace workspace {
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead.
-		 */
-		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
-		/**
-		 * DEPRECATED
-		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
-		 */
-		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
-	}
-
-	/**
-	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
-	 */
-	export interface CommentThread {
-		/**
-		 * A unique identifier of the comment thread.
-		 */
-		readonly id: string;
-
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		acceptInputCommand?: Command;
-	}
-
-	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
-	 */
-	export interface Comment {
-		/**
-		 * The id of the comment
-		 */
-		id: string;
-
-		/**
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		selectCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to save the edits to the comment
-		 */
-		editCommand?: Command;
-	}
-
-	/**
-	 * The comment input box in Comment Widget.
-	 */
-	export interface CommentInputBox {
-		/**
-		 * Setter and getter for the contents of the comment input box
-		 */
-		value: string;
-	}
-
-	/**
-	 * Commenting range provider for a [comment controller](#CommentController).
-	 */
-	export interface CommentingRangeProvider {
-		/**
-		 * Provide a list of ranges which allow new comment threads creation or null for a given document
-		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
-	}
-
-	export interface EmptyCommentThreadFactory {
-		/**
-		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
-		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
-		 */
-		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
-	}
-
-	/**
-	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
-	 * provide users various ways to interact with comments.
-	 */
-	export interface CommentController {
-
-		/**
-		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
-		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
-		 */
-		readonly inputBox?: CommentInputBox;
-
-		/**
-		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel once created.
-		 *
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
-		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
-
-		/**
-		 * Optional new comment thread factory.
-		 */
-		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
-
-		/**
-		 * Optional reaction provider
-		 */
-		reactionProvider?: CommentReactionProvider;
-
-		/**
-		 * Dispose this comment controller.
-		 *
-		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
-		 * and Comments Panel.
-		 */
-		dispose(): void;
-	}
-
-	namespace comment {
-		/**
-		 * Creates a new [comment controller](#CommentController) instance.
-		 *
-		 * @param id An `id` for the comment controller.
-		 * @param label A human-readable string for the comment controller.
-		 * @return An instance of [comment controller](#CommentController).
-		 */
-		export function createCommentController(id: string, label: string): CommentController;
-	}
-
-	//#endregion
 
 	//#region Terminal
 
@@ -1156,7 +816,7 @@ declare module 'vscode' {
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
 	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *
-	 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+	 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 	 *
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
@@ -1168,7 +828,7 @@ declare module 'vscode' {
 	export interface TerminalRenderer {
 		/**
 		 * The name of the terminal, this will appear in the terminal selector.
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 */
 		name: string;
 
@@ -1177,7 +837,7 @@ declare module 'vscode' {
 		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
 		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
 		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 *
 		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
 		 * ```typescript
@@ -1195,14 +855,14 @@ declare module 'vscode' {
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
 		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 */
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
 		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 */
 		readonly terminal: Terminal;
 
@@ -1211,7 +871,7 @@ declare module 'vscode' {
 		 * text to the underlying _process_, this will write the text to the terminal itself.
 		 *
 		 * @param text The text to write.
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
@@ -1230,7 +890,7 @@ declare module 'vscode' {
 		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
 		 * corresponding VT sequence representation.
 		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 *
 		 * **Example:** Simulate interaction with the terminal from an outside extension or a
 		 * workbench command such as `workbench.action.terminal.runSelectedText`
@@ -1248,7 +908,7 @@ declare module 'vscode' {
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
 		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
@@ -1258,60 +918,60 @@ declare module 'vscode' {
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
+		 * @deprecated Use [ExtensionTerminalOptions](#ExtensionTerminalOptions) instead.
 		 */
 		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
 	//#endregion
 
-	//#region Terminal virtual process
+	//#region Extension terminals
 
 	export namespace window {
 		/**
-		 * Creates a [Terminal](#Terminal) where an extension acts as the process.
+		 * Creates a [Terminal](#Terminal) where an extension controls the teerminal.
 		 *
-		 * @param options A [TerminalVirtualProcessOptions](#TerminalVirtualProcessOptions) object describing the
-		 * characteristics of the new terminal.
+		 * @param options An [ExtensionTerminalOptions](#ExtensionTerminalOptions) object describing
+		 * the characteristics of the new terminal.
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(options: TerminalVirtualProcessOptions): Terminal;
+		export function createTerminal(options: ExtensionTerminalOptions): Terminal;
 	}
 
 	/**
 	 * Value-object describing what options a virtual process terminal should use.
 	 */
-	export interface TerminalVirtualProcessOptions {
+	export interface ExtensionTerminalOptions {
 		/**
 		 * A human-readable string which will be used to represent the terminal in the UI.
 		 */
 		name: string;
 
 		/**
-		 * An implementation of [TerminalVirtualProcess](#TerminalVirtualProcess) that allows an
-		 * extension to act as a terminal's backing process.
+		 * An implementation of [Pseudoterminal](#Pseudoterminal) that allows an extension to
+		 * control a terminal.
 		 */
-		virtualProcess: TerminalVirtualProcess;
+		pty: Pseudoterminal;
 	}
 
 	/**
-	 * Defines the interface of a terminal virtual process, enabling extensions to act as a process
-	 * in the terminal.
+	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
 	 */
-	interface TerminalVirtualProcess {
+	interface Pseudoterminal {
 		/**
 		 * An event that when fired will write data to the terminal. Unlike
-		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_,
-		 * this will write the text to the terminal itself.
+		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
+		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
 		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   onDidWrite: writeEmitter.event
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   open: () => writeEmitter.fire('\x1b[31mHello world\x1b[0m'),
+		 *   close: () => {}
 		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
-		 * writeEmitter.fire('\x1b[31mHello world\x1b[0m');
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
 		 * ```
 		 *
 		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
@@ -1323,59 +983,84 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
-		 * terminal. Note that when set the overridden dimensions will only take effect when they
+		 * terminal. Note that when set, the overridden dimensions will only take effect when they
 		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
-		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions.
+		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
+		 * the size of the panel).
 		 *
 		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
 		 * ```typescript
-		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
-		 * const virtualProcess: TerminalVirtualProcess = {
+		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   onDidOverrideDimensions: dimensionsEmitter.event
+		 *   onDidOverrideDimensions: dimensionsEmitter.event,
+		 *   open: () => {
+		 *     dimensionsEmitter.fire({
+		 *       columns: 20,
+		 *       rows: 10
+		 *     });
+		 *   },
+		 *   close: () => {}
 		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
-		 * dimensionsEmitter.fire({
-		 *   columns: 20,
-		 *   rows: 10
-		 * });
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
 		 * ```
 		 */
 		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
 
 		/**
-		 * An event that when fired will exit the process with an exit code, this will behave the
-		 * same for a virtual process as when a regular process exits with an exit code.
+		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
 		 *
-		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
+		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const exitEmitter = new vscode.EventEmitter<number>();
-		 * const virtualProcess: TerminalVirtualProcess = {
+		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
-		 *   input: data => exitEmitter.fire(data === 'y' ? 0 : 1)
+		 *   onDidClose: closeEmitter.event,
+		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
+		 *   close: () => {}
+		 *   handleInput: data => {
+		 *     if (data !== 'y') {
+		 *       vscode.window.showInformationMessage('Something went wrong');
+		 *     }
+		 *     closeEmitter.fire();
+		 *   }
 		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', virtualProcess });
-		 * writeEmitter.fire('Press y to exit successfully');
+		 * vscode.window.createTerminal({ name: 'Exit example', pty });
 		 */
-		onDidExit?: Event<number>;
+		onDidClose?: Event<void>;
 
 		/**
-		 * Implement to handle keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
-		 * corresponding VT sequence representation.
+		 * Implement to handle when the pty is open and ready to start firing events.
 		 *
-		 * @param data The sent data.
+		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
+		 * terminal panel has not been opened before this is called.
+		 */
+		open(initialDimensions: TerminalDimensions | undefined): void;
+
+		/**
+		 * Implement to handle when the terminal is closed by an act of the user.
+		 */
+		close(): void;
+
+		/**
+		 * Implement to handle incoming keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). `data` contains the keystrokes/text serialized into
+		 * their corresponding VT sequence representation.
+		 *
+		 * @param data The incoming data.
 		 *
 		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
 		 * CRLF to go to a new line and move the cursor to the start of the line.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const virtualProcess: TerminalVirtualProcess = {
+		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
+		 *   open: () => {},
+		 *   close: () => {},
 		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
 		 * };
-		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
+		 * vscode.window.createTerminal({ name: 'Local echo', pty });
 		 * ```
 		 */
 		handleInput?(data: string): void;
@@ -1386,19 +1071,14 @@ declare module 'vscode' {
 		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
 		 * as the size of a terminal isn't know until it shows up in the user interface.
 		 *
+		 * When dimensions are overridden by
+		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
+		 * continue to be called with the regular panel dimensions, allowing the extension continue
+		 * to react dimension changes.
+		 *
 		 * @param dimensions The new dimensions.
 		 */
 		setDimensions?(dimensions: TerminalDimensions): void;
-
-		/**
-		 * Implement to handle when the terminal shuts down by an act of the user.
-		 */
-		shutdown?(): void;
-
-		/**
-		 * Implement to handle when the terminal is ready to start firing events.
-		 */
-		start?(): void;
 	}
 
 	//#endregion
@@ -1481,6 +1161,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region CustomExecution
 	/**
 	 * Class used to execute an extension callback as a task.
 	 */
@@ -1504,16 +1185,17 @@ declare module 'vscode' {
 	 */
 	export class CustomExecution2 {
 		/**
-		 * @param process The [TerminalVirtualProcess](#TerminalVirtualProcess) to be used by the task to display output.
+		 * @param process The [Pseudotrminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
-		constructor(callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>);
+		constructor(callback: (thisArg?: any) => Thenable<Pseudoterminal>);
 
 		/**
-		 * The callback used to execute the task. Cancellation should be handled using the shutdown method of [TerminalVirtualProcess](#TerminalVirtualProcess).
-		 * When the task is complete, onDidExit should be fired on the TerminalVirtualProcess with the exit code with '0' for success and a non-zero value for failure.
+		 * The callback used to execute the task. Cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 */
-		callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>;
+		callback: (thisArg?: any) => Thenable<Pseudoterminal>;
 	}
 
 	/**
@@ -1539,6 +1221,7 @@ declare module 'vscode' {
 		 */
 		execution2?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2;
 	}
+	//#endregion
 
 	//#region Tasks
 	export interface TaskPresentationOptions {
@@ -1602,102 +1285,29 @@ declare module 'vscode' {
 	export interface Webview {
 		/**
 		 * Convert a uri for the local file system to one that can be used inside webviews.
+		 *
+		 * Webviews cannot directly load resoruces from the workspace or local file system using `file:` uris. The
+		 * `toWebviewResource` function takes a local `file:` uri and converts it into a uri that can be used inside of
+		 * a webview to load the same resource:
+		 *
+		 * ```ts
+		 * webview.html = `<img src="${webview.toWebviewResource(vscode.Uri.file('/Users/codey/workspace/cat.gif'))}">`
+		 * ```
 		 */
 		toWebviewResource(localResource: Uri): Uri;
 
 		/**
-		 * Content security policy rule for webview resources.
+		 * Content security policy source for webview resources.
+		 *
+		 * This is origin used in a content security policy rule:
+		 *
+		 * ```
+		 * img-src https: ${webview.cspSource} ...;
+		 * ````
 		 */
 		readonly cspSource: string;
 	}
 
 	//#endregion
 
-
-	//#region Joh - read/write files of any scheme
-
-	/**
-	 * The file system interface exposes the editor's built-in and contributed
-	 * [file system providers](#FileSystemProvider). It allows extensions to work
-	 * with files from the local disk as well as files from remote places, like the
-	 * remote extension host or ftp-servers.
-	 */
-	export interface FileSystem {
-
-		/**
-		 * Retrieve metadata about a file.
-		 *
-		 * @param uri The uri of the file to retrieve metadata about.
-		 * @return The file metadata about the file.
-		 */
-		stat(uri: Uri): Thenable<FileStat>;
-
-		/**
-		 * Retrieve all entries of a [directory](#FileType.Directory).
-		 *
-		 * @param uri The uri of the folder.
-		 * @return An array of name/type-tuples or a thenable that resolves to such.
-		 */
-		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
-
-		/**
-		 * Create a new directory (Note, that new files are created via `write`-calls).
-		 *
-		 * @param uri The uri of the new folder.
-		 */
-		createDirectory(uri: Uri): Thenable<void>;
-
-		/**
-		 * Read the entire contents of a file.
-		 *
-		 * @param uri The uri of the file.
-		 * @return An array of bytes or a thenable that resolves to such.
-		 */
-		readFile(uri: Uri): Thenable<Uint8Array>;
-
-		/**
-		 * Write data to a file, replacing its entire contents.
-		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
-		 */
-		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
-
-		/**
-		 * Delete a file.
-		 *
-		 * @param uri The resource that is to be deleted.
-		 * @param options Defines if trash can should be used and if deletion of folders is recursive
-		 */
-		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
-
-		/**
-		 * Copy files or folders. Implementing this function is optional but it will speedup
-		 * the copy operation.
-		 *
-		 * @param source The existing file.
-		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
-	}
-
-	export namespace workspace {
-
-		/**
-		 * File system that allows to interact with local and remote files.
-		 */
-		export const fs: FileSystem;
-	}
-
-	//#endregion
 }

@@ -320,19 +320,27 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidFocus(): Event<void> { return this.tree.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T>, TFilterData>> { return this.tree.onDidChangeCollapseState; }
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, TFilterData>> { return this.tree.onDidChangeCollapseState; }
 
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get filterOnType(): boolean { return this.tree.filterOnType; }
 	get openOnSingleClick(): boolean { return this.tree.openOnSingleClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) {
+		if (typeof this.tree.expandOnlyOnTwistieClick === 'boolean') {
+			return this.tree.expandOnlyOnTwistieClick;
+		}
+
+		const fn = this.tree.expandOnlyOnTwistieClick;
+		return element => fn(this.nodes.get((element === this.root.element ? null : element) as T) || null);
+	}
 
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
@@ -594,9 +602,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return nodes.map(n => n!.element as T);
 	}
 
-	open(elements: T[]): void {
+	open(elements: T[], browserEvent?: UIEvent): void {
 		const nodes = elements.map(e => this.getDataNode(e));
-		this.tree.open(nodes);
+		this.tree.open(nodes, browserEvent);
 	}
 
 	reveal(element: T, relativeTop?: number): void {

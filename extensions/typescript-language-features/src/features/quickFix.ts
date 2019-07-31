@@ -314,6 +314,7 @@ const preferredFixes = new Set([
 	'forgottenThisPropertyAccess',
 	'spelling',
 	'unusedIdentifier',
+	'addMissingAwait',
 ]);
 function isPreferredFix(tsAction: Proto.CodeFixAction): boolean {
 	return preferredFixes.has(tsAction.fixName);

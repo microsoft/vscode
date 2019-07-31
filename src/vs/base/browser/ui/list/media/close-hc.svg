@@ -1,33 +1,3 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   id="svg7320"
-   version="1.1"
-   enable-background="new 3 3 16 16"
-   viewBox="3 3 16 16"
-   height="16"
-   width="16">
-  <metadata
-     id="metadata7326">
-    <rdf:RDF>
-      <cc:Work
-         rdf:about="">
-        <dc:format>image/svg+xml</dc:format>
-        <dc:type
-           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
-      </cc:Work>
-    </rdf:RDF>
-  </metadata>
-  <defs
-     id="defs7324" />
-  <polygon
-     style="fill:#ffffff;fill-opacity:1"
-     id="polygon7318"
-     points="12.597,11.042 15.4,13.845 13.844,15.4 11.042,12.598 8.239,15.4 6.683,13.845 9.485,11.042 6.683,8.239 8.238,6.683 11.042,9.486 13.845,6.683 15.4,8.239"
-     fill="#424242" />
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8.00001 8.70714L11.6465 12.3536L12.3536 11.6465L8.70711 8.00004L12.3536 4.35359L11.6465 3.64648L8.00001 7.29293L4.35356 3.64648L3.64645 4.35359L7.2929 8.00004L3.64645 11.6465L4.35356 12.3536L8.00001 8.70714Z" fill="#C5C5C5"/>
 </svg>

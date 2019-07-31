@@ -1018,7 +1018,7 @@ export class ChangeModeAction extends Action {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspace && !!fileAssociationsConfig.workspace[associationKey]) {
+				if (fileAssociationsConfig.workspace && !!(fileAssociationsConfig.workspace as any)[associationKey]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 

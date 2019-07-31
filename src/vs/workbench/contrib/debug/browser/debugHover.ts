@@ -80,7 +80,7 @@ export class DebugHoverWidget implements IContentWidget {
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false,
 				horizontalScrolling: true
-			}) as any as AsyncDataTree<IExpression, IExpression, any>;
+			});
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;

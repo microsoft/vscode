@@ -10,7 +10,7 @@ import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils'
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
@@ -19,6 +19,7 @@ export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
+	trueMachineId?: string;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -34,7 +35,7 @@ export class TelemetryService implements ITelemetryService {
 	private _userOptIn: boolean;
 	private _enabled: boolean;
 
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
 
 	constructor(
@@ -68,12 +69,17 @@ export class TelemetryService implements ITelemetryService {
 			this._commonProperties.then(values => {
 				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
 
-				/* __GDPR__
-					"machineIdFallback" : {
-						"usingFallbackGuid" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
-					}
-				*/
-				this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
+				type MachineIdFallbackClassification = {
+					usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+				};
+				this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
+
+				if (config.trueMachineId) {
+					type MachineIdDisambiguationClassification = {
+						correctedMachineId: { endPoint: 'MacAddressHash', classification: 'EndUserPseudonymizedInformation', purpose: 'FeatureInsight' };
+					};
+					this.publicLog2<{ correctedMachineId: string }, MachineIdDisambiguationClassification>('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
+				}
 			});
 		}
 	}
@@ -103,7 +109,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	dispose(): void {
-		this._disposables = dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {

@@ -30,7 +30,7 @@ export class EditorControl extends Disposable {
 	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }

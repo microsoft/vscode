@@ -12,21 +12,23 @@ declare var self: ServiceWorkerGlobalScope;
 
 //#region --- installing/activating
 
-self.addEventListener('install', event => {
-	const work: Promise<any>[] = [];
-	work.push(self.skipWaiting());
-	work.push(caches.delete(_cacheName)); // delete caches with each new version
-	event.waitUntil(Promise.all(work));
+self.addEventListener('install', _event => {
+	console.log('SW#install');
+	self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-	const work: Promise<any>[] = [];
-	work.push(self.clients.claim()); // become available to all pages
-	if (self.registration.navigationPreload) {
-		// enable navigation preloads!
-		work.push(self.registration.navigationPreload.enable());
-	}
-	event.waitUntil(Promise.all(work));
+	console.log('SW#activate');
+	event.waitUntil((async () => {
+		// (1) enable navigation preloads!
+		// (2) delete caches with each new version
+		// (3) become available to all pages
+		if (self.registration.navigationPreload) {
+			await self.registration.navigationPreload.enable();
+		}
+		await caches.delete(_cacheName);
+		await self.clients.claim();
+	})());
 });
 
 //#endregion
@@ -51,19 +53,26 @@ self.addEventListener('fetch', async (event: FetchEvent) => {
 	if (uri.path !== _resourcePrefix) {
 		// not a /vscode-resources/fetch-url and therefore
 		// not (yet?) interesting for us
-		respondWithDefault(event);
+		event.respondWith(respondWithDefault(event));
 		return;
 	}
 
-	respondWithResource(event, uri);
+	event.respondWith(respondWithResource(event, uri));
 });
 
 async function respondWithDefault(event: FetchEvent): Promise<Response> {
+	if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') {
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=823392
+		// https://stackoverflow.com/questions/48463483/what-causes-a-failed-to-execute-fetch-on-serviceworkerglobalscope-only-if#49719964
+		// https://developer.mozilla.org/en-US/docs/Web/API/Request/cache
+		return new Response(undefined, { status: 504, statusText: 'Gateway Timeout (dev tools: https://bugs.chromium.org/p/chromium/issues/detail?id=823392)' });
+	}
 	return await event.preloadResponse || await fetch(event.request);
 }
 
 async function respondWithResource(event: FetchEvent, uri: URI): Promise<Response> {
-	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(event.request));
+	const cacheKey = event.request.url.replace('&r=1', '');
+	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(cacheKey));
 	if (cachedValue) {
 		return cachedValue;
 	}
@@ -71,26 +80,27 @@ async function respondWithResource(event: FetchEvent, uri: URI): Promise<Respons
 	return new Promise<Response>(resolve => {
 
 		const token = generateUuid();
-		const resourceUri = URI.parse(uri.query);
+		const [first] = uri.query.split('&');
+		const components = JSON.parse(first.substr(2));
 
 		_pendingFetch.set(token, async (data: ArrayBuffer, isExtensionResource: boolean) => {
 
 			const res = new Response(data, {
 				status: 200,
-				headers: { 'Content-Type': getMediaMime(resourceUri.path) || 'text/plain' }
+				headers: { 'Content-Type': getMediaMime(components.path) || 'text/plain' }
 			});
 
 			if (isExtensionResource) {
 				// only cache extension resources but not other
 				// resources, esp not workspace resources
-				await caches.open(_cacheName).then(cache => cache.put(event.request, res.clone()));
+				await caches.open(_cacheName).then(cache => cache.put(cacheKey, res.clone()));
 			}
 
 			return resolve(res);
 		});
 
 		self.clients.get(event.clientId).then(client => {
-			client.postMessage({ uri: resourceUri, token });
+			client.postMessage({ uri: components, token });
 		});
 	});
 }

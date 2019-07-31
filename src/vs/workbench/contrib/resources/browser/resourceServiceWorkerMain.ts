@@ -10,7 +10,7 @@
 // statement.
 
 // trigger service worker updates
-const _tag = '18bd699b-788f-409b-80e0-c5e80b858687';
+const _tag = 'a6f9835e-c10e-4299-ab39-b8e29547c20a';
 
 // loader world
 const baseUrl = '../../../../../';

@@ -27,7 +27,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
 	private readonly _modeService: IModeService;
-	private readonly _registrations: { [handle: number]: IDisposable; } = Object.create(null);
+	private readonly _registrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -38,16 +38,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	dispose(): void {
-		for (const key in this._registrations) {
-			this._registrations[key].dispose();
+		for (const registration of this._registrations.values()) {
+			registration.dispose();
 		}
+		this._registrations.clear();
 	}
 
 	$unregister(handle: number): void {
-		const registration = this._registrations[handle];
+		const registration = this._registrations.get(handle);
 		if (registration) {
 			registration.dispose();
-			delete this._registrations[handle];
+			this._registrations.delete(handle);
 		}
 	}
 
@@ -122,12 +123,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- outline
 
 	$registerDocumentSymbolProvider(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
-		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
+		this._registrations.set(handle, modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
 			displayName,
 			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined> => {
 				return this._proxy.$provideDocumentSymbols(handle, model.uri, token);
 			}
-		});
+		}));
 	}
 
 	// --- code lens
@@ -153,15 +154,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<modes.CodeLensProvider>();
-			this._registrations[eventHandle] = emitter;
+			this._registrations.set(eventHandle, emitter);
 			provider.onDidChange = emitter.event;
 		}
 
-		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, provider);
+		this._registrations.set(handle, modes.CodeLensProviderRegistry.register(selector, provider));
 	}
 
 	$emitCodeLensEvent(eventHandle: number, event?: any): void {
-		const obj = this._registrations[eventHandle];
+		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
 		}
@@ -170,71 +171,71 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- declaration
 
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
+		this._registrations.set(handle, modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
 				return this._proxy.$provideDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
-		});
+		}));
 	}
 
 	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DeclarationProviderRegistry.register(selector, <modes.DeclarationProvider>{
+		this._registrations.set(handle, modes.DeclarationProviderRegistry.register(selector, <modes.DeclarationProvider>{
 			provideDeclaration: (model, position, token) => {
 				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
-		});
+		}));
 	}
 
 	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.ImplementationProviderRegistry.register(selector, <modes.ImplementationProvider>{
+		this._registrations.set(handle, modes.ImplementationProviderRegistry.register(selector, <modes.ImplementationProvider>{
 			provideImplementation: (model, position, token): Promise<modes.LocationLink[]> => {
 				return this._proxy.$provideImplementation(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
-		});
+		}));
 	}
 
 	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
+		this._registrations.set(handle, modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
 			provideTypeDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
 				return this._proxy.$provideTypeDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
-		});
+		}));
 	}
 
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
+		this._registrations.set(handle, modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
 			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
 				return this._proxy.$provideHover(handle, model.uri, position, token);
 			}
-		});
+		}));
 	}
 
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
+		this._registrations.set(handle, modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
 			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> => {
 				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
 			}
-		});
+		}));
 	}
 
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
+		this._registrations.set(handle, modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
 			provideReferences: (model: ITextModel, position: EditorPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[]> => {
 				return this._proxy.$provideReferences(handle, model.uri, position, context, token).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
-		});
+		}));
 	}
 
 	// --- quick fix
 
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
-		this._registrations[handle] = modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
+		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
 				if (!listDto) {
@@ -250,46 +251,46 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				};
 			},
 			providedCodeActionKinds
-		});
+		}));
 	}
 
 	// --- formatting
 
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier, displayName: string): void {
-		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
+		this._registrations.set(handle, modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
 			extensionId,
 			displayName,
 			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
 			}
-		});
+		}));
 	}
 
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier, displayName: string): void {
-		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
+		this._registrations.set(handle, modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
 			extensionId,
 			displayName,
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}
-		});
+		}));
 	}
 
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void {
-		this._registrations[handle] = modes.OnTypeFormattingEditProviderRegistry.register(selector, <modes.OnTypeFormattingEditProvider>{
+		this._registrations.set(handle, modes.OnTypeFormattingEditProviderRegistry.register(selector, <modes.OnTypeFormattingEditProvider>{
 			extensionId,
 			autoFormatTriggerCharacters,
 			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options, token);
 			}
-		});
+		}));
 	}
 
 	// --- navigate type
 
 	$registerNavigateTypeSupport(handle: number): void {
 		let lastResultId: number | undefined;
-		this._registrations[handle] = search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
+		this._registrations.set(handle, search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
 				return this._proxy.$provideWorkspaceSymbols(handle, search, token).then(result => {
 					if (lastResultId !== undefined) {
@@ -307,21 +308,20 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return undefined;
 				});
 			}
-		});
+		}));
 	}
 
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportResolveLocation: boolean): void {
-
-		this._registrations[handle] = modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
+		this._registrations.set(handle, modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Promise<modes.WorkspaceEdit> => {
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(reviveWorkspaceEditDto);
 			},
 			resolveRenameLocation: supportResolveLocation
 				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
 				: undefined
-		});
+		}));
 	}
 
 	// --- suggest
@@ -374,13 +374,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				});
 			};
 		}
-		this._registrations[handle] = modes.CompletionProviderRegistry.register(selector, provider);
+		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
 	}
 
 	// --- parameter hints
 
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], metadata: ISerializedSignatureHelpProviderMetadata): void {
-		this._registrations[handle] = modes.SignatureHelpProviderRegistry.register(selector, <modes.SignatureHelpProvider>{
+		this._registrations.set(handle, modes.SignatureHelpProviderRegistry.register(selector, <modes.SignatureHelpProvider>{
 
 			signatureHelpTriggerCharacters: metadata.triggerCharacters,
 			signatureHelpRetriggerCharacters: metadata.retriggerCharacters,
@@ -397,7 +397,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					}
 				};
 			}
-		});
+		}));
 	}
 
 	// --- links
@@ -431,14 +431,14 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				});
 			};
 		}
-		this._registrations[handle] = modes.LinkProviderRegistry.register(selector, provider);
+		this._registrations.set(handle, modes.LinkProviderRegistry.register(selector, provider));
 	}
 
 	// --- colors
 
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		const proxy = this._proxy;
-		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.DocumentColorProvider>{
+		this._registrations.set(handle, modes.ColorProviderRegistry.register(selector, <modes.DocumentColorProvider>{
 			provideDocumentColors: (model, token) => {
 				return proxy.$provideDocumentColors(handle, model.uri, token)
 					.then(documentColors => {
@@ -465,34 +465,34 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					range: colorInfo.range
 				}, token);
 			}
-		});
+		}));
 	}
 
 	// --- folding
 
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		const proxy = this._proxy;
-		this._registrations[handle] = modes.FoldingRangeProviderRegistry.register(selector, <modes.FoldingRangeProvider>{
+		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
 				return proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
-		});
+		}));
 	}
 
 	// -- smart select
 
 	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.SelectionRangeRegistry.register(selector, {
+		this._registrations.set(handle, modes.SelectionRangeRegistry.register(selector, {
 			provideSelectionRanges: (model, positions, token) => {
 				return this._proxy.$provideSelectionRanges(handle, model.uri, positions, token);
 			}
-		});
+		}));
 	}
 
 	// --- call hierarchy
 
 	$registerCallHierarchyProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = callh.CallHierarchyProviderRegistry.register(selector, {
+		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
 			provideCallHierarchyItem: (document, position, token) => {
 				return this._proxy.$provideCallHierarchyItem(handle, document.uri, position, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
 			},
@@ -510,7 +510,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return data as [callh.CallHierarchyItem, modes.Location[]][];
 				});
 			}
-		});
+		}));
 	}
 
 	// --- configuration
@@ -571,7 +571,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
-			this._registrations[handle] = LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration));
 		}
 	}
 

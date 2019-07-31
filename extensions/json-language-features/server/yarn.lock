@@ -73,15 +73,15 @@ request-light@^0.2.4:
     https-proxy-agent "^2.2.1"
     vscode-nls "^4.0.0"
 
-vscode-json-languageservice@^3.3.0:
-  version "3.3.0"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.3.0.tgz#f80ec21c19fb8648c815220a2857f9f0b22e1094"
-  integrity sha512-upq1PhwDItazdtRJ/R7uU0Fgrf9iaYa1xLK4WFLExR0DgbPojd0YgMpfyknVyXGlxsg3fJQ0H7J++QeByXHh9w==
+vscode-json-languageservice@^3.3.1:
+  version "3.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.3.1.tgz#4ad2c82db849a7bbe54fcbf5c9b3a2ed26dc8fee"
+  integrity sha512-Qyvlrftexu1acvwbMt+CDehVrDZtFV1GAJrKdOCHQL9bWNhzI06KEiSd4iXR0NUOuAdroG/uU4wBkH6e5CcTXg==
   dependencies:
     jsonc-parser "^2.1.0"
     vscode-languageserver-types "^3.15.0-next.2"
     vscode-nls "^4.1.1"
-    vscode-uri "^2.0.1"
+    vscode-uri "^2.0.3"
 
 vscode-jsonrpc@^4.1.0-next.2:
   version "4.1.0-next.2"
@@ -130,7 +130,7 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
-vscode-uri@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-2.0.1.tgz#5448e4f77d21d93ffa34b96f84c6c5e09e3f5a9b"
-  integrity sha512-s/k0zsYr6y+tsocFyxT/+G5aq8mEdpDZuph3LZ+UmCs7LNhx/xomiCy5kyP+jOAKC7RMCUvb6JbPD1/TgAvq0g==
+vscode-uri@^2.0.3:
+  version "2.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-2.0.3.tgz#25e5f37f552fbee3cec7e5f80cef8469cefc6543"
+  integrity sha512-4D3DI3F4uRy09WNtDGD93H9q034OHImxiIcSq664Hq1Y1AScehlP3qqZyTkX/RWxeu0MRMHGkrxYqm2qlDF/aw==

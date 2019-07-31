@@ -60,7 +60,7 @@ export class CallStackView extends ViewletPanel {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -145,7 +145,7 @@ export class CallStackView extends ViewletPanel {
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
 				}
-			}) as WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
+			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 

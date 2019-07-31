@@ -31,7 +31,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfigurati
 import { ExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 namespace TaskDefinitionDTO {
@@ -377,7 +377,7 @@ class CustomExecutionData implements IDisposable {
 	private static waitForDimensionsTimeoutInMs: number = 5000;
 	private _cancellationSource?: CancellationTokenSource;
 	private readonly _onTaskExecutionComplete: Emitter<CustomExecutionData> = new Emitter<CustomExecutionData>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 	private terminal?: vscode.Terminal;
 	private terminalId?: number;
 	public result: number | undefined;
@@ -389,7 +389,7 @@ class CustomExecutionData implements IDisposable {
 
 	public dispose(): void {
 		this._cancellationSource = undefined;
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	public get onTaskExecutionComplete(): Event<CustomExecutionData> {
@@ -426,7 +426,7 @@ class CustomExecutionData implements IDisposable {
 		const callbackTerminals: vscode.Terminal[] = this.terminalService.terminals.filter((terminal) => terminal._id === terminalId);
 
 		if (!callbackTerminals || callbackTerminals.length === 0) {
-			this._disposables.push(this.terminalService.onDidOpenTerminal(this.onDidOpenTerminal.bind(this)));
+			this._disposables.add(this.terminalService.onDidOpenTerminal(this.onDidOpenTerminal.bind(this)));
 			return;
 		}
 
@@ -462,9 +462,9 @@ class CustomExecutionData implements IDisposable {
 		}
 
 		this._cancellationSource = new CancellationTokenSource();
-		this._disposables.push(this._cancellationSource);
+		this._disposables.add(this._cancellationSource);
 
-		this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
+		this._disposables.add(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
 
 		// Regardless of how the task completes, we are done with this custom execution task.
 		this.customExecution.callback(terminalRenderer, this._cancellationSource.token).then(
@@ -588,9 +588,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, execution2);
-			this._terminalService.performTerminalIdAction(terminalId, async terminal => {
-				this._terminalService.attachVirtualProcessToTerminal(terminalId, await execution2.callback());
-			});
+			await this._terminalService.attachPtyToTerminal(terminalId, await execution2.callback());
 		}
 
 		// Once a terminal is spun up for the custom execution task this event will be fired.
@@ -743,12 +741,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 			throw new Error('Unexpected: Task cannot be resolved.');
 		}
 
+		if (resolvedTask.definition !== task.definition) {
+			throw new Error('Unexpected: The resolved task definition must be the same object as the original task definition. The task definition cannot be changed.');
+		}
+
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution(taskDTO, <vscode.Task2>task);
+			await this.addCustomExecution(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
 
 		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution2(taskDTO, <vscode.Task2>task);
+			await this.addCustomExecution2(resolvedTaskDTO, <vscode.Task2>resolvedTask);
 		}
 
 		return resolvedTaskDTO;

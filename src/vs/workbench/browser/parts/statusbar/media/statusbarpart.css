@@ -40,7 +40,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: 11px;
+	left: calc(50% - 8px); /* 3px (margin) + 5px (padding) = 8px */
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
