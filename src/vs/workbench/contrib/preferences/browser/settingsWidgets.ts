@@ -20,6 +20,7 @@ import { foreground, inputBackground, inputBorder, inputForeground, listActiveSe
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header or active title."));
@@ -228,13 +229,19 @@ export class ListSettingWidget extends Disposable {
 
 		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === KeyCode.UpArrow) {
+				const selectedIndex = this.model.getSelected();
 				this.model.selectPrevious();
-				this.renderList();
+				if (this.model.getSelected() !== selectedIndex) {
+					this.renderList();
+				}
 				e.preventDefault();
 				e.stopPropagation();
 			} else if (e.keyCode === KeyCode.DownArrow) {
+				const selectedIndex = this.model.getSelected();
 				this.model.selectNext();
-				this.renderList();
+				if (this.model.getSelected() !== selectedIndex) {
+					this.renderList();
+				}
 				e.preventDefault();
 				e.stopPropagation();
 			}
@@ -365,7 +372,7 @@ export class ListSettingWidget extends Disposable {
 
 	private renderItem(item: IListViewItem, idx: number, listFocused: boolean): HTMLElement {
 		return item.editing ?
-			this.renderEditItem(item) :
+			this.renderEditItem(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
 	}
 
@@ -419,17 +426,18 @@ export class ListSettingWidget extends Disposable {
 		return rowElement;
 	}
 
-	private renderEditItem(item: IListViewItem): HTMLElement {
+	private renderEditItem(item: IListViewItem, idx: number): HTMLElement {
 		const rowElement = $('.setting-list-edit-row');
 
 		const onSubmit = (edited: boolean) => {
 			this.model.setEditKey(null);
 			const value = valueInput.value.trim();
-			if (edited && value) {
+			if (edited && !isUndefinedOrNull(value)) {
 				this._onDidChangeList.fire({
 					originalValue: item.value,
 					value: value,
-					sibling: siblingInput && siblingInput.value.trim()
+					sibling: siblingInput && siblingInput.value.trim(),
+					removeIndex: value === '' ? idx : undefined
 				});
 			}
 			this.renderList();

@@ -325,7 +325,7 @@ export interface ITreeView extends IDisposable {
 
 	focus(): void;
 
-	layout(height: number): void;
+	layout(height: number, width: number): void;
 
 	show(container: HTMLElement): void;
 

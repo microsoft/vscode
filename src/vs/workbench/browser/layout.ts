@@ -757,9 +757,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 
 					const middleSection = root.children[1] as GridBranchNode<ISerializableView>;
-					this.state.sideBar.position = (middleSection.children[0] as GridLeafNode<ISerializableView>).view === this.activityBarPartView ? Position.LEFT : Position.RIGHT;
-					this.state.panel.position = isGridBranchNode(middleSection.children[2]) ? Position.BOTTOM : Position.RIGHT;
+					const sideBarPosition = (middleSection.children[0] as GridLeafNode<ISerializableView>).view === this.activityBarPartView ? Position.LEFT : Position.RIGHT;
+					if (sideBarPosition !== this.state.sideBar.position) {
+						throw new Error('Bad Grid');
+					}
+
+					const panelPosition = isGridBranchNode(middleSection.children[2]) || isGridBranchNode(middleSection.children[0]) ? Position.BOTTOM : Position.RIGHT;
+					if (panelPosition !== this.state.panel.position) {
+						throw new Error('Bad Grid');
+					}
 				} catch (err) {
+					workbenchGrid = undefined;
 					console.error(err);
 				}
 			}
@@ -1172,6 +1180,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
+		if (!this.workbenchGrid) {
+			return false;
+		}
+
 		if (this.workbenchGrid instanceof Grid) {
 			try {
 				// The panel is maximum when the editor is minimum

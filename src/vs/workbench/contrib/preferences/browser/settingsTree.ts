@@ -703,7 +703,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				: [...template.context.value];
 
 			// Delete value
-			if (e.removeIndex) {
+			if (e.removeIndex !== undefined) {
 				if (!e.value && e.originalValue && e.removeIndex > -1) {
 					newValue.splice(e.removeIndex, 1);
 				}

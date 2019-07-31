@@ -76,8 +76,8 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		this.treeView.show(container);
 	}
 
-	layoutBody(size: number): void {
-		this.treeView.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.treeView.layout(height, width);
 	}
 
 	getActions(): IAction[] {
@@ -329,11 +329,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._onDidChangeVisibility.fire(this.isVisible);
 	}
 
-	focus(): void {
+	focus(reveal: boolean = true): void {
 		if (this.tree && this.root.children && this.root.children.length > 0) {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement) {
+			if (selectedElement && reveal) {
 				this.tree.reveal(selectedElement, 0.5);
 			}
 
@@ -384,7 +384,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
 				collapseByDefault: (e: ITreeItem): boolean => {
 					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
-				}
+				},
+				multipleSelectionSupport: false
 			}));
 		aligner.tree = this.tree;
 
@@ -480,14 +481,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.markdownResult = this.markdownRenderer.render(this._messageValue);
 				DOM.append(this.messageElement, this.markdownResult.element);
 			}
-			this.layout(this._size);
+			this.layout(this._height, this._width);
 		}
 	}
 
 	private hideMessage(): void {
 		this.resetMessageElement();
 		DOM.addClass(this.messageElement, 'hide');
-		this.layout(this._size);
+		this.layout(this._height, this._width);
 	}
 
 	private resetMessageElement(): void {
@@ -498,14 +499,16 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		DOM.clearNode(this.messageElement);
 	}
 
-	private _size: number;
-	layout(size: number) {
-		if (size) {
-			this._size = size;
-			const treeSize = size - DOM.getTotalHeight(this.messageElement);
-			this.treeContainer.style.height = treeSize + 'px';
+	private _height: number;
+	private _width: number;
+	layout(height: number, width: number) {
+		if (height && width) {
+			this._height = height;
+			this._width = width;
+			const treeHeight = height - DOM.getTotalHeight(this.messageElement);
+			this.treeContainer.style.height = treeHeight + 'px';
 			if (this.tree) {
-				this.tree.layout(treeSize);
+				this.tree.layout(treeHeight, width);
 			}
 		}
 	}
@@ -595,10 +598,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree) {
 			this.refreshing = true;
 			await Promise.all(elements.map(element => this.tree.updateChildren(element, true)));
+			elements.map(element => this.tree.rerender(element));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
-				this.focus();
+				this.focus(false);
 			}
 		}
 	}

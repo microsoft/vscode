@@ -983,19 +983,19 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
-		 * terminal. Note that when set the overridden dimensions will only take effect when they
+		 * terminal. Note that when set, the overridden dimensions will only take effect when they
 		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
 		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
 		 * the size of the panel).
 		 *
 		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
 		 * ```typescript
-		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
+		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidOverrideDimensions: dimensionsEmitter.event,
 		 *   open: () => {
-		 *       dimensionsEmitter.fire({
+		 *     dimensionsEmitter.fire({
 		 *       columns: 20,
 		 *       rows: 10
 		 *     });
@@ -1013,17 +1013,17 @@ declare module 'vscode' {
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<number>();
+		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
 		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
 		 *   close: () => {}
-		 *   handleInput: {
+		 *   handleInput: data => {
 		 *     if (data !== 'y') {
 		 *       vscode.window.showInformationMessage('Something went wrong');
 		 *     }
-		 *     data => closeEmitter.fire();
+		 *     closeEmitter.fire();
 		 *   }
 		 * };
 		 * vscode.window.createTerminal({ name: 'Exit example', pty });
@@ -1070,6 +1070,11 @@ declare module 'vscode' {
 		 * changes, for example when font size changes or when the panel is resized. The initial
 		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
 		 * as the size of a terminal isn't know until it shows up in the user interface.
+		 *
+		 * When dimensions are overridden by
+		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
+		 * continue to be called with the regular panel dimensions, allowing the extension continue
+		 * to react dimension changes.
 		 *
 		 * @param dimensions The new dimensions.
 		 */

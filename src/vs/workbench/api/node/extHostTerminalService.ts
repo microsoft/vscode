@@ -582,11 +582,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			}
 		}
 
-		// Get the initial cwd
-		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), activeWorkspaceRootUri, terminalConfig.cwd);
-
 		// Get the environment
 		const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
 		const lastActiveWorkspace = apiLastActiveWorkspace ? {
@@ -597,6 +593,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				throw new Error('Not implemented');
 			}
 		} as IWorkspaceFolder : null;
+
+		// Get the initial cwd
+		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
+
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace ? lastActiveWorkspace : undefined, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(

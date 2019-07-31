@@ -192,7 +192,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 					if (inspectorUrlMatch) {
 						if (!this._environmentService.isBuilt) {
-							console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
+							console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
 						}
 						if (!this._inspectPort) {
 							this._inspectPort = Number(inspectorUrlMatch[2]);
@@ -282,15 +282,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		return new Promise(resolve => {
 			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
 				if (!port) {
-					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
+					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
 				} else {
 					if (expected && port !== expected) {
-						console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color: black');
+						console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
 					}
 					if (this._isExtensionDevDebugBrk) {
-						console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
+						console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
 					} else {
-						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
+						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
 					}
 				}
 				return resolve({ expected, actual: port });

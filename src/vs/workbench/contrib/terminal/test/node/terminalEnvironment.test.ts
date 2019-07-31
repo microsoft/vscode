@@ -101,31 +101,31 @@ suite('Workbench - TerminalEnvironment', () => {
 		}
 
 		test('should default to userHome for an empty workspace', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined), '/userHome/');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, undefined), '/userHome/');
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/foo'), undefined), '/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/foo'), undefined), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, '/foo'), '/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, '/foo'), '/foo');
 		});
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/bar'), 'foo'), '/bar/foo');
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/bar'), './foo'), '/bar/foo');
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', Uri.file('/bar'), '../foo'), '/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/bar'), 'foo'), '/bar/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/bar'), './foo'), '/bar/foo');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, Uri.file('/bar'), '../foo'), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, 'foo'), '/userHome/');
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, './foo'), '/userHome/');
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, '../foo'), '/userHome/');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, 'foo'), '/userHome/');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, './foo'), '/userHome/');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined, '../foo'), '/userHome/');
 		});
 
 		test('should ignore custom cwd when told to ignore', () => {
-			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', Uri.file('/bar'), '/foo'), '/bar');
+			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, undefined, Uri.file('/bar'), '/foo'), '/bar');
 		});
 	});
 });

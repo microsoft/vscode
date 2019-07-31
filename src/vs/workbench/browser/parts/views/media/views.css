@@ -104,6 +104,7 @@
 
 .customview-tree .monaco-list .monaco-list-row {
 	padding-right: 12px;
+	padding-left: 0px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
