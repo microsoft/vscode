@@ -11,7 +11,13 @@ const height = 800;
 const vscodeToPuppeteerKey = {
 	cmd: 'Meta',
 	ctrl: 'Control',
-	enter: 'Enter'
+	enter: 'Enter',
+	escape: 'Escape',
+	right: 'ArrowRight',
+	up: 'ArrowUp',
+	down: 'ArrowDown',
+	left: 'ArrowLeft',
+	home: 'Home'
 };
 
 function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver {
@@ -24,18 +30,26 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: () => browser.close(),
 		dispatchKeybinding: async (windowId, keybinding) => {
-			const keys = keybinding.split('+');
-			const keysDown: string[] = [];
-			for (let i = 0; i < keys.length; i++) {
-				if (keys[i] in vscodeToPuppeteerKey) {
-					keys[i] = vscodeToPuppeteerKey[keys[i]];
+			const chords = keybinding.split(' ');
+			chords.forEach(async (chord, index) => {
+				if (index > 0) {
+					await timeout(100);
 				}
-				await page.keyboard.down(keys[i]);
-				keysDown.push(keys[i]);
-			}
-			while (keysDown.length > 0) {
-				await page.keyboard.up(keysDown.pop()!);
-			}
+				const keys = chord.split('+');
+				const keysDown: string[] = [];
+				for (let i = 0; i < keys.length; i++) {
+					if (keys[i] in vscodeToPuppeteerKey) {
+						keys[i] = vscodeToPuppeteerKey[keys[i]];
+					}
+					await page.keyboard.down(keys[i]);
+					keysDown.push(keys[i]);
+				}
+				while (keysDown.length > 0) {
+					await page.keyboard.up(keysDown.pop()!);
+				}
+			});
+
+			await timeout(100);
 		},
 		click: async (windowId, selector, xoffset, yoffset) => {
 			const { x, y } = await page.evaluate(`

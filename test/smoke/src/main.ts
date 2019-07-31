@@ -141,7 +141,8 @@ if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
 	fail(`Can't find Stable Code at ${stablePath}.`);
 }
 
-const userDataDir = path.join(testDataPath, 'd');
+// TODO: Server should be launched from smoke tests
+const userDataDir = opts.web ? path.join(process.env.HOME!, '.vscode-remote/data') : path.join(testDataPath, 'd');
 
 let quality: Quality;
 if (process.env.VSCODE_DEV === '1') {
@@ -245,6 +246,11 @@ describe('Running Code', () => {
 		const app = new Application(this.defaultOptions);
 		await app!.start(opts.web ? false : undefined);
 		this.app = app;
+
+		// TODO: User data dir is not cleared for web yet
+		if (opts.web) {
+			await app.workbench.settingsEditor.clearUserSettings();
+		}
 	});
 
 	after(async function () {
@@ -273,7 +279,8 @@ describe('Running Code', () => {
 	}
 
 	if (opts.web) {
-		console.log('setup term tests only');
+		setupDataExplorerTests();
+		setupDataPreferencesTests();
 		setupTerminalTests();
 		return;
 	}
