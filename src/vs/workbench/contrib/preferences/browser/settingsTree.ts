@@ -698,7 +698,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	private onDidChangeList(template: ISettingListItemTemplate, e: IListChangeEvent): void {
 		if (template.context) {
-			const newValue: any[] | undefined = isArray(template.context.scopeValue)
+			const newValue: any[] = isArray(template.context.scopeValue)
 				? [...template.context.scopeValue]
 				: [...template.context.value];
 
@@ -723,6 +723,19 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				else {
 					newValue.push(e.value);
 				}
+			}
+
+			if (
+				template.context.defaultValue &&
+				isArray(template.context.defaultValue) &&
+				template.context.defaultValue.length === newValue.length &&
+				template.context.defaultValue.join() === newValue.join()
+			) {
+				return this._onDidChangeSetting.fire({
+					key: template.context.setting.key,
+					value: undefined, // reset setting
+					type: template.context.valueType
+				});
 			}
 
 			this._onDidChangeSetting.fire({
