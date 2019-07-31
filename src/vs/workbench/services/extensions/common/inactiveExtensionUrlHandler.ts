@@ -19,7 +19,9 @@ import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -34,7 +36,6 @@ function isExtensionId(value: string): boolean {
 export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inactiveExtensionUrlHandler');
 
 export interface IExtensionUrlHandler {
-	readonly _serviceBrand: any;
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
@@ -48,9 +49,7 @@ export interface IExtensionUrlHandler {
  *
  * It also makes sure the user confirms opening URLs directed towards extensions.
  */
-export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
-
-	readonly _serviceBrand: any;
+export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler, IWorkbenchContribution {
 
 	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
@@ -332,4 +331,5 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ExtensionUrlHandler, LifecyclePhase.Ready);
