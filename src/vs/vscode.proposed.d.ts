@@ -983,7 +983,7 @@ declare module 'vscode' {
 
 		/**
 		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
-		 * terminal. Note that when set the overridden dimensions will only take effect when they
+		 * terminal. Note that when set, the overridden dimensions will only take effect when they
 		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
 		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
 		 * the size of the panel).
@@ -1070,6 +1070,11 @@ declare module 'vscode' {
 		 * changes, for example when font size changes or when the panel is resized. The initial
 		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
 		 * as the size of a terminal isn't know until it shows up in the user interface.
+		 *
+		 * When dimensions are overridden by
+		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
+		 * continue to be called with the regular panel dimensions, allowing the extension continue
+		 * to react dimension changes.
 		 *
 		 * @param dimensions The new dimensions.
 		 */
