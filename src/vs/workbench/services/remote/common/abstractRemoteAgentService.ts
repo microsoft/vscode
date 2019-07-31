@@ -84,7 +84,6 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
 		private readonly _socketFactory: ISocketFactory,
-		private readonly _environmentService: IEnvironmentService,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService
 	) {
@@ -111,7 +110,6 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	private async _createConnection(): Promise<Client<RemoteAgentConnectionContext>> {
 		let firstCall = true;
 		const options: IConnectionOptions = {
-			isBuilt: this._environmentService.isBuilt,
 			commit: this._commit,
 			socketFactory: this._socketFactory,
 			addressProvider: {
