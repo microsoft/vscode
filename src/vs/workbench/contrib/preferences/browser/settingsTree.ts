@@ -718,10 +718,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 						newValue.push(e.value);
 					}
 				}
-			}
-			// Add value
-			else if (e.value && !e.originalValue) {
-				newValue.push(e.value);
+				// Add value
+				else if (e.value && !e.originalValue && e.targetIndex >= newValue.length) {
+					newValue.push(e.value);
+				}
 			}
 			if (
 				template.context.defaultValue &&
