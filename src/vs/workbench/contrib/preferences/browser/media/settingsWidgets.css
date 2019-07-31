@@ -16,6 +16,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	display: inline-block;
 	line-height: 22px;
+}
+
+/* Use monospace to display glob patterns in exclude widget */
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
 	font-family: var(--monaco-monospace-font);
 }
 

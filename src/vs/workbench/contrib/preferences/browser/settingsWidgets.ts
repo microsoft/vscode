@@ -221,7 +221,8 @@ export class ListSettingWidget extends Disposable {
 	) {
 		super();
 
-		this.listElement = DOM.append(container, $('.setting-list-widget'));
+		this.listElement = DOM.append(container, $('div'));
+		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
 		this.listElement.setAttribute('tabindex', '0');
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
@@ -266,6 +267,10 @@ export class ListSettingWidget extends Disposable {
 			settingListRowValueHintLabel: localize('listValueHintLabel', "List item `{0}`", value),
 			settingListRowSiblingHintLabel: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value)
 		};
+	}
+
+	protected getContainerClasses() {
+		return ['setting-list-widget'];
 	}
 
 	setValue(listData: IListDataItem[]): void {
@@ -523,6 +528,10 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 			settingListRowValueHintLabel: localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern),
 			settingListRowSiblingHintLabel: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", pattern, sibling)
 		};
+	}
+
+	protected getContainerClasses() {
+		return ['setting-list-widget', 'setting-list-exclude-widget'];
 	}
 }
 
