@@ -56,12 +56,8 @@ export class Scanner {
 			|| (ch >= CharCode.A && ch <= CharCode.Z);
 	}
 
-	value: string;
-	pos: number;
-
-	constructor() {
-		this.text('');
-	}
+	value: string = '';
+	pos: number = 0;
 
 	text(value: string) {
 		this.value = value;
