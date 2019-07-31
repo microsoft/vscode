@@ -460,7 +460,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				}
 
 				if (!valid) {
-					if (msg.isBuilt) {
+					if (this._environmentService.isBuilt) {
 						console.error(`Unauthorized client refused.`);
 						this._logService.error(`Unauthorized client refused.`);
 						protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unauthorized client refused.' })));
@@ -472,7 +472,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						this._logService.error(`Unauthorized client handshake failed but we proceed because of dev mode.`);
 					}
 				} else {
-					if (!msg.isBuilt) {
+					if (!this._environmentService.isBuilt) {
 						console.log(`Client handshake succeded.`);
 						this._logService.trace(`Client handshake succeded.`);
 					}
