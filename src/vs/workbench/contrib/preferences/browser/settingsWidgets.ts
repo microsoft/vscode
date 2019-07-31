@@ -229,13 +229,19 @@ export class ListSettingWidget extends Disposable {
 
 		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === KeyCode.UpArrow) {
+				const selectedIndex = this.model.getSelected();
 				this.model.selectPrevious();
-				this.renderList();
+				if (this.model.getSelected() !== selectedIndex) {
+					this.renderList();
+				}
 				e.preventDefault();
 				e.stopPropagation();
 			} else if (e.keyCode === KeyCode.DownArrow) {
+				const selectedIndex = this.model.getSelected();
 				this.model.selectNext();
-				this.renderList();
+				if (this.model.getSelected() !== selectedIndex) {
+					this.renderList();
+				}
 				e.preventDefault();
 				e.stopPropagation();
 			}
