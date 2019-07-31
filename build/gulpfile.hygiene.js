@@ -41,7 +41,7 @@ const indentationFilter = [
 	'**',
 
 	// except specific files
-	'!ThirdPartyNotices.txt',
+	'!**/ThirdPartyNotices.txt',
 	'!LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
