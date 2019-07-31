@@ -531,7 +531,7 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 	}
 
 	protected getContainerClasses() {
-		return ['setting-list-widget', 'setting-list-exclude-widget'];
+		return ['setting-list-exclude-widget'];
 	}
 }
 
