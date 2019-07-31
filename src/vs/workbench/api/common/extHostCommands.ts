@@ -128,7 +128,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this._executeContributedCommand<T>(id, args);
+			const res = this._executeContributedCommand<T>(id, args);
+			this._onDidExecuteCommand.fire({ command: id, arguments: args });
+			return res;
 
 		} else {
 			// automagically convert some argument types
@@ -170,7 +172,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		try {
 			const result = callback.apply(thisArg, args);
-			this._onDidExecuteCommand.fire({ command: id, arguments: args });
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);
