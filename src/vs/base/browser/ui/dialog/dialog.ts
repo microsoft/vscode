@@ -195,6 +195,7 @@ export class Dialog extends Disposable {
 
 			this.applyStyles();
 
+			this.element.setAttribute('aria-label', this.message);
 			show(this.element);
 
 			// Focus first element

@@ -647,11 +647,14 @@ export class MouseController<T> implements IDisposable {
 			}
 
 			const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
+			this.list.setFocus([focus]);
 			this.list.setSelection(newSelection, e.browserEvent);
 
 		} else if (this.isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
+
+			this.list.setFocus([focus]);
 
 			if (selection.length === newSelection.length) {
 				this.list.setSelection([...newSelection, focus], e.browserEvent);
