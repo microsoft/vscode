@@ -3121,7 +3121,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 
 		this.notificationService.notify({
 			severity: Severity.Info,
-			message: localize('finished installing', "Completed installing the extensions. Please reload the window now."),
+			message: localize('finished installing', "Successfully installed extensions in {0}. Please reload the window to enable them.", this.extensionManagementServerService.remoteExtensionManagementServer!.label),
 			actions: {
 				primary: [new Action('realod', localize('reload', "Realod Window"), '', true,
 					() => this.windowService.reloadWindow())]
