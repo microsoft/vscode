@@ -231,17 +231,6 @@ const enum State {
 }
 
 
-let _explainMode = false;
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'suggest.toggleExplainMode',
-	handler() {
-		_explainMode = !_explainMode;
-	},
-	when: SuggestContext.Visible,
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
-});
-
 class SuggestionDetails {
 
 	private el: HTMLElement;
@@ -300,13 +289,13 @@ class SuggestionDetails {
 		this.docs.textContent = '';
 	}
 
-	renderItem(item: CompletionItem): void {
+	renderItem(item: CompletionItem, explainMode: boolean): void {
 		this.renderDisposeable = dispose(this.renderDisposeable);
 
 		let { documentation, detail } = item.completion;
 		// --- documentation
 
-		if (_explainMode) {
+		if (explainMode) {
 			let md = '';
 			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || item.completion.label}' with '${item.word}'` : ' (no prefix)'}\n`;
 			md += `distance: ${item.distance}, see localityBonus-setting\n`;
@@ -315,7 +304,7 @@ class SuggestionDetails {
 			detail = `Provider: ${item.provider._debugDisplayName}`;
 		}
 
-		if (!_explainMode && !canExpandCompletionItem(item)) {
+		if (!explainMode && !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
 			this.docs.textContent = '';
 			addClass(this.el, 'no-docs');
@@ -477,6 +466,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private preferDocPositionTop: boolean = false;
 	private docsPositionPreviousWidgetY: number | null;
+	private explainMode: boolean = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -977,7 +967,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		if (loading) {
 			this.details.renderLoading();
 		} else {
-			this.details.renderItem(this.list.getFocusedElements()[0]);
+			this.details.renderItem(this.list.getFocusedElements()[0], this.explainMode);
 		}
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
@@ -990,6 +980,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.adjustDocsPosition();
 
 		this.editor.focus();
+	}
+
+	toggleExplainMode(): void {
+		if (this.list.getFocusedElements()[0] && this.expandDocsSettingFromStorage()) {
+			this.explainMode = !this.explainMode;
+			this.showDetails(false);
+		}
 	}
 
 	private show(): void {
