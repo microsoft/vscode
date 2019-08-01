@@ -78,7 +78,11 @@ function resolveConfigurationVariables(configurationResolverService: IConfigurat
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
 		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
-			env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
+			try {
+				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
+			} catch (e) {
+				env[key] = value;
+			}
 		}
 	});
 	return env;
@@ -143,7 +147,7 @@ export function getCwd(
 				// There was an issue resolving a variable, just use the unresolved customCwd which
 				// which will fail, and log the error in the console.
 				if (logService) {
-					logService.error('Resolving terminal.integrated.cwd', e);
+					logService.error('Could not resolve terminal.integrated.cwd', e);
 				}
 				return customCwd;
 			}
@@ -192,7 +196,8 @@ export function getDefaultShell(
 	windir: string | undefined,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
-	platformOverride: platform.Platform = platform.platform,
+	logService: ILogService,
+	platformOverride: platform.Platform = platform.platform
 ): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
@@ -214,7 +219,12 @@ export function getDefaultShell(
 	}
 
 	if (configurationResolverService) {
-		executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
+		try {
+			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
+		} catch (e) {
+			logService.error(`Could not resolve terminal.integrated.shell.${platformKey}`, e);
+			executable = executable;
+		}
 	}
 
 	return executable;
@@ -225,6 +235,7 @@ export function getDefaultShellArgs(
 	isWorkspaceShellAllowed: boolean,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
+	logService: ILogService,
 	platformOverride: platform.Platform = platform.platform,
 ): string | string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
@@ -236,7 +247,12 @@ export function getDefaultShellArgs(
 	if (configurationResolverService) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
-			resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
+			try {
+				resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
+			} catch (e) {
+				logService.error(`Could not resolve terminal.integrated.shellArgs.${platformKey}`, e);
+				resolvedArgs.push(arg);
+			}
 		}
 		args = resolvedArgs;
 	}
