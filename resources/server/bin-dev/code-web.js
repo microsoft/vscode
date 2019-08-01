@@ -253,16 +253,20 @@ function startServer() {
 		console.log(data.toString());
 
 		// Bring up web URL when we detect the server is ready
-		if (!launched && data.toString().indexOf(`Extension host agent listening on ${PORT}`) >= 0) {
-			launched = true;
+		const webUIAvailableURLRegEx = new RegExp(`Web UI available at (http://localhost:9777/#tkn=.+)`);
+		if (!launched) {
+			const matches = webUIAvailableURLRegEx.exec(data.toString());
+			if (matches && matches[1]) {
+				launched = true;
 
-			setTimeout(() => {
-				const url = `http://localhost:${PORT}`;
+				setTimeout(() => {
+					const url = matches[1];
 
-				console.log(`Opening ${url} in your browser...`);
+					console.log(`Opening ${url} in your browser...`);
 
-				opn(url, { app: getApp(BROWSER) }).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
-			}, 100);
+					opn(url, { app: getApp(BROWSER) }).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
+				}, 100);
+			}
 		}
 	});
 
