@@ -417,6 +417,23 @@ export class ListSettingWidget extends Disposable {
 		return rowElement;
 	}
 
+	private submitAllOtherEditItems(currentEditRowElement: HTMLElement) {
+		const settingList = this.listElement.closest('.monaco-list-rows');
+		if (settingList) {
+			const editingRows = settingList.querySelectorAll('.setting-list-edit-row');
+			if (editingRows) {
+				editingRows.forEach(el => {
+					if (el !== currentEditRowElement) {
+						const okButton = el.querySelector<HTMLElement>('.setting-list-okButton');
+						if (okButton) {
+							okButton.click();
+						}
+					}
+				});
+			}
+		}
+	}
+
 	private renderAddButton(): HTMLElement {
 		const rowElement = $('.setting-list-new-row');
 
@@ -439,6 +456,8 @@ export class ListSettingWidget extends Disposable {
 		const onSubmit = (edited: boolean) => {
 			this.model.setEditKey('none');
 			const value = valueInput.value.trim();
+
+			this.submitAllOtherEditItems(rowElement);
 			if (edited && !isUndefinedOrNull(value)) {
 				this._onDidChangeList.fire({
 					originalValue: item.value,
