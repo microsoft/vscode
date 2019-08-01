@@ -108,6 +108,20 @@ export interface IEditorService {
 	 */
 	readonly editors: ReadonlyArray<IEditorInput>;
 
+
+	/**
+	 * Closes an editor in an editor group.
+	 *
+	 * @param editor the editor to close
+	 * @param group the target group. If unspecified, the editor will close in the currently
+	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * of the currently active group.
+	 *
+	 * @returns void if the operation succeeded or NULL if the operation failed or the editor was
+	 * not found.
+	 */
+	closeEditor(editor: IEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<void | null>;
+
 	/**
 	 * Open an editor in an editor group.
 	 *

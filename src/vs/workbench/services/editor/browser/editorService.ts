@@ -214,6 +214,22 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region closeEditor()
+
+	closeEditor(editor: IEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<void | null> {
+
+		// Typed Editor Support
+		if (editor instanceof EditorInput) {
+			const targetGroup = this.findTargetGroup(editor, undefined, group);
+
+			return targetGroup.closeEditor(editor)
+		}
+
+		return Promise.resolve(null);
+	}
+
+	//#endRegion
+
 	//#region openEditor()
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | null>;
