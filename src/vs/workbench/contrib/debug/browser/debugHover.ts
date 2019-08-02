@@ -122,6 +122,10 @@ export class DebugHoverWidget implements IContentWidget {
 		}));
 	}
 
+	isHovered(): boolean {
+		return this.domNode.matches(':hover');
+	}
+
 	isVisible(): boolean {
 		return this._isVisible;
 	}

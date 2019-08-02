@@ -385,7 +385,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), 2 * HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => {
+			if (!this.hoverWidget.isHovered()) {
+				this.hoverWidget.hide();
+			}
+		}, 2 * HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
