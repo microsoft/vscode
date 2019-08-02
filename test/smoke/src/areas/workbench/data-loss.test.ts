@@ -12,7 +12,7 @@ export function setup() {
 			await app.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Unitled Code';
+			const textToTypeInUntitled = 'Hello, Untitled Code';
 			await app.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';
