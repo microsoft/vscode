@@ -123,6 +123,7 @@ jobs:
   - LinuxSnap
   - LinuxArmhf
   - LinuxAlpine
+  - LinuxWeb
   - macOS
   steps:
   - template: sync-mooncake.yml

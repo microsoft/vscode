@@ -13,22 +13,7 @@ export class SignService implements ISignService {
 	private readonly _tkn: string | null;
 
 	constructor(token: string | undefined) {
-		if (typeof token !== 'undefined') {
-			this._tkn = token;
-		} else {
-			this._tkn = SignService._readTokenFromURL();
-		}
-	}
-
-	private static _readTokenFromURL(): string | null {
-		if (!document.location.hash) {
-			return null;
-		}
-		const m = document.location.hash.match(/[#&]tkn=([^&]+)/);
-		if (!m) {
-			return null;
-		}
-		return m[1];
+		this._tkn = token || null;
 	}
 
 	async sign(value: string): Promise<string> {

@@ -626,8 +626,11 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
 			let event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
-				EventHelper.stop(e, true);
+
+			if (document.activeElement === this.item) {
+				if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
+					EventHelper.stop(e, true);
+				}
 			}
 		}));
 

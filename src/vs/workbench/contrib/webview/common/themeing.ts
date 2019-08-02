@@ -31,7 +31,7 @@ export function getWebviewThemeData(
 	}, {} as { [key: string]: string });
 
 	const styles = {
-		'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", ans-serif',
+		'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 		'vscode-font-weight': 'normal',
 		'vscode-font-size': '13px',
 		'vscode-editor-font-family': editorFontFamily,

@@ -132,14 +132,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 });
 
+type EditKey = 'none' | 'create' | number;
+
 export class ListSettingListModel {
 	private _dataItems: IListDataItem[] = [];
-	private _editKey: string | null;
+	private _editKey: EditKey;
 	private _selectedIdx: number | null;
 
 	get items(): IListViewItem[] {
 		const items = this._dataItems.map((item, i) => {
-			const editing = item.value === this._editKey;
+			const editing = typeof this._editKey === 'number' && this._editKey === i;
 			return <IListViewItem>{
 				...item,
 				editing,
@@ -147,7 +149,7 @@ export class ListSettingListModel {
 			};
 		});
 
-		if (this._editKey === '') {
+		if (this._editKey === 'create') {
 			items.push({
 				editing: true,
 				selected: true,
@@ -159,7 +161,7 @@ export class ListSettingListModel {
 		return items;
 	}
 
-	setEditKey(key: string | null): void {
+	setEditKey(key: EditKey): void {
 		this._editKey = key;
 	}
 
@@ -196,7 +198,7 @@ export interface IListChangeEvent {
 	originalValue: string;
 	value?: string;
 	sibling?: string;
-	removeIndex?: number;
+	targetIndex?: number;
 }
 
 export class ListSettingWidget extends Disposable {
@@ -219,7 +221,8 @@ export class ListSettingWidget extends Disposable {
 	) {
 		super();
 
-		this.listElement = DOM.append(container, $('.setting-list-widget'));
+		this.listElement = DOM.append(container, $('div'));
+		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
 		this.listElement.setAttribute('tabindex', '0');
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
@@ -266,6 +269,10 @@ export class ListSettingWidget extends Disposable {
 		};
 	}
 
+	protected getContainerClasses() {
+		return ['setting-list-widget'];
+	}
+
 	setValue(listData: IListDataItem[]): void {
 		this.model.setValue(listData);
 		this.renderList();
@@ -295,7 +302,7 @@ export class ListSettingWidget extends Disposable {
 
 		const item = this.model.items[targetIdx];
 		if (item) {
-			this.editSetting(item.value);
+			this.editSetting(targetIdx);
 			e.preventDefault();
 			e.stopPropagation();
 		}
@@ -349,24 +356,24 @@ export class ListSettingWidget extends Disposable {
 			enabled: true,
 			id: 'workbench.action.removeListItem',
 			tooltip: this.getLocalizedStrings().deleteActionTooltip,
-			run: () => this._onDidChangeList.fire({ originalValue: key, value: undefined, removeIndex: idx })
+			run: () => this._onDidChangeList.fire({ originalValue: key, value: undefined, targetIndex: idx })
 		};
 	}
 
-	private createEditAction(key: string): IAction {
+	private createEditAction(idx: number): IAction {
 		return <IAction>{
 			class: 'setting-listAction-edit',
 			enabled: true,
 			id: 'workbench.action.editListItem',
 			tooltip: this.getLocalizedStrings().editActionTooltip,
 			run: () => {
-				this.editSetting(key);
+				this.editSetting(idx);
 			}
 		};
 	}
 
-	private editSetting(key: string): void {
-		this.model.setEditKey(key);
+	private editSetting(idx: number): void {
+		this.model.setEditKey(idx);
 		this.renderList();
 	}
 
@@ -391,7 +398,7 @@ export class ListSettingWidget extends Disposable {
 		siblingElement.textContent = item.sibling ? ('when: ' + item.sibling) : null;
 
 		actionBar.push([
-			this.createEditAction(item.value),
+			this.createEditAction(idx),
 			this.createDeleteAction(item.value, idx)
 		], { icon: true, label: false });
 
@@ -419,7 +426,7 @@ export class ListSettingWidget extends Disposable {
 		this._register(attachButtonStyler(startAddButton, this.themeService));
 
 		this._register(startAddButton.onDidClick(() => {
-			this.model.setEditKey('');
+			this.model.setEditKey('create');
 			this.renderList();
 		}));
 
@@ -430,14 +437,14 @@ export class ListSettingWidget extends Disposable {
 		const rowElement = $('.setting-list-edit-row');
 
 		const onSubmit = (edited: boolean) => {
-			this.model.setEditKey(null);
+			this.model.setEditKey('none');
 			const value = valueInput.value.trim();
 			if (edited && !isUndefinedOrNull(value)) {
 				this._onDidChangeList.fire({
 					originalValue: item.value,
 					value: value,
 					sibling: siblingInput && siblingInput.value.trim(),
-					removeIndex: value === '' ? idx : undefined
+					targetIndex: idx
 				});
 			}
 			this.renderList();
@@ -521,6 +528,10 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 			settingListRowValueHintLabel: localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern),
 			settingListRowSiblingHintLabel: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", pattern, sibling)
 		};
+	}
+
+	protected getContainerClasses() {
+		return ['setting-list-exclude-widget'];
 	}
 }
 
