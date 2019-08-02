@@ -477,7 +477,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	// View
 
 	rerender(element?: T): void {
-		if (element === undefined) {
+		if (element === undefined || element === this.root.element) {
 			this.tree.rerender();
 			return;
 		}
