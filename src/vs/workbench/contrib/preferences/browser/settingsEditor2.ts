@@ -971,7 +971,9 @@ export class SettingsEditor2 extends BaseEditor {
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key &&
-					!DOM.hasClass(focusedSetting, 'setting-item-list')) { // update `list`s live, as they have a separate "submit edit" step built in before this
+					// update `list`s live, as they have a separate "submit edit" step built in before this
+					(focusedSetting.parentElement && !DOM.hasClass(focusedSetting.parentElement, 'setting-item-list'))
+				) {
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
