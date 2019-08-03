@@ -18,7 +18,7 @@
 	},
 	"contributes": {
 		"configuration": {
-			"title": "Node Debug",
+			"title": "Node debug",
 			"properties": {
 				"debug.node.autoAttach": {
 					"scope": "window",
