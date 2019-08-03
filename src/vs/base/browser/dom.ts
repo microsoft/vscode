@@ -19,14 +19,12 @@ import { Schemas } from 'vs/base/common/network';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
 export function removeNode(node: HTMLElement): void {
-	if (node.parentNode) {
-		node.parentNode.removeChild(node);
-	}
+	node.remove();
 }
 
 export function isInDOM(node: Node | null): boolean {
