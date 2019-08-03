@@ -59,7 +59,7 @@ function pipeLoggingToParent() {
 
 				// Any argument of type 'undefined' needs to be specially treated because
 				// JSON.stringify will simply ignore those. We replace them with the string
-				// 'undefined' which is not 100% right, but good enough to be logged to console
+				// 'undefined', which is not 100% right, but good enough to be logged to console
 				if (typeof args[i] === 'undefined') {
 					args[i] = 'undefined';
 				}

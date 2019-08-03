@@ -399,7 +399,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			}
 			else if (inScripts && !script) {
 				script = property;
-			} else { // nested object which is invalid, ignore the script
+			} else { // invalid nested object; ignore the script
 				script = undefined;
 			}
 		}
@@ -477,7 +477,7 @@ export function findScriptAtPosition(buffer: string, offset: number): string | u
 			else if (inScripts) {
 				scriptStart = nodeOffset;
 				script = property;
-			} else { // nested object which is invalid, ignore the script
+			} else { // invalid nested object, ignore the script
 				script = undefined;
 			}
 		}
