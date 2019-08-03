@@ -291,10 +291,10 @@ suite('Files - TextFileService', () => {
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
-			test('should hot exit on non-Mac (reason: CLOSE, windows: single, workspace)', function () {
+			test('should not exit on non-Mac (reason: CLOSE, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, true, !!platform.isMacintosh);
 			});
-			test('should hot exit on non-Mac (reason: CLOSE, windows: single, empty workspace)', function () {
+			test('should not exit on non-Mac (reason: CLOSE, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, !!platform.isMacintosh);
 			});
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
@@ -303,28 +303,28 @@ suite('Files - TextFileService', () => {
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, false, true);
 			});
-			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
+			test('should not exit (reason: QUIT, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, true, false);
 			});
-			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
+			test('should not exit (reason: QUIT, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, false, false);
 			});
-			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
+			test('should not exit (reason: QUIT, windows: multiple, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, true, false);
 			});
-			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
+			test('should not exit (reason: QUIT, windows: multiple, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, false, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: multiple, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false);
 			});
 			test('should NOT hot exit (reason: LOAD, windows: single, workspace)', function () {
@@ -342,49 +342,49 @@ suite('Files - TextFileService', () => {
 		});
 
 		suite('"onExitAndWindowClose" setting', () => {
-			test('should hot exit (reason: CLOSE, windows: single, workspace)', function () {
+			test('should not exit (reason: CLOSE, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, true, false);
 			});
-			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
+			test('should not exit (reason: CLOSE, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, !!platform.isMacintosh);
 			});
-			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
+			test('should not exit (reason: CLOSE, windows: multiple, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, true, false);
 			});
 			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, false, true);
 			});
-			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
+			test('should not exit (reason: QUIT, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, true, false);
 			});
-			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
+			test('should not exit (reason: QUIT, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, false, false);
 			});
-			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
+			test('should not exit (reason: QUIT, windows: multiple, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, true, false);
 			});
-			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
+			test('should not exit (reason: QUIT, windows: multiple, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, false, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: multiple, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false);
 			});
-			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
+			test('should not exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false);
 			});
-			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
+			test('should not exit (reason: LOAD, windows: single, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, true, false);
 			});
 			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, true);
 			});
-			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
+			test('should not exit (reason: LOAD, windows: multiple, workspace)', function () {
 				return hotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, true, false);
 			});
 			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
