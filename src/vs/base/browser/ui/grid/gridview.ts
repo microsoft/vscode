@@ -981,11 +981,9 @@ export class GridView implements IDisposable {
 
 		const [first, second] = this.root.children;
 
-		if (!(first instanceof BranchNode) || !(second instanceof BranchNode)) {
-			return;
+		if ((first instanceof BranchNode) && (second instanceof BranchNode)) {
+			this.disposable2x2 = first.trySet2x2(second);
 		}
-
-		this.disposable2x2 = first.trySet2x2(second);
 	}
 
 	dispose(): void {
