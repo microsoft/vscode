@@ -19,14 +19,12 @@ import { Schemas } from 'vs/base/common/network';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
 export function removeNode(node: HTMLElement): void {
-	if (node.parentNode) {
-		node.parentNode.removeChild(node);
-	}
+	node.remove();
 }
 
 export function isInDOM(node: Node | null): boolean {
@@ -1100,22 +1098,21 @@ function findParentWithAttribute(node: Node | null, attribute: string): HTMLElem
 }
 
 export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
-	if (!node || !node.hasAttribute('tabIndex')) {
-		return;
-	}
+	if (node && node.hasAttribute('tabIndex')) {
 
-	// If we are the currently focused element and tabIndex is removed,
-	// standard DOM behavior is to move focus to the <body> element. We
-	// typically never want that, rather put focus to the closest element
-	// in the hierarchy of the parent DOM nodes.
-	if (document.activeElement === node) {
-		let parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
-		if (parentFocusable) {
-			parentFocusable.focus();
+		// If we are the currently focused element and tabIndex is removed,
+		// standard DOM behavior is to move focus to the <body> element. We
+		// typically never want that, rather put focus to the closest element
+		// in the hierarchy of the parent DOM nodes.
+		if (document.activeElement === node) {
+			let parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
+			if (parentFocusable) {
+				parentFocusable.focus();
+			}
 		}
-	}
 
-	node.removeAttribute('tabindex');
+		node.removeAttribute('tabindex');
+	}
 }
 
 export function getElementsByTagName(tag: string): HTMLElement[] {
