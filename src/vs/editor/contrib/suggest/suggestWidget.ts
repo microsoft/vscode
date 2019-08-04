@@ -38,8 +38,6 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileKind } from 'vs/platform/files/common/files';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 const expandSuggestionDocsByDefault = false;
 
