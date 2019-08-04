@@ -274,8 +274,8 @@
 		{
 			"name": "Debug Unit Tests",
 			"configurations": [
-				"Attach to VS Code",
-				"Run Unit Tests"
+				"Run Unit Tests",
+				"Attach to VS Code"
 			]
 		},
 	]
