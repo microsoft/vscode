@@ -675,7 +675,7 @@ export class DebugSession implements IDebugSession {
 									this.viewletService.openViewlet(VIEWLET_ID);
 								}
 
-								if (this.configurationService.getValue<boolean>('debug.autoFocusEditor')) {
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
 									this.windowService.focusWindow();
 								}
 							}

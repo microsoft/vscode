@@ -440,6 +440,7 @@ export interface IDebugConfiguration {
 		lineHeight: number;
 		wordWrap: boolean;
 	};
+	focusWindowOnBreak: boolean;
 }
 
 export interface IGlobalConfig {
