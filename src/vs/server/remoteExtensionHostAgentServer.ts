@@ -110,6 +110,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 			// Workbench
 			try {
+				const headers: Record<string, string> = Object.create(null);
 				const pathname = url.parse(req.url!).pathname;
 				let validatePath = true;
 
@@ -151,6 +152,32 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath = path.join(APP_ROOT, 'resources', 'server', 'favicon.ico');
 				}
 
+				// Extension/Workspace resources
+				else if (pathname === '/vscode-remote') {
+					const { query } = url.parse(req.url!);
+					if (typeof query !== 'string') {
+						res.writeHead(400, { 'Content-Type': 'text/plain' });
+						res.end(`Bad request.`);
+						return;
+					}
+					try {
+						let queryData = JSON.parse(decodeURIComponent(query));
+						filePath = URI.revive(queryData).fsPath;
+						validatePath = false;
+					} catch (err) {
+						res.writeHead(400, { 'Content-Type': 'text/plain' });
+						res.end(`Bad request.\n${err}`);
+						return;
+					}
+
+					if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !isLinux)
+						|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !isLinux)
+					) {
+						headers['Cache-Control'] = 'public, max-age=31536000';
+						headers['X-VSCode-Extension'] = 'true';
+					}
+				}
+
 				// Anything else
 				else {
 					const client = (this._environmentService.args as any)['client'];
@@ -174,9 +201,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath += '/index.html';
 				}
 
-				const headers: Record<string, string> = {
-					'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain'
-				};
+				headers['Content-Type'] = textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
 
 				// Allow all service worker requests to control the "max" scope
 				// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
