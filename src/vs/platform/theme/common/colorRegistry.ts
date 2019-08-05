@@ -222,6 +222,10 @@ export const selectListBackground = registerColor('dropdown.listBackground', { d
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hc: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
+export const simpleCheckboxBackground = registerColor('simpleCheckbox.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('simpleCheckbox.background', "Background color of simple checkbox widget."));
+export const simpleCheckboxForeground = registerColor('simpleCheckbox.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('simpleCheckbox.foreground', "Foreground color of simple checkbox widget."));
+export const simpleCheckboxBorder = registerColor('simpleCheckbox.border', { dark: selectBorder, light: selectBorder, hc: selectBorder }, nls.localize('simpleCheckbox.border', "Border color of simple checkbox widget."));
+
 export const listFocusBackground = registerColor('list.focusBackground', { dark: '#062F4A', light: '#D6EBFF', hc: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listFocusForeground = registerColor('list.focusForeground', { dark: null, light: null, hc: null }, nls.localize('listFocusForeground', "List/Tree foreground color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground', { dark: '#094771', light: '#0074E8', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
