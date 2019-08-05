@@ -842,21 +842,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the dimensions of a terminal.
-	 */
-	export interface TerminalDimensions {
-		/**
-		 * The number of columns in the terminal.
-		 */
-		readonly columns: number;
-
-		/**
-		 * The number of rows in the terminal.
-		 */
-		readonly rows: number;
-	}
-
-	/**
 	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
 	 */
 	interface Pseudoterminal {
