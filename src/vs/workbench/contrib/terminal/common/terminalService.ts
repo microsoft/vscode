@@ -126,10 +126,6 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
-	public createTerminalRenderer(name: string): ITerminalInstance {
-		return this.createTerminal({ name, isRendererOnly: true });
-	}
-
 	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);

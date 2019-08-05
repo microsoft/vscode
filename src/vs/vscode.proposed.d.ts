@@ -963,6 +963,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the dimensions of a terminal.
+	 */
+	export interface TerminalDimensions {
+		/**
+		 * The number of columns in the terminal.
+		 */
+		readonly columns: number;
+
+		/**
+		 * The number of rows in the terminal.
+		 */
+		readonly rows: number;
+	}
+
+	/**
 	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
 	 */
 	interface Pseudoterminal {
@@ -1177,7 +1192,7 @@ declare module 'vscode' {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
+		constructor(callback: (terminalRenderer: any, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
 
 		/**
 		 * The callback used to execute the task.
@@ -1185,7 +1200,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
 		 * @returns The callback should return '0' for success and a non-zero value for failure.
 		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
+		callback: (terminalRenderer: any, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
 	}
 
 	/**

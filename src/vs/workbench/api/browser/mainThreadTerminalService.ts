@@ -103,11 +103,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		});
 	}
 
-	public $createTerminalRenderer(name: string): Promise<number> {
-		const instance = this._terminalService.createTerminalRenderer(name);
-		return Promise.resolve(instance.id);
-	}
-
 	public $show(terminalId: number, preserveFocus: boolean): void {
 		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
@@ -128,44 +123,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (terminalInstance) {
 			terminalInstance.dispose();
 		}
-	}
-
-	public $terminalRendererWrite(terminalId: number, text: string): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
-		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
-			terminalInstance.write(text);
-		}
-	}
-
-	public $terminalRendererSetName(terminalId: number, name: string): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
-		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
-			terminalInstance.setTitle(name, false);
-		}
-	}
-
-	public $terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
-		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
-			terminalInstance.setDimensions(dimensions);
-		}
-	}
-
-	public $terminalRendererRegisterOnInputListener(terminalId: number): void {
-		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
-		if (!terminalInstance) {
-			return;
-		}
-
-		// Listener already registered
-		if (this._terminalOnDidAcceptInputListeners.has(terminalId)) {
-			return;
-		}
-
-		// Register
-		const listener = terminalInstance.onRendererInput(data => this._onTerminalRendererInput(terminalId, data));
-		this._terminalOnDidAcceptInputListeners.set(terminalId, listener);
-		terminalInstance.addDisposable(listener);
 	}
 
 	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
@@ -229,10 +186,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onWorkspacePermissionsChanged(isAllowed: boolean): void {
 		this._proxy.$acceptWorkspacePermissionsChanged(isAllowed);
-	}
-
-	private _onTerminalRendererInput(terminalId: number, data: string): void {
-		this._proxy.$acceptTerminalRendererInput(terminalId, data);
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {

@@ -285,7 +285,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		return new Promise<void>((resolve) => {
-			activeTerminal.terminal.rendererExit(result);
+			// activeTerminal.terminal.rendererExit(result);
 			resolve();
 		});
 	}
@@ -918,12 +918,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let launchConfigs: IShellLaunchConfig | undefined;
 
 		if (task.command.runtime === RuntimeType.CustomExecution) {
-			this.currentTask.shellLaunchConfig = launchConfigs = {
-				isRendererOnly: true,
-				waitOnExit,
-				name: this.createTerminalName(task, workspaceFolder),
-				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
-			};
+			throw new Error('CustomExecution is no longer supported');
+			// this.currentTask.shellLaunchConfig = launchConfigs = {
+			// 	isRendererOnly: true,
+			// 	waitOnExit,
+			// 	name: this.createTerminalName(task, workspaceFolder),
+			// 	initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
+			// };
 		} else if (task.command.runtime === RuntimeType.CustomExecution2) {
 			this.currentTask.shellLaunchConfig = launchConfigs = {
 				isExtensionTerminal: true,

@@ -435,7 +435,7 @@ class CustomExecutionData implements IDisposable {
 		}
 
 		this.terminal = callbackTerminals[0];
-		const terminalRenderer: vscode.TerminalRenderer = await this.terminalService.resolveTerminalRenderer(terminalId);
+		const terminalRenderer: any = await this.terminalService.resolveTerminalRenderer(terminalId);
 
 		// If we don't have the maximum dimensions yet, then we need to wait for them (but not indefinitely).
 		// Custom executions will expect the dimensions to be set properly before they are launched.
@@ -450,7 +450,7 @@ class CustomExecutionData implements IDisposable {
 
 			let dimensionsRegistration: IDisposable | undefined;
 			const dimensionsPromise: Promise<void> = new Promise((resolve) => {
-				dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions((newDimensions) => {
+				dimensionsRegistration = terminalRenderer.onDidChangeMaximumDimensions(() => {
 					resolve();
 				});
 			});
