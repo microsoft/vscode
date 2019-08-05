@@ -90,7 +90,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 			// Only serve GET requests
 			if (req.method !== 'GET') {
-				res.writeHead(500, { 'Content-Type': 'text/plain' });
+				res.writeHead(405, { 'Content-Type': 'text/plain' });
 				return res.end(`Unsupported method ${req.method}`);
 			}
 
