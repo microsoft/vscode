@@ -9,11 +9,11 @@ import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILinkMatcherOptions } from 'xterm';
+import { Terminal, ILinkMatcherOptions } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -76,12 +76,12 @@ export class TerminalLinkHandler {
 	private readonly _leaveCallback: () => void;
 
 	constructor(
-		private _xterm: any,
+		private _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager | undefined,
+		private readonly _configHelper: ITerminalConfigHelper,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService
 	) {
@@ -94,7 +94,7 @@ export class TerminalLinkHandler {
 			if (!this._widgetManager) {
 				return;
 			}
-			if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
+			if (this._configHelper.config.rendererType === 'dom') {
 				const target = (e.target as HTMLElement);
 				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
 			} else {
@@ -183,8 +183,6 @@ export class TerminalLinkHandler {
 	}
 
 	public dispose(): void {
-		this._xterm = null;
-
 		this._hoverDisposables.dispose();
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
@@ -195,9 +193,6 @@ export class TerminalLinkHandler {
 			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				// If the modifier is not pressed, the terminal should be
-				// focused if it's not already
-				this._terminalService.getActiveInstance()!.focus(true);
 				return false;
 			}
 			return handler(uri);

@@ -511,10 +511,10 @@ export class TerminalInstance implements ITerminalInstance {
 						return false;
 					});
 				}
-				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, this._processManager);
+				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, this._processManager, this._configHelper);
 			});
 		} else if (this.shellLaunchConfig.isRendererOnly) {
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, undefined);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, undefined, this._configHelper);
 		}
 
 		// Register listener to trigger the onInput ext API if the terminal is a renderer only
