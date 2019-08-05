@@ -131,7 +131,7 @@ export abstract class Marker {
 
 	readonly _markerBrand: any;
 
-	public parent: Marker;
+	public parent!: Marker;
 	protected _children: Marker[] = [];
 
 	appendChild(child: Marker): this {
@@ -215,7 +215,7 @@ export class Text extends Marker {
 }
 
 export abstract class TransformableMarker extends Marker {
-	public transform: Transform;
+	public transform?: Transform;
 }
 
 export class Placeholder extends TransformableMarker {
@@ -310,7 +310,7 @@ export class Choice extends Marker {
 
 export class Transform extends Marker {
 
-	regexp: RegExp;
+	regexp: RegExp = new RegExp('');
 
 	resolve(value: string): string {
 		const _this = this;
@@ -586,8 +586,8 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
-	private _scanner = new Scanner();
-	private _token: Token;
+	private _scanner: Scanner = new Scanner();
+	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
 
 	text(value: string): string {
 		return this.parse(value).toString();

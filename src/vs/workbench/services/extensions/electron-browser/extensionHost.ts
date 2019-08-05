@@ -87,6 +87,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._terminating = false;
 
 		this._namedPipeServer = null;
+		this._inspectPort = null;
 		this._extensionHostProcess = null;
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
