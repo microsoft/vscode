@@ -62,7 +62,7 @@ enum Storage {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;

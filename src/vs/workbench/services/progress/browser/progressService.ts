@@ -28,7 +28,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class ProgressService extends Disposable implements IProgressService {
 
-	_serviceBrand: ServiceIdentifier<IProgressService>;
+	_serviceBrand!: ServiceIdentifier<IProgressService>;
 
 	private readonly stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 	private readonly globalStatusEntry = this._register(new MutableDisposable());

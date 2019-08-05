@@ -13,7 +13,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export abstract class AbstractLifecycleService extends Disposable implements ILifecycleService {
 
-	_serviceBrand: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
 
 	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;

@@ -58,7 +58,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange: Event<boolean> = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
