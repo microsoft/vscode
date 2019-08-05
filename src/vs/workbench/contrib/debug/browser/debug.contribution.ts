@@ -260,9 +260,9 @@ configurationRegistry.registerConfiguration({
 			default: { configurations: [], compounds: [] },
 			$ref: launchSchemaId
 		},
-		'debug.autoFocusEditor': {
+		'debug.focusWindowOnBreak': {
 			type: 'boolean',
-			description: nls.localize('debug.autoFocusEditor', "Controls whether the workbench window should be focused when the debugger stops."),
+			description: nls.localize('debug.focusWindowOnBreak', "Controls whether the workbench window should be focused when the debugger breaks."),
 			default: true
 		}
 	}
