@@ -123,10 +123,7 @@ class FolderDetector {
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
 		const gruntTask = (<any>_task.definition).task;
 		if (gruntTask) {
-			let kind: GruntTaskDefinition = {
-				type: 'grunt',
-				task: gruntTask
-			};
+			let kind: GruntTaskDefinition = (<any>_task.definition);
 			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			let source = 'grunt';
 			let task = gruntTask.indexOf(' ') === -1
