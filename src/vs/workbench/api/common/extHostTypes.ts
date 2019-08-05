@@ -1754,9 +1754,9 @@ export enum TaskScope {
 }
 
 export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>;
+	private _callback: (args: any, cancellationToken: vscode.CancellationToken) => Thenable<number>;
 
-	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
+	constructor(callback: (args: any, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
 		this._callback = callback;
 	}
 
@@ -1764,11 +1764,11 @@ export class CustomExecution implements vscode.CustomExecution {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
+	public set callback(value: (args: any, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
 		this._callback = value;
 	}
 
-	public get callback(): (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number> {
+	public get callback(): (args: any, cancellationToken: vscode.CancellationToken) => Thenable<number> {
 		return this._callback;
 	}
 }
