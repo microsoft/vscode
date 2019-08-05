@@ -288,7 +288,7 @@ export class QueryBuilder {
 					globPortion = normalizeGlobPattern(globPortion);
 				}
 
-				// One pathPortion to multiple expanded search paths (eg duplicate matching workspace folders)
+				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
 				const oneExpanded = this.expandOneSearchPath(pathPortion);
 
 				// Expanded search paths to multiple resolved patterns (with ** and without)

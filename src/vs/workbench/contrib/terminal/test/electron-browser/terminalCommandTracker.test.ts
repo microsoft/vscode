@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal, TerminalCore } from 'vscode-xterm';
+import { Terminal, TerminalCore } from 'xterm';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { isWindows } from 'vs/base/common/platform';
 

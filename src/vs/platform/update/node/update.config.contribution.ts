@@ -6,6 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
+import { isWindows } from 'vs/base/common/platform';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -38,8 +39,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('enableWindowsBackgroundUpdates', "Enables Windows background updates. The updates are fetched from a Microsoft online service."),
-			tags: ['usesOnlineServices']
+			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates on Windows"),
+			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code Versions in the background on Windows"),
+			included: isWindows
 		},
 		'update.showReleaseNotes': {
 			type: 'boolean',

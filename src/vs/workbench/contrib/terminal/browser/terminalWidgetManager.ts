@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 
 const WIDGET_HEIGHT = 29;
 
@@ -12,7 +12,7 @@ export class TerminalWidgetManager implements IDisposable {
 	private _xtermViewport: HTMLElement | null;
 
 	private _messageWidget: MessageWidget;
-	private _messageListeners: IDisposable[] = [];
+	private readonly _messageListeners = new DisposableStore();
 
 	constructor(
 		terminalWrapper: HTMLElement
@@ -30,6 +30,7 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container = null;
 		}
 		this._xtermViewport = null;
+		this._messageListeners.dispose();
 	}
 
 	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
@@ -47,14 +48,14 @@ export class TerminalWidgetManager implements IDisposable {
 			return;
 		}
 		dispose(this._messageWidget);
-		this._messageListeners = dispose(this._messageListeners);
+		this._messageListeners.clear();
 		this._messageWidget = new MessageWidget(this._container, left, top, text);
 	}
 
 	public closeMessage(): void {
-		this._messageListeners = dispose(this._messageListeners);
+		this._messageListeners.clear();
 		if (this._messageWidget) {
-			this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget));
 		}
 	}
 

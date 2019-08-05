@@ -73,7 +73,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
-	private _model: IPagedModel<T>;
+	private _model!: IPagedModel<T>;
 
 	constructor(
 		container: HTMLElement,

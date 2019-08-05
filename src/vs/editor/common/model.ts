@@ -14,6 +14,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { MultilineTokens } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -26,23 +27,43 @@ export enum OverviewRulerLane {
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Position in the minimap to render the decoration.
  */
-export interface IModelDecorationOverviewRulerOptions {
+export enum MinimapPosition {
+	Inline = 1
+}
+
+export interface IDecorationOptions {
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	color: string | ThemeColor | undefined;
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	darkColor?: string | ThemeColor;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 	/**
 	 * The position in the overview ruler.
 	 */
 	position: OverviewRulerLane;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+	/**
+	 * The position in the overview ruler.
+	 */
+	position: MinimapPosition;
 }
 
 /**
@@ -89,6 +110,10 @@ export interface IModelDecorationOptions {
 	 * If set, render this decoration in the overview ruler.
 	 */
 	overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+	/**
+	 * If set, render this decoration in the minimap.
+	 */
+	minimap?: IModelDecorationMinimapOptions | null;
 	/**
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
@@ -756,10 +781,15 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
 	/**
+	 * @internal
+	 */
+	setTokens(tokens: MultilineTokens[]): void;
+
+	/**
 	 * Flush all tokenization state.
 	 * @internal
 	 */
-	flushTokens(): void;
+	resetTokenization(): void;
 
 	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
@@ -1092,6 +1122,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeAttached(listener: () => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event

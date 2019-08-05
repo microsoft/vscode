@@ -22,29 +22,30 @@ export interface ICheckboxOpts extends ICheckboxStyles {
 
 export interface ICheckboxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionBackground?: Color;
 }
 
 const defaultOpts = {
-	inputActiveOptionBorder: Color.fromHex('#007ACC')
+	inputActiveOptionBorder: Color.fromHex('#007ACC00'),
+	inputActiveOptionBackground: Color.fromHex('#0E639C50')
 };
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox: Checkbox;
-	private disposables = new DisposableStore();
+	private checkbox!: Checkbox;
+	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
 		this.element = container;
 
-		this.disposables.dispose();
-		this.disposables = new DisposableStore();
+		this.disposables.clear();
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,
 			title: this._action.label
 		});
 		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox!.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -64,7 +65,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	dipsose(): void {
+	dispose(): void {
 		this.disposables.dispose();
 		super.dispose();
 	}
@@ -73,10 +74,10 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 export class Checkbox extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
+	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
+	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private readonly _opts: ICheckboxOpts;
 	readonly domNode: HTMLElement;
@@ -150,12 +151,16 @@ export class Checkbox extends Widget {
 		if (styles.inputActiveOptionBorder) {
 			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		}
+		if (styles.inputActiveOptionBackground) {
+			this._opts.inputActiveOptionBackground = styles.inputActiveOptionBackground;
+		}
 		this.applyStyles();
 	}
 
 	protected applyStyles(): void {
 		if (this.domNode) {
 			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
 		}
 	}
 

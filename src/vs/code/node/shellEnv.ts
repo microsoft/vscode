@@ -8,6 +8,7 @@ import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 function getUnixShellEnvironment(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {
@@ -89,13 +90,16 @@ let _shellEnv: Promise<typeof process.env>;
  * This should only be done when Code itself is not launched
  * from within a shell.
  */
-export function getShellEnvironment(logService: ILogService): Promise<typeof process.env> {
+export function getShellEnvironment(logService: ILogService, environmentService: IEnvironmentService): Promise<typeof process.env> {
 	if (_shellEnv === undefined) {
-		if (isWindows) {
-			logService.trace('getShellEnvironment: runing on windows, skipping');
+		if (environmentService.args['disable-user-env-probe']) {
+			logService.trace('getShellEnvironment: disable-user-env-probe set, skipping');
+			_shellEnv = Promise.resolve({});
+		} else if (isWindows) {
+			logService.trace('getShellEnvironment: running on Windows, skipping');
 			_shellEnv = Promise.resolve({});
 		} else if (process.env['VSCODE_CLI'] === '1') {
-			logService.trace('getShellEnvironment: runing on CLI, skipping');
+			logService.trace('getShellEnvironment: running on CLI, skipping');
 			_shellEnv = Promise.resolve({});
 		} else {
 			logService.trace('getShellEnvironment: running on Unix');

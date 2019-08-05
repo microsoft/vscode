@@ -5,6 +5,8 @@
 
 declare namespace monaco {
 
+	// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
+
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
@@ -27,7 +29,8 @@ declare namespace monaco {
 
 
 	export enum MarkerTag {
-		Unnecessary = 1
+		Unnecessary = 1,
+		Deprecated = 2
 	}
 
 	export enum MarkerSeverity {
@@ -453,7 +456,7 @@ declare namespace monaco {
 		readonly column: number;
 		constructor(lineNumber: number, column: number);
 		/**
-		 * Create a new postion from this position.
+		 * Create a new position from this position.
 		 *
 		 * @param newLineNumber new line number
 		 * @param newColumn new column
@@ -583,6 +586,14 @@ declare namespace monaco {
 		 * Test if `otherRange` is in `range`. If the ranges are equal, will return true.
 		 */
 		static containsRange(range: IRange, otherRange: IRange): boolean;
+		/**
+		 * Test if `range` is strictly in this range. `range` must start after and end before this range for the result to be true.
+		 */
+		strictContainsRange(range: IRange): boolean;
+		/**
+		 * Test if `otherRange` is strinctly in `range` (must start after, and end before). If the ranges are equal, will return false.
+		 */
+		static strictContainsRange(range: IRange, otherRange: IRange): boolean;
 		/**
 		 * A reunion of the two ranges.
 		 * The smallest position will be used as the start point, and the largest one as the end point.
@@ -986,6 +997,10 @@ declare namespace monaco.editor {
 		 * A label to be used to identify the web worker for debugging purposes.
 		 */
 		label?: string;
+		/**
+		 * An object that can be used by the web worker to make calls back to the main thread.
+		 */
+		host?: any;
 	}
 
 	/**
@@ -1180,23 +1195,43 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Options for rendering a model decoration in the overview ruler.
+	 * Position in the minimap to render the decoration.
 	 */
-	export interface IModelDecorationOverviewRulerOptions {
+	export enum MinimapPosition {
+		Inline = 1
+	}
+
+	export interface IDecorationOptions {
 		/**
-		 * CSS color to render in the overview ruler.
+		 * CSS color to render.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
 		color: string | ThemeColor | undefined;
 		/**
-		 * CSS color to render in the overview ruler.
+		 * CSS color to render.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
 		darkColor?: string | ThemeColor;
+	}
+
+	/**
+	 * Options for rendering a model decoration in the overview ruler.
+	 */
+	export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 		/**
 		 * The position in the overview ruler.
 		 */
 		position: OverviewRulerLane;
+	}
+
+	/**
+	 * Options for rendering a model decoration in the overview ruler.
+	 */
+	export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+		/**
+		 * The position in the overview ruler.
+		 */
+		position: MinimapPosition;
 	}
 
 	/**
@@ -1233,6 +1268,10 @@ declare namespace monaco.editor {
 		 * If set, render this decoration in the overview ruler.
 		 */
 		overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+		/**
+		 * If set, render this decoration in the minimap.
+		 */
+		minimap?: IModelDecorationMinimapOptions | null;
 		/**
 		 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 		 */
@@ -3003,7 +3042,7 @@ declare namespace monaco.editor {
 		 * Enable rendering of whitespace.
 		 * Defaults to none.
 		 */
-		renderWhitespace?: 'none' | 'boundary' | 'all';
+		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'all';
 		/**
 		 * Enable rendering of control characters.
 		 * Defaults to false.
@@ -3275,7 +3314,7 @@ declare namespace monaco.editor {
 		readonly scrollBeyondLastColumn: number;
 		readonly smoothScrolling: boolean;
 		readonly stopRenderingLineAfter: number;
-		readonly renderWhitespace: 'none' | 'boundary' | 'all';
+		readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
 		readonly renderControlCharacters: boolean;
 		readonly fontLigatures: boolean;
 		readonly renderIndentGuides: boolean;
@@ -4271,7 +4310,7 @@ declare namespace monaco.languages {
 		 *  - f = foreground ColorId (9 bits)
 		 *  - b = background ColorId (9 bits)
 		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
-		 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+		 * e.g. colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
 		 * id = 1 is for the default foreground color, id = 2 for the default background.
 		 */
 		tokens: Uint32Array;
@@ -4433,7 +4472,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): (Command | CodeAction)[] | Promise<(Command | CodeAction)[]>;
+		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeActionList | Promise<CodeActionList>;
 	}
 
 	/**
@@ -4894,6 +4933,10 @@ declare namespace monaco.languages {
 		isPreferred?: boolean;
 	}
 
+	export interface CodeActionList extends IDisposable {
+		readonly actions: ReadonlyArray<CodeAction>;
+	}
+
 	/**
 	 * Represents a parameter of a callable-signature. A parameter can
 	 * have a label and a doc-comment.
@@ -4953,6 +4996,10 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
+	export interface SignatureHelpResult extends IDisposable {
+		value: SignatureHelp;
+	}
+
 	export enum SignatureHelpTriggerKind {
 		Invoke = 1,
 		TriggerCharacter = 2,
@@ -4976,7 +5023,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
 	}
 
 	/**
@@ -5449,16 +5496,21 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
-	export interface ICodeLensSymbol {
+	export interface CodeLens {
 		range: IRange;
 		id?: string;
 		command?: Command;
 	}
 
+	export interface CodeLensList {
+		lenses: CodeLens[];
+		dispose(): void;
+	}
+
 	export interface CodeLensProvider {
 		onDidChange?: IEvent<this>;
-		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<ICodeLensSymbol[]>;
-		resolveCodeLens?(model: editor.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
+		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
+		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
 	export interface ILanguageExtensionPoint {
@@ -5606,7 +5658,11 @@ declare namespace monaco.worker {
 		getValue(): string;
 	}
 
-	export interface IWorkerContext {
+	export interface IWorkerContext<H = undefined> {
+		/**
+		 * A proxy to the main thread host object.
+		 */
+		host: H;
 		/**
 		 * Get all available mirror models in this worker.
 		 */

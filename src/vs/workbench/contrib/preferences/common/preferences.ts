@@ -62,8 +62,8 @@ export interface IKeybindingsEditor extends IEditor {
 	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
-	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
-	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): void;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
 }
 
@@ -111,3 +111,5 @@ export const MODIFIED_SETTING_TAG = 'modified';
 export const EXTENSION_SETTING_TAG = 'ext:';
 
 export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+
+export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';

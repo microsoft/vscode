@@ -31,7 +31,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 
 	private readonly _onUntitledWorkspaceDeleted = this._register(new Emitter<IWorkspaceIdentifier>());
-	get onUntitledWorkspaceDeleted(): Event<IWorkspaceIdentifier> { return this._onUntitledWorkspaceDeleted.event; }
+	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier> = this._onUntitledWorkspaceDeleted.event;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,

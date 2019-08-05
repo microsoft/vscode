@@ -34,8 +34,8 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.incoming', this.acceptIncoming),
 			this.registerTextEditorCommand('merge-conflict.accept.selection', this.acceptSelection),
 			this.registerTextEditorCommand('merge-conflict.accept.both', this.acceptBoth),
-			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent),
-			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming),
+			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent, this.acceptAllCurrentResources),
+			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming, this.acceptAllIncomingResources),
 			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
@@ -43,8 +43,11 @@ export default class CommandHandler implements vscode.Disposable {
 		);
 	}
 
-	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args: any[]) => Promise<void>) {
+	private registerTextEditorCommand(command: string, cb: (editor: vscode.TextEditor, ...args: any[]) => Promise<void>, resourceCB?: (uris: vscode.Uri[]) => Promise<void>) {
 		return vscode.commands.registerCommand(command, (...args) => {
+			if (resourceCB && args.length && args.every(arg => arg && arg.resourceUri)) {
+				return resourceCB.call(this, args.map(arg => arg.resourceUri));
+			}
 			const editor = vscode.window.activeTextEditor;
 			return editor && cb.call(this, editor, ...args);
 		});
@@ -68,6 +71,14 @@ export default class CommandHandler implements vscode.Disposable {
 
 	acceptAllIncoming(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Incoming, editor);
+	}
+
+	acceptAllCurrentResources(resources: vscode.Uri[]): Promise<void> {
+		return this.acceptAllResources(interfaces.CommitType.Current, resources);
+	}
+
+	acceptAllIncomingResources(resources: vscode.Uri[]): Promise<void> {
+		return this.acceptAllResources(interfaces.CommitType.Incoming, resources);
 	}
 
 	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
@@ -259,8 +270,29 @@ export default class CommandHandler implements vscode.Disposable {
 
 		// Apply all changes as one edit
 		await editor.edit((edit) => conflicts.forEach(conflict => {
-			conflict.applyEdit(type, editor, edit);
+			conflict.applyEdit(type, editor.document, edit);
 		}));
+	}
+
+	private async acceptAllResources(type: interfaces.CommitType, resources: vscode.Uri[]): Promise<void> {
+		const documents = await Promise.all(resources.map(resource => vscode.workspace.openTextDocument(resource)));
+		const edit = new vscode.WorkspaceEdit();
+		for (const document of documents) {
+			const conflicts = await this.tracker.getConflicts(document);
+
+			if (!conflicts || conflicts.length === 0) {
+				continue;
+			}
+
+			// For get the current state of the document, as we know we are doing to do a large edit
+			this.tracker.forget(document);
+
+			// Apply all changes as one edit
+			conflicts.forEach(conflict => {
+				conflict.applyEdit(type, document, { replace: (range, newText) => edit.replace(document.uri, range, newText) });
+			});
+		}
+		vscode.workspace.applyEdit(edit);
 	}
 
 	private async findConflictContainingSelection(editor: vscode.TextEditor, conflicts?: interfaces.IDocumentMergeConflict[]): Promise<interfaces.IDocumentMergeConflict | null> {

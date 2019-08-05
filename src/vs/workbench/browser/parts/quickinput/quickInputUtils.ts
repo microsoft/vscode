@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 
-const iconPathToClass = {};
+const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
 
 export function getIconClass(iconPath: { dark: URI; light?: URI; } | undefined): string | undefined {
@@ -22,8 +22,8 @@ export function getIconClass(iconPath: { dark: URI; light?: URI; } | undefined):
 		iconClass = iconPathToClass[key];
 	} else {
 		iconClass = iconClassGenerator.nextId();
-		dom.createCSSRule(`.${iconClass}`, `background-image: url("${(iconPath.light || iconPath.dark).toString()}")`);
-		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: url("${iconPath.dark.toString()}")`);
+		dom.createCSSRule(`.${iconClass}`, `background-image: url("${dom.asDomUri(iconPath.light || iconPath.dark).toString()}")`);
+		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: url("${dom.asDomUri(iconPath.dark).toString()}")`);
 		iconPathToClass[key] = iconClass;
 	}
 

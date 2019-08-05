@@ -10,7 +10,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProces
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { Terminal } from 'vscode-xterm';
+import { Terminal } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { coalesce } from 'vs/base/common/arrays';
 
@@ -206,7 +206,7 @@ class WindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core.handler(text);
+		xterm._core._coreService.triggerDataEvent(text);
 	}
 
 	async openDevTools(): Promise<void> {

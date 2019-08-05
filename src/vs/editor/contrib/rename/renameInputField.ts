@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./renameInputField';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -16,36 +16,36 @@ import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
-export class RenameInputField extends Disposable implements IContentWidget {
+export class RenameInputField implements IContentWidget, IDisposable {
 
 	private _editor: ICodeEditor;
-	private _position: Position;
-	private _domNode: HTMLElement;
-	private _inputField: HTMLInputElement;
-	private _visible: boolean;
+	private _position?: Position;
+	private _domNode?: HTMLElement;
+	private _inputField?: HTMLInputElement;
+	private _visible?: boolean;
 	private readonly _visibleContextKey: IContextKey<boolean>;
+	private readonly _disposables = new DisposableStore();
 
 	// Editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow: boolean = true;
+	allowEditorOverflow: boolean = true;
 
 	constructor(
 		editor: ICodeEditor,
 		private readonly themeService: IThemeService,
 		contextKeyService: IContextKeyService,
 	) {
-		super();
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._register(editor.onDidChangeConfiguration(e => {
+		this._disposables.add(editor.onDidChangeConfiguration(e => {
 			if (e.fontInfo) {
 				this.updateFont();
 			}
 		}));
 
-		this._register(themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._disposables.add(themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	private onThemeChange(theme: ITheme): void {
@@ -53,7 +53,7 @@ export class RenameInputField extends Disposable implements IContentWidget {
 	}
 
 	public dispose(): void {
-		super.dispose();
+		this._disposables.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -95,7 +95,7 @@ export class RenameInputField extends Disposable implements IContentWidget {
 		this._inputField.style.borderStyle = border ? 'solid' : 'none';
 		this._inputField.style.borderColor = border ? border.toString() : 'none';
 
-		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : null;
+		this._domNode!.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : null;
 	}
 
 	private updateFont(): void {
@@ -111,7 +111,7 @@ export class RenameInputField extends Disposable implements IContentWidget {
 
 	public getPosition(): IContentWidgetPosition | null {
 		return this._visible
-			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
+			? { position: this._position!, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
@@ -133,10 +133,10 @@ export class RenameInputField extends Disposable implements IContentWidget {
 	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
-		this._inputField.value = value;
-		this._inputField.setAttribute('selectionStart', selectionStart.toString());
-		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
-		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
+		this._inputField!.value = value;
+		this._inputField!.setAttribute('selectionStart', selectionStart.toString());
+		this._inputField!.setAttribute('selectionEnd', selectionEnd.toString());
+		this._inputField!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
 		const disposeOnDone = new DisposableStore();
 		const always = () => {
@@ -154,7 +154,7 @@ export class RenameInputField extends Disposable implements IContentWidget {
 			};
 
 			this._currentAcceptInput = () => {
-				if (this._inputField.value.trim().length === 0 || this._inputField.value === value) {
+				if (this._inputField!.value.trim().length === 0 || this._inputField!.value === value) {
 					// empty or whitespace only or not changed
 					this.cancelInput(true);
 					return;
@@ -162,7 +162,7 @@ export class RenameInputField extends Disposable implements IContentWidget {
 
 				this._currentAcceptInput = null;
 				this._currentCancelInput = null;
-				resolve(this._inputField.value);
+				resolve(this._inputField!.value);
 			};
 
 			let onCursorChanged = () => {
@@ -187,16 +187,16 @@ export class RenameInputField extends Disposable implements IContentWidget {
 	}
 
 	private _show(): void {
-		this._editor.revealLineInCenterIfOutsideViewport(this._position.lineNumber, ScrollType.Smooth);
+		this._editor.revealLineInCenterIfOutsideViewport(this._position!.lineNumber, ScrollType.Smooth);
 		this._visible = true;
 		this._visibleContextKey.set(true);
 		this._editor.layoutContentWidget(this);
 
 		setTimeout(() => {
-			this._inputField.focus();
-			this._inputField.setSelectionRange(
-				parseInt(this._inputField.getAttribute('selectionStart')!),
-				parseInt(this._inputField.getAttribute('selectionEnd')!));
+			this._inputField!.focus();
+			this._inputField!.setSelectionRange(
+				parseInt(this._inputField!.getAttribute('selectionStart')!),
+				parseInt(this._inputField!.getAttribute('selectionEnd')!));
 		}, 100);
 	}
 

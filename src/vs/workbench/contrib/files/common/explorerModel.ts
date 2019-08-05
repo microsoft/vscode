@@ -8,7 +8,6 @@ import { isEqual } from 'vs/base/common/extpath';
 import { posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
-import { isLinux } from 'vs/base/common/platform';
 import { IFileStat, IFileService } from 'vs/platform/files/common/files';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
@@ -275,7 +274,7 @@ export class ExplorerItem {
 	}
 
 	private getPlatformAwareName(name: string): string {
-		return (isLinux || !name) ? name : name.toLowerCase();
+		return (!name || !resources.hasToIgnoreCase(this.resource)) ? name : name.toLowerCase();
 	}
 
 	/**
@@ -334,7 +333,7 @@ export class ExplorerItem {
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem | null {
-		if (isEqual(rtrim(this.resource.path, posix.sep), path, !isLinux)) {
+		if (isEqual(rtrim(this.resource.path, posix.sep), path, resources.hasToIgnoreCase(this.resource))) {
 			return this;
 		}
 

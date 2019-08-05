@@ -16,8 +16,6 @@ const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 
 
 export class BackupModelTracker extends Disposable implements IWorkbenchContribution {
 
-	_serviceBrand: any;
-
 	private configuredAutoSaveAfterDelay: boolean;
 
 	constructor(

@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "^1.4.0"
 	},
@@ -53,6 +54,6 @@
 	},
 	"devDependencies": {
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^10.12.21"
+		"@types/node": "^10.14.8"
 	}
 }

@@ -148,6 +148,9 @@
 			"request": "launch",
 			"name": "Launch VS Code (Main Process)",
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
+			},
 			"runtimeArgs": [
 				"--no-cached-data"
 			],

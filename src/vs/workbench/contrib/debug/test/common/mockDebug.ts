@@ -51,7 +51,9 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void { }
+	public updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
+		throw new Error('not implemented');
+	}
 
 	public enableOrDisableBreakpoints(enabled: boolean): Promise<void> {
 		throw new Error('not implemented');
@@ -284,6 +286,13 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 	disconnect(restart = false): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number | undefined): Promise<DebugProtocol.GotoTargetsResponse> {
+		throw new Error('Method not implemented.');
+	}
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
 		throw new Error('Method not implemented.');
 	}
 

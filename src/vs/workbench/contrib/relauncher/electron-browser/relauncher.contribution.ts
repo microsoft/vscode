@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -25,6 +25,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
+	debug: { console: { wordWrap: boolean } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,6 +39,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private useGridLayout: boolean;
+	private debugConsoleWordWrap: boolean;
 
 	constructor(
 		@IWindowsService private readonly windowsService: IWindowsService,
@@ -106,6 +108,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Workbench Grid Layout
 		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
 			this.useGridLayout = config.workbench.useExperimentalGridLayout;
+			changed = true;
+		}
+
+		// Debug console word wrap
+		if (config.debug && typeof config.debug.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
+			this.debugConsoleWordWrap = config.debug.console.wordWrap;
 			changed = true;
 		}
 
@@ -207,7 +215,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
 		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
-		if (!isEqual(this.firstFolderResource, newFirstFolderResource, !isLinux)) {
+		if (!isEqual(this.firstFolderResource, newFirstFolderResource)) {
 			this.firstFolderResource = newFirstFolderResource;
 
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart

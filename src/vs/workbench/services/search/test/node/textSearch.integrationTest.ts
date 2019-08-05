@@ -378,7 +378,7 @@ suite('Search-integration', function () {
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: 'foo' },
 				includePattern: {
-					'***': true
+					'{{}': true
 				}
 			};
 
@@ -386,24 +386,8 @@ suite('Search-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
-				assert.equal(searchError.message, 'Error parsing glob \'***\': invalid use of **; must be one path component');
+				assert.equal(searchError.message, 'Error parsing glob \'/{{}\': nested alternate groups are not allowed');
 				assert.equal(searchError.code, SearchErrorCode.globParseError);
-			});
-		});
-
-		test('invalid literal', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: 'foo\nbar', isRegExp: true }
-			};
-
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err.message);
-				assert.equal(searchError.message, 'The literal \'"\\n"\' is not allowed in a regex');
-				assert.equal(searchError.code, SearchErrorCode.invalidLiteral);
 			});
 		});
 	});

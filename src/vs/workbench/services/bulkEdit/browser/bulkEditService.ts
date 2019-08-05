@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -51,7 +51,7 @@ class ModelEditTask implements IDisposable {
 
 	protected _edits: IIdentifiedSingleEditOperation[];
 	private _expectedModelVersionId: number | undefined;
-	protected _newEol: EndOfLineSequence;
+	protected _newEol: EndOfLineSequence | undefined;
 
 	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {
 		this._model = this._modelReference.object.textEditorModel;
@@ -142,7 +142,7 @@ class BulkEditModel implements IDisposable {
 	private _textModelResolverService: ITextModelService;
 	private _edits = new Map<string, ResourceTextEdit[]>();
 	private _editor: ICodeEditor | undefined;
-	private _tasks: ModelEditTask[];
+	private _tasks: ModelEditTask[] | undefined;
 	private _progress: IProgress<void>;
 
 	constructor(
@@ -159,7 +159,7 @@ class BulkEditModel implements IDisposable {
 	}
 
 	dispose(): void {
-		this._tasks = dispose(this._tasks);
+		this._tasks = dispose(this._tasks!);
 	}
 
 	addEdit(edit: ResourceTextEdit): void {
@@ -196,7 +196,7 @@ class BulkEditModel implements IDisposable {
 				}
 
 				value.forEach(edit => task.addEdit(edit));
-				this._tasks.push(task);
+				this._tasks!.push(task);
 				this._progress.report(undefined);
 			});
 			promises.push(promise);
@@ -208,7 +208,7 @@ class BulkEditModel implements IDisposable {
 	}
 
 	validate(): ValidationResult {
-		for (const task of this._tasks) {
+		for (const task of this._tasks!) {
 			const result = task.validate();
 			if (!result.canApply) {
 				return result;
@@ -218,7 +218,7 @@ class BulkEditModel implements IDisposable {
 	}
 
 	apply(): void {
-		for (const task of this._tasks) {
+		for (const task of this._tasks!) {
 			task.apply();
 			this._progress.report(undefined);
 		}
@@ -231,11 +231,11 @@ export class BulkEdit {
 
 	private _edits: Edit[] = [];
 	private _editor: ICodeEditor | undefined;
-	private _progress?: IProgressRunner;
+	private _progress: IProgress<IProgressStep>;
 
 	constructor(
 		editor: ICodeEditor | undefined,
-		progress: IProgressRunner | undefined,
+		progress: IProgress<IProgressStep> | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
@@ -244,7 +244,7 @@ export class BulkEdit {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
-		this._progress = progress || emptyProgressRunner;
+		this._progress = progress || emptyProgress;
 	}
 
 	add(edits: Edit[] | Edit): void {
@@ -294,10 +294,9 @@ export class BulkEdit {
 
 		// define total work and progress callback
 		// for child operations
-		if (this._progress) {
-			this._progress.total(total);
-		}
-		let progress: IProgress<void> = { report: _ => this._progress && this._progress.worked(1) };
+		this._progress.report({ total });
+
+		let progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
 		// do it.
 		for (const group of groups) {

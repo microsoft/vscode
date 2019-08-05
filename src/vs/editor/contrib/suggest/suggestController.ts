@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -34,7 +34,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
 
-export class SuggestController extends Disposable implements IEditorContribution {
+export class SuggestController implements IEditorContribution {
 
 	private static readonly ID: string = 'editor.contrib.suggestController';
 
@@ -45,6 +45,7 @@ export class SuggestController extends Disposable implements IEditorContribution
 	private readonly _model: SuggestModel;
 	private readonly _widget: IdleValue<SuggestWidget>;
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
+	private readonly _toDispose = new DisposableStore();
 
 	private readonly _sticky = false; // for development purposes only
 
@@ -56,28 +57,27 @@ export class SuggestController extends Disposable implements IEditorContribution
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super();
 		this._model = new SuggestModel(this._editor, editorWorker);
 
 		this._widget = new IdleValue(() => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
-			this._register(widget);
-			this._register(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
+			this._toDispose.add(widget);
+			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = this._register(new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true)));
-			this._register(this._model.onDidSuggest(e => {
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true));
+			this._toDispose.add(commitCharacterController);
+			this._toDispose.add(this._model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
 					commitCharacterController.reset();
 				}
-			})
-			);
+			}));
 
 			// Wire up makes text edit context key
 			let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
-			this._register(widget.onDidFocus(({ item }) => {
+			this._toDispose.add(widget.onDidFocus(({ item }) => {
 
 				const position = this._editor.getPosition()!;
 				const startColumn = item.completion.range.startColumn;
@@ -101,38 +101,35 @@ export class SuggestController extends Disposable implements IEditorContribution
 				}
 				makesTextEdit.set(value);
 			}));
-			this._register(toDisposable(() => {
-				makesTextEdit.reset();
-			}));
+			this._toDispose.add(toDisposable(() => makesTextEdit.reset()));
 
 			return widget;
 		});
 
 		this._alternatives = new IdleValue(() => {
-			let res = new SuggestAlternatives(this._editor, this._contextKeyService);
-			this._register(res);
-			return res;
+			return this._toDispose.add(new SuggestAlternatives(this._editor, this._contextKeyService));
 		});
 
-		this._register(_instantiationService.createInstance(WordContextKey, _editor));
+		this._toDispose.add(_instantiationService.createInstance(WordContextKey, _editor));
 
-		this._register(this._model.onDidTrigger(e => {
+		this._toDispose.add(this._model.onDidTrigger(e => {
 			this._widget.getValue().showTriggered(e.auto, e.shy ? 250 : 50);
 		}));
-		this._register(this._model.onDidSuggest(e => {
+		this._toDispose.add(this._model.onDidSuggest(e => {
 			if (!e.shy) {
 				let index = this._memoryService.select(this._editor.getModel()!, this._editor.getPosition()!, e.completionModel.items);
 				this._widget.getValue().showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
-		this._register(this._model.onDidCancel(e => {
+		this._toDispose.add(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.getValue().hideWidget();
 			}
 		}));
-		this._register(this._editor.onDidBlurEditorWidget(() => {
+		this._toDispose.add(this._editor.onDidBlurEditorWidget(() => {
 			if (!this._sticky) {
 				this._model.cancel();
+				this._model.clear();
 			}
 		}));
 
@@ -142,7 +139,7 @@ export class SuggestController extends Disposable implements IEditorContribution
 			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
-		this._register(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
+		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));
 		updateFromConfig();
 	}
 
@@ -152,17 +149,17 @@ export class SuggestController extends Disposable implements IEditorContribution
 	}
 
 	dispose(): void {
-		super.dispose();
+		this._alternatives.dispose();
+		this._toDispose.dispose();
 		this._widget.dispose();
-		if (this._model) {
-			this._model.dispose();
-		}
+		this._model.dispose();
 	}
 
 	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
+			this._model.clear();
 			return;
 		}
 		if (!this._editor.hasModel()) {
@@ -196,13 +193,13 @@ export class SuggestController extends Disposable implements IEditorContribution
 		const overwriteBefore = position.column - suggestion.range.startColumn;
 		const overwriteAfter = suggestion.range.endColumn - position.column;
 
-		SnippetController2.get(this._editor).insert(
-			insertText,
-			overwriteBefore + columnDelta,
+		SnippetController2.get(this._editor).insert(insertText, {
+			overwriteBefore: overwriteBefore + columnDelta,
 			overwriteAfter,
-			false, false,
-			!(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
-		);
+			undoStopBefore: false,
+			undoStopAfter: false,
+			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
+		});
 
 		if (undoStops) {
 			this._editor.pushUndoStop();
@@ -211,6 +208,7 @@ export class SuggestController extends Disposable implements IEditorContribution
 		if (!suggestion.command) {
 			// done
 			this._model.cancel();
+			this._model.clear();
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {
 			// retigger
@@ -218,7 +216,9 @@ export class SuggestController extends Disposable implements IEditorContribution
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : [])).catch(onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : []))
+				.catch(onUnexpectedError)
+				.finally(() => this._model.clear()); // <- clear only now, keep commands alive
 			this._model.cancel();
 		}
 
@@ -338,6 +338,7 @@ export class SuggestController extends Disposable implements IEditorContribution
 
 	cancelSuggestWidget(): void {
 		this._model.cancel();
+		this._model.clear();
 		this._widget.getValue().hideWidget();
 	}
 
@@ -367,6 +368,10 @@ export class SuggestController extends Disposable implements IEditorContribution
 
 	toggleSuggestionDetails(): void {
 		this._widget.getValue().toggleDetails();
+	}
+
+	toggleExplainMode(): void {
+		this._widget.getValue().toggleExplainMode();
 	}
 
 	toggleSuggestionFocus(): void {
@@ -517,6 +522,16 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'toggleExplainMode',
+	precondition: SuggestContext.Visible,
+	handler: x => x.toggleExplainMode(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
 	}
 }));
 

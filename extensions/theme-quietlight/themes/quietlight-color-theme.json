@@ -125,6 +125,8 @@
 			"name": "Classes",
 			"scope": [
 				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution",
 				"entity.other.inherited-class",
 				"support.class"
 			],

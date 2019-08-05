@@ -143,7 +143,7 @@
 		},
 		{
 			"name": "Class name",
-			"scope": "entity.name.class, entity.name.type",
+			"scope": "entity.name.class, entity.name.type, entity.name.namespace, entity.name.scope-resolution",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9B0000",
@@ -255,7 +255,7 @@
 			}
 		},
 		{
-			"name": "Keyword Control",
+			"name": "Keyword Control / Special",
 			"scope": [
 				"keyword.control",
 				"keyword.operator.new.cpp",

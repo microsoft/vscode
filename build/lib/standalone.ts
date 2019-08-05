@@ -35,6 +35,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
 		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		delete tsConfig.extends;
 	} else {
 		compilerOptions = tsConfig.compilerOptions;
 	}
@@ -44,11 +45,12 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	compilerOptions.noUnusedLocals = false;
 	compilerOptions.preserveConstEnums = false;
 	compilerOptions.declaration = false;
-	compilerOptions.noImplicitAny = false;
 	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
 
 
 	options.compilerOptions = compilerOptions;
+
+	console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
 
 	let result = tss.shake(options);
 	for (let fileName in result) {
@@ -100,8 +102,6 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
-	const tsConfigBase = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.base.json')).toString());
-	writeOutputFile('tsconfig.base.json', JSON.stringify(tsConfigBase, null, '\t'));
 
 	[
 		'vs/css.build.js',

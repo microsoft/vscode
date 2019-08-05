@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { Dimension } from 'vs/base/browser/dom';
 
 export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
 
@@ -46,6 +47,21 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onZenModeChange: Event<boolean>;
 
 	/**
+	 * Emits when fullscreen is enabled or disabled.
+	 */
+	readonly onFullscreenChange: Event<boolean>;
+
+	/**
+	 * Emits when centered layout is enabled or disabled.
+	 */
+	readonly onCenteredLayoutChange: Event<boolean>;
+
+	/**
+	 * Emit when panel position changes.
+	 */
+	readonly onPanelPositionChange: Event<string>;
+
+	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of editors have loaded.
 	 */
@@ -65,6 +81,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
+
+	/**
+	 * Returns if the part is visible.
+	 */
+	getDimension(part: Parts): Dimension;
 
 	/**
 	 * Set activity bar hidden or not
@@ -122,6 +143,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Sets the panel position.
 	 */
 	setPanelPosition(position: Position): void;
+
+	/**
+	 * Returns the element that is parent of the workbench element.
+	 */
+	getWorkbenchContainer(): HTMLElement;
 
 	/**
 	 * Returns the element that contains the workbench.

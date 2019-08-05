@@ -95,7 +95,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 
-		const outputConfig = this.baseConfigurationService.getValue<{}>('[Log]');
+		const outputConfig = this.baseConfigurationService.getValue<any>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };

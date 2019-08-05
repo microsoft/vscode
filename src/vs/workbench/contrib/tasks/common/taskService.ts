@@ -20,6 +20,7 @@ export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export interface ITaskProvider {
 	provideTasks(validTypes: IStringDictionary<boolean>): Promise<TaskSet>;
+	resolveTask(task: ConfiguringTask): Promise<ContributedTask | undefined>;
 }
 
 export interface ProblemMatcherRunOptions {
@@ -79,7 +80,7 @@ export interface ITaskService {
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
 	openConfig(task: CustomTask | undefined): Promise<void>;
 
-	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
+	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 

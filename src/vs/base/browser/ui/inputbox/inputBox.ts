@@ -28,7 +28,7 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
 	readonly flexibleHeight?: boolean;
-	readonly actions?: IAction[];
+	readonly actions?: ReadonlyArray<IAction>;
 }
 
 export interface IInputBoxStyles {
@@ -86,7 +86,7 @@ export class InputBox extends Widget {
 	private contextViewProvider?: IContextViewProvider;
 	element: HTMLElement;
 	private input: HTMLInputElement;
-	private mirror: HTMLElement;
+	private mirror: HTMLElement | undefined;
 	private actionbar?: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage | null;
@@ -230,7 +230,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public get mirrorElement(): HTMLElement {
+	public get mirrorElement(): HTMLElement | undefined {
 		return this.mirror;
 	}
 
@@ -389,8 +389,6 @@ export class InputBox extends Widget {
 		let div: HTMLElement;
 		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
-		this.state = 'open';
-
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,
 			anchorAlignment: AnchorAlignment.RIGHT,
@@ -426,6 +424,8 @@ export class InputBox extends Widget {
 			},
 			layout: layout
 		});
+
+		this.state = 'open';
 	}
 
 	private _hideMessage(): void {

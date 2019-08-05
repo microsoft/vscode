@@ -29,6 +29,7 @@
 
 .monaco-editor-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
 	max-width: 500px;
+	word-wrap: break-word;
 }
 
 .monaco-editor-hover p,

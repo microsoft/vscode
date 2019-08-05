@@ -68,7 +68,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 });
 
 const sepRegexp = /\//g;
-const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
+const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
@@ -222,12 +222,23 @@ export class LabelService implements ILabelService {
 	}
 
 	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
-		let label = formatting.label.replace(labelMatchingRegexp, match => {
-			switch (match) {
-				case '${scheme}': return resource.scheme;
-				case '${authority}': return resource.authority;
-				case '${path}': return resource.path;
-				default: return '';
+		let label = formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
+			switch (token) {
+				case 'scheme': return resource.scheme;
+				case 'authority': return resource.authority;
+				case 'path': return resource.path;
+				default: {
+					if (qsToken === 'query') {
+						const { query } = resource;
+						if (query && query[0] === '{' && query[query.length - 1] === '}') {
+							try {
+								return JSON.parse(query)[qsValue] || '';
+							}
+							catch { }
+						}
+					}
+					return '';
+				}
 			}
 		});
 

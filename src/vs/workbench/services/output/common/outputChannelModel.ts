@@ -51,10 +51,10 @@ export abstract class AsbtractOutputChannelModelService {
 
 export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
 
-	protected _onDidAppendedContent = new Emitter<void>();
+	protected readonly _onDidAppendedContent = this._register(new Emitter<void>());
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	protected _onDispose = new Emitter<void>();
+	protected readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	protected modelUpdater: RunOnceScheduler;

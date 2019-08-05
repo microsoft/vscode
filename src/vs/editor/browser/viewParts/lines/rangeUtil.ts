@@ -126,7 +126,7 @@ export class RangeUtil {
 		if (startChildIndex !== endChildIndex) {
 			if (endChildIndex > 0 && endOffset === 0) {
 				endChildIndex--;
-				endOffset = Number.MAX_VALUE;
+				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
 			}
 		}
 

@@ -59,7 +59,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	getDescription() {
-		return withNullAsUndefined(this.editor.getDescription());
+		return this.editor.getDescription();
 	}
 
 	run(mode: Mode, context: IEntryRunContext): boolean {

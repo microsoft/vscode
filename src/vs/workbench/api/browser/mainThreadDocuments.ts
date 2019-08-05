@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IDisposable, IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -64,7 +64,7 @@ export class BoundModelReferenceCollection {
 	}
 }
 
-export class MainThreadDocuments extends Disposable implements MainThreadDocumentsShape {
+export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private readonly _modelService: IModelService;
 	private readonly _textModelResolverService: ITextModelService;
@@ -73,9 +73,10 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	private readonly _untitledEditorService: IUntitledEditorService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 
+	private readonly _toDispose = new DisposableStore();
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
-	private readonly _modelIsSynced: { [modelId: string]: boolean; };
+	private readonly _modelIsSynced = new Set<string>();
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
@@ -89,7 +90,6 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super();
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
@@ -98,24 +98,23 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
-		this._modelIsSynced = {};
 
-		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
-		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._register(this._modelReferenceCollection);
-		this._register(modelService.onModelModeChanged(this._onModelModeChanged, this));
+		this._toDispose.add(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
+		this._toDispose.add(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
+		this._toDispose.add(this._modelReferenceCollection);
+		this._toDispose.add(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-		this._register(textFileService.models.onModelSaved(e => {
+		this._toDispose.add(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptModelSaved(e.resource);
 			}
 		}));
-		this._register(textFileService.models.onModelReverted(e => {
+		this._toDispose.add(textFileService.models.onModelReverted(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptDirtyStateChanged(e.resource, false);
 			}
 		}));
-		this._register(textFileService.models.onModelDirty(e => {
+		this._toDispose.add(textFileService.models.onModelDirty(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptDirtyStateChanged(e.resource, true);
 			}
@@ -129,7 +128,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			this._modelToDisposeMap[modelUrl].dispose();
 		});
 		this._modelToDisposeMap = Object.create(null);
-		super.dispose();
+		this._toDispose.dispose();
 	}
 
 	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {
@@ -144,7 +143,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			return;
 		}
 		const modelUrl = model.uri;
-		this._modelIsSynced[modelUrl.toString()] = true;
+		this._modelIsSynced.add(modelUrl.toString());
 		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
 			this._proxy.$acceptModelChanged(modelUrl, e, this._textFileService.isDirty(modelUrl));
 		});
@@ -153,7 +152,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
 		let { model, oldModeId } = event;
 		const modelUrl = model.uri;
-		if (!this._modelIsSynced[modelUrl.toString()]) {
+		if (!this._modelIsSynced.has(modelUrl.toString())) {
 			return;
 		}
 		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
@@ -161,10 +160,10 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private _onModelRemoved(modelUrl: URI): void {
 		const strModelUrl = modelUrl.toString();
-		if (!this._modelIsSynced[strModelUrl]) {
+		if (!this._modelIsSynced.has(strModelUrl)) {
 			return;
 		}
-		delete this._modelIsSynced[strModelUrl];
+		this._modelIsSynced.delete(strModelUrl);
 		this._modelToDisposeMap[strModelUrl].dispose();
 		delete this._modelToDisposeMap[strModelUrl];
 	}
@@ -195,7 +194,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return promise.then(success => {
 			if (!success) {
 				return Promise.reject(new Error('cannot open ' + uri.toString()));
-			} else if (!this._modelIsSynced[uri.toString()]) {
+			} else if (!this._modelIsSynced.has(uri.toString())) {
 				return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
 			} else {
 				return undefined;
@@ -236,7 +235,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}).then(model => {
 			const resource = model.getResource();
 
-			if (!this._modelIsSynced[resource.toString()]) {
+			if (!this._modelIsSynced.has(resource.toString())) {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 			}
 

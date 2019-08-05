@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITerminalInstance, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal } from 'xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
 
 const SHELL_EXECUTABLES = [

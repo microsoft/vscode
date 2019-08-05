@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IMarker } from 'vscode-xterm';
+import { Terminal, IMarker } from 'xterm';
 import { ITerminalCommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -112,7 +112,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	private _scrollToMarker(marker: IMarker, position: ScrollPosition): void {
 		let line = marker.line;
 		if (position === ScrollPosition.Middle) {
-			line = Math.max(line - this._xterm.rows / 2, 0);
+			line = Math.max(line - Math.floor(this._xterm.rows / 2), 0);
 		}
 		this._xterm.scrollToLine(line);
 	}

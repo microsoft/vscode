@@ -21,7 +21,7 @@ import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class ExecuteCommandAction extends Action {
 
@@ -41,7 +41,7 @@ export class ExecuteCommandAction extends Action {
 }
 
 export class BaseSplitEditorAction extends Action {
-	private toDispose: IDisposable[] = [];
+	private readonly toDispose = this._register(new DisposableStore());
 	private direction: GroupDirection;
 
 	constructor(
@@ -62,7 +62,7 @@ export class BaseSplitEditorAction extends Action {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
 				this.direction = preferredSideBySideGroupDirection(this.configurationService);
 			}
@@ -73,12 +73,6 @@ export class BaseSplitEditorAction extends Action {
 		splitEditor(this.editorGroupService, this.direction, context);
 
 		return Promise.resolve(true);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 

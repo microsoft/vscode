@@ -41,6 +41,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 	private breakpointView: ViewletPanel;
 	private panelListeners = new Map<string, IDisposable>();
 	private debugToolBarMenu: IMenu;
+	private disposeOnTitleUpdate: IDisposable;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -114,7 +115,14 @@ export class DebugViewlet extends ViewContainerViewlet {
 			this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
 			this._register(this.debugToolBarMenu);
 		}
-		return DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+
+		const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+		if (this.disposeOnTitleUpdate) {
+			dispose(this.disposeOnTitleUpdate);
+		}
+		this.disposeOnTitleUpdate = disposable;
+
+		return actions;
 	}
 
 	get showInitialDebugActions(): boolean {
