@@ -46,24 +46,24 @@ enum UpdateResult {
 }
 
 export class RemoteFileDialog {
-	private options: IOpenDialogOptions;
-	private currentFolder: URI;
-	private filePickBox: IQuickPick<FileQuickPickItem>;
-	private hidden: boolean;
-	private allowFileSelection: boolean;
-	private allowFolderSelection: boolean;
+	private options!: IOpenDialogOptions;
+	private currentFolder!: URI;
+	private filePickBox!: IQuickPick<FileQuickPickItem>;
+	private hidden: boolean = false;
+	private allowFileSelection: boolean = true;
+	private allowFolderSelection: boolean = false;
 	private remoteAuthority: string | undefined;
-	private requiresTrailing: boolean;
+	private requiresTrailing: boolean = false;
 	private trailing: string | undefined;
 	private scheme: string = REMOTE_HOST_SCHEME;
 	private contextKey: IContextKey<boolean>;
-	private userEnteredPathSegment: string;
-	private autoCompletePathSegment: string;
-	private activeItem: FileQuickPickItem;
-	private userHome: URI;
+	private userEnteredPathSegment: string = '';
+	private autoCompletePathSegment: string = '';
+	private activeItem: FileQuickPickItem | undefined;
+	private userHome!: URI;
 	private badPath: string | undefined;
-	private remoteAgentEnvironment: IRemoteAgentEnvironment | null;
-	private separator: string;
+	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
+	private separator: string = '/';
 	private onBusyChangeEmitter = new Emitter<boolean>();
 	private updatingPromise: CancelablePromise<void> | undefined;
 
