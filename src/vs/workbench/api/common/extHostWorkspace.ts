@@ -171,11 +171,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	constructor(
 		mainContext: IMainContext,
 		logService: ILogService,
-		requestIdProvider: Counter,
 		data?: IStaticWorkspaceData
 	) {
 		this._logService = logService;
-		this._requestIdProvider = requestIdProvider;
+		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);

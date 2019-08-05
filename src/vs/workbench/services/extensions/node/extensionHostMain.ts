@@ -5,8 +5,7 @@
 
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Counter } from 'vs/base/common/numbers';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -41,10 +40,7 @@ export class ExtensionHostMain {
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
 	private readonly _extensionService: ExtHostExtensionService;
-	private readonly _extHostLogService: ExtHostLogService;
-	private disposables: IDisposable[] = [];
-
-	private _searchRequestIdProvider: Counter;
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		protocol: IMessagePassingProtocol,
@@ -65,14 +61,13 @@ export class ExtensionHostMain {
 		consolePatchFn(rpcProtocol.getProxy(MainContext.MainThreadConsole));
 
 		// services
-		this._extHostLogService = new ExtHostLogService(logServiceFn(initData), initData.logsLocation.fsPath);
-		this.disposables.push(this._extHostLogService);
+		const extHostLogService = new ExtHostLogService(logServiceFn(initData), initData.logsLocation.fsPath);
+		this.disposables.add(extHostLogService);
 
-		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider, withNullAsUndefined(initData.workspace));
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, extHostLogService, withNullAsUndefined(initData.workspace));
 
-		this._extHostLogService.info('extension host started');
-		this._extHostLogService.trace('initData', initData);
+		extHostLogService.info('extension host started');
+		extHostLogService.trace('initData', initData);
 
 		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
 		this._extensionService = new ExtHostExtensionService(
@@ -82,7 +77,7 @@ export class ExtensionHostMain {
 			extHostWorkspace,
 			extHostConfiguraiton,
 			initData.environment,
-			this._extHostLogService,
+			extHostLogService,
 			uriTransformer
 		);
 
@@ -127,7 +122,7 @@ export class ExtensionHostMain {
 		}
 		this._isTerminating = true;
 
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 
 		errors.setUnexpectedErrorHandler((err) => {
 			// TODO: write to log once we have one
