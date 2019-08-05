@@ -721,10 +721,18 @@ export class SearchResult extends Disposable {
 		this.disposeMatches();
 	}
 
-	remove(matches: FileMatch | FileMatch[]): void {
+	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[]): void {
 		if (!Array.isArray(matches)) {
 			matches = [matches];
 		}
+
+		matches.forEach(m => {
+			if (m instanceof FolderMatch) {
+				m.clear();
+			}
+		});
+
+		matches = matches.filter(m => m instanceof FileMatch);
 
 		const { byFolder, other } = this.groupFilesByFolder(matches);
 		byFolder.forEach(matches => {
@@ -738,10 +746,6 @@ export class SearchResult extends Disposable {
 		if (other.length) {
 			this.getFolderMatch(other[0].resource).remove(<FileMatch[]>other);
 		}
-	}
-
-	removeFolder(match: FolderMatch): void {
-		match.clear();
 	}
 
 	replace(match: FileMatch): Promise<any> {
