@@ -55,7 +55,7 @@ export class CenteredViewLayout implements IDisposable {
 	private splitView?: SplitView;
 	private width: number = 0;
 	private height: number = 0;
-	private style: ICenteredViewStyles | undefined;
+	private style!: ICenteredViewStyles;
 	private didLayout = false;
 	private emptyViews: ISplitViewView[] | undefined;
 	private readonly splitViewDisposables = new DisposableStore();

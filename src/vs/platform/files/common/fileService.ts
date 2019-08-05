@@ -21,7 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class FileService extends Disposable implements IFileService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 

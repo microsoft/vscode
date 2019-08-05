@@ -32,7 +32,7 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox: Checkbox | undefined;
+	private checkbox!: Checkbox;
 	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
