@@ -45,7 +45,7 @@ enum ProcessType {
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
-	public shellProcessId: number;
+	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;

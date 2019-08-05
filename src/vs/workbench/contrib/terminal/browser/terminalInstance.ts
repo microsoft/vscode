@@ -991,8 +991,8 @@ export class TerminalInstance implements ITerminalInstance {
 					return;
 				}
 				this._xtermReadyPromise.then(() => {
-					if (!this._isDisposed) {
-						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager!.shellProcessId, this, this._xterm);
+					if (!this._isDisposed && this._processManager && this._processManager.shellProcessId) {
+						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, this, this._xterm);
 					}
 				});
 			});
