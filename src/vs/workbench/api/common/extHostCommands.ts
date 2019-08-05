@@ -8,7 +8,7 @@ import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
@@ -228,13 +228,13 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
 		if (!command) {
 			return undefined;
 		}
 
-		const result: CommandDto = {
+		const result: ICommandDto = {
 			$ident: undefined,
 			id: command.command,
 			title: command.title,

@@ -5,7 +5,7 @@
 
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -254,7 +254,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		} else {
 			this._terminalProcesses.set(proxy.terminalId, Promise.resolve(proxy));
 		}
-		const shellLaunchConfigDto: ShellLaunchConfigDto = {
+		const shellLaunchConfigDto: IShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,
 			executable: request.shellLaunchConfig.executable,
 			args: request.shellLaunchConfig.args,
