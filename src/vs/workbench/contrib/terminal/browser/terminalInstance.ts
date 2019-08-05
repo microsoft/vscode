@@ -182,7 +182,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isDisposed: boolean;
 	private _skipTerminalCommands: string[];
 	private _title: string = '';
-	private _wrapperElement: HTMLDivElement | undefined;
+	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermElement: HTMLDivElement;
@@ -576,7 +576,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xtermElement = document.createElement('div');
 
 			// Attach the xterm object to the DOM, exposing it to the smoke tests
-			(<any>this._wrapperElement).xterm = this._xterm;
+			this._wrapperElement.xterm = this._xterm;
 
 			xterm.open(this._xtermElement);
 			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
@@ -809,8 +809,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
 		}
 		if (this._wrapperElement) {
-			if ((<any>this._wrapperElement).xterm) {
-				(<any>this._wrapperElement).xterm = null;
+			if (this._wrapperElement.xterm) {
+				this._wrapperElement.xterm = undefined;
 			}
 			if (this._wrapperElement.parentElement) {
 				this._container.removeChild(this._wrapperElement);

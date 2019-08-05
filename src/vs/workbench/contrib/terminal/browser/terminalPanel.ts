@@ -314,7 +314,9 @@ export class TerminalPanel extends Panel {
 			theme = this.themeService.getTheme();
 		}
 
-		this._findWidget.updateTheme(theme);
+		if (this._findWidget) {
+			this._findWidget.updateTheme(theme);
+		}
 	}
 
 	private _updateFont(): void {
