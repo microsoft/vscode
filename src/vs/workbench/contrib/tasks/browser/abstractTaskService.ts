@@ -796,6 +796,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
 			}
+			if (task.configurationProperties.group) {
+				toCustomize.group = task.configurationProperties.group;
+			}
 		}
 		if (!toCustomize) {
 			return Promise.resolve(undefined);
