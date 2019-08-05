@@ -35,13 +35,13 @@ export class MainThreadCommentThread implements modes.CommentThread {
 	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
-	private _label: string;
+	private _label: string | undefined;
 
-	get label(): string {
+	get label(): string | undefined {
 		return this._label;
 	}
 
-	set label(label: string) {
+	set label(label: string | undefined) {
 		this._label = label;
 		this._onDidChangeLabel.fire(this._label);
 	}
@@ -56,8 +56,8 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._contextValue = context;
 	}
 
-	private _onDidChangeLabel = new Emitter<string>();
-	readonly onDidChangeLabel: Event<string> = this._onDidChangeLabel.event;
+	private _onDidChangeLabel = new Emitter<string | undefined>();
+	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
 
 	private _comments: modes.Comment[] | undefined;
 
@@ -348,7 +348,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _activeCommentThread?: MainThreadCommentThread;
 	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
 
-	private _openPanelListener: IDisposable | null;
+	private _openPanelListener: IDisposable | null = null;
 
 
 	constructor(
