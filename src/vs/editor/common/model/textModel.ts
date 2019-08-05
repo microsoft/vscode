@@ -329,7 +329,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel.MODEL_SYNC_LIMIT);
 
-		this._setVersionId(1);
+		this._versionId = 1;
+		this._alternativeVersionId = 1;
+
 		this._isDisposed = false;
 		this._isDisposing = false;
 
@@ -693,11 +695,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	private _increaseVersionId(): void {
-		this._setVersionId(this._versionId + 1);
-	}
-
-	private _setVersionId(newVersionId: number): void {
-		this._versionId = newVersionId;
+		this._versionId = this._versionId + 1;
 		this._alternativeVersionId = this._versionId;
 	}
 

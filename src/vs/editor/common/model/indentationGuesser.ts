@@ -7,8 +7,8 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ITextBuffer } from 'vs/editor/common/model';
 
 class SpacesDiffResult {
-	public spacesDiff: number;
-	public looksLikeAlignment: boolean;
+	public spacesDiff: number = 0;
+	public looksLikeAlignment: boolean = false;
 }
 
 /**
