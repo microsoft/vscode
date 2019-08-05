@@ -383,7 +383,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 		this._tree.onDidOpen(e => {
 			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			const goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
+			const goto = !e.browserEvent || (e.browserEvent instanceof KeyboardEvent) || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
 
 			if (aside) {
 				onEvent(e.elements[0], 'side');
