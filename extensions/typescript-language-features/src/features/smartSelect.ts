@@ -32,10 +32,10 @@ class SmartSelection implements vscode.SelectionRangeProvider {
 			locations: positions.map(typeConverters.Position.toLocation)
 		};
 		const response = await this.client.execute('selectionRange', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		if (response.type === 'response' && response.body) {
+			return response.body.map(SmartSelection.convertSelectionRange);
 		}
-		return response.body.map(SmartSelection.convertSelectionRange);
+		return undefined;
 	}
 
 	private static convertSelectionRange(

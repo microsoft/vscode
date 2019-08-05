@@ -42,12 +42,11 @@ export class RequestQueue {
 
 	public enqueue(item: RequestItem): void {
 		if (item.queueingType === RequestQueueingType.Normal) {
-			let index = this.queue.length - 1;
-			while (index >= 0) {
+			let index: number;
+			for (index = this.queue.length - 1; index >= 0; --index) {
 				if (this.queue[index].queueingType !== RequestQueueingType.LowPriority) {
 					break;
 				}
-				--index;
 			}
 			this.queue.splice(index + 1, 0, item);
 		} else {

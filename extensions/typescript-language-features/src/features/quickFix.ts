@@ -236,13 +236,12 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			errorCodes: [+(diagnostic.code!)]
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return results;
+		if (response.type === 'response' && response.body) {
+			for (const tsCodeFix of response.body) {
+				this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
+			}
 		}
 
-		for (const tsCodeFix of response.body) {
-			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
-		}
 		return results;
 	}
 

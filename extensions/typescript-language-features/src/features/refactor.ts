@@ -108,10 +108,10 @@ class SelectRefactorCommand implements Command {
 			label: action.name,
 			description: action.description,
 		})));
-		if (!selected) {
-			return false;
+		if (selected) {
+			return this.doRefactoring.execute(document, file, info.name, selected.label, range);
 		}
-		return this.doRefactoring.execute(document, file, info.name, selected.label, range);
+		return false;
 	}
 }
 

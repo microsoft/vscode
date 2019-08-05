@@ -275,12 +275,12 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 	private fetchCallback(seq: number) {
 		const callback = this._callbacks.fetch(seq);
-		if (!callback) {
-			return undefined;
+		if (callback) {
+			this._pendingResponses.delete(seq);
+			return callback;
 		}
 
-		this._pendingResponses.delete(seq);
-		return callback;
+		return undefined;
 	}
 
 	private logTrace(message: string) {
