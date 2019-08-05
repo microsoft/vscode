@@ -56,8 +56,8 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 class MarkersFileDecorations implements IWorkbenchContribution {
 
 	private readonly _disposables: IDisposable[];
-	private _provider: IDisposable;
-	private _enabled: boolean;
+	private _provider?: IDisposable;
+	private _enabled?: boolean;
 
 	constructor(
 		@IMarkerService private readonly _markerService: IMarkerService,
