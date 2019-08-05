@@ -263,8 +263,8 @@ export class ExtHostConfigProvider {
 		const defaultConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.defaults);
 		const userConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.user);
 		const workspaceConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.workspace);
-		const folders: ResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), ExtHostConfigProvider.parseConfigurationModel(data.folders[key]));
+		const folders: ResourceMap<ConfigurationModel> = data.folders.reduce((result, value) => {
+			result.set(URI.revive(value[0]), ExtHostConfigProvider.parseConfigurationModel(value[1]));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
 		return new Configuration(defaultConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);

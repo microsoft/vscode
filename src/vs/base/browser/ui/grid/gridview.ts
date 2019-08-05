@@ -67,9 +67,18 @@ const defaultStyles: IGridViewStyles = {
 	separatorBorder: Color.transparent
 };
 
+export interface ILayoutController {
+	readonly isLayoutEnabled: boolean;
+}
+
+export class LayoutController implements ILayoutController {
+	constructor(public isLayoutEnabled: boolean) { }
+}
+
 export interface IGridViewOptions {
-	styles?: IGridViewStyles;
-	proportionalLayout?: boolean; // default true
+	readonly styles?: IGridViewStyles;
+	readonly proportionalLayout?: boolean; // default true
+	readonly layoutController?: ILayoutController;
 }
 
 class BranchNode implements ISplitView, IDisposable {
@@ -466,7 +475,8 @@ class LeafNode implements ISplitView, IDisposable {
 	constructor(
 		readonly view: IView,
 		readonly orientation: Orientation,
-		orthogonalSize: number = 0
+		readonly layoutController: ILayoutController,
+		orthogonalSize: number
 	) {
 		this._orthogonalSize = orthogonalSize;
 
@@ -536,7 +546,10 @@ class LeafNode implements ISplitView, IDisposable {
 
 	layout(size: number): void {
 		this._size = size;
-		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
+
+		if (this.layoutController.isLayoutEnabled) {
+			this.view.layout(this.width, this.height, orthogonal(this.orientation));
+		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -553,7 +566,10 @@ class LeafNode implements ISplitView, IDisposable {
 
 	orthogonalLayout(size: number): void {
 		this._orthogonalSize = size;
-		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
+
+		if (this.layoutController.isLayoutEnabled) {
+			this.view.layout(this.width, this.height, orthogonal(this.orientation));
+		}
 	}
 
 	dispose(): void { }
@@ -584,7 +600,7 @@ function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number)
 
 		return result as T;
 	} else {
-		return new LeafNode((node as LeafNode).view, orthogonal(node.orientation), orthogonalSize) as T;
+		return new LeafNode((node as LeafNode).view, orthogonal(node.orientation), (node as LeafNode).layoutController, orthogonalSize) as T;
 	}
 }
 
@@ -644,11 +660,14 @@ export class GridView implements IDisposable {
 	private _onDidChange = new Relay<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
+	private layoutController: LayoutController;
+
 	constructor(options: IGridViewOptions = {}) {
 		this.element = $('.monaco-grid-view');
 		this.styles = options.styles || defaultStyles;
 		this.proportionalLayout = typeof options.proportionalLayout !== 'undefined' ? !!options.proportionalLayout : true;
 		this.root = new BranchNode(Orientation.VERTICAL, this.styles, this.proportionalLayout);
+		this.layoutController = options.layoutController || new LayoutController(true);
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -670,7 +689,7 @@ export class GridView implements IDisposable {
 		const [pathToParent, parent] = this.getNode(rest);
 
 		if (parent instanceof BranchNode) {
-			const node = new LeafNode(view, orthogonal(parent.orientation), parent.orthogonalSize);
+			const node = new LeafNode(view, orthogonal(parent.orientation), this.layoutController, parent.orthogonalSize);
 			parent.addChild(node, size, index);
 
 		} else {
@@ -690,14 +709,14 @@ export class GridView implements IDisposable {
 			grandParent.addChild(newParent, parent.size, parentIndex);
 			newParent.orthogonalLayout(parent.orthogonalSize);
 
-			const newSibling = new LeafNode(parent.view, grandParent.orientation, parent.size);
+			const newSibling = new LeafNode(parent.view, grandParent.orientation, this.layoutController, parent.size);
 			newParent.addChild(newSibling, newSiblingSize, 0);
 
 			if (typeof size !== 'number' && size.type === 'split') {
 				size = Sizing.Split(0);
 			}
 
-			const node = new LeafNode(view, grandParent.orientation, parent.size);
+			const node = new LeafNode(view, grandParent.orientation, this.layoutController, parent.size);
 			newParent.addChild(node, size, index);
 		}
 	}
@@ -759,7 +778,7 @@ export class GridView implements IDisposable {
 				grandParent.addChild(child, child.size, parentIndex + i);
 			}
 		} else {
-			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), sibling.size);
+			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), this.layoutController, sibling.size);
 			grandParent.addChild(newSibling, sibling.orthogonalSize, parentIndex);
 		}
 

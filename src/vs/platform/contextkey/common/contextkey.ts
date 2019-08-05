@@ -19,10 +19,10 @@ export const enum ContextKeyExprType {
 }
 
 export interface IContextKeyExprMapper {
-	mapDefined(key: string): ContextKeyDefinedExpr;
-	mapNot(key: string): ContextKeyNotExpr;
-	mapEquals(key: string, value: any): ContextKeyEqualsExpr;
-	mapNotEquals(key: string, value: any): ContextKeyNotEqualsExpr;
+	mapDefined(key: string): ContextKeyExpr;
+	mapNot(key: string): ContextKeyExpr;
+	mapEquals(key: string, value: any): ContextKeyExpr;
+	mapNotEquals(key: string, value: any): ContextKeyExpr;
 	mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr;
 }
 
@@ -190,7 +190,7 @@ function cmp(a: ContextKeyExpr, b: ContextKeyExpr): number {
 }
 
 export class ContextKeyDefinedExpr implements ContextKeyExpr {
-	public static create(key: string): ContextKeyExpr {
+	public static create(key: string): ContextKeyDefinedExpr {
 		return new ContextKeyDefinedExpr(key);
 	}
 
@@ -424,7 +424,7 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 
 export class ContextKeyRegexExpr implements ContextKeyExpr {
 
-	public static create(key: string, regexp: RegExp | null): ContextKeyExpr {
+	public static create(key: string, regexp: RegExp | null): ContextKeyRegexExpr {
 		return new ContextKeyRegexExpr(key, regexp);
 	}
 

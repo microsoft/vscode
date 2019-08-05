@@ -334,7 +334,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		return this.windowsMainService.getWindows().length;
 	}
 
-	async log(severity: string, ...messages: string[]): Promise<void> {
+	async log(severity: string, args: string[]): Promise<void> {
 		let consoleFn = console.log;
 
 		switch (severity) {
@@ -349,7 +349,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 				break;
 		}
 
-		consoleFn(...messages);
+		consoleFn.call(console, ...args);
 	}
 
 	async showItemInFolder(resource: URI): Promise<void> {

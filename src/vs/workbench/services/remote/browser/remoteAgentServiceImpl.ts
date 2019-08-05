@@ -28,7 +28,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		super(environmentService);
 
 		this.socketFactory = new BrowserSocketFactory(webSocketFactory);
-		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, this.socketFactory, environmentService, remoteAuthorityResolverService, signService));
+		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, this.socketFactory, remoteAuthorityResolverService, signService));
 	}
 
 	getConnection(): IRemoteAgentConnection | null {

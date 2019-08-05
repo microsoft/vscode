@@ -634,12 +634,6 @@ suite('SerializableGrid', function () {
 
 		assert.deepEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
 
-		assert.deepEqual(view1Copy.size, [50, 50]);
-		assert.deepEqual(view2Copy.size, [50, 50]);
-		assert.deepEqual(view3Copy.size, [50, 100]);
-		assert.deepEqual(view4Copy.size, [50, 50]);
-		assert.deepEqual(view5Copy.size, [50, 50]);
-
 		grid2.layout(800, 600);
 
 		assert.deepEqual(view1Copy.size, [600, 300]);

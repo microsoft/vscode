@@ -433,6 +433,10 @@
 	z-index: 10;
 }
 
+div.preview.inline .monaco-editor .comment-range-glyph {
+	display: none !important;
+}
+
 .monaco-editor .comment-range-glyph:before {
 	position: absolute;
 	content: "";

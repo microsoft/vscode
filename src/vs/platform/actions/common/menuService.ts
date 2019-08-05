@@ -31,8 +31,8 @@ class Menu extends Disposable implements IMenu {
 
 	private readonly _onDidChange = this._register(new Emitter<IMenu | undefined>());
 
-	private _menuGroups: MenuItemGroup[];
-	private _contextKeys: Set<string>;
+	private _menuGroups!: MenuItemGroup[];
+	private _contextKeys!: Set<string>;
 
 	constructor(
 		private readonly _id: MenuId,

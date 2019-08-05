@@ -19,6 +19,11 @@ export interface IWorkbenchConstructionOptions {
 	remoteAuthority: string;
 
 	/**
+	 * The connection token to send to the server.
+	 */
+	connectionToken?: string;
+
+	/**
 	 * Experimental: An endpoint to serve iframe content ("webview") from. This is required
 	 * to provide full security isolation from the workbench host.
 	 */

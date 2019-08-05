@@ -550,7 +550,7 @@ export class Menubar {
 				})];
 
 			case StateType.CheckingForUpdates:
-				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
+				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking for Updates..."), enabled: false })];
 
 			case StateType.AvailableForDownload:
 				return [new MenuItem({

@@ -10,6 +10,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -77,7 +78,11 @@ function resolveConfigurationVariables(configurationResolverService: IConfigurat
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
 		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
-			env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
+			try {
+				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
+			} catch (e) {
+				env[key] = value;
+			}
 		}
 	});
 	return env;
@@ -119,15 +124,34 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, userHome: string, root?: Uri, customCwd?: string): string {
+export function getCwd(
+	shell: IShellLaunchConfig,
+	userHome: string,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
+	root: Uri | undefined,
+	customCwd: string | undefined,
+	logService?: ILogService
+): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
 
 	let cwd: string | undefined;
 
-	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd && customCwd) {
+		if (configurationResolverService) {
+			try {
+				customCwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
+			} catch (e) {
+				// There was an issue resolving a variable, just use the unresolved customCwd which
+				// which will fail, and log the error in the console.
+				if (logService) {
+					logService.error('Could not resolve terminal.integrated.cwd', e);
+				}
+				return customCwd;
+			}
+		}
 		if (path.isAbsolute(customCwd)) {
 			cwd = customCwd;
 		} else if (root) {
@@ -172,7 +196,8 @@ export function getDefaultShell(
 	windir: string | undefined,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
-	platformOverride: platform.Platform = platform.platform,
+	logService: ILogService,
+	platformOverride: platform.Platform = platform.platform
 ): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
@@ -194,7 +219,12 @@ export function getDefaultShell(
 	}
 
 	if (configurationResolverService) {
-		executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
+		try {
+			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
+		} catch (e) {
+			logService.error(`Could not resolve terminal.integrated.shell.${platformKey}`, e);
+			executable = executable;
+		}
 	}
 
 	return executable;
@@ -205,6 +235,7 @@ export function getDefaultShellArgs(
 	isWorkspaceShellAllowed: boolean,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
+	logService: ILogService,
 	platformOverride: platform.Platform = platform.platform,
 ): string | string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
@@ -216,7 +247,12 @@ export function getDefaultShellArgs(
 	if (configurationResolverService) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
-			resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
+			try {
+				resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
+			} catch (e) {
+				logService.error(`Could not resolve terminal.integrated.shellArgs.${platformKey}`, e);
+				resolvedArgs.push(arg);
+			}
 		}
 		args = resolvedArgs;
 	}
