@@ -17,9 +17,9 @@ export class ExtensionDescriptionRegistry {
 	public readonly onDidChange = this._onDidChange.event;
 
 	private _extensionDescriptions: IExtensionDescription[];
-	private _extensionsMap: Map<string, IExtensionDescription>;
-	private _extensionsArr: IExtensionDescription[];
-	private _activationMap: Map<string, IExtensionDescription[]>;
+	private _extensionsMap!: Map<string, IExtensionDescription>;
+	private _extensionsArr!: IExtensionDescription[];
+	private _activationMap!: Map<string, IExtensionDescription[]>;
 
 	constructor(extensionDescriptions: IExtensionDescription[]) {
 		this._extensionDescriptions = extensionDescriptions;
