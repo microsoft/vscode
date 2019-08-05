@@ -68,8 +68,8 @@ interface IPath {
 export class TerminalLinkHandler {
 	private readonly _hoverDisposables = new DisposableStore();
 	private _mouseMoveDisposable: IDisposable;
-	private _widgetManager: TerminalWidgetManager;
-	private _processCwd: string;
+	private _widgetManager: TerminalWidgetManager | undefined;
+	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
