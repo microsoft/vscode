@@ -59,7 +59,8 @@ export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
 }
 
 export interface ServicesAccessor {
-	get<T>(id: ServiceIdentifier<T>, isOptional?: typeof optional): T;
+	get<T>(id: ServiceIdentifier<T>): T;
+	get<T>(id: ServiceIdentifier<T>, isOptional: typeof optional): T | undefined;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
@@ -114,18 +115,18 @@ export interface ServiceIdentifier<T> {
 }
 
 function storeServiceDependency(id: Function, target: Function, index: number, optional: boolean): void {
-	if (target[_util.DI_TARGET] === target) {
-		target[_util.DI_DEPENDENCIES].push({ id, index, optional });
+	if ((target as any)[_util.DI_TARGET] === target) {
+		(target as any)[_util.DI_DEPENDENCIES].push({ id, index, optional });
 	} else {
-		target[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
-		target[_util.DI_TARGET] = target;
+		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
+		(target as any)[_util.DI_TARGET] = target;
 	}
 }
 
 /**
  * A *only* valid way to create a {{ServiceIdentifier}}.
  */
-export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
+export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 
 	if (_util.serviceIds.has(serviceId)) {
 		return _util.serviceIds.get(serviceId)!;

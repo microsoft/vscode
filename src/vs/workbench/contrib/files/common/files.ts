@@ -9,7 +9,7 @@ import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResou
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,8 +23,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource } from 'vs/base/common/resources';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * Explorer viewlet id.
@@ -60,8 +60,8 @@ export interface IExplorerService {
 	isCut(stat: ExplorerItem): boolean;
 
 	/**
-	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
-	 * resolve the path from the disk in case the explorer is not yet expanded to the file yet.
+	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
+	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
 	select(resource: URI, reveal?: boolean): Promise<void>;
 }
@@ -133,73 +133,81 @@ export const SortOrderConfiguration = {
 
 export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
 
-export class FileOnDiskContentProvider implements ITextModelContentProvider {
-	private fileWatcherDisposable: IDisposable | undefined;
+export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
+	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IModelService private readonly modelService: IModelService
 	) {
+		super();
 	}
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
-		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
-
-		// Make sure our file from disk is resolved up to date
-		return this.resolveEditorModel(resource).then(codeEditorModel => {
-
-			// Make sure to keep contents on disk up to date when it changes
-			if (!this.fileWatcherDisposable) {
-				this.fileWatcherDisposable = this.fileService.onFileChanges(changes => {
-					if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
-						this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
-					}
-				});
-
-				if (codeEditorModel) {
-					once(codeEditorModel.onWillDispose)(() => {
-						dispose(this.fileWatcherDisposable);
-						this.fileWatcherDisposable = undefined;
-					});
-				}
-			}
-
-			return codeEditorModel;
+	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
+		await editorService.openEditor({
+			leftResource: TextFileContentProvider.resourceToTextFile(scheme, resource),
+			rightResource: resource,
+			label,
+			options
 		});
+	}
+
+	private static resourceToTextFile(scheme: string, resource: URI): URI {
+		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme }) });
+	}
+
+	private static textFileToResource(resource: URI): URI {
+		return resource.with({ scheme: JSON.parse(resource.query)['scheme'], query: null });
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel> {
+		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
+
+		// Make sure our text file is resolved up to date
+		const codeEditorModel = await this.resolveEditorModel(resource);
+
+		// Make sure to keep contents up to date when it changes
+		if (!this.fileWatcherDisposable.value) {
+			this.fileWatcherDisposable.value = this.fileService.onFileChanges(changes => {
+				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
+					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
+				}
+			});
+
+			if (codeEditorModel) {
+				once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear());
+			}
+		}
+
+		return codeEditorModel;
 	}
 
 	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
 	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
-	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
-		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
+	private async resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
+		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
 
-		return this.textFileService.resolve(savedFileResource).then(content => {
-			let codeEditorModel = this.modelService.getModel(resource);
-			if (codeEditorModel) {
-				this.modelService.updateModel(codeEditorModel, content.value);
-			} else if (createAsNeeded) {
-				const fileOnDiskModel = this.modelService.getModel(savedFileResource);
+		const content = await this.textFileService.readStream(savedFileResource);
 
-				let languageSelector: ILanguageSelection;
-				if (fileOnDiskModel) {
-					languageSelector = this.modeService.create(fileOnDiskModel.getModeId());
-				} else {
-					languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource.fsPath);
-				}
+		let codeEditorModel = this.modelService.getModel(resource);
+		if (codeEditorModel) {
+			this.modelService.updateModel(codeEditorModel, content.value);
+		} else if (createAsNeeded) {
+			const textFileModel = this.modelService.getModel(savedFileResource);
 
-				codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
+			let languageSelector: ILanguageSelection;
+			if (textFileModel) {
+				languageSelector = this.modeService.create(textFileModel.getModeId());
+			} else {
+				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
 			}
 
-			return codeEditorModel;
-		});
-	}
+			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
+		}
 
-	dispose(): void {
-		dispose(this.fileWatcherDisposable);
-		this.fileWatcherDisposable = undefined;
+		return codeEditorModel;
 	}
 }
 
@@ -241,7 +249,7 @@ export class OpenEditor implements IEditorIdentifier {
 		return this.editor.isDirty();
 	}
 
-	public getResource(): URI | null {
+	public getResource(): URI | undefined {
 		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 }

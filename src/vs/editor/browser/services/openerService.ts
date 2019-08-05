@@ -55,7 +55,7 @@ export class OpenerService implements IOpenerService {
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
 			// open http or default mail application
-			dom.windowOpenNoOpener(resource.toString(true));
+			dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
 			return Promise.resolve(true);
 
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {

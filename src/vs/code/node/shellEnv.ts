@@ -7,11 +7,17 @@ import * as cp from 'child_process';
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-function getUnixShellEnvironment(): Promise<typeof process.env> {
+function getUnixShellEnvironment(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
+		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
+
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+		logService.trace('getUnixShellEnvironment#noAttach', noAttach);
+
 		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
 		const regex = new RegExp(mark + '(.*)' + mark);
 
@@ -21,6 +27,9 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 		});
 
 		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		logService.trace('getUnixShellEnvironment#env', env);
+		logService.trace('getUnixShellEnvironment#spawn', command);
+
 		const child = cp.spawn(process.env.SHELL!, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
@@ -37,6 +46,8 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 			}
 
 			const raw = Buffer.concat(buffers).toString('utf8');
+			logService.trace('getUnixShellEnvironment#raw', raw);
+
 			const match = regex.exec(raw);
 			const rawStripped = match ? match[1] : '{}';
 
@@ -58,8 +69,10 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 				// https://github.com/Microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];
 
+				logService.trace('getUnixShellEnvironment#result', env);
 				resolve(env);
 			} catch (err) {
+				logService.error('getUnixShellEnvironment#error', err);
 				reject(err);
 			}
 		});
@@ -77,14 +90,20 @@ let _shellEnv: Promise<typeof process.env>;
  * This should only be done when Code itself is not launched
  * from within a shell.
  */
-export function getShellEnvironment(): Promise<typeof process.env> {
+export function getShellEnvironment(logService: ILogService, environmentService: IEnvironmentService): Promise<typeof process.env> {
 	if (_shellEnv === undefined) {
-		if (isWindows) {
+		if (environmentService.args['disable-user-env-probe']) {
+			logService.trace('getShellEnvironment: disable-user-env-probe set, skipping');
+			_shellEnv = Promise.resolve({});
+		} else if (isWindows) {
+			logService.trace('getShellEnvironment: running on Windows, skipping');
 			_shellEnv = Promise.resolve({});
 		} else if (process.env['VSCODE_CLI'] === '1') {
+			logService.trace('getShellEnvironment: running on CLI, skipping');
 			_shellEnv = Promise.resolve({});
 		} else {
-			_shellEnv = getUnixShellEnvironment();
+			logService.trace('getShellEnvironment: running on Unix');
+			_shellEnv = getUnixShellEnvironment(logService);
 		}
 	}
 

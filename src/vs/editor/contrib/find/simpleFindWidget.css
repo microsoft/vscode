@@ -52,25 +52,25 @@
 }
 
 .monaco-workbench .simple-find-part .button.previous {
-	background-image: url('images/previous.svg');
+	background-image: url('images/chevron-previous-light.svg');
 }
 
 .monaco-workbench .simple-find-part .button.next {
-	background-image: url('images/next.svg');
+	background-image: url('images/chevron-next-light.svg');
 }
 
 .monaco-workbench .simple-find-part .button.close-fw {
-	background-image: url('images/close.svg');
+	background-image: url('images/close-light.svg');
 }
 
 .hc-black .monaco-workbench .simple-find-part .button.previous,
 .vs-dark .monaco-workbench .simple-find-part .button.previous {
-	background-image: url('images/previous-inverse.svg');
+	background-image: url('images/chevron-previous-dark.svg');
 }
 
 .hc-black .monaco-workbench .simple-find-part .button.next,
 .vs-dark .monaco-workbench .simple-find-part .button.next {
-	background-image: url('images/next-inverse.svg');
+	background-image: url('images/chevron-next-dark.svg');
 }
 
 .hc-black .monaco-workbench .simple-find-part .button.close-fw,
@@ -78,7 +78,7 @@
 	background-image: url('images/close-dark.svg');
 }
 
-monaco-workbench .simple-find-part .button.disabled {
+.monaco-workbench .simple-find-part .button.disabled {
 	opacity: 0.3;
 	cursor: default;
 }

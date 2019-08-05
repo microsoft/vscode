@@ -5,23 +5,33 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
+import * as minimist from 'minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { PersistentProtocol, ProtocolConstants, createBufferedEvent } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
 import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+
+interface ParsedExtHostArgs {
+	uriTransformerPath?: string;
+}
+
+const args = minimist(process.argv.slice(2), {
+	string: [
+		'uriTransformerPath'
+	]
+}) as ParsedExtHostArgs;
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -72,7 +82,7 @@ function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
 	};
 }
 
-const createLogService: ILogServiceFn = initData => createSpdLogService(ExtensionHostLogFileName, initData.logLevel, initData.logsLocation.fsPath);
+const createLogService: ILogServiceFn = initData => new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
@@ -101,27 +111,41 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
+					let socket: NodeSocket | WebSocketNodeSocket;
+					if (msg.skipWebSocketFrames) {
+						socket = new NodeSocket(handle);
+					} else {
+						socket = new WebSocketNodeSocket(new NodeSocket(handle));
+					}
 					if (protocol) {
 						// reconnection case
 						if (disconnectWaitTimer) {
 							clearTimeout(disconnectWaitTimer);
 							disconnectWaitTimer = null;
 						}
-						protocol.beginAcceptReconnection(new NodeSocket(handle), initialDataChunk);
+						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(new NodeSocket(handle), initialDataChunk);
+						protocol = new PersistentProtocol(socket, initialDataChunk);
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
-						protocol.onSocketClose(() => {
-							// The socket has closed, let's give the renderer a certain amount of time to reconnect
-							disconnectWaitTimer = setTimeout(() => {
-								disconnectWaitTimer = null;
+						if (msg.skipWebSocketFrames) {
+							// Wait for rich client to reconnect
+							protocol.onSocketClose(() => {
+								// The socket has closed, let's give the renderer a certain amount of time to reconnect
+								disconnectWaitTimer = setTimeout(() => {
+									disconnectWaitTimer = null;
+									onTerminate();
+								}, ProtocolConstants.ReconnectionGraceTime);
+							});
+						} else {
+							// Do not wait for web companion to reconnect
+							protocol.onSocketClose(() => {
 								onTerminate();
-							}, ProtocolConstants.ReconnectionGraceTime);
-						});
+							});
+						}
 					}
 				}
 			});
@@ -155,16 +179,22 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	return new class implements IMessagePassingProtocol {
 
-		private _terminating = false;
+		private readonly _onMessage = new Emitter<VSBuffer>();
+		readonly onMessage: Event<VSBuffer> = createBufferedEvent(this._onMessage.event);
 
-		readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
-			if (!isMessageOfType(msg, MessageType.Terminate)) {
-				return true;
-			}
-			this._terminating = true;
-			onTerminate();
-			return false;
-		});
+		private _terminating: boolean;
+
+		constructor() {
+			this._terminating = false;
+			protocol.onMessage((msg) => {
+				if (isMessageOfType(msg, MessageType.Terminate)) {
+					this._terminating = true;
+					onTerminate();
+				} else {
+					this._onMessage.fire(msg);
+				}
+			});
+		}
 
 		send(msg: any): void {
 			if (!this._terminating) {
@@ -272,11 +302,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	}
 })();
 
-export async function startExtensionHostProcess(
-	uriTransformerFn: (initData: IInitData) => IURITransformer | null,
-	schemeTransformerFn: (initData: IInitData) => ISchemeTransformer | null,
-	outputChannelNameFn: (initData: IInitData) => string,
-): Promise<void> {
+export async function startExtensionHostProcess(): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
 	const renderer = await connectToRenderer(protocol);
@@ -291,6 +317,17 @@ export async function startExtensionHostProcess(
 		realpath(path: string) { return realpath(path); }
 	};
 
+	// Attempt to load uri transformer
+	let uriTransformer: IURITransformer | null = null;
+	if (initData.remote.authority && args.uriTransformerPath) {
+		try {
+			const rawURITransformerFactory = <any>require.__$__nodeRequire(args.uriTransformerPath);
+			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remote.authority);
+			uriTransformer = new URITransformer(rawURITransformer);
+		} catch (e) {
+			console.error(e);
+		}
+	}
 
 	const extensionHostMain = new ExtensionHostMain(
 		renderer.protocol,
@@ -298,9 +335,7 @@ export async function startExtensionHostProcess(
 		hostUtils,
 		patchPatchedConsole,
 		createLogService,
-		uriTransformerFn(initData),
-		schemeTransformerFn(initData),
-		outputChannelNameFn(initData)
+		uriTransformer
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown

@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -150,9 +150,8 @@ export class HideWelcomeOverlayAction extends Action {
 	}
 }
 
-class WelcomeOverlay {
+class WelcomeOverlay extends Disposable {
 
-	private _toDispose: IDisposable[] = [];
 	private _overlayVisible: IContextKey<boolean>;
 	private _overlay: HTMLElement;
 
@@ -163,6 +162,7 @@ class WelcomeOverlay {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
+		super();
 		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
 		this.create();
 	}
@@ -177,7 +177,7 @@ class WelcomeOverlay {
 		this._overlay.style.display = 'none';
 		this._overlay.tabIndex = -1;
 
-		this._toDispose.push(dom.addStandardDisposableListener(this._overlay, 'click', () => this.hide()));
+		this._register(dom.addStandardDisposableListener(this._overlay, 'click', () => this.hide()));
 		this.commandService.onWillExecuteCommand(() => this.hide());
 
 		dom.append(this._overlay, $('.commandPalettePlaceholder'));
@@ -214,7 +214,7 @@ class WelcomeOverlay {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('.task-statusbar-item');
+		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .octicon.octicon-warning');
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -236,10 +236,6 @@ class WelcomeOverlay {
 			dom.removeClass(workbench, 'blur-background');
 			this._overlayVisible.reset();
 		}
-	}
-
-	dispose() {
-		this._toDispose = dispose(this._toDispose);
 	}
 }
 

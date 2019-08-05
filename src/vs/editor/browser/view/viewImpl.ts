@@ -132,7 +132,7 @@ export class View extends ViewEventHandler {
 		this._setLayout();
 
 		// Pointer handler
-		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
+		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
 
 		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
@@ -341,8 +341,6 @@ export class View extends ViewEventHandler {
 
 		this.eventDispatcher.removeEventHandler(this);
 		this.outgoingEvents.dispose();
-
-		this.pointerHandler.dispose();
 
 		this.viewLines.dispose();
 

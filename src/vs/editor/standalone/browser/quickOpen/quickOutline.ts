@@ -26,12 +26,12 @@ let SCOPE_PREFIX = ':';
 export class SymbolEntry extends QuickOpenEntryGroup {
 	private readonly name: string;
 	private readonly type: string;
-	private readonly description: string | null;
+	private readonly description: string | undefined;
 	private readonly range: Range;
 	private readonly editor: ICodeEditor;
 	private readonly decorator: IDecorator;
 
-	constructor(name: string, type: string, description: string | null, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
+	constructor(name: string, type: string, description: string | undefined, range: Range, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator) {
 		super();
 
 		this.name = name;
@@ -55,7 +55,7 @@ export class SymbolEntry extends QuickOpenEntryGroup {
 		return this.type;
 	}
 
-	public getDescription(): string | null {
+	public getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -169,7 +169,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	private symbolEntry(name: string, type: string, description: string | null, range: IRange, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
+	private symbolEntry(name: string, type: string, description: string | undefined, range: IRange, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
 		return new SymbolEntry(name, type, description, Range.lift(range), highlights, editor, decorator);
 	}
 
@@ -192,7 +192,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			if (highlights) {
 
 				// Show parent scope as description
-				let description: string | null = null;
+				let description: string | undefined = undefined;
 				if (element.containerName) {
 					description = element.containerName;
 				}

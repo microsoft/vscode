@@ -780,7 +780,8 @@ export class DiffReview extends Disposable {
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
 			config.viewInfo.renderControlCharacters,
-			config.viewInfo.fontLigatures
+			config.viewInfo.fontLigatures,
+			null
 		));
 
 		return r.html;

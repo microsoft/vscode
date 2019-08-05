@@ -27,23 +27,31 @@
 }
 
 .monaco-panel-view .panel > .panel-header {
-	background-image: url('arrow-collapse.svg');
+	background-image: url('tree-collapsed-light.svg');
 	background-position: 2px center;
 	background-repeat: no-repeat;
 }
 
 .monaco-panel-view .panel > .panel-header.expanded {
-	background-image: url('arrow-expand.svg');
+	background-image: url('tree-expanded-light.svg');
 	background-position: 2px center;
 	background-repeat: no-repeat;
 }
 
 .vs-dark .monaco-panel-view .panel > .panel-header {
-	background-image: url('arrow-collapse-dark.svg');
+	background-image: url('tree-collapsed-dark.svg');
 }
 
 .vs-dark .monaco-panel-view .panel > .panel-header.expanded {
-	background-image: url('arrow-expand-dark.svg');
+	background-image: url('tree-expanded-dark.svg');
+}
+
+.hc-black .monaco-panel-view .panel > .panel-header {
+	background-image: url('tree-collapsed-hc.svg');
+}
+
+.hc-black .monaco-panel-view .panel > .panel-header.expanded {
+	background-image: url('tree-expanded-hc.svg');
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */

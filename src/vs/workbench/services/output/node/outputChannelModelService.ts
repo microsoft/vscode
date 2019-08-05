@@ -117,8 +117,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 	}
 
 	private loadFile(): Promise<string> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
-			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value);
+		return this.fileService.readFile(this.file, { position: this.startOffset })
+			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value.toString());
 	}
 
 	protected updateModel(): void {
@@ -169,10 +169,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 		} catch (e) {
 			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
 			this.logService.error(e);
-			/* __GDPR__
-				"output.channel.creation.error" : {}
-			*/
-			this.telemetryService.publicLog('output.channel.creation.error');
+			this.telemetryService.publicLog2('output.channel.creation.error');
 			outputChannelModel = this.instantiationService.createInstance(BufferredOutputChannel, modelUri, mimeType);
 		}
 		this._register(outputChannelModel);

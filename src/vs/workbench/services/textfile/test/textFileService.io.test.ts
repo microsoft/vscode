@@ -5,11 +5,11 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService, TestEnvironmentService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IFileService, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -17,21 +17,22 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
+import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
+import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
 import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
-import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
+import { readFileSync, statSync } from 'fs';
+import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 
 class ServiceAccessor {
 	constructor(
@@ -49,7 +50,7 @@ class ServiceAccessor {
 class TestNodeTextFileService extends NodeTextFileService {
 
 	private _testEncoding: TestEncodingOracle;
-	protected get encoding(): TestEncodingOracle {
+	get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}
@@ -75,7 +76,7 @@ suite('Files - TextFileService i/o', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	let accessor: ServiceAccessor;
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 	let service: ITextFileService;
 	let testDir: string;
 
@@ -84,18 +85,11 @@ suite('Files - TextFileService i/o', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 
 		const logService = new NullLogService();
-		const fileService = new FileService2(logService);
+		const fileService = new FileService(logService);
 
 		const fileProvider = new DiskFileSystemProvider(logService);
-		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
-
-		fileService.setLegacyService(new LegacyFileService(
-			fileService,
-			accessor.contextService,
-			TestEnvironmentService,
-			new TestTextResourceConfigurationService()
-		));
+		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
@@ -114,7 +108,7 @@ suite('Files - TextFileService i/o', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();
 
-		disposables = dispose(disposables);
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});
@@ -246,14 +240,17 @@ suite('Files - TextFileService i/o', () => {
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, encoding);
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.readStream(resource);
 		assert.equal(resolved.encoding, encoding);
 
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
 	}
 
 	test('write - use encoding (cp1252)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_cp1252.txt')), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(isWindows ? '\r\n' : '\n'));
+		const filePath = join(testDir, 'some_cp1252.txt');
+		const contents = await readFile(filePath, 'utf8');
+		const eol = /\r\n/.test(contents) ? '\r\n' : '\n';
+		await testEncodingKeepsData(URI.file(filePath), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(eol));
 	});
 
 	test('write - use encoding (shiftjis)', async () => {
@@ -273,18 +270,18 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
-		let resolved = await service.resolve(resource, { encoding });
+		let resolved = await service.readStream(resource, { encoding });
 		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false));
 		assert.equal(content, expected);
 
 		await service.write(resource, content, { encoding });
 
-		resolved = await service.resolve(resource, { encoding });
+		resolved = await service.readStream(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot(), { encoding });
 
-		resolved = await service.resolve(resource, { encoding });
+		resolved = await service.readStream(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 	}
 
@@ -295,8 +292,8 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, content);
 
-		const resolved = await service.resolve(resource);
-		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
+		const resolved = await service.readStream(resource);
+		assert.equal(resolved.value.getFirstLineText(999999), content);
 	});
 
 	test('write - no encoding - content as snapshot', async () => {
@@ -306,14 +303,14 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot());
 
-		const resolved = await service.resolve(resource);
-		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
+		const resolved = await service.readStream(resource);
+		assert.equal(resolved.value.getFirstLineText(999999), content);
 	});
 
 	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.readStream(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, 'Hello\nWorld', 'Hello\nWorld');
@@ -322,7 +319,7 @@ suite('Files - TextFileService i/o', () => {
 	test('write - encoding preserved (UTF 16 LE) - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.readStream(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
@@ -411,5 +408,209 @@ suite('Files - TextFileService i/o', () => {
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8);
+	});
+
+	test('readStream - small text', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await testReadStream(resource);
+	});
+
+	test('readStream - large text', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		await testReadStream(resource);
+	});
+
+	async function testReadStream(resource: URI): Promise<void> {
+		const result = await service.readStream(resource);
+
+		assert.equal(result.name, basename(resource.fsPath));
+		assert.equal(result.size, statSync(resource.fsPath).size);
+		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(TextModel.createFromString(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
+	}
+
+	test('read - small text', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await testRead(resource);
+	});
+
+	test('read - large text', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		await testRead(resource);
+	});
+
+	async function testRead(resource: URI): Promise<void> {
+		const result = await service.read(resource);
+
+		assert.equal(result.name, basename(resource.fsPath));
+		assert.equal(result.size, statSync(resource.fsPath).size);
+		assert.equal(result.value, readFileSync(resource.fsPath).toString());
+	}
+
+	test('readStream - encoding picked up (CP1252)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'windows1252';
+
+		const result = await service.readStream(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value.getFirstLineText(999999), 'Private = "Persönlicheß Information"');
+	});
+
+	test('read - encoding picked up (CP1252)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'windows1252';
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value, 'Private = "Persönlicheß Information"');
+	});
+
+	test('read - encoding picked up (binary)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'binary';
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value, 'Private = "Persönlicheß Information"');
+	});
+
+	test('read - encoding picked up (base64)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'base64';
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value, btoa('Private = "Persönlicheß Information"'));
+	});
+
+	test('readStream - user overrides BOM', async () => {
+		const resource = URI.file(join(testDir, 'some_utf16le.css'));
+
+		const result = await service.readStream(resource, { encoding: 'windows1252' });
+		assert.equal(result.encoding, 'windows1252');
+	});
+
+	test('readStream - BOM removed', async () => {
+		const resource = URI.file(join(testDir, 'some_utf8_bom.txt'));
+
+		const result = await service.readStream(resource);
+		assert.equal(result.value.getFirstLineText(999999), 'This is some UTF 8 with BOM file.');
+	});
+
+	test('readStream - invalid encoding', async () => {
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		const result = await service.readStream(resource, { encoding: 'superduper' });
+		assert.equal(result.encoding, 'utf8');
+	});
+
+	test('readStream - encoding override', async () => {
+		const resource = URI.file(join(testDir, 'some.utf16le'));
+
+		const result = await service.readStream(resource, { encoding: 'windows1252' });
+		assert.equal(result.encoding, 'utf16le');
+		assert.equal(result.value.getFirstLineText(999999), 'This is some UTF 16 with BOM file.');
+	});
+
+	test('readStream - large Big5', async () => {
+		await testLargeEncoding('big5', '中文abc');
+	});
+
+	test('readStream - large CP1252', async () => {
+		await testLargeEncoding('cp1252', 'öäüß');
+	});
+
+	test('readStream - large Cyrillic', async () => {
+		await testLargeEncoding('cp866', 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя');
+	});
+
+	test('readStream - large GBK', async () => {
+		await testLargeEncoding('gbk', '中国abc');
+	});
+
+	test('readStream - large ShiftJS', async () => {
+		await testLargeEncoding('shiftjis', '中文abc');
+	});
+
+	test('readStream - large UTF8 BOM', async () => {
+		await testLargeEncoding('utf8bom', 'öäüß');
+	});
+
+	test('readStream - large UTF16 LE', async () => {
+		await testLargeEncoding('utf16le', 'öäüß');
+	});
+
+	test('readStream - large UTF16 BE', async () => {
+		await testLargeEncoding('utf16be', 'öäüß');
+	});
+
+	async function testLargeEncoding(encoding: string, needle: string): Promise<void> {
+		const resource = URI.file(join(testDir, `lorem_${encoding}.txt`));
+
+		const result = await service.readStream(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+
+		const contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false));
+
+		assert.equal(contents.indexOf(needle), 0);
+		assert.ok(contents.indexOf(needle, 10) > 0);
+	}
+
+	test('readStream - UTF16 LE (no BOM)', async () => {
+		const resource = URI.file(join(testDir, 'utf16_le_nobom.txt'));
+
+		const result = await service.readStream(resource);
+		assert.equal(result.encoding, 'utf16le');
+	});
+
+	test('readStream - UTF16 BE (no BOM)', async () => {
+		const resource = URI.file(join(testDir, 'utf16_be_nobom.txt'));
+
+		const result = await service.readStream(resource);
+		assert.equal(result.encoding, 'utf16be');
+	});
+
+	test('readStream - autoguessEncoding', async () => {
+		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
+
+		const result = await service.readStream(resource, { autoGuessEncoding: true });
+		assert.equal(result.encoding, 'windows1252');
+	});
+
+	test('readStream - FILE_IS_BINARY', async () => {
+		const resource = URI.file(join(testDir, 'binary.txt'));
+
+		let error: TextFileOperationError | undefined = undefined;
+		try {
+			await service.readStream(resource, { acceptTextOnly: true });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+
+		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
+		assert.equal(result.name, 'small.txt');
+	});
+
+	test('read - FILE_IS_BINARY', async () => {
+		const resource = URI.file(join(testDir, 'binary.txt'));
+
+		let error: TextFileOperationError | undefined = undefined;
+		try {
+			await service.read(resource, { acceptTextOnly: true });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+
+		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
+		assert.equal(result.name, 'small.txt');
 	});
 });

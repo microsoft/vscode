@@ -97,6 +97,8 @@ export class Configuration extends BaseConfiguration {
 	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
+		userLocal?: C,
+		userRemote?: C,
 		workspace?: C,
 		workspaceFolder?: C
 		memory?: C

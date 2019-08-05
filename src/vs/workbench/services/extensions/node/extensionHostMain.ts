@@ -19,7 +19,6 @@ import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -53,9 +52,7 @@ export class ExtensionHostMain {
 		hostUtils: IHostUtils,
 		consolePatchFn: IConsolePatchFn,
 		logServiceFn: ILogServiceFn,
-		uriTransformer: IURITransformer | null,
-		schemeTransformer: ISchemeTransformer | null,
-		outputChannelName: string,
+		uriTransformer: IURITransformer | null
 	) {
 		this._isTerminating = false;
 		this._hostUtils = hostUtils;
@@ -86,8 +83,7 @@ export class ExtensionHostMain {
 			extHostConfiguraiton,
 			initData.environment,
 			this._extHostLogService,
-			schemeTransformer,
-			outputChannelName
+			uriTransformer
 		);
 
 		// error forwarding and stack trace scanning

@@ -19,12 +19,16 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ActivePanelContext } from 'vs/workbench/common/panel';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -105,8 +109,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowProblemsPanelActio
 registerAction({
 	id: Constants.MARKER_COPY_ACTION_ID,
 	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
-	handler(accessor) {
-		copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -123,8 +127,8 @@ registerAction({
 registerAction({
 	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	handler(accessor) {
-		copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -135,8 +139,8 @@ registerAction({
 registerAction({
 	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	handler(accessor) {
-		copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -201,32 +205,32 @@ registerAction({
 	}
 });
 
-function copyMarker(panelService: IPanelService, clipboardService: IClipboardService) {
+async function copyMarker(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboardService.writeText(`${element}`);
+			await clipboardService.writeText(`${element}`);
 		}
 	}
 }
 
-function copyMessage(panelService: IPanelService, clipboardService: IClipboardService) {
+async function copyMessage(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboardService.writeText(element.marker.message);
+			await clipboardService.writeText(element.marker.message);
 		}
 	}
 }
 
-function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService) {
+async function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof RelatedInformation) {
-			clipboardService.writeText(element.raw.message);
+			await clipboardService.writeText(element.raw.message);
 		}
 	}
 }
@@ -253,3 +257,86 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	},
 	order: 4
 });
+
+CommandsRegistry.registerCommand('workbench.actions.view.toggleProblems', accessor => {
+	const panelService = accessor.get(IPanelService);
+	const panel = accessor.get(IPanelService).getActivePanel();
+	if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
+		panelService.hideActivePanel();
+	} else {
+		panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+	}
+});
+
+class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
+
+	private markersStatusItem: IStatusbarEntryAccessor;
+
+	constructor(
+		@IMarkerService private readonly markerService: IMarkerService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService
+	) {
+		super();
+		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', localize('status.problems', "Problems"), StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+	}
+
+	private getMarkersItem(): IStatusbarEntry {
+		const markersStatistics = this.markerService.getStatistics();
+		return {
+			text: this.getMarkersText(markersStatistics),
+			tooltip: this.getMarkersTooltip(markersStatistics),
+			command: 'workbench.actions.view.toggleProblems'
+		};
+	}
+
+	private getMarkersTooltip(stats: MarkerStatistics): string {
+		const errorTitle = (n: number) => localize('totalErrors', "{0} Errors", n);
+		const warningTitle = (n: number) => localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = (n: number) => localize('totalInfos', "{0} Infos", n);
+
+		const titles: string[] = [];
+
+		if (stats.errors > 0) {
+			titles.push(errorTitle(stats.errors));
+		}
+
+		if (stats.warnings > 0) {
+			titles.push(warningTitle(stats.warnings));
+		}
+
+		if (stats.infos > 0) {
+			titles.push(infoTitle(stats.infos));
+		}
+
+		if (titles.length === 0) {
+			return localize('noProblems', "No Problems");
+		}
+
+		return titles.join(', ');
+	}
+
+	private getMarkersText(stats: MarkerStatistics): string {
+		const problemsText: string[] = [];
+
+		// Errors
+		problemsText.push('$(error) ' + this.packNumber(stats.errors));
+
+		// Warnings
+		problemsText.push('$(warning) ' + this.packNumber(stats.warnings));
+
+		// Info (only if any)
+		if (stats.infos > 0) {
+			problemsText.push('$(info) ' + this.packNumber(stats.infos));
+		}
+
+		return problemsText.join(' ');
+	}
+
+	private packNumber(n: number): string {
+		const manyProblems = localize('manyProblems', "10K+");
+		return n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+	}
+}
+
+workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);

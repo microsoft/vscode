@@ -64,7 +64,12 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
+}
+
 export interface ITokenColorCustomizations {
+	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITokenColorizationRule[];
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -99,5 +104,6 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
+	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
 	_watch: boolean; // unsupported options to watch location
 }

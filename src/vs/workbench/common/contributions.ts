@@ -80,9 +80,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 
 		// Otherwise wait for phase to be reached
 		else {
-			lifecycleService.when(phase).then(() => {
-				this.doInstantiateByPhase(instantiationService, phase);
-			});
+			lifecycleService.when(phase).then(() => this.doInstantiateByPhase(instantiationService, phase));
 		}
 	}
 

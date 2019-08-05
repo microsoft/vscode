@@ -10,6 +10,51 @@ export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
 	transformOutgoing(uri: UriComponents): UriComponents;
 	transformOutgoingURI(uri: URI): URI;
+	transformOutgoingScheme(scheme: string): string;
+}
+
+export interface UriParts {
+	scheme: string;
+	authority?: string;
+	path?: string;
+}
+
+export interface IRawURITransformer {
+	transformIncoming(uri: UriParts): UriParts;
+	transformOutgoing(uri: UriParts): UriParts;
+	transformOutgoingScheme(scheme: string): string;
+}
+
+function toJSON(uri: URI): UriComponents {
+	return <UriComponents><any>uri.toJSON();
+}
+
+export class URITransformer implements IURITransformer {
+
+	private readonly _uriTransformer: IRawURITransformer;
+
+	constructor(uriTransformer: IRawURITransformer) {
+		this._uriTransformer = uriTransformer;
+	}
+
+	public transformIncoming(uri: UriComponents): UriComponents {
+		const result = this._uriTransformer.transformIncoming(uri);
+		return (result === uri ? uri : toJSON(URI.from(result)));
+	}
+
+	public transformOutgoing(uri: UriComponents): UriComponents {
+		const result = this._uriTransformer.transformOutgoing(uri);
+		return (result === uri ? uri : toJSON(URI.from(result)));
+	}
+
+	public transformOutgoingURI(uri: URI): URI {
+		const result = this._uriTransformer.transformOutgoing(uri);
+		return (result === uri ? uri : URI.from(result));
+	}
+
+	public transformOutgoingScheme(scheme: string): string {
+		return this._uriTransformer.transformOutgoingScheme(scheme);
+	}
 }
 
 export const DefaultURITransformer: IURITransformer = new class {
@@ -23,6 +68,10 @@ export const DefaultURITransformer: IURITransformer = new class {
 
 	transformOutgoingURI(uri: URI): URI {
 		return uri;
+	}
+
+	transformOutgoingScheme(scheme: string): string {
+		return scheme;
 	}
 };
 

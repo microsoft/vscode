@@ -47,9 +47,9 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		return this._name;
 	}
 
-	set(uri: vscode.Uri, diagnostics: vscode.Diagnostic[]): void;
-	set(entries: [vscode.Uri, vscode.Diagnostic[]][]): void;
-	set(first: vscode.Uri | [vscode.Uri, vscode.Diagnostic[]][], diagnostics?: vscode.Diagnostic[]) {
+	set(uri: vscode.Uri, diagnostics: ReadonlyArray<vscode.Diagnostic>): void;
+	set(entries: ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>): void;
+	set(first: vscode.Uri | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>, diagnostics?: ReadonlyArray<vscode.Diagnostic>) {
 
 		if (!first) {
 			// this set-call is a clear-call
@@ -167,7 +167,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._proxy.$clear(this._owner);
 	}
 
-	forEach(callback: (uri: URI, diagnostics: vscode.Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void {
+	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
 		this._data.forEach((value, key) => {
 			const uri = URI.parse(key);
@@ -175,11 +175,11 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		});
 	}
 
-	get(uri: URI): vscode.Diagnostic[] {
+	get(uri: URI): ReadonlyArray<vscode.Diagnostic> {
 		this._checkDisposed();
 		const result = this._data.get(uri.toString());
 		if (Array.isArray(result)) {
-			return <vscode.Diagnostic[]>Object.freeze(result.slice(0));
+			return <ReadonlyArray<vscode.Diagnostic>>Object.freeze(result.slice(0));
 		}
 		return [];
 	}
@@ -278,10 +278,10 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		return result;
 	}
 
-	getDiagnostics(resource: vscode.Uri): vscode.Diagnostic[];
-	getDiagnostics(): [vscode.Uri, vscode.Diagnostic[]][];
-	getDiagnostics(resource?: vscode.Uri): vscode.Diagnostic[] | [vscode.Uri, vscode.Diagnostic[]][];
-	getDiagnostics(resource?: vscode.Uri): vscode.Diagnostic[] | [vscode.Uri, vscode.Diagnostic[]][] {
+	getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic>;
+	getDiagnostics(): ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>;
+	getDiagnostics(resource?: vscode.Uri): ReadonlyArray<vscode.Diagnostic> | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]>;
+	getDiagnostics(resource?: vscode.Uri): ReadonlyArray<vscode.Diagnostic> | ReadonlyArray<[vscode.Uri, ReadonlyArray<vscode.Diagnostic>]> {
 		if (resource) {
 			return this._getDiagnostics(resource);
 		} else {
@@ -302,7 +302,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 	}
 
-	private _getDiagnostics(resource: vscode.Uri): vscode.Diagnostic[] {
+	private _getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		let res: vscode.Diagnostic[] = [];
 		this._collections.forEach(collection => {
 			if (collection.has(resource)) {

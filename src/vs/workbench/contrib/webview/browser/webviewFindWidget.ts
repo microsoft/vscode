@@ -44,6 +44,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		} else {
 			this._delegate.stopFind(false);
 		}
+		return false;
 	}
 
 	protected onFocusTrackerFocus() { }

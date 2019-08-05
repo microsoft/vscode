@@ -5,7 +5,7 @@
 
 import { assign } from 'vs/base/common/objects';
 import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
-import { SystemInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export interface IssueReporterData {
 	issueType: IssueType;
@@ -75,7 +75,8 @@ ${this.getInfos()}
 
 	private getRemoteOSes(): string {
 		if (this._data.systemInfo && this._data.systemInfo.remoteData.length) {
-			return this._data.systemInfo.remoteData.map(remote => `Remote OS version: ${remote.machineInfo.os}`).join('\n') + '\n';
+			return this._data.systemInfo.remoteData
+				.map(remote => isRemoteDiagnosticError(remote) ? remote.errorMessage : `Remote OS version: ${remote.machineInfo.os}`).join('\n') + '\n';
 		}
 
 		return '';
@@ -168,7 +169,10 @@ ${this.getInfos()}
 |VM|${this._data.systemInfo.vmHint}|`;
 
 			this._data.systemInfo.remoteData.forEach(remote => {
-				md += `
+				if (isRemoteDiagnosticError(remote)) {
+					md += `\n\n${remote.errorMessage}`;
+				} else {
+					md += `
 
 |Item|Value|
 |---|---|
@@ -177,6 +181,7 @@ ${this.getInfos()}
 |CPUs|${remote.machineInfo.cpus}|
 |Memory (System)|${remote.machineInfo.memory}|
 |VM|${remote.machineInfo.vmHint}|`;
+				}
 			});
 		}
 

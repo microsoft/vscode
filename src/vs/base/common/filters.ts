@@ -125,7 +125,11 @@ const wordSeparators = new Set<number>();
 	.forEach(s => wordSeparators.add(s.charCodeAt(0)));
 
 function isWordSeparator(code: number): boolean {
-	return wordSeparators.has(code);
+	return isWhitespace(code) || wordSeparators.has(code);
+}
+
+function charactersMatch(codeA: number, codeB: number): boolean {
+	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
 }
 
 function isAlphanumeric(code: number): boolean {
@@ -298,7 +302,7 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 		return [];
 	} else if (j === target.length) {
 		return null;
-	} else if (word[i] !== target[j]) {
+	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
 		return null;
 	} else {
 		let result: IMatch[] | null = null;
@@ -316,9 +320,8 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 
 function nextWord(word: string, start: number): number {
 	for (let i = start; i < word.length; i++) {
-		const c = word.charCodeAt(i);
-		if (isWhitespace(c) || (i > 0 && isWhitespace(word.charCodeAt(i - 1))) ||
-			isWordSeparator(c) || (i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
+		if (isWordSeparator(word.charCodeAt(i)) ||
+			(i > 0 && isWordSeparator(word.charCodeAt(i - 1)))) {
 			return i;
 		}
 	}
@@ -376,6 +379,12 @@ export function anyScore(pattern: string, lowPattern: string, _patternPos: numbe
 			score += 1;
 			matches += 2 ** wordPos;
 			idx = wordPos + 1;
+
+		} else if (matches !== 0) {
+			// once we have started matching things
+			// we need to match the remaining pattern
+			// characters
+			break;
 		}
 	}
 	return [score, matches, _wordPos];
@@ -405,7 +414,7 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 	return res;
 }
 
-const _maxLen = 53;
+const _maxLen = 128;
 
 function initTable() {
 	const table: number[][] = [];
@@ -486,7 +495,7 @@ function isUpperCaseAtPos(pos: number, word: string, wordLow: string): boolean {
 	return word[pos] !== wordLow[pos];
 }
 
-function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
+export function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
 	while (patternPos < patternLen && wordPos < wordLen) {
 		if (patternLow[patternPos] === wordLow[wordPos]) {
 			patternPos += 1;
@@ -510,7 +519,7 @@ export namespace FuzzyScore {
 	/**
 	 * No matches and value `-100`
 	 */
-	export const Default: [-100, 0, 0] = [-100, 0, 0];
+	export const Default: [-100, 0, 0] = <[-100, 0, 0]>Object.freeze([-100, 0, 0]);
 
 	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
 		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);

@@ -27,7 +27,8 @@ export class Link implements ILink {
 	toJSON(): ILink {
 		return {
 			range: this.range,
-			url: this.url
+			url: this.url,
+			tooltip: this.tooltip
 		};
 	}
 
@@ -37,6 +38,10 @@ export class Link implements ILink {
 
 	get url(): URI | string | undefined {
 		return this._link.url;
+	}
+
+	get tooltip(): string | undefined {
+		return this._link.tooltip;
 	}
 
 	resolve(token: CancellationToken): Promise<URI> {
@@ -143,7 +148,14 @@ export function getLinks(model: ITextModel, token: CancellationToken): Promise<L
 		}, onUnexpectedExternalError);
 	});
 
-	return Promise.all(promises).then(() => new LinksList(coalesce(lists)));
+	return Promise.all(promises).then(() => {
+		const result = new LinksList(coalesce(lists));
+		if (!token.isCancellationRequested) {
+			return result;
+		}
+		result.dispose();
+		return new LinksList([]);
+	});
 }
 
 

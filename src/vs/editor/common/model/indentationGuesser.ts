@@ -177,22 +177,26 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	}
 
 	let tabSize = defaultTabSize;
-	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
 
-	// console.log("score threshold: " + tabSizeScore);
+	// Guess tabSize only if inserting spaces...
+	if (insertSpaces) {
+		let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
 
-	ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
-		let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
-		if (possibleTabSizeScore > tabSizeScore) {
-			tabSizeScore = possibleTabSizeScore;
-			tabSize = possibleTabSize;
+		// console.log("score threshold: " + tabSizeScore);
+
+		ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
+			let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
+			if (possibleTabSizeScore > tabSizeScore) {
+				tabSizeScore = possibleTabSizeScore;
+				tabSize = possibleTabSize;
+			}
+		});
+
+		// Let a tabSize of 2 win even if it is not the maximum
+		// (only in case 4 was guessed)
+		if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
+			tabSize = 2;
 		}
-	});
-
-	// Let a tabSize of 2 win even if it is not the maximum
-	// (only in case 4 was guessed)
-	if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
-		tabSize = 2;
 	}
 
 

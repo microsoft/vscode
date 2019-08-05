@@ -137,8 +137,7 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 			case 'debugWithChrome':
 
-				const chrome = vscode.extensions.getExtension('msjsdiag.debugger-for-chrome');
-				if (chrome) {
+				if (vscode.env.remoteName === 'wsl' || !!vscode.extensions.getExtension('msjsdiag.debugger-for-chrome')) {
 					vscode.debug.startDebugging(session.workspaceFolder, {
 						type: 'chrome',
 						name: 'Chrome Debug',
@@ -147,7 +146,7 @@ class ServerReadyDetector extends vscode.Disposable {
 						webRoot: args.webRoot || WEB_ROOT
 					}, session);
 				} else {
-					const errMsg = localize('server.ready.chrome.not.installed', "The action 'debugWithChrome' requires the '{0}'", 'Debugger for Chrome');
+					const errMsg = localize('server.ready.chrome.not.installed', "The action '{0}' requires the '{1}' extension.", 'debugWithChrome', 'Debugger for Chrome');
 					vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				}
 				break;

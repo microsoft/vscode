@@ -39,6 +39,7 @@ export interface IRelatedInformation {
 
 export const enum MarkerTag {
 	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum MarkerSeverity {
@@ -69,6 +70,15 @@ export namespace MarkerSeverity {
 			case Severity.Warning: return MarkerSeverity.Warning;
 			case Severity.Info: return MarkerSeverity.Info;
 			case Severity.Ignore: return MarkerSeverity.Hint;
+		}
+	}
+
+	export function toSeverity(severity: MarkerSeverity): Severity {
+		switch (severity) {
+			case MarkerSeverity.Error: return Severity.Error;
+			case MarkerSeverity.Warning: return Severity.Warning;
+			case MarkerSeverity.Info: return Severity.Info;
+			case MarkerSeverity.Hint: return Severity.Ignore;
 		}
 	}
 }

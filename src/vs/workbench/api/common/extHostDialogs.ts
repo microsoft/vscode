@@ -17,7 +17,7 @@ export class ExtHostDialogs {
 
 	showOpenDialog(options: vscode.OpenDialogOptions): Promise<URI[] | undefined> {
 		return this._proxy.$showOpenDialog(options).then(filepaths => {
-			return filepaths ? filepaths.map(URI.revive) : undefined;
+			return filepaths ? filepaths.map(p => URI.revive(p)) : undefined;
 		});
 	}
 

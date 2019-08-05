@@ -13,6 +13,7 @@ import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/file
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
+import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
@@ -42,9 +43,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	test('add, remove, clear, get, getAll', function () {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
-		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8');
-		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8');
-		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random3.txt'), 'utf8');
+		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
+		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
+		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random3.txt'), 'utf8', undefined);
 
 		manager.add(URI.file('/test.html'), model1);
 		manager.add(URI.file('/some/other.html'), model2);
@@ -117,9 +118,9 @@ suite('Files - TextFileEditorModelManager', () => {
 	test('removed from cache when model disposed', function () {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
-		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8');
-		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8');
-		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random3.txt'), 'utf8');
+		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
+		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
+		const model3: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random3.txt'), 'utf8', undefined);
 
 		manager.add(URI.file('/test.html'), model1);
 		manager.add(URI.file('/some/other.html'), model2);
@@ -288,6 +289,26 @@ suite('Files - TextFileEditorModelManager', () => {
 		model.revert(true);
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(model.isDisposed());
+		manager.dispose();
+	});
+
+	test('mode', async function () {
+		const mode = 'text-file-model-manager-test';
+		ModesRegistry.registerLanguage({
+			id: mode,
+		});
+
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+
+		const resource = toResource.call(this, '/path/index_something.txt');
+
+		let model = await manager.loadOrCreate(resource, { mode });
+		assert.equal(model.textEditorModel!.getModeId(), mode);
+
+		model = await manager.loadOrCreate(resource, { mode: 'text' });
+		assert.equal(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
+
+		manager.disposeModel((model as TextFileEditorModel));
 		manager.dispose();
 	});
 });

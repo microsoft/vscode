@@ -11,6 +11,8 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
+	public static readonly minVersion = API.v280;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
@@ -75,7 +77,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new VersionDependentRegistration(client, API.v280, () => {
+	return new VersionDependentRegistration(client, TypeScriptFoldingProvider.minVersion, () => {
 		return vscode.languages.registerFoldingRangeProvider(selector,
 			new TypeScriptFoldingProvider(client));
 	});

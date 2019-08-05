@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { LanguageIdentifier, SelectionRangeProvider } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SelectionRangeProvider, SelectionRangeRegistry } from 'vs/editor/common/modes';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -319,5 +319,26 @@ suite('SmartSelect', () => {
 			new Range(1, 1, 1, 21),
 			new Range(1, 1, 1, 21),
 		);
+	});
+
+	test('Smart select: only add line ranges if they’re contained by the next range #73850', async function () {
+
+		const reg = SelectionRangeRegistry.register('*', {
+			provideSelectionRanges() {
+				return [[
+					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 11 } },
+					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 3, endColumn: 2 } },
+					{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 3, endColumn: 2 } },
+				]];
+			}
+		});
+
+		await assertGetRangesToPosition(['type T = {', '\tx: number', '}'], 1, 10, [
+			new Range(1, 1, 3, 2), // all
+			new Range(1, 10, 3, 2), // { ... }
+			new Range(1, 10, 1, 11), // {
+		]);
+
+		reg.dispose();
 	});
 });

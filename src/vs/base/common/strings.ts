@@ -233,7 +233,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
 	const match = regexp.exec('');
-	return !!(match && <any>regexp.lastIndex === 0);
+	return !!(match && regexp.lastIndex === 0);
 }
 
 export function regExpContainsBackreference(regexpValue: string): boolean {

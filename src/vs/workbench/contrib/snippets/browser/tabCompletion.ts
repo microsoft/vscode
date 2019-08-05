@@ -33,7 +33,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	private _activeSnippets: Snippet[] = [];
 	private _enabled: boolean;
 	private _selectionListener: IDisposable;
-	private _configListener: IDisposable;
+	private readonly _configListener: IDisposable;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -129,7 +129,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		if (this._activeSnippets.length === 1) {
 			// one -> just insert
 			const [snippet] = this._activeSnippets;
-			SnippetController2.get(this._editor).insert(snippet.codeSnippet, snippet.prefix.length, 0);
+			SnippetController2.get(this._editor).insert(snippet.codeSnippet, { overwriteBefore: snippet.prefix.length, overwriteAfter: 0 });
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box

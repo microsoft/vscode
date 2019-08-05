@@ -253,7 +253,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 			id: IndentUsingTabs.ID,
 			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
 			alias: 'Indent Using Tabs',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -267,7 +267,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 			id: IndentUsingSpaces.ID,
 			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
 			alias: 'Indent Using Spaces',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -281,7 +281,7 @@ export class DetectIndentation extends EditorAction {
 			id: DetectIndentation.ID,
 			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
 			alias: 'Detect Indentation from Content',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -589,13 +589,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
 		model.forceTokenization(lineNumber);
-		let nonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhiteSpaceColumn === 0) {
+		let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+		if (nonWhitespaceColumn === 0) {
 			return true;
 		}
 		let tokens = model.getLineTokens(lineNumber);
 		if (tokens.getCount() > 0) {
-			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhiteSpaceColumn);
+			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
 			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
 				return true;
 			}

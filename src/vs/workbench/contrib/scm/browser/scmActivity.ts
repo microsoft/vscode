@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class StatusUpdater implements IWorkbenchContribution {
 
-	private badgeDisposable: IDisposable = Disposable.None;
+	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -46,12 +46,12 @@ export class StatusUpdater implements IWorkbenchContribution {
 			this.render();
 		});
 
-		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 	}
 
 	private render(): void {
-		this.badgeDisposable.dispose();
+		this.badgeDisposable.clear();
 
 		const count = this.scmService.repositories.reduce((r, repository) => {
 			if (typeof repository.provider.count === 'number') {
@@ -66,9 +66,9 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable.value = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
 		} else {
-			this.badgeDisposable = Disposable.None;
+			this.badgeDisposable.clear();
 		}
 	}
 
@@ -151,7 +151,7 @@ export class StatusBarController implements IWorkbenchContribution {
 			}
 		});
 
-		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
 		if (!this.focusedRepository) {
@@ -187,14 +187,17 @@ export class StatusBarController implements IWorkbenchContribution {
 			? `${basename(repository.provider.rootUri)} (${repository.provider.label})`
 			: repository.provider.label;
 
-		const disposables = commands.map(c => this.statusbarService.addEntry({
-			text: c.title,
-			tooltip: `${label} - ${c.tooltip}`,
-			command: c.id,
-			arguments: c.arguments
-		}, MainThreadStatusBarAlignment.LEFT, 10000));
+		const disposables = new DisposableStore();
+		for (const c of commands) {
+			disposables.add(this.statusbarService.addEntry({
+				text: c.title,
+				tooltip: `${label} - ${c.tooltip}`,
+				command: c.id,
+				arguments: c.arguments
+			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
+		}
 
-		this.statusBarDisposable = combinedDisposable(disposables);
+		this.statusBarDisposable = disposables;
 	}
 
 	dispose(): void {

@@ -16,10 +16,7 @@ import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUt
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-
-export interface ISchemeTransformer {
-	transformOutgoing(scheme: string): string;
-}
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class ExtHostSearch implements ExtHostSearchShape {
 
@@ -35,14 +32,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _pfs = pfs) {
+	constructor(mainContext: IMainContext, private _uriTransformer: IURITransformer | null, private _logService: ILogService, private _pfs = pfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 	}
 
 	private _transformScheme(scheme: string): string {
-		if (this._schemeTransformer) {
-			return this._schemeTransformer.transformOutgoing(scheme);
+		if (this._uriTransformer) {
+			return this._uriTransformer.transformOutgoingScheme(scheme);
 		}
 		return scheme;
 	}

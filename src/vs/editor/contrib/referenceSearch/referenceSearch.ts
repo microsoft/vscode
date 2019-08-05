@@ -27,6 +27,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -61,7 +62,7 @@ export class ReferenceAction extends EditorAction {
 		super({
 			id: 'editor.action.referenceSearch.trigger',
 			label: nls.localize('references.action.label', "Peek References"),
-			alias: 'Find All References', // leave the alias?
+			alias: 'Peek References',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
@@ -287,15 +288,7 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 		});
 	});
 
-	return Promise.all(promises).then(references => {
-		let result: Location[] = [];
-		for (let ref of references) {
-			if (ref) {
-				result.push(...ref);
-			}
-		}
-		return result;
-	});
+	return Promise.all(promises).then(references => flatten(coalesce(references)));
 }
 
 registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

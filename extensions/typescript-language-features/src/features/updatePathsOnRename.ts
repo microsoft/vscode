@@ -40,6 +40,8 @@ enum UpdateImportsOnFileMoveSetting {
 }
 
 class UpdateImportsOnFileRenameHandler extends Disposable {
+	public static minVersion = API.v300;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager,
@@ -233,6 +235,6 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	handles: (uri: vscode.Uri) => Promise<boolean>,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () =>
+	return new VersionDependentRegistration(client, UpdateImportsOnFileRenameHandler.minVersion, () =>
 		new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles));
 }

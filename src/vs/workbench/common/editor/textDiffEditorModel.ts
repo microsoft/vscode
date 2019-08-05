@@ -33,12 +33,12 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		return this._modifiedModel;
 	}
 
-	load(): Promise<EditorModel> {
-		return super.load().then(() => {
-			this.updateTextDiffEditorModel();
+	async load(): Promise<EditorModel> {
+		await super.load();
 
-			return this;
-		});
+		this.updateTextDiffEditorModel();
+
+		return this;
 	}
 
 	private updateTextDiffEditorModel(): void {

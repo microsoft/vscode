@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
@@ -34,7 +34,7 @@ export class InsertCursorAbove extends EditorAction {
 			id: 'editor.action.insertCursorAbove',
 			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
 			alias: 'Add Cursor Above',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
@@ -83,7 +83,7 @@ export class InsertCursorBelow extends EditorAction {
 			id: 'editor.action.insertCursorBelow',
 			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
 			alias: 'Add Cursor Below',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
@@ -132,7 +132,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
 			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
 			alias: 'Add Cursors to Line Ends',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
@@ -184,7 +184,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 			id: 'editor.action.addCursorsToBottom',
 			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
 			alias: 'Add Cursors To Bottom',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -214,7 +214,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 			id: 'editor.action.addCursorsToTop',
 			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
 			alias: 'Add Cursors To Top',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -427,7 +427,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
 	private _session: MultiCursorSession | null;
-	private _sessionDispose: IDisposable[];
+	private readonly _sessionDispose = this._register(new DisposableStore());
 
 	public static get(editor: ICodeEditor): MultiCursorSelectionController {
 		return editor.getContribution<MultiCursorSelectionController>(MultiCursorSelectionController.ID);
@@ -438,7 +438,6 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._editor = editor;
 		this._ignoreSelectionChange = false;
 		this._session = null;
-		this._sessionDispose = [];
 	}
 
 	public dispose(): void {
@@ -468,27 +467,25 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			}
 			findController.getState().change(newState, false);
 
-			this._sessionDispose = [
-				this._editor.onDidChangeCursorSelection((e) => {
-					if (this._ignoreSelectionChange) {
-						return;
-					}
+			this._sessionDispose.add(this._editor.onDidChangeCursorSelection((e) => {
+				if (this._ignoreSelectionChange) {
+					return;
+				}
+				this._endSession();
+			}));
+			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
+				this._endSession();
+			}));
+			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
+				if (e.matchCase || e.wholeWord) {
 					this._endSession();
-				}),
-				this._editor.onDidBlurEditorText(() => {
-					this._endSession();
-				}),
-				findController.getState().onFindReplaceStateChange((e) => {
-					if (e.matchCase || e.wholeWord) {
-						this._endSession();
-					}
-				})
-			];
+				}
+			}));
 		}
 	}
 
 	private _endSession(): void {
-		this._sessionDispose = dispose(this._sessionDispose);
+		this._sessionDispose.clear();
 		if (this._session && this._session.isDisconnectedFromFindController) {
 			const newState: INewFindReplaceState = {
 				wholeWordOverride: FindOptionOverride.NotSet,
@@ -650,7 +647,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			id: 'editor.action.addSelectionToNextFindMatch',
 			label: nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
 			alias: 'Add Selection To Next Find Match',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
@@ -675,7 +672,7 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 			id: 'editor.action.addSelectionToPreviousFindMatch',
 			label: nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
 			alias: 'Add Selection To Previous Find Match',
-			precondition: null,
+			precondition: undefined,
 			menubarOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
@@ -695,7 +692,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 			id: 'editor.action.moveSelectionToNextFindMatch',
 			label: nls.localize('moveSelectionToNextFindMatch', "Move Last Selection To Next Find Match"),
 			alias: 'Move Last Selection To Next Find Match',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D),
@@ -714,7 +711,7 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 			id: 'editor.action.moveSelectionToPreviousFindMatch',
 			label: nls.localize('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
 			alias: 'Move Last Selection To Previous Find Match',
-			precondition: null
+			precondition: undefined
 		});
 	}
 	protected _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void {
@@ -728,7 +725,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 			id: 'editor.action.selectHighlights',
 			label: nls.localize('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
 			alias: 'Select All Occurrences of Find Match',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,

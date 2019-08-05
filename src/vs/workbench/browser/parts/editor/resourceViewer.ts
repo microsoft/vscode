@@ -12,16 +12,17 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
-import { Themable } from 'vs/workbench/common/theme';
-import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IDisposable, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IMAGE_PREVIEW_BORDER } from 'vs/workbench/common/theme';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
@@ -62,6 +63,17 @@ export interface ResourceViewerContext extends IDisposable {
 	layout?(dimension: DOM.Dimension): void;
 }
 
+interface ResourceViewerDelegate {
+	openInternalClb(uri: URI): void;
+	openExternalClb?(uri: URI): void;
+	metadataClb(meta: string): void;
+}
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const borderColor = theme.getColor(IMAGE_PREVIEW_BORDER);
+	collector.addRule(`.monaco-resource-viewer.image img { border : 1px solid ${borderColor ? borderColor.toString() : ''}; }`);
+});
+
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
  * progress of the binary resource.
@@ -75,9 +87,8 @@ export class ResourceViewer {
 		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
-		openInternalClb: (uri: URI) => void,
-		openExternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate,
+		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 
 		// Ensure CSS class
@@ -85,17 +96,17 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, fileService, scrollbar, openExternalClb, metadataClb);
+			return ImageView.create(container, descriptor, fileService, scrollbar, delegate, instantiationService);
 		}
 
 		// Large Files
 		if (descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
-			return FileTooLargeFileView.create(container, descriptor, scrollbar, metadataClb);
+			return FileTooLargeFileView.create(container, descriptor, scrollbar, delegate);
 		}
 
 		// Seemingly Binary Files
 		else {
-			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, openInternalClb, metadataClb);
+			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, delegate);
 		}
 	}
 
@@ -108,7 +119,7 @@ export class ResourceViewer {
 }
 
 class ImageView {
-	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly MAX_IMAGE_SIZE = BinarySize.MB * 10; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
 	static create(
@@ -116,14 +127,14 @@ class ImageView {
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		openExternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate,
+		instantiationService: IInstantiationService,
 	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate, instantiationService);
 		}
 
-		return LargeImageView.create(container, descriptor, openExternalClb, metadataClb);
+		return LargeImageView.create(container, descriptor, delegate);
 	}
 
 	private static shouldShowImageInline(descriptor: IResourceDescriptor): boolean {
@@ -150,29 +161,29 @@ class LargeImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		openExternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
 		const size = BinarySize.formatSize(descriptor.size);
-		metadataClb(size);
+		delegate.metadataClb(size);
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
-		if (descriptor.resource.scheme !== Schemas.data) {
+		const openExternal = delegate.openExternalClb;
+		if (descriptor.resource.scheme === Schemas.file && openExternal) {
 			const link = DOM.append(label, DOM.$('a.embedded-link'));
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('resourceOpenExternalButton', "Open image using external program?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternalClb(descriptor.resource)));
+			disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
 		}
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
@@ -181,10 +192,10 @@ class FileTooLargeFileView {
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
 		const size = BinarySize.formatSize(descriptor.size);
-		metadataClb(size);
+		delegate.metadataClb(size);
 
 		DOM.clearNode(container);
 
@@ -203,14 +214,13 @@ class FileSeemsBinaryFileView {
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
-		openInternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
-		metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+		delegate.metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
@@ -221,82 +231,64 @@ class FileSeemsBinaryFileView {
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openInternalClb(descriptor.resource)));
+			disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
 		}
 
 		scrollbar.scanDomNode();
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
 type Scale = number | 'fit';
 
-export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+export class ZoomStatusbarItem extends Disposable {
 
-	static instance: ZoomStatusbarItem;
-
-	private showTimeout: any;
-
-	private statusBarItem: HTMLElement;
-	private onSelectScale?: (scale: Scale) => void;
+	private statusbarItem?: IStatusbarEntryAccessor;
 
 	constructor(
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		private readonly onSelectScale: (scale: Scale) => void,
 		@IEditorService editorService: IEditorService,
-		@IThemeService themeService: IThemeService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
-		super(themeService);
-
-		ZoomStatusbarItem.instance = this;
-
-		this._register(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+		super();
+		this._register(editorService.onDidActiveEditorChange(() => {
+			if (this.statusbarItem) {
+				this.statusbarItem.dispose();
+				this.statusbarItem = undefined;
+			}
+		}));
 	}
 
-	private onActiveEditorChanged(): void {
-		this.hide();
-		this.onSelectScale = undefined;
-	}
+	updateStatusbar(scale: Scale): void {
+		const entry: IStatusbarEntry = {
+			text: this.zoomLabel(scale)
+		};
 
-	show(scale: Scale, onSelectScale: (scale: number) => void) {
-		clearTimeout(this.showTimeout);
-		this.showTimeout = setTimeout(() => {
-			this.onSelectScale = onSelectScale;
-			this.statusBarItem.style.display = 'block';
-			this.updateLabel(scale);
-		}, 0);
-	}
+		if (!this.statusbarItem) {
+			this.statusbarItem = this.statusbarService.addEntry(entry, 'status.imageZoom', nls.localize('status.imageZoom', "Image Zoom"), StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */);
 
-	hide() {
-		this.statusBarItem.style.display = 'none';
-	}
+			this._register(this.statusbarItem);
 
-	render(container: HTMLElement): IDisposable {
-		if (!this.statusBarItem && container) {
-			this.statusBarItem = DOM.append(container, DOM.$('a.zoom-statusbar-item'));
-			this.statusBarItem.setAttribute('role', 'button');
-			this.statusBarItem.style.display = 'none';
-
-			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
+			const element = document.getElementById('status.imageZoom')!;
+			this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, (e: MouseEvent) => {
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => container,
+					getAnchor: () => element,
 					getActions: () => this.zoomActions
 				});
-			});
+			}));
+		} else {
+			this.statusbarItem.update(entry);
 		}
-
-		return this;
-	}
-
-	private updateLabel(scale: Scale) {
-		this.statusBarItem.textContent = ZoomStatusbarItem.zoomLabel(scale);
 	}
 
 	@memoize
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
+			new Action(`zoom.${scale}`, this.zoomLabel(scale), undefined, undefined, () => {
+				this.updateStatusbar(scale);
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
@@ -305,7 +297,7 @@ export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			}));
 	}
 
-	private static zoomLabel(scale: Scale): string {
+	private zoomLabel(scale: Scale): string {
 		return scale === 'fit'
 			? nls.localize('zoom.action.fit.label', 'Whole Image')
 			: `${Math.round(scale * 100)}%`;
@@ -359,16 +351,20 @@ class InlineImageView {
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
+
+		const zoomStatusbarItem = disposables.add(instantiationService.createInstance(ZoomStatusbarItem,
+			newScale => updateScale(newScale)));
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
-			dispose: () => combinedDisposable(disposables).dispose()
+			dispose: () => disposables.dispose()
 		};
 
-		const cacheKey = descriptor.resource.toString();
+		const cacheKey = `${descriptor.resource.toString()}:${descriptor.etag}`;
 
 		let ctrlPressed = false;
 		let altPressed = false;
@@ -419,9 +415,9 @@ class InlineImageView {
 				});
 
 				InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
-
 			}
-			ZoomStatusbarItem.instance.show(scale, updateScale);
+
+			zoomStatusbarItem.updateStatusbar(scale);
 			scrollbar.scanDomNode();
 		}
 
@@ -434,7 +430,7 @@ class InlineImageView {
 			updateScale(scale);
 		}
 
-		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.add(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -447,7 +443,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.add(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -461,7 +457,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.CLICK, (e: MouseEvent) => {
+		disposables.add(DOM.addDisposableListener(container, DOM.EventType.CLICK, (e: MouseEvent) => {
 			if (!image) {
 				return;
 			}
@@ -494,13 +490,13 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.WHEEL, (e: WheelEvent) => {
+		disposables.add(DOM.addDisposableListener(container, DOM.EventType.WHEEL, (e: WheelEvent) => {
 			if (!image) {
 				return;
 			}
 
-			const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
-			if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
+			const isScrollWheelKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+			if (!isScrollWheelKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 				return;
 			}
 
@@ -511,16 +507,12 @@ class InlineImageView {
 				firstZoom();
 			}
 
-			let delta = e.deltaY < 0 ? 1 : -1;
+			let delta = e.deltaY > 0 ? 1 : -1;
 
-			// Pinching should increase the scale
-			if (e.ctrlKey && !isScrollWhellKeyPressed) {
-				delta *= -1;
-			}
 			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.SCROLL, () => {
+		disposables.add(DOM.addDisposableListener(container, DOM.EventType.SCROLL, () => {
 			if (!image || !image.parentElement || scale === 'fit') {
 				return;
 			}
@@ -538,14 +530,14 @@ class InlineImageView {
 		image = DOM.append(container, DOM.$<HTMLImageElement>('img.scale-to-fit'));
 		image.style.visibility = 'hidden';
 
-		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
+		disposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
 			if (!image) {
 				return;
 			}
 			if (typeof descriptor.size === 'number') {
-				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+				delegate.metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
-				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
+				delegate.metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
 			}
 
 			scrollbar.scanDomNode();
@@ -559,26 +551,29 @@ class InlineImageView {
 			}
 		}));
 
-		InlineImageView.imageSrc(descriptor, fileService).then(dataUri => {
-			const imgs = container.getElementsByTagName('img');
-			if (imgs.length) {
-				imgs[0].src = dataUri;
+		InlineImageView.imageSrc(descriptor, fileService).then(src => {
+			const img = container.querySelector('img');
+			if (img) {
+				if (typeof src === 'string') {
+					img.src = src;
+				} else {
+					const url = URL.createObjectURL(src);
+					disposables.add(toDisposable(() => URL.revokeObjectURL(url)));
+					img.src = url;
+				}
 			}
 		});
 
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string> {
+	private static async imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string | Blob> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
+			return descriptor.resource.toString(true /* skip encoding */);
 		}
 
-		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
-			const mime = getMime(descriptor);
-
-			return `data:${mime};base64,${data.value}`;
-		});
+		const { value } = await fileService.readFile(descriptor.resource);
+		return new Blob([value.buffer], { type: getMime(descriptor) });
 	}
 }
 

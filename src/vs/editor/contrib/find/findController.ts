@@ -112,7 +112,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 				searchScope: null,
 				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
 				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
-				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
+				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false),
+				preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -170,13 +171,17 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (e.matchCase) {
 			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
 		}
+		if (e.preserveCase) {
+			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE);
+		}
 	}
 
 	private loadQueryState() {
 		this._state.change({
 			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
 			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
-			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
+			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex),
+			preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, this._state.preserveCase)
 		}, false);
 	}
 
@@ -215,6 +220,11 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (!this._state.isRevealed) {
 			this.highlightFindOptions();
 		}
+	}
+
+	public togglePreserveCase(): void {
+		this._state.change({ preserveCase: !this._state.preserveCase }, false);
+		this.highlightFindOptions();
 	}
 
 	public toggleSearchScope(): void {
@@ -422,7 +432,7 @@ export class StartFindAction extends EditorAction {
 			id: FIND_IDS.StartFindAction,
 			label: nls.localize('startFindAction', "Find"),
 			alias: 'Find',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
@@ -459,7 +469,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 			id: FIND_IDS.StartFindWithSelection,
 			label: nls.localize('startFindWithSelectionAction', "Find With Selection"),
 			alias: 'Find With Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: 0,
@@ -513,7 +523,7 @@ export class NextMatchFindAction extends MatchFindAction {
 			id: FIND_IDS.NextMatchFindAction,
 			label: nls.localize('findNextMatchAction', "Find Next"),
 			alias: 'Find Next',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F3,
@@ -535,7 +545,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 			id: FIND_IDS.PreviousMatchFindAction,
 			label: nls.localize('findPreviousMatchAction', "Find Previous"),
 			alias: 'Find Previous',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F3,
@@ -583,7 +593,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			id: FIND_IDS.NextSelectionMatchFindAction,
 			label: nls.localize('nextSelectionMatchFindAction', "Find Next Selection"),
 			alias: 'Find Next Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.F3,
@@ -604,7 +614,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			id: FIND_IDS.PreviousSelectionMatchFindAction,
 			label: nls.localize('previousSelectionMatchFindAction', "Find Previous Selection"),
 			alias: 'Find Previous Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3,
@@ -625,7 +635,7 @@ export class StartFindReplaceAction extends EditorAction {
 			id: FIND_IDS.StartFindReplaceAction,
 			label: nls.localize('startReplace', "Replace"),
 			alias: 'Replace',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
@@ -704,7 +714,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleCaseSensitiveCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleCaseSensitive(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
@@ -718,7 +728,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleWholeWordCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleWholeWords(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
@@ -732,7 +742,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleRegexCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleRegex(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
@@ -746,7 +756,7 @@ registerEditorCommand(new FindCommand({
 
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleSearchScopeCommand,
-	precondition: null,
+	precondition: undefined,
 	handler: x => x.toggleSearchScope(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,

@@ -9,10 +9,11 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventHelper } from 'vs/base/browser/dom';
 
 export class DialogService implements IDialogService {
 	_serviceBrand: any;
@@ -68,7 +69,7 @@ export class DialogService implements IDialogService {
 	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
 		this.logService.trace('DialogService#show', message);
 
-		const dialogDisposables: IDisposable[] = [];
+		const dialogDisposables = new DisposableStore();
 		const dialog = new Dialog(
 			this.layoutService.container,
 			message,
@@ -76,17 +77,18 @@ export class DialogService implements IDialogService {
 			{
 				detail: options ? options.detail : undefined,
 				cancelId: options ? options.cancelId : undefined,
-				type: this.getDialogType(severity)
+				type: this.getDialogType(severity),
+				keyEventProcessor: (event: StandardKeyboardEvent) => {
+					EventHelper.stop(event, true);
+				}
 			});
 
-		dialogDisposables.push(dialog);
-		dialogDisposables.push(attachDialogStyler(dialog, this.themeService));
+		dialogDisposables.add(dialog);
+		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
 
 		const choice = await dialog.show();
-		dispose(dialogDisposables);
+		dialogDisposables.dispose();
 
 		return choice;
 	}
 }
-
-registerSingleton(IDialogService, DialogService, true);

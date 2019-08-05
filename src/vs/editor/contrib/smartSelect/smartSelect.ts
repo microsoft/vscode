@@ -161,7 +161,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			id: 'editor.action.smartSelect.expand',
 			label: nls.localize('smartSelect.expand', "Expand Selection"),
 			alias: 'Expand Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
@@ -187,7 +187,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			id: 'editor.action.smartSelect.shrink',
 			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
 			alias: 'Shrink Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
@@ -284,12 +284,12 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 				if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
 					// add line/block range without leading/failing whitespace
 					const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
-					if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev)) {
+					if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev) && cur.containsRange(rangeNoWhitespace) && !cur.equalsRange(rangeNoWhitespace)) {
 						oneRangesWithTrivia.push(rangeNoWhitespace);
 					}
 					// add line/block range
 					const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
-					if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace)) {
+					if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace) && cur.containsRange(rangeFull) && !cur.equalsRange(rangeFull)) {
 						oneRangesWithTrivia.push(rangeFull);
 					}
 				}

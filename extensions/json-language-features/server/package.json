@@ -1,7 +1,7 @@
 {
   "name": "vscode-json-languageserver",
   "description": "JSON language server",
-  "version": "1.0.1",
+  "version": "1.2.1",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {
@@ -12,22 +12,21 @@
   },
   "main": "./out/jsonServerMain",
   "dependencies": {
-    "jsonc-parser": "^2.0.3",
+    "jsonc-parser": "^2.1.0",
     "request-light": "^0.2.4",
-    "vscode-json-languageservice": "^3.3.0-next.6",
-    "vscode-languageserver": "^5.3.0-next.2",
-    "vscode-nls": "^4.0.0",
-    "vscode-uri": "^1.0.6"
+    "vscode-json-languageservice": "^3.3.1",
+    "vscode-languageserver": "^5.3.0-next.8",
+    "vscode-nls": "^4.1.1",
+    "vscode-uri": "^2.0.3"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "^10.12.21"
+    "@types/node": "^10.14.8"
   },
   "scripts": {
-    "prepublishOnly": "npm run clean && npm run test",
-    "preversion": "npm test",
-    "compile": "gulp compile-extension:json-language-features-server",
-    "watch": "gulp watch-extension:json-language-features-server",
+    "prepublishOnly": "npm run clean && npm run compile",
+    "compile": "npx gulp compile-extension:json-language-features-server",
+    "watch": "npx gulp watch-extension:json-language-features-server",
     "clean": "../../../node_modules/.bin/rimraf out",
     "install-service-next": "yarn add vscode-json-languageservice@next",
     "install-service-local": "yarn link vscode-json-languageservice",

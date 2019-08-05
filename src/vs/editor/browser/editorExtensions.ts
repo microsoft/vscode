@@ -24,6 +24,10 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
+export type EditorTelemetryDataFragment = {
+	target: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 //#region Command
 
@@ -40,17 +44,17 @@ export interface ICommandMenubarOptions {
 }
 export interface ICommandOptions {
 	id: string;
-	precondition: ContextKeyExpr | null;
-	kbOpts?: ICommandKeybindingsOptions | null;
+	precondition: ContextKeyExpr | undefined;
+	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
 	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
-	public readonly precondition: ContextKeyExpr | null;
-	private readonly _kbOpts: ICommandKeybindingsOptions | null | undefined;
-	private readonly _menubarOpts: ICommandMenubarOptions | null | undefined;
-	private readonly _description: ICommandHandlerDescription | null | undefined;
+	public readonly precondition: ContextKeyExpr | undefined;
+	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
+	private readonly _description: ICommandHandlerDescription | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
@@ -219,16 +223,15 @@ export abstract class EditorAction extends EditorCommand {
 	}
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
-		/* __GDPR__
-			"editorActionInvoked" : {
-				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${EditorTelemetryData}"
-				]
-			}
-		*/
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
+		type EditorActionInvokedClassification = {
+			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		type EditorActionInvokedEvent = {
+			name: string;
+			id: string;
+		};
+		accessor.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;

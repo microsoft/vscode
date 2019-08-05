@@ -94,13 +94,16 @@
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 
-.hc-black .monaco-workbench .search-view .query-details .more,
 .vs-dark .monaco-workbench .search-view .query-details .more {
-	background: url('ellipsis-inverse.svg') top center no-repeat;
+	background: url('ellipsis-dark.svg') center no-repeat;
+}
+
+.hc-black .monaco-workbench .search-view .query-details .more {
+	background: url('ellipsis-hc.svg') center no-repeat;
 }
 
 .vs .monaco-workbench .search-view .query-details .more {
-	background: url('ellipsis.svg') top center no-repeat;
+	background: url('ellipsis-light.svg') center no-repeat;
 }
 
 .search-view .query-details .file-types {
@@ -244,26 +247,28 @@
 	margin-top: 2px;
 }
 
-.search-view .action-remove {
-	background: url("action-remove.svg") center center no-repeat;
+.search-view .action-replace {
+	background-image: url('replace-light.svg');
 }
 
-.search-view .action-replace {
-	background-image: url('replace.svg');
+.vs-dark .search-view .action-replace {
+	background-image: url('replace-dark.svg');
+}
+
+.hc-black .search-view .action-replace {
+	background-image: url('replace-hc.svg');
 }
 
 .search-view .action-replace-all {
-	background: url('replace-all.svg') center center no-repeat;
+	background: url('replace-all-light.svg') center center no-repeat;
 }
 
-.hc-black .search-view .action-replace,
-.vs-dark .search-view .action-replace {
-	background-image: url('replace-inverse.svg');
-}
-
-.hc-black .search-view .action-replace-all,
 .vs-dark .search-view .action-replace-all {
-	background: url('replace-all-inverse.svg') center center no-repeat;
+	background: url('replace-all-dark.svg') center center no-repeat;
+}
+
+.hc-black .search-view .action-replace-all {
+	background: url('replace-all-hc.svg') center center no-repeat;
 }
 
 .search-view .monaco-count-badge {
@@ -280,48 +285,64 @@
 }
 
 .monaco-workbench .search-action.refresh {
-	background: url('Refresh.svg') center center no-repeat;
+	background: url('refresh-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-action.refresh,
+.vs-dark .monaco-workbench .search-action.refresh {
+	background: url('refresh-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .search-action.refresh {
-	background: url('Refresh_inverse.svg') center center no-repeat;
+	background: url('refresh-hc.svg') center center no-repeat;
 }
 
 .monaco-workbench .search-action.collapse {
-	background: url('CollapseAll.svg') center center no-repeat;
+	background: url('collapse-all-light.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .search-action.collapse,
 .hc-black .monaco-workbench .search-action.collapse {
-	background: url('CollapseAll_inverse.svg') center center no-repeat;
+	background: url('collapse-all-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench .search-action.collapse {
+	background: url('collapse-all-hc.svg') center center no-repeat;
 }
 
 .monaco-workbench .search-action.clear-search-results {
-	background: url('clear-search-results.svg') center center no-repeat;
+	background: url('clear-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-action.clear-search-results,
+.vs-dark .monaco-workbench .search-action.clear-search-results {
+	background: url('clear-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .search-action.clear-search-results {
-	background: url('clear-search-results-dark.svg') center center no-repeat;
+	background: url('clear-hc.svg') center center no-repeat;
 }
 
 .monaco-workbench .search-action.cancel-search {
-	background: url('stop.svg') center center no-repeat;
+	background: url('stop-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-action.cancel-search,
+.vs-dark .monaco-workbench .search-action.cancel-search {
+	background: url('stop-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .search-action.cancel-search {
-	background: url('stop-inverse.svg') center center no-repeat;
+	background: url('stop-hc.svg') center center no-repeat;
 }
 
 .vs .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
-	background: url('excludeSettings.svg') center center no-repeat;
+	background: url('exclude-settings-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles,
+.vs-dark .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
+	background: url('exclude-settings-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
-	background: url('excludeSettings-dark.svg') center center no-repeat;
+	background: url('exclude-settings-hc.svg') center center no-repeat;
 }
 
 .search-view .replace.findInFileMatch {
@@ -353,17 +374,16 @@
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.vs .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('expando-collapsed.svg');
+.search-view .action-remove {
+	background: url("remove-light.svg") center center no-repeat;
 }
 
-.vs .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('expando-expanded.svg');
+.vs-dark .search-view .action-remove {
+	background: url("remove-dark.svg") center center no-repeat;
 }
 
-.vs-dark .search-view .action-remove,
 .hc-black .search-view .action-remove {
-	background: url("action-remove-dark.svg") center center no-repeat;
+	background: url("remove-hc.svg") center center no-repeat;
 }
 
 .vs-dark .search-view .message {
@@ -375,14 +395,28 @@
 	padding: 0;
 }
 
-.vs-dark .search-view .search-widget .toggle-replace-button.expand,
-.hc-black .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('expando-expanded-dark.svg');
+.vs .search-view .search-widget .toggle-replace-button.expand {
+	background-image: url('tree-expanded-light.svg');
 }
 
-.vs-dark .search-view .search-widget .toggle-replace-button.collapse,
+.vs-dark .search-view .search-widget .toggle-replace-button.expand {
+	background-image: url('tree-expanded-dark.svg');
+}
+
+.hc-black .search-view .search-widget .toggle-replace-button.expand {
+	background-image: url('tree-expanded-hc.svg');
+}
+
+.vs .search-view .search-widget .toggle-replace-button.collapse {
+	background-image: url('tree-collapsed-light.svg');
+}
+
+.vs-dark .search-view .search-widget .toggle-replace-button.collapse {
+	background-image: url('tree-collapsed-dark.svg');
+}
+
 .hc-black .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('expando-collapsed-dark.svg');
+	background-image: url('tree-collapsed-hc.svg');
 }
 
 /* High Contrast Theming */

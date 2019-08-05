@@ -103,22 +103,33 @@ function setupProxyResolution(
 	let results: ConnectionResult[] = [];
 	function logEvent() {
 		timeout = undefined;
-		/* __GDPR__
-			"resolveProxy" : {
-				"count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"errorCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"cacheCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"cacheSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"envNoProxyCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"results": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			}
-		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount, envNoProxyCount, results });
+		type ResolveProxyClassification = {
+			count: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			errorCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			cacheCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			cacheSize: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			cacheRolls: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			envCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			settingsCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			localhostCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			envNoProxyCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			results: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+		};
+		type ResolveProxyEvent = {
+			count: number;
+			duration: number;
+			errorCount: number;
+			cacheCount: number;
+			cacheSize: number;
+			cacheRolls: number;
+			envCount: number;
+			settingsCount: number;
+			localhostCount: number;
+			envNoProxyCount: number;
+			results: ConnectionResult[];
+		};
+		mainThreadTelemetry.$publicLog2<ResolveProxyEvent, ResolveProxyClassification>('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount, envNoProxyCount, results });
 		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = envNoProxyCount = 0;
 		results = [];
 	}
@@ -403,7 +414,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 				if (ext && ext.enableProposedApi) {
-					return modules[(<any>ext).proxySupport] || modules.onRequest;
+					return (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
 				}
 				return modules.default;
 			};
@@ -457,8 +468,8 @@ async function readCaCertificates() {
 	return undefined;
 }
 
-function readWindowsCaCertificates() {
-	const winCA = require.__$__nodeRequire<any>('vscode-windows-ca-certs');
+async function readWindowsCaCertificates() {
+	const winCA = await import('vscode-windows-ca-certs');
 
 	let ders: any[] = [];
 	const store = winCA();
@@ -471,22 +482,26 @@ function readWindowsCaCertificates() {
 		store.done();
 	}
 
-	const seen = {};
-	const certs = ders.map(derToPem)
-		.filter(pem => !seen[pem] && (seen[pem] = true));
+	const certs = new Set(ders.map(derToPem));
 	return {
-		certs,
+		certs: Array.from(certs),
 		append: true
 	};
 }
 
 async function readMacCaCertificates() {
-	const stdout = (await promisify(cp.execFile)('/usr/bin/security', ['find-certificate', '-a', '-p'], { encoding: 'utf8' })).stdout;
-	const seen = {};
-	const certs = stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
-		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+	const stdout = await new Promise<string>((resolve, reject) => {
+		const child = cp.spawn('/usr/bin/security', ['find-certificate', '-a', '-p']);
+		const stdout: string[] = [];
+		child.stdout.setEncoding('utf8');
+		child.stdout.on('data', str => stdout.push(str));
+		child.on('error', reject);
+		child.on('exit', code => code ? reject(code) : resolve(stdout.join('')));
+	});
+	const certs = new Set(stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+		.filter(pem => !!pem.length));
 	return {
-		certs,
+		certs: Array.from(certs),
 		append: true
 	};
 }
@@ -500,11 +515,10 @@ async function readLinuxCaCertificates() {
 	for (const certPath of linuxCaCertificatePaths) {
 		try {
 			const content = await promisify(fs.readFile)(certPath, { encoding: 'utf8' });
-			const seen = {};
-			const certs = content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
-				.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));
+			const certs = new Set(content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
+				.filter(pem => !!pem.length));
 			return {
-				certs,
+				certs: Array.from(certs),
 				append: false
 			};
 		} catch (err) {

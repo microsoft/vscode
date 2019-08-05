@@ -15,17 +15,21 @@ export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
 }
 
 export class CommentNode {
+	owner: string;
 	threadId: string;
 	range: IRange;
 	comment: Comment;
 	replies: CommentNode[] = [];
 	resource: URI;
+	isRoot: boolean;
 
-	constructor(threadId: string, resource: URI, comment: Comment, range: IRange) {
+	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange) {
+		this.owner = owner;
 		this.threadId = threadId;
 		this.comment = comment;
 		this.resource = resource;
 		this.range = range;
+		this.isRoot = false;
 	}
 
 	hasReply(): boolean {
@@ -35,21 +39,25 @@ export class CommentNode {
 
 export class ResourceWithCommentThreads {
 	id: string;
+	owner: string;
 	commentThreads: CommentNode[]; // The top level comments on the file. Replys are nested under each node.
 	resource: URI;
 
-	constructor(resource: URI, commentThreads: CommentThread[]) {
+	constructor(owner: string, resource: URI, commentThreads: CommentThread[]) {
+		this.owner = owner;
 		this.id = resource.toString();
 		this.resource = resource;
-		this.commentThreads = commentThreads.filter(thread => thread.comments && thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(resource, thread));
+		this.commentThreads = commentThreads.filter(thread => thread.comments && thread.comments.length).map(thread => ResourceWithCommentThreads.createCommentNode(owner, resource, thread));
 	}
 
-	public static createCommentNode(resource: URI, commentThread: CommentThread): CommentNode {
+	public static createCommentNode(owner: string, resource: URI, commentThread: CommentThread): CommentNode {
 		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(threadId!, resource, comment, range));
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId!, resource, comment, range));
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}
+
+		commentNodes[0].isRoot = true;
 
 		return commentNodes[0];
 	}
@@ -65,7 +73,7 @@ export class CommentsModel {
 	}
 
 	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
-		this.commentThreadsMap.set(owner, this.groupByResource(commentThreads));
+		this.commentThreadsMap.set(owner, this.groupByResource(owner, commentThreads));
 		this.resourceCommentThreads = flatten(values(this.commentThreadsMap));
 	}
 
@@ -97,9 +105,9 @@ export class CommentsModel {
 			// Find comment node on resource that is that thread and replace it
 			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
 			if (index >= 0) {
-				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread);
-			} else {
-				matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread));
+				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread);
+			} else if (thread.comments && thread.comments.length) {
+				matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread));
 			}
 		});
 
@@ -108,10 +116,10 @@ export class CommentsModel {
 			if (existingResource.length) {
 				const resource = existingResource[0];
 				if (thread.comments && thread.comments.length) {
-					resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(resource.resource, thread));
+					resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, resource.resource, thread));
 				}
 			} else {
-				threadsForOwner.push(new ResourceWithCommentThreads(URI.parse(thread.resource!), [thread]));
+				threadsForOwner.push(new ResourceWithCommentThreads(owner, URI.parse(thread.resource!), [thread]));
 			}
 		});
 
@@ -133,11 +141,11 @@ export class CommentsModel {
 		}
 	}
 
-	private groupByResource(commentThreads: CommentThread[]): ResourceWithCommentThreads[] {
+	private groupByResource(owner: string, commentThreads: CommentThread[]): ResourceWithCommentThreads[] {
 		const resourceCommentThreads: ResourceWithCommentThreads[] = [];
 		const commentThreadsByResource = new Map<string, ResourceWithCommentThreads>();
 		for (const group of groupBy(commentThreads, CommentsModel._compareURIs)) {
-			commentThreadsByResource.set(group[0].resource!, new ResourceWithCommentThreads(URI.parse(group[0].resource!), group));
+			commentThreadsByResource.set(group[0].resource!, new ResourceWithCommentThreads(owner, URI.parse(group[0].resource!), group));
 		}
 
 		commentThreadsByResource.forEach((v, i, m) => {

@@ -5,7 +5,7 @@
 
 /* Activity Bar */
 .monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
-	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
+	-webkit-mask: url('debug-activity-bar.svg') no-repeat 50% 50%;
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {
@@ -110,25 +110,6 @@
 	box-sizing: border-box;
 }
 
-/* Debug status */
-/* A very precise css rule to overwrite the display set in statusbar.css */
-.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
-	display: flex;
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .part.statusbar .debug-statusbar-item.hidden {
-	display: none;
-}
-
-.monaco-workbench .part.statusbar .debug-statusbar-item .icon {
-	-webkit-mask: url('start.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 16px;
-	display: inline-block;
-	padding-right: 2px;
-	width: 16px;
-}
-
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -142,6 +123,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-family: var(--monaco-monospace-font);
+	white-space: pre;
 }
 
 .monaco-workbench.mac .debug-viewlet .monaco-list-row .expression,

@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ShutdownReason, StartupKind, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class LifecycleService extends AbstractLifecycleService {
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ILifecycleService>;
 
 	private shutdownReason: ShutdownReason;
 
@@ -75,23 +76,24 @@ export class LifecycleService extends AbstractLifecycleService {
 		});
 
 		// Main side indicates that we will indeed shutdown
-		ipc.on('vscode:onWillUnload', (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
+		ipc.on('vscode:onWillUnload', async (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
 
 			// trigger onWillShutdown events and joining
-			return this.handleWillShutdown(reply.reason).then(() => {
+			await this.handleWillShutdown(reply.reason);
 
-				// trigger onShutdown event now that we know we will quit
-				this._onShutdown.fire();
+			// trigger onShutdown event now that we know we will quit
+			this._onShutdown.fire();
 
-				// acknowledge to main side
-				ipc.send(reply.replyChannel, windowId);
-			});
+			// acknowledge to main side
+			ipc.send(reply.replyChannel, windowId);
 		});
 
 		// Save shutdown reason to retrieve on next startup
-		this.storageService.onWillSaveState(() => {
-			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+		this.storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+			}
 		});
 	}
 
@@ -111,7 +113,7 @@ export class LifecycleService extends AbstractLifecycleService {
 		});
 	}
 
-	private handleWillShutdown(reason: ShutdownReason): Promise<void> {
+	private async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
@@ -123,9 +125,11 @@ export class LifecycleService extends AbstractLifecycleService {
 			reason
 		});
 
-		return Promise.all(joiners).then(() => undefined, err => {
-			this.notificationService.error(toErrorMessage(err));
-			onUnexpectedError(err);
-		});
+		try {
+			await Promise.all(joiners);
+		} catch (error) {
+			this.notificationService.error(toErrorMessage(error));
+			onUnexpectedError(error);
+		}
 	}
 }

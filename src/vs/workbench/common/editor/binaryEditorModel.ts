@@ -72,20 +72,17 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	load(): Promise<BinaryEditorModel> {
+	async load(): Promise<BinaryEditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
-			return this.fileService.resolve(this.resource, { resolveMetadata: true }).then(stat => {
-				this.etag = stat.etag;
-				if (typeof stat.size === 'number') {
-					this.size = stat.size;
-				}
-
-				return this;
-			});
+			const stat = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			this.etag = stat.etag;
+			if (typeof stat.size === 'number') {
+				this.size = stat.size;
+			}
 		}
 
-		return Promise.resolve(this);
+		return this;
 	}
 }
