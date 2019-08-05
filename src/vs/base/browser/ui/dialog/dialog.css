@@ -151,6 +151,7 @@
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
 	padding: 15px 0px 0px;
+	display: flex;
 }
 
 /** Dialog: Buttons Row */
