@@ -133,7 +133,7 @@ export function getStateLabel(state: State): string {
 	}
 }
 
-export class AdapterEndEvent {
+export interface AdapterEndEvent {
 	error?: Error;
 	sessionLengthInSeconds: number;
 	emittedStopped: boolean;

@@ -42,7 +42,7 @@ export class DebugSession implements IDebugSession {
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
-	private fetchThreadsScheduler: RunOnceScheduler;
+	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
