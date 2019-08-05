@@ -931,13 +931,28 @@ declare module 'vscode' {
 		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
+	/**
+	 * Represents the dimensions of a terminal.
+	 */
+	export interface TerminalDimensions {
+		/**
+		 * The number of columns in the terminal.
+		 */
+		readonly columns: number;
+
+		/**
+		 * The number of rows in the terminal.
+		 */
+		readonly rows: number;
+	}
+
 	//#endregion
 
 	//#region Extension terminals
 
 	export namespace window {
 		/**
-		 * Creates a [Terminal](#Terminal) where an extension controls the teerminal.
+		 * Creates a [Terminal](#Terminal) where an extension controls the terminal.
 		 *
 		 * @param options An [ExtensionTerminalOptions](#ExtensionTerminalOptions) object describing
 		 * the characteristics of the new terminal.
@@ -960,21 +975,6 @@ declare module 'vscode' {
 		 * control a terminal.
 		 */
 		pty: Pseudoterminal;
-	}
-
-	/**
-	 * Represents the dimensions of a terminal.
-	 */
-	export interface TerminalDimensions {
-		/**
-		 * The number of columns in the terminal.
-		 */
-		readonly columns: number;
-
-		/**
-		 * The number of rows in the terminal.
-		 */
-		readonly rows: number;
 	}
 
 	/**
@@ -1208,7 +1208,7 @@ declare module 'vscode' {
 	 */
 	export class CustomExecution2 {
 		/**
-		 * @param process The [Pseudotrminal](#Pseudoterminal) to be used by the task to display output.
+		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
 		constructor(callback: (thisArg?: any) => Thenable<Pseudoterminal>);

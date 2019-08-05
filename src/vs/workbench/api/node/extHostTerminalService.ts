@@ -354,7 +354,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		await this._getTerminalByIdEventually(id);
 
 		if (this._terminalProcesses[id]) {
-			// Virtual processes only - when virtual process resize fires it means that the
+			// Extension pty terminal only - when virtual process resize fires it means that the
 			// terminal's maximum dimensions changed
 			this._terminalProcesses[id].resize(cols, rows);
 		}
@@ -720,9 +720,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	shutdown(): void {
-		if (this._pty.close) {
-			this._pty.close();
-		}
+		this._pty.close();
 	}
 
 	input(data: string): void {
@@ -764,9 +762,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
 
-		if (this._pty.open) {
-			this._pty.open(initialDimensions);
-		}
+		this._pty.open(initialDimensions ? initialDimensions : undefined);
 	}
 }
 
