@@ -23,7 +23,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _closeTimeout: any;
 	private _ptyProcess: pty.IPty | undefined;
 	private _currentTitle: string = '';
-	private _processStartupComplete: Promise<void>;
+	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _initialCwd: string;
@@ -172,7 +172,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _kill(): void {
 		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
 		// process start.
-		this._processStartupComplete.then(() => {
+		this._processStartupComplete!.then(() => {
 			if (this._isDisposed) {
 				return;
 			}

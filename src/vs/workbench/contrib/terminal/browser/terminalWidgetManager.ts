@@ -11,7 +11,7 @@ export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
 
-	private _messageWidget: MessageWidget;
+	private _messageWidget: MessageWidget | undefined;
 	private readonly _messageListeners = new DisposableStore();
 
 	constructor(
