@@ -45,7 +45,7 @@ enum ProcessType {
 export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
-	public shellProcessId: number;
+	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;
@@ -54,9 +54,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
 	private _latency: number = -1;
-	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
-	private _initialCwd: string;
+	private _initialCwd: string | undefined;
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -259,7 +258,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		return Promise.resolve(this._initialCwd);
+		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
 	}
 
 	public getCwd(): Promise<string> {
@@ -275,8 +274,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			return Promise.resolve(0);
 		}
 		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
-			this._latencyRequest = this._process.getLatency();
-			this._latency = await this._latencyRequest;
+			const latencyRequest = this._process.getLatency();
+			this._latency = await latencyRequest;
 			this._latencyLastMeasured = Date.now();
 		}
 		return Promise.resolve(this._latency);
