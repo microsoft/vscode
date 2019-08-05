@@ -32,7 +32,7 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox: Checkbox;
+	private checkbox: Checkbox | undefined;
 	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
@@ -45,7 +45,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 			title: this._action.label
 		});
 		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox!.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
