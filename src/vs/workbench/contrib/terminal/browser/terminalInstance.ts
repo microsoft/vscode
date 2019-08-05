@@ -483,17 +483,14 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
-		this._xterm.onData(data => this._processManager!.write(data));
+		this._xterm.onData(data => this._processManager.write(data));
 		// TODO: How does the cwd work on detached processes?
 		this.processReady.then(async () => {
-			this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
+			this._linkHandler.processCwd = await this._processManager.getInitialCwd();
 		});
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._processManager.onProcessReady(() => {
-			if (!this._processManager) {
-				return;
-			}
 			if (this._processManager.os === platform.OperatingSystem.Windows) {
 				xterm.setOption('windowsMode', true);
 				// Force line data to be sent when the cursor is moved, the main purpose for
@@ -808,14 +805,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._pressAnyKeyToCloseListener = undefined;
 		}
 
-		if (this._processManager) {
-			this._processManager.dispose(immediate);
-		} else {
-			// In cases where there is no associated process (for example executing an extension callback task)
-			// consumers still expect on onExit event to be fired. An example of this is terminating the extension callback
-			// task.
-			this._onExit.fire(0);
-		}
+		this._processManager.dispose(immediate);
 
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -882,12 +872,8 @@ export class TerminalInstance implements ITerminalInstance {
 			text += '\r';
 		}
 
-		// If the terminal has a process, send it to the process
-		if (this._processManager) {
-			this._processManager.ptyProcessReady.then(() => {
-				this._processManager!.write(text);
-			});
-		}
+		// Send it to the process
+		this._processManager.ptyProcessReady.then(() => this._processManager.write(text));
 	}
 
 	public setVisible(visible: boolean): void {
@@ -984,7 +970,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		if (platform.isWindows) {
 			this._processManager.ptyProcessReady.then(() => {
-				if (this._processManager!.remoteAuthority) {
+				if (this._processManager.remoteAuthority) {
 					return;
 				}
 				this._xtermReadyPromise.then(xterm => {
@@ -998,7 +984,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			this._processManager!.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
 		}, 0);
 	}
 
@@ -1036,7 +1022,7 @@ export class TerminalInstance implements ITerminalInstance {
 				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPathDirectory', 'The terminal shell path "{0}" is a directory', this._shellLaunchConfig.executable);
 			} else if (exitCode === SHELL_CWD_INVALID_EXIT_CODE && this._shellLaunchConfig.cwd) {
 				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidCWD', 'The terminal shell CWD "{0}" does not exist', this._shellLaunchConfig.cwd.toString());
-			} else if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+			} else if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 				let args = '';
 				if (typeof this._shellLaunchConfig.args === 'string') {
 					args = ` ${this._shellLaunchConfig.args}`;
@@ -1058,11 +1044,11 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		this._logService.debug(`Terminal process exit (id: ${this.id})${this._processManager ? ' state ' + this._processManager.processState : ''}`);
+		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
+		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KILLED_BY_USER) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitCodeMessage) {
 					xterm.writeln(exitCodeMessage);
@@ -1082,7 +1068,7 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			this.dispose();
 			if (exitCodeMessage) {
-				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 					this._notificationService.error(exitCodeMessage);
 				} else {
 					if (this._configHelper.config.showExitAlert) {
@@ -1118,9 +1104,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		// Kill and clear up the process, making the process manager ready for a new process
-		if (this._processManager) {
-			this._processManager.dispose();
-		}
+		this._processManager.dispose();
 
 		if (this._xterm) {
 			// Ensure new processes' output starts at start of new line
@@ -1150,11 +1134,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this.setTitle(this._title, true);
 		}
 
-		if (this._processManager) {
-			// The "!" operator is required here because _processManager is set to undefiend earlier
-			// and TS does not know that createProcess sets it.
-			this._processManager!.onProcessData(data => this._onProcessData(data));
-		}
+		this._processManager.onProcessData(data => this._onProcessData(data));
 	}
 
 	private _onLineFeed(): void {
@@ -1339,9 +1319,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		if (this._processManager) {
-			this._processManager.ptyProcessReady.then(() => this._processManager!.setDimensions(cols, rows));
-		}
+		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(cols, rows));
 	}
 
 	public setTitle(title: string | undefined, eventFromProcess: boolean): void {
@@ -1438,16 +1416,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		if (!this._processManager) {
-			return Promise.resolve('');
-		}
 		return this._processManager.getInitialCwd();
 	}
 
 	public getCwd(): Promise<string> {
-		if (!this._processManager) {
-			return Promise.resolve('');
-		}
 		return this._processManager.getCwd();
 	}
 }
