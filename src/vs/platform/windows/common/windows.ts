@@ -444,6 +444,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
+	connectionToken?: string;
 }
 
 export interface IRunActionInWindowRequest {

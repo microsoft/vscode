@@ -89,7 +89,7 @@ export class FileReferences implements IDisposable {
 
 	private _children: OneReference[];
 	private _preview?: FilePreview;
-	private _resolved: boolean;
+	private _resolved?: boolean;
 	private _loadFailure: any;
 
 	constructor(private readonly _parent: ReferencesModel, private readonly _uri: URI) {

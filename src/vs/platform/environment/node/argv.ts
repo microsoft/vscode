@@ -69,6 +69,7 @@ export const options: Option[] = [
 	{ id: 'locate-extension', type: 'string' },
 	{ id: 'extensionDevelopmentPath', type: 'string' },
 	{ id: 'extensionTestsPath', type: 'string' },
+	{ id: 'extension-development-confirm-save', type: 'boolean' },
 	{ id: 'debugId', type: 'string' },
 	{ id: 'inspect-search', type: 'string', deprecates: 'debugSearch' },
 	{ id: 'inspect-brk-search', type: 'string', deprecates: 'debugBrkSearch' },

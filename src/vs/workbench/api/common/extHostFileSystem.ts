@@ -155,7 +155,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _usedSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
 
-	private _linkProviderRegistration: IDisposable;
+	private _linkProviderRegistration?: IDisposable;
 	private _handlePool: number = 0;
 
 	readonly fileSystem: vscode.FileSystem;

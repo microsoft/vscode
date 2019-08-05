@@ -470,11 +470,11 @@ export class ExtHostApiCommands {
 					return res;
 				}
 
-				detail: string;
-				range: vscode.Range;
-				selectionRange: vscode.Range;
-				children: vscode.DocumentSymbol[];
-				containerName: string;
+				detail!: string;
+				range!: vscode.Range;
+				selectionRange!: vscode.Range;
+				children!: vscode.DocumentSymbol[];
+				containerName!: string;
 			}
 			return value.map(MergedInfo.to);
 		});

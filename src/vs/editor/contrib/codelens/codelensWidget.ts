@@ -60,7 +60,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private readonly _editor: editorBrowser.ICodeEditor;
 	private readonly _commands = new Map<string, Command>();
 
-	private _widgetPosition: editorBrowser.IContentWidgetPosition;
+	private _widgetPosition?: editorBrowser.IContentWidgetPosition;
 
 	constructor(
 		editor: editorBrowser.ICodeEditor,
@@ -147,8 +147,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		};
 	}
 
-	getPosition(): editorBrowser.IContentWidgetPosition {
-		return this._widgetPosition;
+	getPosition(): editorBrowser.IContentWidgetPosition | null {
+		return this._widgetPosition || null;
 	}
 
 	isVisible(): boolean {

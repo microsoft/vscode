@@ -240,7 +240,7 @@ class SuggestionDetails {
 	private docs: HTMLElement;
 	private ariaLabel: string | null;
 	private readonly disposables: DisposableStore;
-	private renderDisposeable: IDisposable;
+	private renderDisposeable?: IDisposable;
 	private borderWidth: number = 1;
 
 	constructor(
@@ -422,20 +422,20 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
 
-	private state: State | null;
-	private isAuto: boolean;
+	private state: State | null = null;
+	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
-	private currentSuggestionDetails: CancelablePromise<void> | null;
+	private currentSuggestionDetails: CancelablePromise<void> | null = null;
 	private focusedItem: CompletionItem | null;
-	private ignoreFocusEvents = false;
-	private completionModel: CompletionModel | null;
+	private ignoreFocusEvents: boolean = false;
+	private completionModel: CompletionModel | null = null;
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
 	private list: List<CompletionItem>;
-	private listHeight: number;
+	private listHeight?: number;
 
 	private readonly suggestWidgetVisible: IContextKey<boolean>;
 	private readonly suggestWidgetMultipleSuggestions: IContextKey<boolean>;
@@ -457,13 +457,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
 	private readonly storageService: IStorageService;
-	private detailsFocusBorderColor: string;
-	private detailsBorderColor: string;
+	private detailsFocusBorderColor?: string;
+	private detailsBorderColor?: string;
 
 	private firstFocusInCurrentList: boolean = false;
 
 	private preferDocPositionTop: boolean = false;
-	private docsPositionPreviousWidgetY: number | null;
+	private docsPositionPreviousWidgetY: number | null = null;
 	private explainMode: boolean = false;
 
 	constructor(
@@ -582,7 +582,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	private _lastAriaAlertLabel: string | null;
+	private _lastAriaAlertLabel: string | null = null;
 	private _ariaAlert(newAriaAlertLabel: string | null): void {
 		if (this._lastAriaAlertLabel === newAriaAlertLabel) {
 			return;

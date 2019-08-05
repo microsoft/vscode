@@ -41,7 +41,7 @@ export class OneSnippet {
 	private readonly _snippet: TextmateSnippet;
 	private readonly _offset: number;
 
-	private _placeholderDecorations: Map<Placeholder, string>;
+	private _placeholderDecorations?: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	_placeholderGroupsIdx: number;
 	_nestingLevel: number = 1;
@@ -92,7 +92,7 @@ export class OneSnippet {
 				);
 				const options = placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive;
 				const handle = accessor.addDecoration(range, options);
-				this._placeholderDecorations.set(placeholder, handle);
+				this._placeholderDecorations!.set(placeholder, handle);
 			}
 		});
 	}
@@ -111,7 +111,7 @@ export class OneSnippet {
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				// Check if the placeholder has a transformation
 				if (placeholder.transform) {
-					const id = this._placeholderDecorations.get(placeholder)!;
+					const id = this._placeholderDecorations!.get(placeholder)!;
 					const range = this._editor.getModel().getDecorationRange(id)!;
 					const currentValue = this._editor.getModel().getValueInRange(range);
 
@@ -148,7 +148,7 @@ export class OneSnippet {
 			// Special case #2: placeholders enclosing active placeholders
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const id = this._placeholderDecorations.get(placeholder)!;
+				const id = this._placeholderDecorations!.get(placeholder)!;
 				const range = this._editor.getModel().getDecorationRange(id)!;
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
@@ -161,7 +161,7 @@ export class OneSnippet {
 				activePlaceholders.add(placeholder);
 
 				for (const enclosingPlaceholder of this._snippet.enclosingPlaceholders(placeholder)) {
-					const id = this._placeholderDecorations.get(enclosingPlaceholder)!;
+					const id = this._placeholderDecorations!.get(enclosingPlaceholder)!;
 					accessor.changeDecorationOptions(id, enclosingPlaceholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 					activePlaceholders.add(enclosingPlaceholder);
 				}
@@ -169,7 +169,7 @@ export class OneSnippet {
 
 			// change stickness to never grow when typing at its edges
 			// so that in-active tabstops never grow
-			this._placeholderDecorations.forEach((id, placeholder) => {
+			this._placeholderDecorations!.forEach((id, placeholder) => {
 				if (!activePlaceholders.has(placeholder)) {
 					accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive);
 				}
@@ -188,7 +188,7 @@ export class OneSnippet {
 		let marker: Marker | undefined = placeholder;
 		while (marker) {
 			if (marker instanceof Placeholder) {
-				const id = this._placeholderDecorations.get(marker)!;
+				const id = this._placeholderDecorations!.get(marker)!;
 				const range = this._editor.getModel().getDecorationRange(id)!;
 				if (range.isEmpty() && marker.toString().length > 0) {
 					return true;
@@ -227,7 +227,7 @@ export class OneSnippet {
 					result.set(placeholder.index, ranges);
 				}
 
-				const id = this._placeholderDecorations.get(placeholder)!;
+				const id = this._placeholderDecorations!.get(placeholder)!;
 				const range = this._editor.getModel().getDecorationRange(id);
 				if (!range) {
 					// one of the placeholder lost its decoration and
@@ -278,9 +278,9 @@ export class OneSnippet {
 
 				// Remove the placeholder at which position are inserting
 				// the snippet and also remove its decoration.
-				const id = this._placeholderDecorations.get(placeholder)!;
+				const id = this._placeholderDecorations!.get(placeholder)!;
 				accessor.removeDecoration(id);
-				this._placeholderDecorations.delete(placeholder);
+				this._placeholderDecorations!.delete(placeholder);
 
 				// For each *new* placeholder we create decoration to monitor
 				// how and if it grows/shrinks.
@@ -292,7 +292,7 @@ export class OneSnippet {
 						model.getPositionAt(nested._offset + placeholderOffset + placeholderLen)
 					);
 					const handle = accessor.addDecoration(range, OneSnippet._decor.inactive);
-					this._placeholderDecorations.set(placeholder, handle);
+					this._placeholderDecorations!.set(placeholder, handle);
 				}
 			}
 
@@ -304,7 +304,7 @@ export class OneSnippet {
 	public getEnclosingRange(): Range | undefined {
 		let result: Range | undefined;
 		const model = this._editor.getModel();
-		this._placeholderDecorations.forEach((decorationId) => {
+		this._placeholderDecorations!.forEach((decorationId) => {
 			const placeholderRange = withNullAsUndefined(model.getDecorationRange(decorationId));
 			if (!result) {
 				result = placeholderRange;

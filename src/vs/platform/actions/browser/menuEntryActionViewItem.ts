@@ -21,7 +21,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	private readonly _subscriptions = new DisposableStore();
-	private _isPressed: boolean;
+	private _isPressed: boolean = false;
 	private static instance: AlternativeKeyEmitter;
 	private _suppressAltKeyUp: boolean = false;
 
@@ -137,7 +137,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
-	private _wantsAltCommand: boolean;
+	private _wantsAltCommand: boolean = false;
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
 	private readonly _altKey: AlternativeKeyEmitter;
 
