@@ -483,7 +483,7 @@ export interface ITerminalInstance {
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
 	 */
-	readonly commandTracker: ITerminalCommandTracker;
+	readonly commandTracker: ICommandTracker;
 
 	readonly navigationMode: INavigationMode | undefined;
 
@@ -671,7 +671,7 @@ export interface ITerminalInstance {
 	getCwd(): Promise<string>;
 }
 
-export interface ITerminalCommandTracker {
+export interface ICommandTracker {
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;

@@ -30,13 +30,13 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
-import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
+import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -201,7 +201,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
-	private _commandTracker: TerminalCommandTracker;
+	private _commandTrackerAddon: CommandTrackerAddon;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
 	public disableLayout: boolean;
@@ -229,7 +229,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
-	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
+	public get commandTracker(): CommandTrackerAddon { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
 	private readonly _onExit = new Emitter<number>();
@@ -522,7 +522,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.onData(data => this._sendRendererInput(data));
 		}
 
-		this._commandTracker = new TerminalCommandTracker(this._xterm);
+		this._commandTrackerAddon = new CommandTrackerAddon();
+		this._xterm.loadAddon(this._commandTrackerAddon);
 		this._disposables.add(this._themeService.onThemeChange(theme => this._updateTheme(xterm, theme)));
 
 		return xterm;
@@ -802,7 +803,7 @@ export class TerminalInstance implements ITerminalInstance {
 		lifecycle.dispose(this._windowsShellHelper);
 		this._windowsShellHelper = undefined;
 		this._linkHandler = lifecycle.dispose(this._linkHandler);
-		this._commandTracker = lifecycle.dispose(this._commandTracker);
+		this._commandTrackerAddon = lifecycle.dispose(this._commandTrackerAddon);
 		this._widgetManager = lifecycle.dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
