@@ -236,6 +236,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
 				this._onTitleBarVisibilityChange.fire();
+
+				if (this.workbenchGrid instanceof SerializableGrid) {
+					this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+				}
+
 				this.layout();
 			}
 		}
@@ -258,6 +263,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			this._onTitleBarVisibilityChange.fire();
+
+			if (this.workbenchGrid instanceof SerializableGrid) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			}
+
 			this.layout(); // handle title bar when fullscreen changes
 		}
 
@@ -795,18 +805,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				position(this.container, 0, 0, 0, 0, 'relative');
 				size(this.container, this._dimension.width, this._dimension.height);
 
-				// Update the title bar part visibility
-				// TODO@steven: this shouldn't happen on every layout, only when something
-				// changes that makes the title bar switch visibility
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
-
-				// The editor and the panel cannot be hidden at the same time
-				// TODO@steven: this shouldn't happen on every layout, only when something
-				// changes that makes the panel and/or editor switch visibility
-				if (this.state.editor.hidden && this.state.panel.hidden) {
-					this.setPanelHidden(false, true);
-				}
-
 				// Layout the grid widget
 				this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
 			} else {
@@ -931,8 +929,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
-		if (!skipLayout) {
-			this.layout();
+		// The editor and panel cannot be hidden at the same time
+		if (hidden && this.state.panel.hidden) {
+			this.setPanelHidden(false, true);
 		}
 	}
 
@@ -1107,8 +1106,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Layout
 			if (!skipLayout) {
 				if (this.workbenchGrid instanceof Grid) {
-					const dimensions = getClientArea(this.parent);
-					this.workbenchGrid.layout(dimensions.width, dimensions.height);
+					this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 				} else {
 					this.workbenchGrid.layout();
 				}
@@ -1177,31 +1175,31 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
-		const editorSectionWidth = width - activityBarWidth - (this.state.sideBar.hidden ? 0 : sideBarSize);
+		const editorSectionWidth = width - (this.state.activityBar.hidden ? 0 : activityBarWidth) - (this.state.sideBar.hidden ? 0 : sideBarSize);
 
 		const activityBarNode: ISerializedLeafNode = {
 			type: 'leaf',
-			data: { type: 'workbench.parts.activitybar' },
+			data: { type: Parts.ACTIVITYBAR_PART },
 			size: activityBarWidth,
 			visible: !this.state.activityBar.hidden
 		};
 
 		const sideBarNode: ISerializedLeafNode = {
 			type: 'leaf',
-			data: { type: 'workbench.parts.sidebar' },
+			data: { type: Parts.SIDEBAR_PART },
 			size: sideBarSize,
 			visible: !this.state.sideBar.hidden
 		};
 
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
-			data: { type: 'workbench.parts.editor' },
+			data: { type: Parts.EDITOR_PART },
 			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize)
 		};
 
 		const panelNode: ISerializedLeafNode = {
 			type: 'leaf',
-			data: { type: 'workbench.parts.panel' },
+			data: { type: Parts.PANEL_PART },
 			size: panelSize,
 			visible: !this.state.panel.hidden
 		};
@@ -1221,7 +1219,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				data: [
 					{
 						type: 'leaf',
-						data: { type: 'workbench.parts.titlebar' },
+						data: { type: Parts.TITLEBAR_PART },
 						size: titleBarHeight
 					},
 					{
@@ -1231,7 +1229,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					},
 					{
 						type: 'leaf',
-						data: { type: 'workbench.parts.statusbar' },
+						data: { type: Parts.STATUSBAR_PART },
 						size: statusBarHeight,
 						visible: !this.state.statusBar.hidden
 					}
