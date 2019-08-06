@@ -220,10 +220,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get maxCols(): number { return this._cols; }
 	public get maxRows(): number { return this._rows; }
 	// TODO: Ideally processId would be merged into processReady
-	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
+	public get processId(): number | undefined { return this._processManager.shellProcessId; }
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
-	public get processReady(): Promise<void> { return this._processManager ? this._processManager.ptyProcessReady : Promise.resolve(undefined); }
+	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
