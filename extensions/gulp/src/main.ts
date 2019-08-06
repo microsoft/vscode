@@ -122,8 +122,9 @@ class FolderDetector {
 				this.promise = this.computeTasks();
 			}
 			return this.promise;
+		} else {
+			return [];
 		}
-		return [];
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
