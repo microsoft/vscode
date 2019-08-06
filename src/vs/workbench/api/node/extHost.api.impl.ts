@@ -457,7 +457,12 @@ export function createApiFactory(
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
 			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
 				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
+			onDidWriteTerminalData(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
 			get state() {
 				return extHostWindow.state;

@@ -459,7 +459,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, execution2);
-			await this._terminalService.attachPtyToTerminal(terminalId, await execution2.callback());
+			this._terminalService.attachPtyToTerminal(terminalId, await execution2.callback());
 		}
 
 		this._onDidExecuteTask.fire({
