@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import * as lifecycle from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
@@ -165,7 +165,7 @@ interface IGridDimensions {
 	rows: number;
 }
 
-export class TerminalInstance implements ITerminalInstance {
+export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
@@ -173,7 +173,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private static _idCounter = 1;
 
 	private _processManager: ITerminalProcessManager | undefined;
-	private _pressAnyKeyToCloseListener: lifecycle.IDisposable | undefined;
+	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
 	private _id: number;
 	private _isExiting: boolean;
@@ -196,8 +196,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: (title: string) => any;
 
-	private readonly _disposables = new lifecycle.DisposableStore();
-	private _messageTitleDisposable: lifecycle.IDisposable | undefined;
+	private _messageTitleDisposable: IDisposable | undefined;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -275,6 +274,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
+		super();
+
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
@@ -321,8 +322,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 	}
 
-	public addDisposable(disposable: lifecycle.IDisposable): void {
-		this._disposables.add(disposable);
+	public addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 
 	private _initDimensions(): void {
@@ -524,7 +525,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this._xterm.loadAddon(this._commandTrackerAddon);
-		this._disposables.add(this._themeService.onThemeChange(theme => this._updateTheme(xterm, theme)));
+		this._register(this._themeService.onThemeChange(theme => this._updateTheme(xterm, theme)));
 
 		return xterm;
 	}
@@ -608,7 +609,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return true;
 			});
-			this._disposables.add(dom.addDisposableListener(xterm.element, 'mousedown', () => {
+			this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
 				// We need to listen to the mouseup event on the document since the user may release
 				// the mouse button anywhere outside of _xterm.element.
 				const listener = dom.addDisposableListener(document, 'mouseup', () => {
@@ -620,7 +621,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._disposables.add(dom.addDisposableListener(xterm.element, 'keyup', () => {
+			this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
 				// Wait until keyup has propagated through the DOM before evaluating
 				// the new selection state.
 				setTimeout(() => this._refreshSelectionContextKey(), 0);
@@ -630,7 +631,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const focusTrap: HTMLElement = document.createElement('div');
 			focusTrap.setAttribute('tabindex', '0');
 			dom.addClass(focusTrap, 'focus-trap');
-			this._disposables.add(dom.addDisposableListener(focusTrap, 'focus', () => {
+			this._register(dom.addDisposableListener(focusTrap, 'focus', () => {
 				let currentElement = focusTrap;
 				while (!dom.hasClass(currentElement, 'part')) {
 					currentElement = currentElement.parentElement!;
@@ -640,18 +641,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}));
 			xtermHelper.insertBefore(focusTrap, xterm.textarea);
 
-			this._disposables.add(dom.addDisposableListener(xterm.textarea, 'focus', () => {
+			this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 				this._onFocused.fire(this);
 			}));
-			this._disposables.add(dom.addDisposableListener(xterm.textarea, 'blur', () => {
+			this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
-			this._disposables.add(dom.addDisposableListener(xterm.element, 'focus', () => {
+			this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
 				this._terminalFocusContextKey.set(true);
 			}));
-			this._disposables.add(dom.addDisposableListener(xterm.element, 'blur', () => {
+			this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
 				this._terminalFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
@@ -800,11 +801,11 @@ export class TerminalInstance implements ITerminalInstance {
 	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
-		lifecycle.dispose(this._windowsShellHelper);
+		dispose(this._windowsShellHelper);
 		this._windowsShellHelper = undefined;
-		this._linkHandler = lifecycle.dispose(this._linkHandler);
-		this._commandTrackerAddon = lifecycle.dispose(this._commandTrackerAddon);
-		this._widgetManager = lifecycle.dispose(this._widgetManager);
+		this._linkHandler = dispose(this._linkHandler);
+		this._commandTrackerAddon = dispose(this._commandTrackerAddon);
+		this._widgetManager = dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
@@ -841,7 +842,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
 		}
-		this._disposables.dispose();
+		super.dispose();
 	}
 
 	public rendererExit(exitCode: number): void {
@@ -1410,12 +1411,10 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			// If the title has not been set by the API or the rename command, unregister the handler that
 			// automatically updates the terminal name
-			if (this._messageTitleDisposable) {
-				lifecycle.dispose(this._messageTitleDisposable);
-				lifecycle.dispose(this._windowsShellHelper);
-				this._messageTitleDisposable = undefined;
-				this._windowsShellHelper = undefined;
-			}
+			dispose(this._messageTitleDisposable);
+			this._messageTitleDisposable = undefined;
+			dispose(this._windowsShellHelper);
+			this._windowsShellHelper = undefined;
 		}
 		const didTitleChange = title !== this._title;
 		const oldTitle = this._title;

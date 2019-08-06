@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -400,17 +400,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
  * Encapsulates temporary tracking of data events from terminal instances, once disposed all
  * listeners are removed.
  */
-class TerminalDataEventTracker extends DisposableStore {
+class TerminalDataEventTracker extends Disposable {
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
-		this._terminalService.terminalInstances.forEach(instance => this._register(instance));
-		this.add(this._terminalService.onInstanceCreated(instance => this._register(instance)));
+		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
+		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
 	}
 
-	private _register(instance: ITerminalInstance): void {
-		this.add(instance.onData(e => this._callback(instance.id, e)));
+	private _registerInstance(instance: ITerminalInstance): void {
+		this._register(instance.onData(e => this._callback(instance.id, e)));
 	}
 }
