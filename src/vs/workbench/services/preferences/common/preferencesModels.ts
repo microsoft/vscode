@@ -1005,10 +1005,10 @@ class SettingsContentBuilder {
 				this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
 				this._contentByLines.push(indent + '}');
 			} else {
-				const mulitLineValue = valueString.split('\n');
-				this._contentByLines.push(preValueConent + mulitLineValue[0]);
-				for (let i = 1; i < mulitLineValue.length; i++) {
-					this._contentByLines.push(indent + mulitLineValue[i]);
+				const multiLineValue = valueString.split('\n');
+				this._contentByLines.push(preValueConent + multiLineValue[0]);
+				for (let i = 1; i < multiLineValue.length; i++) {
+					this._contentByLines.push(indent + multiLineValue[i]);
 				}
 			}
 		} else {
