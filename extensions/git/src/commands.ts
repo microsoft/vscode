@@ -1956,8 +1956,16 @@ export class CommandCenter {
 	}
 
 	@command('git.sync', { repository: true })
-	sync(repository: Repository): Promise<void> {
-		return this._sync(repository, false);
+	async sync(repository: Repository): Promise<void> {
+		try {
+			await this._sync(repository, false);
+		} catch (err) {
+			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git._syncAll')
@@ -1974,8 +1982,16 @@ export class CommandCenter {
 	}
 
 	@command('git.syncRebase', { repository: true })
-	syncRebase(repository: Repository): Promise<void> {
-		return this._sync(repository, true);
+	async syncRebase(repository: Repository): Promise<void> {
+		try {
+			await this._sync(repository, true);
+		} catch (err) {
+			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.publish', { repository: true })
