@@ -27,7 +27,7 @@ import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedBranchNode, ISerializedLeafNode } from 'vs/base/browser/ui/grid/grid';
+import { Grid, SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedBranchNode, ISerializedLeafNode } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -798,9 +798,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 				// Layout the grid widget
 				this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
-
-				// Layout grid views
-				this.layoutGrid();
 			} else {
 				this.workbenchGrid.layout(options);
 			}
@@ -808,95 +805,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Emit as event
 			this._onLayout.fire(this._dimension);
 		}
-	}
-
-	private layoutGrid(): void {
-		if (!(this.workbenchGrid instanceof Grid)) {
-			return;
-		}
-
-		let panelInGrid = this.workbenchGrid.hasView(this.panelPartView);
-		let sidebarInGrid = this.workbenchGrid.hasView(this.sideBarPartView);
-		let activityBarInGrid = this.workbenchGrid.hasView(this.activityBarPartView);
-		let statusBarInGrid = this.workbenchGrid.hasView(this.statusBarPartView);
-		let titlebarInGrid = this.workbenchGrid.hasView(this.titleBarPartView);
-
-		// Add parts to grid
-		if (!statusBarInGrid) {
-			this.workbenchGrid.addView(this.statusBarPartView, Sizing.Split, this.editorPartView, Direction.Down);
-			statusBarInGrid = true;
-		}
-
-		if (!titlebarInGrid) {
-			this.workbenchGrid.addView(this.titleBarPartView, Sizing.Split, this.editorPartView, Direction.Up);
-
-			titlebarInGrid = true;
-		}
-
-		if (!activityBarInGrid) {
-			this.workbenchGrid.addView(this.activityBarPartView, Sizing.Split, panelInGrid && this.state.sideBar.position === this.state.panel.position ? this.panelPartView : this.editorPartView, this.state.sideBar.position === Position.RIGHT ? Direction.Right : Direction.Left);
-			activityBarInGrid = true;
-		}
-
-		if (!sidebarInGrid) {
-			this.workbenchGrid.addView(this.sideBarPartView, this.state.sideBar.width !== undefined ? this.state.sideBar.width : Sizing.Split, this.activityBarPartView, this.state.sideBar.position === Position.LEFT ? Direction.Right : Direction.Left);
-			sidebarInGrid = true;
-		}
-
-		if (!panelInGrid) {
-			this.workbenchGrid.addView(this.panelPartView, Sizing.Split, this.editorPartView, this.state.panel.position === Position.BOTTOM ? Direction.Down : Direction.Right);
-			panelInGrid = true;
-		}
-
-		// // Hide parts
-		// if (this.state.panel.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.panelPartView, false);
-		// }
-
-		// if (this.state.statusBar.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.statusBarPartView, false);
-		// }
-
-		// if (titlebarInGrid && !this.isVisible(Parts.TITLEBAR_PART)) {
-		// 	this.workbenchGrid.setViewVisible(this.titleBarPartView, false);
-		// }
-
-		// if (this.state.activityBar.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.activityBarPartView, false);
-		// }
-
-		// if (this.state.sideBar.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.sideBarPartView, false);
-		// }
-
-		// if (this.state.editor.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.editorPartView, false);
-		// }
-
-		// // Show visible parts
-		// if (!this.state.editor.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.editorPartView, true);
-		// }
-
-		// if (!this.state.statusBar.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.statusBarPartView, true);
-		// }
-
-		// if (this.isVisible(Parts.TITLEBAR_PART)) {
-		// 	this.workbenchGrid.setViewVisible(this.titleBarPartView, true);
-		// }
-
-		// if (!this.state.activityBar.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.activityBarPartView, true);
-		// }
-
-		// if (!this.state.sideBar.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.sideBarPartView, true);
-		// }
-
-		// if (!this.state.panel.hidden) {
-		// 	this.workbenchGrid.setViewVisible(this.panelPartView, true);
-		// }
 	}
 
 	isEditorLayoutCentered(): boolean {
