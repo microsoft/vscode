@@ -9391,7 +9391,7 @@
 					"include": "#memory_operators"
 				},
 				{
-					"include": "#builtin_storage_type_initilizer"
+					"include": "#builtin_storage_type_initializer"
 				},
 				{
 					"include": "#curly_initializer"
