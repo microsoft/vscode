@@ -26,11 +26,11 @@ const MAXIMUM_FONT_SIZE = 25;
  * specific test cases can be written.
  */
 export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
-	public panelContainer: HTMLElement;
+	public panelContainer: HTMLElement | undefined;
 
-	private _charMeasureElement: HTMLElement;
-	private _lastFontMeasurement: ITerminalFont;
-	public config: ITerminalConfiguration;
+	private _charMeasureElement: HTMLElement | undefined;
+	private _lastFontMeasurement: ITerminalFont | undefined;
+	public config!: ITerminalConfiguration;
 
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
@@ -55,49 +55,55 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public configFontIsMonospace(): boolean {
-		this._createCharMeasureElementIfNecessary();
 		const fontSize = 15;
 		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		const i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		const w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
-		const invalidBounds = !i_rect.width || !w_rect.width;
-		if (invalidBounds) {
-			// There is no reason to believe the font is not Monospace.
+		// Check for invalid bounds, there is no reason to believe the font is not monospace
+		if (!i_rect || !w_rect || !i_rect.width || !w_rect.width) {
 			return true;
 		}
 
 		return i_rect.width === w_rect.width;
 	}
 
-	private _createCharMeasureElementIfNecessary() {
+	private _createCharMeasureElementIfNecessary(): HTMLElement {
+		if (!this.panelContainer) {
+			throw new Error('Cannot measure element when terminal is not attached');
+		}
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+		return this._charMeasureElement;
 	}
 
-	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect {
-		const style = this._charMeasureElement.style;
+	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect | undefined {
+		let charMeasureElement: HTMLElement;
+		try {
+			charMeasureElement = this._createCharMeasureElementIfNecessary();
+		} catch {
+			return undefined;
+		}
+		const style = charMeasureElement.style;
 		style.display = 'inline-block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
 		style.lineHeight = 'normal';
-		this._charMeasureElement.innerText = char;
-		const rect = this._charMeasureElement.getBoundingClientRect();
+		charMeasureElement.innerText = char;
+		const rect = charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
 
 		return rect;
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
-		this._createCharMeasureElementIfNecessary();
-
 		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
-		if (this._lastFontMeasurement && !rect.width && !rect.height) {
+		if (this._lastFontMeasurement && (!rect || !rect.width || !rect.height)) {
 			return this._lastFontMeasurement;
 		}
 
@@ -106,8 +112,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			fontSize,
 			letterSpacing,
 			lineHeight,
-			charWidth: rect.width,
-			charHeight: Math.ceil(rect.height)
+			charWidth: rect && rect.width ? rect.width : 0,
+			charHeight: rect && rect.height ? Math.ceil(rect.height) : 0
 		};
 		return this._lastFontMeasurement;
 	}

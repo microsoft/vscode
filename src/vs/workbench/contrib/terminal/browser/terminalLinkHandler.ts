@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -67,7 +67,6 @@ interface IPath {
 
 export class TerminalLinkHandler {
 	private readonly _hoverDisposables = new DisposableStore();
-	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
 	private _gitDiffPreImagePattern: RegExp;
@@ -184,7 +183,6 @@ export class TerminalLinkHandler {
 
 	public dispose(): void {
 		this._hoverDisposables.dispose();
-		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
