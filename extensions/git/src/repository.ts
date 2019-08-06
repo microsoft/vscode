@@ -956,21 +956,70 @@ export class Repository implements Disposable {
 				}
 			});
 
-			const promises: Promise<void>[] = [];
+			const maxCommandLineLength: number = 30000;
 
 			if (toClean.length > 0) {
-				promises.push(this.repository.clean(toClean));
+				let sliceStart: number = 0;
+				let sliceEnd: number = 1;
+				let accumulatedStringLength = 0;
+
+				while (sliceEnd < toClean.length) {
+					if ((accumulatedStringLength + (toClean[sliceEnd - 1].length + 1)) > maxCommandLineLength) {
+						await this.repository.clean(toClean.slice(sliceStart, sliceEnd));
+						sliceStart = sliceEnd;
+						sliceEnd++;
+						accumulatedStringLength = 0;
+					}
+					else {
+						accumulatedStringLength += toClean[sliceEnd - 1].length + 1;
+						sliceEnd++;
+					}
+				}
+
+				await this.repository.clean(toClean.slice(sliceStart, sliceEnd));
 			}
 
 			if (toCheckout.length > 0) {
-				promises.push(this.repository.checkout('', toCheckout));
+				let sliceStart: number = 0;
+				let sliceEnd: number = 1;
+				let accumulatedStringLength = 0;
+
+				while (sliceEnd < toCheckout.length) {
+					if ((accumulatedStringLength + (toCheckout[sliceEnd - 1].length + 1)) > maxCommandLineLength) {
+						await this.repository.checkout('', toCheckout.slice(sliceStart, sliceEnd));
+						sliceStart = sliceEnd;
+						sliceEnd++;
+						accumulatedStringLength = 0;
+					}
+					else {
+						accumulatedStringLength += toCheckout[sliceEnd - 1].length + 1;
+						sliceEnd++;
+					}
+				}
+
+				await this.repository.checkout('', toCheckout.slice(sliceStart, sliceEnd));
 			}
 
 			if (submodulesToUpdate.length > 0) {
-				promises.push(this.repository.updateSubmodules(submodulesToUpdate));
-			}
+				let sliceStart: number = 0;
+				let sliceEnd: number = 1;
+				let accumulatedStringLength = 0;
 
-			await Promise.all(promises);
+				while (sliceEnd < submodulesToUpdate.length) {
+					if ((accumulatedStringLength + (submodulesToUpdate[sliceEnd - 1].length + 1)) > maxCommandLineLength) {
+						await this.repository.updateSubmodules(submodulesToUpdate.slice(sliceStart, sliceEnd));
+						sliceStart = sliceEnd;
+						sliceEnd++;
+						accumulatedStringLength = 0;
+					}
+					else {
+						accumulatedStringLength += submodulesToUpdate[sliceEnd - 1].length + 1;
+						sliceEnd++;
+					}
+				}
+
+				await this.repository.updateSubmodules(submodulesToUpdate.slice(sliceStart, sliceEnd));
+			}
 		});
 	}
 
