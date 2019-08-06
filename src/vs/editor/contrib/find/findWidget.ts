@@ -93,19 +93,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
 
-	private _domNode: HTMLElement;
-	private _findInput: FindInput;
-	private _replaceInputBox: HistoryInputBox;
+	private _domNode!: HTMLElement;
+	private _findInput!: FindInput;
+	private _replaceInputBox!: HistoryInputBox;
 
-	private _toggleReplaceBtn: SimpleButton;
-	private _matchesCount: HTMLElement;
-	private _prevBtn: SimpleButton;
-	private _nextBtn: SimpleButton;
-	private _toggleSelectionFind: SimpleCheckbox;
-	private _closeBtn: SimpleButton;
-	private _preserveCase: Checkbox;
-	private _replaceBtn: SimpleButton;
-	private _replaceAllBtn: SimpleButton;
+	private _toggleReplaceBtn!: SimpleButton;
+	private _matchesCount!: HTMLElement;
+	private _prevBtn!: SimpleButton;
+	private _nextBtn!: SimpleButton;
+	private _toggleSelectionFind!: SimpleCheckbox;
+	private _closeBtn!: SimpleButton;
+	private _preserveCase!: Checkbox;
+	private _replaceBtn!: SimpleButton;
+	private _replaceAllBtn!: SimpleButton;
 
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
@@ -118,8 +118,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: number;
 
-	private _resizeSash: Sash;
-	private _resized: boolean;
+	private _resizeSash!: Sash;
+	private _resized!: boolean;
 	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
