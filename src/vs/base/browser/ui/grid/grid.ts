@@ -277,6 +277,24 @@ export class Grid<T extends IView = IView> extends Disposable {
 		this._addView(newView, viewSize, location);
 	}
 
+	addViewAt(newView: T, size: number | DistributeSizing | InvisibleSizing, location: number[]): void {
+		if (this.views.has(newView)) {
+			throw new Error('Can\'t add same view twice');
+		}
+
+		let viewSize: number | GridViewSizing;
+
+		if (typeof size === 'number') {
+			viewSize = size;
+		} else if (size.type === 'distribute') {
+			viewSize = GridViewSizing.Distribute;
+		} else {
+			viewSize = size;
+		}
+
+		this._addView(newView, viewSize, location);
+	}
+
 	protected _addView(newView: T, size: number | GridViewSizing, location: number[]): void {
 		this.views.set(newView, newView.element);
 		this.gridview.addView(newView, size, location);
@@ -305,6 +323,26 @@ export class Grid<T extends IView = IView> extends Disposable {
 		} else {
 			this.removeView(view, typeof sizing === 'number' ? undefined : sizing);
 			this.addView(view, sizing, referenceView, direction);
+		}
+	}
+
+	moveViewTo(view: T, location: number[]): void {
+		const sourceLocation = this.getViewLocation(view);
+		const [sourceParentLocation, from] = tail(sourceLocation);
+		const [targetParentLocation, to] = tail(location);
+
+		if (equals(sourceParentLocation, targetParentLocation)) {
+			this.gridview.moveView(sourceParentLocation, from, to);
+		} else {
+			const size = this.getViewSize(view);
+			const orientation = getLocationOrientation(this.gridview.orientation, sourceLocation);
+			const cachedViewSize = this.getViewCachedVisibleSize(view);
+			const sizing = typeof cachedViewSize === 'undefined'
+				? (orientation === Orientation.HORIZONTAL ? size.width : size.height)
+				: Sizing.Invisible(cachedViewSize);
+
+			this.removeView(view);
+			this.addViewAt(view, sizing, location);
 		}
 	}
 
@@ -382,7 +420,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 			.map(node => node.view);
 	}
 
-	private getViewLocation(view: T): number[] {
+	getViewLocation(view: T): number[] {
 		const element = this.views.get(view);
 
 		if (!element) {
