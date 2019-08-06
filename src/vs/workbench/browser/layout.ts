@@ -965,9 +965,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
-				this.layout();
-			} else {
+			if (!(this.workbenchGrid instanceof Grid)) {
 				this.workbenchGrid.layout();
 			}
 		}
