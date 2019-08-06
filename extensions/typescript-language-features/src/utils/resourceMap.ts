@@ -83,11 +83,11 @@ export class ResourceMap<T> {
 		if (isWindowsPath(path)) {
 			return true;
 		}
-		return path[0] === '/' && this.onIsCaseInsenitiveFileSystem;
+		return path[0] === '/' && this.onIsCaseInsensitiveFileSystem;
 	}
 
 	@memoize
-	private get onIsCaseInsenitiveFileSystem() {
+	private get onIsCaseInsensitiveFileSystem() {
 		if (process.platform === 'win32') {
 			return true;
 		}
