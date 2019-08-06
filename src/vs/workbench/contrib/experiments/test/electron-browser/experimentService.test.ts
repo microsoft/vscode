@@ -299,7 +299,7 @@ suite('Experiment Service', () => {
 					enabled: true,
 					condition: {
 						installedExtensions: {
-							inlcudes: ['pub.installedExtension1', 'uninstalled-extention-id']
+							inlcudes: ['pub.installedExtension1', 'uninstalled-extension-id']
 						}
 					}
 				}
@@ -321,7 +321,7 @@ suite('Experiment Service', () => {
 					enabled: true,
 					condition: {
 						installedExtensions: {
-							includes: ['uninstalled-extention-id1', 'uninstalled-extention-id2']
+							includes: ['uninstalled-extension-id1', 'uninstalled-extension-id2']
 						}
 					}
 				}
@@ -343,7 +343,7 @@ suite('Experiment Service', () => {
 					enabled: true,
 					condition: {
 						installedExtensions: {
-							excludes: ['pub.installedExtension1', 'uninstalled-extention-id2']
+							excludes: ['pub.installedExtension1', 'uninstalled-extension-id2']
 						}
 					}
 				}
@@ -365,7 +365,7 @@ suite('Experiment Service', () => {
 					enabled: true,
 					condition: {
 						installedExtensions: {
-							includes: ['pub.installedExtension1', 'uninstalled-extention-id2']
+							includes: ['pub.installedExtension1', 'uninstalled-extension-id2']
 						}
 					}
 				}
@@ -392,7 +392,7 @@ suite('Experiment Service', () => {
 					enabled: true,
 					condition: {
 						installedExtensions: {
-							excludes: ['pub.installedExtension1', 'uninstalled-extention-id2']
+							excludes: ['pub.installedExtension1', 'uninstalled-extension-id2']
 						},
 						evaluateOnlyOnce: true
 					}
@@ -414,7 +414,7 @@ suite('Experiment Service', () => {
 	test('Curated list should be available if experiment is enabled.', () => {
 		const promptText = 'Hello there! Can you see this?';
 		const curatedExtensionsKey = 'AzureDeploy';
-		const curatedExtensionsList = ['uninstalled-extention-id1', 'uninstalled-extention-id2'];
+		const curatedExtensionsList = ['uninstalled-extension-id1', 'uninstalled-extension-id2'];
 		experimentData = {
 			experiments: [
 				{
@@ -454,7 +454,7 @@ suite('Experiment Service', () => {
 	test('Curated list shouldnt be available if experiment is disabled.', () => {
 		const promptText = 'Hello there! Can you see this?';
 		const curatedExtensionsKey = 'AzureDeploy';
-		const curatedExtensionsList = ['uninstalled-extention-id1', 'uninstalled-extention-id2'];
+		const curatedExtensionsList = ['uninstalled-extension-id1', 'uninstalled-extension-id2'];
 		experimentData = {
 			experiments: [
 				{
