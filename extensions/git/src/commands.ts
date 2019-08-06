@@ -450,10 +450,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const match = /git\s+clone\s+(.*)/.exec(url);
-		if (match) {
-			url = match[1];
-		}
+		url = url.replace(/^\s*git\s+clone\s+/, '');
 
 		const config = workspace.getConfiguration('git');
 		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
