@@ -169,7 +169,7 @@ export class DebugSession implements IDebugSession {
 
 				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService);
 
-				return this.raw!.start().then(() => {
+				return this.raw.start().then(() => {
 
 					this.registerListeners();
 

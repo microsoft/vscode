@@ -181,7 +181,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return providers.length > 0;
 	}
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig, token?: CancellationToken): Promise<IConfig | null | undefined> {
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
 		return this.activateDebuggers('onDebugResolve', type).then(() => {
 			// pipe the config through the promises sequentially. Append at the end the '*' types
 			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
@@ -190,7 +190,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return providers.reduce((promise, provider) => {
 				return promise.then(config => {
 					if (config) {
-						return provider.resolveDebugConfiguration!(folderUri, config, token || CancellationToken.None);
+						return provider.resolveDebugConfiguration!(folderUri, config, token);
 					} else {
 						return Promise.resolve(config);
 					}
