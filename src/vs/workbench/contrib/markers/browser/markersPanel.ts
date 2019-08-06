@@ -81,7 +81,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private messageBoxContainer: HTMLElement;
 	private ariaLabelElement: HTMLElement;
 	private readonly panelState: MementoObject;
-	private panelFoucusContextKey: IContextKey<boolean>;
+	private panelFocusContextKey: IContextKey<boolean>;
 
 	private filter: Filter;
 
@@ -108,7 +108,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
-		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
+		this.panelFocusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']);
 		this.markersViewModel.onDidChange(this.onDidChangeViewState, this, this.disposables);
@@ -132,8 +132,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		this.updateFilter();
 
-		this._register(this.onDidFocus(() => this.panelFoucusContextKey.set(true)));
-		this._register(this.onDidBlur(() => this.panelFoucusContextKey.set(false)));
+		this._register(this.onDidFocus(() => this.panelFocusContextKey.set(true)));
+		this._register(this.onDidBlur(() => this.panelFocusContextKey.set(false)));
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
