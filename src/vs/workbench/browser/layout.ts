@@ -732,7 +732,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
 			const workbenchGrid = SerializableGrid.deserialize(
-				createGridDescriptor(this.storageService, this.contextService.getWorkbenchState()),
+				this.createGridDescriptor(),
 				{ fromJSON },
 				{ proportionalLayout: false }
 			);
@@ -1247,6 +1247,81 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
 	}
 
+	private createGridDescriptor(): ISerializedGrid {
+		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, 600);
+		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, 400);
+		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, 200);
+		const sideBarHidden = this.state.sideBar.hidden;
+		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, 200);
+		const panelHidden = this.state.panel.hidden;
+
+		const titleBarHeight = 30; // TODO
+		const statusBarHeight = 22; // TODO
+		const activityBarWidth = 48; // TODO
+
+		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
+		const middleSection: ISerializedNode[] = [
+			{
+				type: 'leaf',
+				data: { type: 'workbench.parts.activitybar' },
+				size: activityBarWidth
+			},
+			{
+				type: 'leaf',
+				data: { type: 'workbench.parts.sidebar' },
+				size: sideBarSize,
+				visible: !sideBarHidden
+			},
+			{
+				type: 'branch',
+				data: [
+					{
+						type: 'leaf',
+						data: { type: 'workbench.parts.editor' },
+						size: middleSectionHeight - panelSize
+					},
+					{
+						type: 'leaf',
+						data: { type: 'workbench.parts.panel' },
+						size: panelSize,
+						visible: !panelHidden
+					},
+				],
+				size: width - activityBarWidth - sideBarSize
+			}
+		];
+
+		const result: ISerializedGrid = {
+			root: {
+				type: 'branch',
+				size: width,
+				data: [
+					{
+						type: 'leaf',
+						data: { type: 'workbench.parts.titlebar' },
+						size: titleBarHeight
+					},
+					{
+						type: 'branch',
+						data: middleSection,
+						size: middleSectionHeight
+					},
+					{
+						type: 'leaf',
+						data: { type: 'workbench.parts.statusbar' },
+						size: statusBarHeight
+					}
+				]
+			},
+			orientation: Orientation.VERTICAL,
+			width,
+			height
+		};
+
+		return result;
+	}
+
+
 	dispose(): void {
 		super.dispose();
 
@@ -1254,76 +1329,3 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 }
 
-function createGridDescriptor(storageService: IStorageService, workbenchState: WorkbenchState): ISerializedGrid {
-	const width = storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, 600);
-	const height = storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, 400);
-	const sideBarSize = storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, 200);
-	const sideBarHidden = storageService.getBoolean(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE, workbenchState === WorkbenchState.EMPTY);
-	const panelSize = storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, 200);
-	const panelHidden = storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
-
-	const titleBarHeight = 30; // TODO
-	const statusBarHeight = 22; // TODO
-	const activityBarWidth = 48; // TODO
-
-	const middleSectionHeight = height - titleBarHeight - statusBarHeight;
-	const middleSection: ISerializedNode[] = [
-		{
-			type: 'leaf',
-			data: { type: 'workbench.parts.activitybar' },
-			size: activityBarWidth
-		},
-		{
-			type: 'leaf',
-			data: { type: 'workbench.parts.sidebar' },
-			size: sideBarSize,
-			visible: !sideBarHidden
-		},
-		{
-			type: 'branch',
-			data: [
-				{
-					type: 'leaf',
-					data: { type: 'workbench.parts.editor' },
-					size: middleSectionHeight - panelSize
-				},
-				{
-					type: 'leaf',
-					data: { type: 'workbench.parts.panel' },
-					size: panelSize,
-					visible: !panelHidden
-				},
-			],
-			size: width - activityBarWidth - sideBarSize
-		}
-	];
-
-	const result: ISerializedGrid = {
-		root: {
-			type: 'branch',
-			size: width,
-			data: [
-				{
-					type: 'leaf',
-					data: { type: 'workbench.parts.titlebar' },
-					size: titleBarHeight
-				},
-				{
-					type: 'branch',
-					data: middleSection,
-					size: middleSectionHeight
-				},
-				{
-					type: 'leaf',
-					data: { type: 'workbench.parts.statusbar' },
-					size: statusBarHeight
-				}
-			]
-		},
-		orientation: Orientation.VERTICAL,
-		width,
-		height
-	};
-
-	return result;
-}
