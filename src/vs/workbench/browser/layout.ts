@@ -692,7 +692,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout
 		if (!skipLayout) {
 			if (this.workbenchGrid instanceof Grid) {
-				this.layout();
+				this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
 			} else {
 				this.workbenchGrid.layout();
 			}
@@ -896,7 +896,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout
 		if (!skipLayout) {
 			if (this.workbenchGrid instanceof Grid) {
-				this.layout();
+				this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 			} else {
 				this.workbenchGrid.layout();
 			}
@@ -1168,7 +1168,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activityBarNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: 'workbench.parts.activitybar' },
-			size: activityBarWidth
+			size: activityBarWidth,
+			visible: !this.state.activityBar.hidden
 		};
 
 		const sideBarNode: ISerializedLeafNode = {
@@ -1217,7 +1218,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					{
 						type: 'leaf',
 						data: { type: 'workbench.parts.statusbar' },
-						size: statusBarHeight
+						size: statusBarHeight,
+						visible: !this.state.statusBar.hidden
 					}
 				]
 			},
