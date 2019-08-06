@@ -376,11 +376,11 @@ interface ILimitedTaskFactory<T> {
 export class Limiter<T> {
 
 	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
+	private maxDegreeOfParallellism: number;
 	private outstandingPromises: ILimitedTaskFactory<T>[];
 
-	constructor(maxDegreeOfParalellism: number) {
-		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+	constructor(maxDegreeOfParallellism: number) {
+		this.maxDegreeOfParallellism = maxDegreeOfParallellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
 	}
@@ -393,7 +393,7 @@ export class Limiter<T> {
 	}
 
 	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParallellism) {
 			const iLimitedTask = this.outstandingPromises.shift()!;
 			this.runningPromises++;
 

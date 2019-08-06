@@ -364,7 +364,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('Limiter - assert degree of paralellism', function () {
+	test('Limiter - assert degree of parallellism', function () {
 		let activePromises = 0;
 		let factoryFactory = (n: number) => () => {
 			activePromises++;

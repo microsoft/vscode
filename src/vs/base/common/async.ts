@@ -404,12 +404,12 @@ export class Limiter<T> {
 
 	private _size = 0;
 	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
+	private maxDegreeOfParallellism: number;
 	private outstandingPromises: ILimitedTaskFactory<T>[];
 	private readonly _onFinished: Emitter<void>;
 
-	constructor(maxDegreeOfParalellism: number) {
-		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+	constructor(maxDegreeOfParallellism: number) {
+		this.maxDegreeOfParallellism = maxDegreeOfParallellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
 		this._onFinished = new Emitter<void>();
@@ -434,7 +434,7 @@ export class Limiter<T> {
 	}
 
 	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParallellism) {
 			const iLimitedTask = this.outstandingPromises.shift()!;
 			this.runningPromises++;
 
