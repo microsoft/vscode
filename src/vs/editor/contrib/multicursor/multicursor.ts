@@ -32,7 +32,7 @@ export class InsertCursorAbove extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
-			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
+			label: nls.localize('multicursor.insertAbove', "Add Cursor Above"),
 			alias: 'Add Cursor Above',
 			precondition: undefined,
 			kbOpts: {
@@ -81,7 +81,7 @@ export class InsertCursorBelow extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
-			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
+			label: nls.localize('multicursor.insertBelow', "Add Cursor Below"),
 			alias: 'Add Cursor Below',
 			precondition: undefined,
 			kbOpts: {
@@ -130,7 +130,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
+			label: nls.localize('multicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
 			alias: 'Add Cursors to Line Ends',
 			precondition: undefined,
 			kbOpts: {
@@ -182,7 +182,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToBottom',
-			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
+			label: nls.localize('multicursor.addCursorsToBottom', "Add Cursors To Bottom"),
 			alias: 'Add Cursors To Bottom',
 			precondition: undefined
 		});
@@ -212,7 +212,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToTop',
-			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
+			label: nls.localize('multicursor.addCursorsToTop', "Add Cursors To Top"),
 			alias: 'Add Cursors To Top',
 			precondition: undefined
 		});
