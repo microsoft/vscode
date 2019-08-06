@@ -16,9 +16,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentsPanel, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsPanel';
+import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../common/extHost.protocol';
+import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
