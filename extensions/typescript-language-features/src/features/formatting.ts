@@ -31,11 +31,11 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 
 		const args = typeConverters.Range.toFormattingRequestArgs(file, range);
 		const response = await this.client.execute('format', args, token);
-		if (response.type === 'response' && response.body) {
-			return response.body.map(typeConverters.TextEdit.fromCodeEdit);
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
 		}
 
-		return undefined;
+		return response.body.map(typeConverters.TextEdit.fromCodeEdit);
 	}
 
 	public async provideOnTypeFormattingEdits(
