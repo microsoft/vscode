@@ -45,8 +45,8 @@ function createCheckbox(): HTMLInputElement {
 export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
-	private list: WorkbenchList<IEnablement>;
-	private needsRefresh: boolean;
+	private list!: WorkbenchList<IEnablement>;
+	private needsRefresh = false;
 
 	constructor(
 		options: IViewletViewOptions,
