@@ -801,6 +801,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
 				// The editor and the panel cannot be hidden at the same time
+				// TODO@steven: this shouldn't happen on every layout, only when something
+				// changes that makes the panel and/or editor switch visibility
 				if (this.state.editor.hidden && this.state.panel.hidden) {
 					this.setPanelHidden(false, true);
 				}
