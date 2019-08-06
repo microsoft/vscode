@@ -90,6 +90,7 @@ export abstract class SimpleFindWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this.findFirst();
 		}));
 
 		this._register(this._findInput.onKeyDown((e) => {
@@ -165,6 +166,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected abstract onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
+	protected abstract findFirst(): void;
 	protected abstract onFocusTrackerFocus(): void;
 	protected abstract onFocusTrackerBlur(): void;
 	protected abstract onFindInputFocusTrackerFocus(): void;
