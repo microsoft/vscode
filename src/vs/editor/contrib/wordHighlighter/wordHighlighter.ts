@@ -601,7 +601,6 @@ class TriggerWordHighlightAction extends EditorAction {
 		}
 
 		controller.restoreViewState(true);
-
 	}
 }
 
