@@ -246,9 +246,9 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 			return ts.ScriptSnapshot.fromString(this._files[fileName]);
 		} else if (this._libs.hasOwnProperty(fileName)) {
 			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
-		} else { 
+		} else {
 			return ts.ScriptSnapshot.fromString('');
-	}
+		}
 	}
 	getScriptKind(_fileName: string): ts.ScriptKind {
 		return ts.ScriptKind.TS;
