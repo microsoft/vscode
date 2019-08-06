@@ -14,7 +14,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 suite('RPCProtocol', () => {
 
 	class MessagePassingProtocol implements IMessagePassingProtocol {
-		private _pair: MessagePassingProtocol;
+		private _pair?: MessagePassingProtocol;
 
 		private readonly _onMessage = new Emitter<VSBuffer>();
 		public readonly onMessage: Event<VSBuffer> = this._onMessage.event;
@@ -25,7 +25,7 @@ suite('RPCProtocol', () => {
 
 		public send(buffer: VSBuffer): void {
 			process.nextTick(() => {
-				this._pair._onMessage.fire(buffer);
+				this._pair!._onMessage.fire(buffer);
 			});
 		}
 	}

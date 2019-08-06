@@ -36,7 +36,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: ServiceIdentifier<IWorkspaceEditingService>;
+	_serviceBrand!: ServiceIdentifier<IWorkspaceEditingService>;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,

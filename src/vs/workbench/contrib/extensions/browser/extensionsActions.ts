@@ -692,7 +692,13 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		]);
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
-		groups.push([this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(ExtensionSettingsAction)]);
+
+		const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction)];
+		if (this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
+			extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
+		}
+
+		groups.push(extensionActions);
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -3115,9 +3121,9 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 
 		this.notificationService.notify({
 			severity: Severity.Info,
-			message: localize('finished installing', "Completed installing the extensions. Please reload the window now."),
+			message: localize('finished installing', "Successfully installed extensions in {0}. Please reload the window to enable them.", this.extensionManagementServerService.remoteExtensionManagementServer!.label),
 			actions: {
-				primary: [new Action('realod', localize('reload', "Realod Window"), '', true,
+				primary: [new Action('realod', localize('reload', "Reload Window"), '', true,
 					() => this.windowService.reloadWindow())]
 			}
 		});

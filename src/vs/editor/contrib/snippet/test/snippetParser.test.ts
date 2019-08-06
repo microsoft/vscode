@@ -418,7 +418,7 @@ suite('SnippetParser', () => {
 		assert.ok(children[3] instanceof Placeholder);
 		assert.equal(children[3].children.length, 0);
 		assert.notEqual((<Placeholder>children[3]).transform, undefined);
-		let transform = (<Placeholder>children[3]).transform;
+		let transform = (<Placeholder>children[3]).transform!;
 		assert.equal(transform.regexp, '/\\s:=(.*)/');
 		assert.equal(transform.children.length, 2);
 		assert.ok(transform.children[0] instanceof FormatString);

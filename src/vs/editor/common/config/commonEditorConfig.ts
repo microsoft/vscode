@@ -68,7 +68,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	public readonly isSimpleWidget: boolean;
 	protected _rawOptions: editorOptions.IEditorOptions;
 	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
-	public editor: editorOptions.InternalEditorOptions;
+	public editor!: editorOptions.InternalEditorOptions;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
 

@@ -106,6 +106,8 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const environmentService = new TestEnvironmentService(URI.file(parentDir));
 				const fileService = new FileService(new NullLogService());
+				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, new DiskFileSystemProvider(new NullLogService()), environmentService));
 				workspaceContextService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService(), new SignService(undefined)));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));

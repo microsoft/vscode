@@ -48,7 +48,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	//#region IView
 
@@ -83,8 +83,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private compositeBar: CompositeBar;
 	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
 
-	private blockOpeningPanel: boolean;
-	private _contentDimension: Dimension;
+	private blockOpeningPanel = false;
+	private _contentDimension: Dimension | undefined;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -367,7 +367,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
 		if (e.key === PanelPart.PINNED_PANELS && e.scope === StorageScope.GLOBAL
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
-			this._cachedPanelsValue = null;
+			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
 			const compositeItems = this.compositeBar.getCompositeBarItems();
 			const cachedPanels = this.getCachedPanels();
@@ -422,7 +422,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return cachedPanels;
 	}
 
-	private _cachedPanelsValue: string | null;
+	private _cachedPanelsValue: string | undefined;
 	private get cachedPanelsValue(): string {
 		if (!this._cachedPanelsValue) {
 			this._cachedPanelsValue = this.getStoredCachedPanelsValue();

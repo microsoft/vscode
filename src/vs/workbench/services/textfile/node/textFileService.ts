@@ -30,7 +30,7 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 
 export class NodeTextFileService extends TextFileService {
 
-	private _encoding: EncodingOracle;
+	private _encoding!: EncodingOracle;
 	get encoding(): EncodingOracle {
 		if (!this._encoding) {
 			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
@@ -137,7 +137,7 @@ export class NodeTextFileService extends TextFileService {
 					});
 
 					// Error
-					stream.on('error', error => this.emit(error));
+					stream.on('error', error => this.emit('error', error));
 				}
 
 				// ensure the stream is flowing

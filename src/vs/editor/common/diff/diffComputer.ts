@@ -328,6 +328,8 @@ export class DiffComputer {
 		this.modifiedLines = modifiedLines;
 		this.original = new LineMarkerSequence(originalLines);
 		this.modified = new LineMarkerSequence(modifiedLines);
+
+		this.computationStartTime = (new Date()).getTime();
 	}
 
 	public computeDiff(): ILineChange[] {

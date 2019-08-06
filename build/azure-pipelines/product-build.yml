@@ -126,9 +126,12 @@ jobs:
   - LinuxSnap
   - LinuxArmhf
   - LinuxAlpine
+  - LinuxWeb
   - macOS
   steps:
   - template: sync-mooncake.yml
+
+trigger: none
 
 schedules:
 - cron: "0 6 * * Mon-Fri"

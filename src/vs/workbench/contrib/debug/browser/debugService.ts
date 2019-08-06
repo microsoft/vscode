@@ -47,6 +47,7 @@ import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/error
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -87,7 +88,8 @@ export class DebugService implements IDebugService {
 	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private initializing = false;
-	private previousState: State;
+	private previousState: State | undefined;
+	private initCancellationToken: CancellationTokenSource | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -211,6 +213,10 @@ export class DebugService implements IDebugService {
 	}
 
 	private endInitializingState() {
+		if (this.initCancellationToken) {
+			this.initCancellationToken.cancel();
+			this.initCancellationToken = undefined;
+		}
 		if (this.initializing) {
 			this.initializing = false;
 			this.onStateChange();
@@ -355,8 +361,9 @@ export class DebugService implements IDebugService {
 		}
 
 		const debuggerThenable: Promise<void> = type ? Promise.resolve() : this.configurationManager.guessDebugger().then(dbgr => { type = dbgr && dbgr.type; });
-		return debuggerThenable.then(() =>
-			this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!).then(config => {
+		return debuggerThenable.then(() => {
+			this.initCancellationToken = new CancellationTokenSource();
+			return this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, this.initCancellationToken.token).then(config => {
 				// a falsy config indicates an aborted launch
 				if (config && config.type) {
 					return this.substituteVariables(launch, config).then(resolvedConfig => {
@@ -396,17 +403,17 @@ export class DebugService implements IDebugService {
 								.then(() => false);
 						}
 
-						return launch && launch.openConfigFile(false, true).then(() => false);
+						return launch && launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
 					});
 				}
 
 				if (launch && type && config === null) {	// show launch.json only for "config" being "null".
-					return launch.openConfigFile(false, true, type).then(() => false);
+					return launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
 				}
 
 				return false;
-			})
-		);
+			});
+		});
 	}
 
 	/**
@@ -587,7 +594,8 @@ export class DebugService implements IDebugService {
 
 							let substitutionThenable: Promise<IConfig | null | undefined> = Promise.resolve(session.configuration);
 							if (launch && needsToSubstitute && unresolved) {
-								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved)
+								this.initCancellationToken = new CancellationTokenSource();
+								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token)
 									.then(resolved => {
 										if (resolved) {
 											// start debugging

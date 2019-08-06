@@ -502,7 +502,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this.versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this.getGroupedTasks().then((map) => {
+		return this.getGroupedTasks(filter ? filter.type : undefined).then((map) => {
 			if (!filter || !filter.type) {
 				return map.all();
 			}
@@ -795,6 +795,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
+			}
+			if (task.configurationProperties.group) {
+				toCustomize.group = task.configurationProperties.group;
 			}
 		}
 		if (!toCustomize) {
@@ -1114,7 +1117,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
-	private getGroupedTasks(): Promise<TaskMap> {
+	private getGroupedTasks(type?: string): Promise<TaskMap> {
 		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
@@ -1149,10 +1152,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				};
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
-					this._providers.forEach((provider) => {
-						counter++;
-						provider.provideTasks(validTypes).then(done, error);
-					});
+					for (const [handle, provider] of this._providers) {
+						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
+							counter++;
+							provider.provideTasks(validTypes).then(done, error);
+						}
+					}
 				} else {
 					resolve(result);
 				}

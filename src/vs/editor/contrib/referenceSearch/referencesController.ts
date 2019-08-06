@@ -34,8 +34,8 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _editor: ICodeEditor;
-	private _widget: ReferenceWidget | null;
-	private _model: ReferencesModel | null;
+	private _widget?: ReferenceWidget;
+	private _model?: ReferencesModel;
 	private _requestIdPool = 0;
 	private _ignoreModelChangeEvent = false;
 
@@ -68,11 +68,11 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		dispose(this._disposables);
 		if (this._widget) {
 			dispose(this._widget);
-			this._widget = null;
+			this._widget = undefined;
 		}
 		if (this._model) {
 			dispose(this._model);
-			this._model = null;
+			this._model = undefined;
 		}
 	}
 
@@ -107,7 +107,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			modelPromise.cancel();
 			if (this._widget) {
 				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
-				this._widget = null;
+				this._widget = undefined;
 			}
 			this.closeWidget();
 		}));
@@ -202,13 +202,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	public closeWidget(): void {
 		if (this._widget) {
 			dispose(this._widget);
-			this._widget = null;
+			this._widget = undefined;
 		}
 		this._referenceSearchVisible.reset();
 		this._disposables.clear();
 		if (this._model) {
 			dispose(this._model);
-			this._model = null;
+			this._model = undefined;
 		}
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests

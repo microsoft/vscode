@@ -40,7 +40,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
-	_serviceBrand: ServiceIdentifier<IHistoryMainService>;
+	_serviceBrand!: ServiceIdentifier<IHistoryMainService>;
 
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;

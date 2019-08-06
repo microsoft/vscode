@@ -99,7 +99,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -115,10 +115,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private stack: IStackEntry[];
 	private index: number;
 	private lastIndex: number;
-	private navigatingInStack: boolean;
-	private currentTextEditorState: TextEditorState | null;
+	private navigatingInStack = false;
+	private currentTextEditorState: TextEditorState | null = null;
 
-	private lastEditLocation: IStackEntry;
+	private lastEditLocation: IStackEntry | undefined;
 
 	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];

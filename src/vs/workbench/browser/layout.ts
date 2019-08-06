@@ -62,7 +62,7 @@ enum Storage {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
@@ -791,15 +791,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setEditorHidden(!visible, true);
 			}));
 
-			this._register(this.lifecycleService.onBeforeShutdown(beforeShutdownEvent => {
-				beforeShutdownEvent.veto(new Promise((resolve) => {
-					const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
-					const serializedGrid = grid.serialize();
+			this._register(this.storageService.onWillSaveState(() => {
+				const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
+				const serializedGrid = grid.serialize();
 
-					this.storageService.store(Storage.GRID_LAYOUT, JSON.stringify(serializedGrid), StorageScope.GLOBAL);
-
-					resolve();
-				}));
+				this.storageService.store(Storage.GRID_LAYOUT, JSON.stringify(serializedGrid), StorageScope.GLOBAL);
 			}));
 		} else {
 			this.workbenchGrid = instantiationService.createInstance(

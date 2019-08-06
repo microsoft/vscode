@@ -645,7 +645,7 @@ export interface IWaitUntil {
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue: [Listener<T>, T, Promise<any>[]][];
+	private _asyncDeliveryQueue?: [Listener<T>, T, Promise<any>[]][];
 
 	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {

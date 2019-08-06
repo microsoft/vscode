@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, EventEmitter, Uri } from 'vscode';
-import { dirname, sep, join } from 'path';
+import { Event } from 'vscode';
+import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -345,18 +345,69 @@ export function pathEquals(a: string, b: string): boolean {
 	return a === b;
 }
 
-export interface IFileWatcher extends IDisposable {
-	readonly event: Event<Uri>;
+export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {
+	let current: string[] = [];
+	let length = 0;
+
+	for (const value of array) {
+		let newLength = length + value.length;
+
+		if (newLength > maxChunkLength && current.length > 0) {
+			yield current;
+			current = [];
+			newLength = value.length;
+		}
+
+		current.push(value);
+		length = newLength;
+	}
+
+	if (current.length > 0) {
+		yield current;
+	}
 }
 
-export function watch(location: string): IFileWatcher {
-	const dotGitWatcher = fs.watch(location);
-	const onDotGitFileChangeEmitter = new EventEmitter<Uri>();
-	dotGitWatcher.on('change', (_, e) => onDotGitFileChangeEmitter.fire(Uri.file(join(location, e as string))));
-	dotGitWatcher.on('error', err => console.error(err));
+interface ILimitedTaskFactory<T> {
+	factory: () => Promise<T>;
+	c: (value?: T | Promise<T>) => void;
+	e: (error?: any) => void;
+}
 
-	return new class implements IFileWatcher {
-		event = onDotGitFileChangeEmitter.event;
-		dispose() { dotGitWatcher.close(); }
-	};
+export class Limiter<T> {
+
+	private runningPromises: number;
+	private maxDegreeOfParalellism: number;
+	private outstandingPromises: ILimitedTaskFactory<T>[];
+
+	constructor(maxDegreeOfParalellism: number) {
+		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+		this.outstandingPromises = [];
+		this.runningPromises = 0;
+	}
+
+	queue(factory: () => Promise<T>): Promise<T> {
+		return new Promise<T>((c, e) => {
+			this.outstandingPromises.push({ factory, c, e });
+			this.consume();
+		});
+	}
+
+	private consume(): void {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+			const iLimitedTask = this.outstandingPromises.shift()!;
+			this.runningPromises++;
+
+			const promise = iLimitedTask.factory();
+			promise.then(iLimitedTask.c, iLimitedTask.e);
+			promise.then(() => this.consumed(), () => this.consumed());
+		}
+	}
+
+	private consumed(): void {
+		this.runningPromises--;
+
+		if (this.outstandingPromises.length > 0) {
+			this.consume();
+		}
+	}
 }

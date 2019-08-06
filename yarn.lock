@@ -5976,10 +5976,10 @@ napi-build-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/napi-build-utils/-/napi-build-utils-1.0.1.tgz#1381a0f92c39d66bf19852e7873432fc2123e508"
   integrity sha512-boQj1WFgQH3v4clhu3mTNfP+vOBxorDlE8EKiMjUlLG3C4qAESnn9AxIOkFgTR2c9LtzNjPrjS60cT27ZKBhaA==
 
-native-is-elevated@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
-  integrity sha1-cKISOoV1ufYko+9GXZjLdK4Bc4U=
+native-is-elevated@0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.3.0.tgz#6c5d8f57daeec129abd03b5606a55e56e4337423"
+  integrity sha512-QJgU7vaCZ199PSEC4LAmwtGfqwGaz8a51YDeze3DPiRzcOq25LIQpxCbBWunIu+csMMHFsDuyO2OVfeSD4ioHQ==
 
 native-keymap@2.0.0:
   version "2.0.0"
@@ -9599,9 +9599,10 @@ vscode-windows-ca-certs@0.1.0:
   dependencies:
     node-addon-api "1.6.2"
 
-vscode-windows-registry@microsoft/vscode-windows-registry#n-api:
-  version "1.0.1"
-  resolved "https://codeload.github.com/microsoft/vscode-windows-registry/tar.gz/ef41106bfd46b522bb624b96a954d464c793d0f4"
+vscode-windows-registry@1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.2.tgz#b863e704a6a69c50b3098a55fbddbe595b0c124a"
+  integrity sha512-/CLLvuOSM2Vme2z6aNyB+4Omd7hDxpf4Thrt8ImxnXeQtxzel2bClJpFQvQqK/s4oaXlkBKS7LqVLeZM+uSVIA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
@@ -9886,10 +9887,10 @@ xterm-addon-web-links@0.1.0-beta10:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta89:
-  version "3.15.0-beta89"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta89.tgz#255962e2595deefb42b8c0043001256526163a3f"
-  integrity sha512-rNaoUamacPRg+ejbKDGRDNqR3SZ3Uf/pUW0mO+FF25/lIgdLq8x7RgZVBgFweCZ/dijPjxoyMcgfNDTH9h8LOg==
+xterm@3.15.0-beta90:
+  version "3.15.0-beta90"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta90.tgz#e1732c2914584c86cffa797ba762c482f21ce182"
+  integrity sha512-eixIA5brfoez+Y8bJPCcIw8Q7LgOvxRX3cPBaGmo7ozUASx9IEGOmvIRQX1ozTUmxEiXPnAxOfl/isQ+yNlaww==
 
 y18n@^3.2.1:
   version "3.2.1"

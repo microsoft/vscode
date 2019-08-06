@@ -92,8 +92,8 @@ export const enum State {
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
-	private _quickSuggestDelay: number;
-	private _triggerCharacterListener: IDisposable;
+	private _quickSuggestDelay: number = 10;
+	private _triggerCharacterListener?: IDisposable;
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
 
@@ -161,7 +161,8 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest]);
+		dispose(this._triggerCharacterListener);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerQuickSuggest]);
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
