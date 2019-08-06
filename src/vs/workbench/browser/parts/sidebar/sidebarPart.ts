@@ -70,6 +70,9 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
 
+	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+
 	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
 	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
 
@@ -267,6 +270,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				});
 			}
 		}
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

@@ -11,6 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
+import { clamp } from 'vs/base/common/numbers';
 
 export { Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -277,9 +278,7 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid from index');
 		}
 
-		if (to < 0 || to > this.children.length) {
-			throw new Error('Invalid to index');
-		}
+		to = clamp(to, 0, this.children.length);
 
 		if (from < to) {
 			to--;
@@ -300,9 +299,7 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid from index');
 		}
 
-		if (to < 0 || to >= this.children.length) {
-			throw new Error('Invalid to index');
-		}
+		to = clamp(to, 0, this.children.length);
 
 		this.splitview.swapViews(from, to);
 		[this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash, this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash] = [this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash, this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash];
