@@ -185,22 +185,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermSearch: SearchAddon | undefined;
-	private _xtermElement: HTMLDivElement;
+	private _xtermElement: HTMLDivElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
-	private _cols: number;
-	private _rows: number;
+	private _cols: number = 0;
+	private _rows: number = 0;
 	private _dimensionsOverride: ITerminalDimensions | undefined;
 	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
-	private _titleReadyComplete: (title: string) => any;
+	private _titleReadyComplete: ((title: string) => any) | undefined;
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
-	private _widgetManager: TerminalWidgetManager;
-	private _linkHandler: TerminalLinkHandler;
-	private _commandTrackerAddon: CommandTrackerAddon;
+	private _widgetManager: TerminalWidgetManager | undefined;
+	private _linkHandler: TerminalLinkHandler | undefined;
+	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
 	public disableLayout: boolean;
@@ -228,7 +228,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
-	public get commandTracker(): CommandTrackerAddon { return this._commandTrackerAddon; }
+	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
 	private readonly _onExit = new Emitter<number>();
@@ -494,7 +494,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xterm.onData(data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this.processReady.then(async () => {
-				this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
+				if (this._linkHandler) {
+					this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
+				}
 			});
 			// Init winpty compat and link handler after process creation as they rely on the
 			// underlying process OS
@@ -661,11 +663,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._container.appendChild(this._wrapperElement);
 
 			if (this._processManager) {
-				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
-				this._processManager.onProcessReady(() => this._linkHandler.setWidgetManager(this._widgetManager));
+				const widgetManager = new TerminalWidgetManager(this._wrapperElement);
+				this._widgetManager = widgetManager;
+				this._processManager.onProcessReady(() => {
+					if (this._linkHandler) {
+						this._linkHandler.setWidgetManager(widgetManager);
+					}
+				});
 			} else if (this._shellLaunchConfig.isRendererOnly) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
-				this._linkHandler.setWidgetManager(this._widgetManager);
+				this._linkHandler!.setWidgetManager(this._widgetManager);
 			}
 
 			const computedStyle = window.getComputedStyle(this._container);
@@ -736,7 +743,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return this._linkHandler.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
+		return this._linkHandler!.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {
@@ -1252,7 +1259,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private async _updateProcessCwd(): Promise<string> {
 		// reset cwd if it has changed, so file based url paths can be resolved
 		const cwd = await this.getCwd();
-		if (cwd) {
+		if (cwd && this._linkHandler) {
 			this._linkHandler.processCwd = cwd;
 		}
 		return cwd;
@@ -1417,11 +1424,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._windowsShellHelper = undefined;
 		}
 		const didTitleChange = title !== this._title;
-		const oldTitle = this._title;
 		this._title = title;
 		if (didTitleChange) {
-			if (!oldTitle) {
+			if (this._titleReadyComplete) {
 				this._titleReadyComplete(title);
+				this._titleReadyComplete = undefined;
 			}
 			this._onTitleChanged.fire(this);
 		}
