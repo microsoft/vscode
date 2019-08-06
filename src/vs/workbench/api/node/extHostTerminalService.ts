@@ -290,11 +290,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._lastActiveWorkspace, this._variableResolver, this._logService);
 	}
 
-	// TODO: Remove when CustomExecution is removed
-	public async resolveTerminalRenderer(id: number): Promise<any> {
-		throw new Error('TerminalRenderers are no longer supported');
-	}
-
 	public $acceptActiveTerminalChanged(id: number | null): void {
 		const original = this._activeTerminal;
 		if (id === null) {

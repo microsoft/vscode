@@ -1032,24 +1032,6 @@ declare module 'vscode' {
 	/**
 	 * Class used to execute an extension callback as a task.
 	 */
-	export class CustomExecution {
-		/**
-		 * @param callback The callback that will be called when the extension callback task is executed.
-		 */
-		constructor(callback: (terminalRenderer: any, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
-
-		/**
-		 * The callback used to execute the task.
-		 * @param terminalRenderer Used by the task to render output and receive input.
-		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
-		 * @returns The callback should return '0' for success and a non-zero value for failure.
-		 */
-		callback: (terminalRenderer: any, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
-	}
-
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
 	export class CustomExecution2 {
 		/**
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
@@ -1081,12 +1063,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2;
+		execution2?: ProcessExecution | ShellExecution | CustomExecution2;
 	}
 	//#endregion
 
