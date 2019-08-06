@@ -800,6 +800,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// changes that makes the title bar switch visibility
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
+				// The editor and the panel cannot be hidden at the same time
+				if (this.state.editor.hidden && this.state.panel.hidden) {
+					this.setPanelHidden(false, true);
+				}
+
 				// Layout the grid widget
 				this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
 			} else {
@@ -915,16 +920,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (!(this.workbenchGrid instanceof Grid) || hidden === this.state.editor.hidden) {
+		if (!(this.workbenchGrid instanceof Grid)) {
 			return;
 		}
 
 		this.state.editor.hidden = hidden;
 
-		// The editor and the panel cannot be hidden at the same time
-		if (this.state.editor.hidden && this.state.panel.hidden) {
-			this.setPanelHidden(false, true);
-		}
+		// Propagate to grid
+		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
 		if (!skipLayout) {
 			this.layout();
@@ -1151,9 +1154,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const size = this.workbenchGrid.getViewSize(this.panelPartView);
 
 			if (position === Position.BOTTOM) {
-				this.workbenchGrid.moveView(this.panelPartView, size.width, this.editorPartView, Direction.Down);
+				this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : size.width, this.editorPartView, Direction.Down);
 			} else {
-				this.workbenchGrid.moveView(this.panelPartView, size.height, this.editorPartView, Direction.Right);
+				this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : size.height, this.editorPartView, Direction.Right);
 			}
 		} else {
 			this.workbenchGrid.layout();
