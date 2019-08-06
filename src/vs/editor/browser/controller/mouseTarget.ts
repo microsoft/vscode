@@ -722,7 +722,8 @@ export class MouseTargetFactory {
 		if (mouseContentHorizontalOffset < 0) {
 			return 1;
 		}
-		return Math.round(mouseContentHorizontalOffset / typicalHalfwidthCharacterWidth) + 1;
+		const chars = Math.round(mouseContentHorizontalOffset / typicalHalfwidthCharacterWidth);
+		return (chars + 1);
 	}
 
 	private static createMouseTargetFromHitTestPosition(ctx: HitTestContext, request: HitTestRequest, lineNumber: number, column: number): MouseTarget {
