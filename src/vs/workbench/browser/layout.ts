@@ -737,18 +737,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid = workbenchGrid;
 
 			this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
-				// TODO
-				// this.setPanelHidden(!visible, true);
+				this.setSideBarHidden(!visible, true);
 			}));
 
 			this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
-				// TODO
-				// this.setPanelHidden(!visible, true);
+				this.setPanelHidden(!visible, true);
 			}));
 
 			this._register((this.editorPartView as PanelPart).onDidVisibilityChange((visible) => {
-				// TODO
-				// this.setEditorHidden(!visible, true);
+				this.setEditorHidden(!visible, true);
 			}));
 
 			this._register(this.storageService.onWillSaveState(() => {
