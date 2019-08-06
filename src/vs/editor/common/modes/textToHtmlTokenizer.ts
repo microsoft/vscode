@@ -77,6 +77,10 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					partContent += '&#8203';
 					break;
 
+				case CharCode.Space:
+					partContent += '&nbsp';
+					break;
+
 				default:
 					partContent += String.fromCharCode(charCode);
 			}
