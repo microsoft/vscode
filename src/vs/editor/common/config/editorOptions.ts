@@ -493,6 +493,11 @@ export interface IEditorOptions {
 	 */
 	fastScrollSensitivity?: number;
 	/**
+	 * FastScrolling key
+	 * Defaults to 'Alt'.
+	 */
+	fastScrollKey?: string | undefined;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -909,6 +914,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalSliderSize: number;
 	readonly mouseWheelScrollSensitivity: number;
 	readonly fastScrollSensitivity: number;
+	readonly fastScrollKey: string | undefined;
 }
 
 export interface InternalEditorMinimapOptions {
@@ -1337,6 +1343,7 @@ export class InternalEditorOptions {
 			&& a.verticalSliderSize === b.verticalSliderSize
 			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
 			&& a.fastScrollSensitivity === b.fastScrollSensitivity
+			&& a.fastScrollKey === b.fastScrollKey
 		);
 	}
 
@@ -1854,7 +1861,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number): InternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number, fastScrollKey: string | undefined): InternalEditorScrollbarOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1879,6 +1886,7 @@ export class EditorOptionsValidator {
 			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 			fastScrollSensitivity: fastScrollSensitivity,
+			fastScrollKey: fastScrollKey,
 		};
 	}
 
@@ -2041,7 +2049,10 @@ export class EditorOptionsValidator {
 		if (fastScrollSensitivity <= 0) {
 			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
 		}
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
+
+		let fastScrollKey = opts.fastScrollKey;
+
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity, fastScrollKey);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
 		return {
@@ -2673,6 +2684,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			handleMouseWheel: true,
 			mouseWheelScrollSensitivity: 1,
 			fastScrollSensitivity: 5,
+			fastScrollKey: 'alt',
 		},
 		minimap: {
 			enabled: true,

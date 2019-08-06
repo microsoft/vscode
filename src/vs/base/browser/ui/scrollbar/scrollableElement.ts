@@ -287,6 +287,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._options.fastScrollSensitivity = massagedOptions.fastScrollSensitivity;
+		this._options.fastScrollKey = massagedOptions.fastScrollKey;
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 
 		if (!this._options.lazyRender) {
@@ -346,11 +347,15 @@ export abstract class AbstractScrollableElement extends Widget {
 				deltaY = 0;
 			}
 
-			if (e.browserEvent && e.browserEvent.altKey) {
+
+			if (e.browserEvent && ((this._options.fastScrollKey === 'alt' && e.browserEvent.altKey)
+				|| (this._options.fastScrollKey === 'ctrl' && e.browserEvent.ctrlKey)
+				|| (this._options.fastScrollKey === 'shift' && e.browserEvent.shiftKey))) {
 				// fastScrolling
 				deltaX = deltaX * this._options.fastScrollSensitivity;
 				deltaY = deltaY * this._options.fastScrollSensitivity;
 			}
+
 
 			const futureScrollPosition = this._scrollable.getFutureScrollPosition();
 
@@ -553,6 +558,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
 		fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
+		fastScrollKey: (typeof opts.fastScrollKey !== 'undefined' ? opts.fastScrollKey : 'alt'),
 		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 

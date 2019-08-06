@@ -49,6 +49,7 @@ export class EditorScrollbar extends ViewPart {
 			arrowSize: configScrollbarOpts.arrowSize,
 			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
 			fastScrollSensitivity: configScrollbarOpts.fastScrollSensitivity,
+			fastScrollKey: configScrollbarOpts.fastScrollKey,
 		};
 
 		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
@@ -129,7 +130,8 @@ export class EditorScrollbar extends ViewPart {
 			const newOpts: ScrollableElementChangeOptions = {
 				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: editor.viewInfo.scrollbar.mouseWheelScrollSensitivity,
-				fastScrollSensitivity: editor.viewInfo.scrollbar.fastScrollSensitivity
+				fastScrollSensitivity: editor.viewInfo.scrollbar.fastScrollSensitivity,
+				fastScrollKey: editor.viewInfo.scrollbar.fastScrollKey
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}

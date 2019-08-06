@@ -56,6 +56,11 @@ export interface ScrollableElementCreationOptions {
 	 */
 	fastScrollSensitivity?: number;
 	/**
+	 * FastScrolling key
+	 * Defaults to 'Alt'.
+	 */
+	fastScrollKey?: string | undefined;
+	/**
 	 * Height for vertical arrows (top/bottom) and width for horizontal arrows (left/right).
 	 * Defaults to 11.
 	 */
@@ -113,6 +118,7 @@ export interface ScrollableElementChangeOptions {
 	handleMouseWheel?: boolean;
 	mouseWheelScrollSensitivity?: number;
 	fastScrollSensitivity: number;
+	fastScrollKey: string | undefined;
 }
 
 export interface ScrollableElementResolvedOptions {
@@ -125,6 +131,7 @@ export interface ScrollableElementResolvedOptions {
 	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
 	fastScrollSensitivity: number;
+	fastScrollKey: string | undefined;
 	mouseWheelSmoothScroll: boolean;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement | null;

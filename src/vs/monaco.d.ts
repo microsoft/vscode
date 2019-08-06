@@ -2867,6 +2867,11 @@ declare namespace monaco.editor {
 		 */
 		fastScrollSensitivity?: number;
 		/**
+		 * FastScrolling key
+		 * Defaults to 'Alt'.
+		 */
+		fastScrollKey?: string | undefined;
+		/**
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
 		 */
@@ -3228,6 +3233,7 @@ declare namespace monaco.editor {
 		readonly verticalSliderSize: number;
 		readonly mouseWheelScrollSensitivity: number;
 		readonly fastScrollSensitivity: number;
+		readonly fastScrollKey: string | undefined;
 	}
 
 	export interface InternalEditorMinimapOptions {
