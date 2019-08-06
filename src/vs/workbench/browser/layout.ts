@@ -689,11 +689,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			removeClass(this.container, 'nostatusbar');
 		}
 
+		// Propagate to grid
+		if (this.workbenchGrid instanceof Grid) {
+			this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
+		}
+
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
-				this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
-			} else {
+			if (!(this.workbenchGrid instanceof Grid)) {
 				this.workbenchGrid.layout();
 			}
 		}
@@ -893,11 +896,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.activityBar.hidden = hidden;
 
+		// Propagate to grid
+		if (this.workbenchGrid instanceof Grid) {
+			this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
+		}
+
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
-				this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
-			} else {
+			if (!(this.workbenchGrid instanceof Grid)) {
 				this.workbenchGrid.layout();
 			}
 		}
@@ -1019,9 +1025,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
-				this.layout();
-			} else {
+			if (!(this.workbenchGrid instanceof Grid)) {
 				this.workbenchGrid.layout();
 			}
 		}
