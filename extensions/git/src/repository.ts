@@ -5,7 +5,7 @@
 
 import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, watch, IFileWatcher } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -14,6 +14,7 @@ import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
 import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
+import { IFileWatcher, watch } from './watch';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -956,21 +957,9 @@ export class Repository implements Disposable {
 				}
 			});
 
-			const promises: Promise<void>[] = [];
-
-			if (toClean.length > 0) {
-				promises.push(this.repository.clean(toClean));
-			}
-
-			if (toCheckout.length > 0) {
-				promises.push(this.repository.checkout('', toCheckout));
-			}
-
-			if (submodulesToUpdate.length > 0) {
-				promises.push(this.repository.updateSubmodules(submodulesToUpdate));
-			}
-
-			await Promise.all(promises);
+			await this.repository.clean(toClean);
+			await this.repository.checkout('', toCheckout);
+			await this.repository.updateSubmodules(submodulesToUpdate);
 		});
 	}
 
