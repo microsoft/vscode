@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env } from 'vscode';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, watch, IFileWatcher } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -1146,11 +1146,22 @@ export class Repository implements Disposable {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
+				const supportCancellation = config.get<boolean>('supportCancellation');
 
-				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { tags });
+				const fn = fetchOnPull
+					? async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, undefined, undefined, { tags, cancellationToken })
+					: async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+
+				if (supportCancellation) {
+					const opts: ProgressOptions = {
+						location: ProgressLocation.Notification,
+						title: localize('sync is unpredictable', "Syncing. Cancelling may cause serious damages to the repository"),
+						cancellable: true
+					};
+
+					await window.withProgress(opts, (_, token) => fn(token));
 				} else {
-					await this.repository.pull(rebase, remoteName, pullBranch, { tags });
+					await fn();
 				}
 
 				const remote = this.remotes.find(r => r.name === remoteName);

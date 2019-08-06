@@ -137,7 +137,7 @@ export class NodeTextFileService extends TextFileService {
 					});
 
 					// Error
-					stream.on('error', error => this.emit(error));
+					stream.on('error', error => this.emit('error', error));
 				}
 
 				// ensure the stream is flowing

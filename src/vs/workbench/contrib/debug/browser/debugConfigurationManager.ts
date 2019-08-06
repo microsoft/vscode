@@ -44,7 +44,7 @@ const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 export class ConfigurationManager implements IConfigurationManager {
 	private debuggers: Debugger[];
 	private breakpointModeIdsSet = new Set<string>();
-	private launches: ILaunch[];
+	private launches!: ILaunch[];
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;
 	private toDispose: IDisposable[];

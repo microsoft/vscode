@@ -87,7 +87,7 @@ export class DebugService implements IDebugService {
 	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private initializing = false;
-	private previousState: State;
+	private previousState: State | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,

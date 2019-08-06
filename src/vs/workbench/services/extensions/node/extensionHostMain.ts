@@ -40,7 +40,7 @@ export class ExtensionHostMain {
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
 	private readonly _extensionService: ExtHostExtensionService;
-	private readonly disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		protocol: IMessagePassingProtocol,
@@ -55,14 +55,14 @@ export class ExtensionHostMain {
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
-		initData = this.transform(initData, rpcProtocol);
+		initData = ExtensionHostMain._transform(initData, rpcProtocol);
 
 		// allow to patch console
 		consolePatchFn(rpcProtocol.getProxy(MainContext.MainThreadConsole));
 
 		// services
 		const extHostLogService = new ExtHostLogService(logServiceFn(initData), initData.logsLocation.fsPath);
-		this.disposables.add(extHostLogService);
+		this._disposables.add(extHostLogService);
 
 		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, extHostLogService, withNullAsUndefined(initData.workspace));
 
@@ -122,7 +122,7 @@ export class ExtensionHostMain {
 		}
 		this._isTerminating = true;
 
-		this.disposables.dispose();
+		this._disposables.dispose();
 
 		errors.setUnexpectedErrorHandler((err) => {
 			// TODO: write to log once we have one
@@ -136,7 +136,7 @@ export class ExtensionHostMain {
 		}, 1000);
 	}
 
-	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
+	private static _transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		initData.environment.appSettingsHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appSettingsHome));

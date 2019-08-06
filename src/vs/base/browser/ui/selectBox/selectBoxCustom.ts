@@ -89,21 +89,21 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _isVisible: boolean;
 	private selectBoxOptions: ISelectBoxOptions;
 	private selectElement: HTMLSelectElement;
-	private options: ISelectOptionItem[];
+	private options: ISelectOptionItem[] = [];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
 	private styles: ISelectBoxStyles;
-	private listRenderer: SelectListRenderer;
-	private contextViewProvider: IContextViewProvider;
-	private selectDropDownContainer: HTMLElement;
-	private styleElement: HTMLStyleElement;
-	private selectList: List<ISelectOptionItem>;
-	private selectDropDownListContainer: HTMLElement;
-	private widthControlElement: HTMLElement;
-	private _currentSelection: number;
-	private _dropDownPosition: AnchorPosition;
+	private listRenderer!: SelectListRenderer;
+	private contextViewProvider!: IContextViewProvider;
+	private selectDropDownContainer!: HTMLElement;
+	private styleElement!: HTMLStyleElement;
+	private selectList!: List<ISelectOptionItem>;
+	private selectDropDownListContainer!: HTMLElement;
+	private widthControlElement!: HTMLElement;
+	private _currentSelection = 0;
+	private _dropDownPosition!: AnchorPosition;
 	private _hasDetails: boolean = false;
-	private selectionDetailsPane: HTMLElement;
+	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
 
 	private _sticky: boolean = false; // for dev purposes only
@@ -241,7 +241,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	public setOptions(options: ISelectOptionItem[], selected?: number): void {
-		if (!this.options || !arrays.equals(this.options, options)) {
+		if (!arrays.equals(this.options, options)) {
 			this.options = options;
 			this.selectElement.options.length = 0;
 			this._hasDetails = false;
@@ -266,7 +266,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Mirror options in drop-down
 		// Populate select list for non-native select mode
-		if (this.selectList && !!this.options) {
+		if (this.selectList) {
 			this.selectList.splice(0, this.selectList.length, this.options);
 		}
 	}
@@ -689,7 +689,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private setWidthControlElement(container: HTMLElement): number {
 		let elementWidth = 0;
 
-		if (container && !!this.options) {
+		if (container) {
 			let longest = 0;
 			let longestLength = 0;
 
