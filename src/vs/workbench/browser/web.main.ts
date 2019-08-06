@@ -46,8 +46,6 @@ import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/
 
 class CodeRendererMain extends Disposable {
 
-	private workbench: Workbench;
-
 	constructor(
 		private readonly domElement: HTMLElement,
 		private readonly configuration: IWorkbenchConstructionOptions
@@ -65,24 +63,24 @@ class CodeRendererMain extends Disposable {
 		this.restoreBaseTheme();
 
 		// Create Workbench
-		this.workbench = new Workbench(
+		const workbench = new Workbench(
 			this.domElement,
 			services.serviceCollection,
 			services.logService
 		);
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
 		// Workbench Lifecycle
-		this._register(this.workbench.onShutdown(() => this.dispose()));
-		this._register(this.workbench.onWillShutdown(() => {
+		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onWillShutdown(() => {
 			services.storageService.close();
 			this.saveBaseTheme();
 		}));
 
 		// Startup
-		this.workbench.startup();
+		workbench.startup();
 	}
 
 	private restoreBaseTheme(): void {

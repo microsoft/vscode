@@ -40,7 +40,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
-	private restoreViewState: boolean;
+	private restoreViewState: boolean | undefined;
 	private readonly groupListener = this._register(new MutableDisposable());
 
 	constructor(

@@ -378,11 +378,12 @@ export class AutoIndentOnPasteCommand implements ICommand {
 	private readonly _edits: { range: IRange; text: string; eol?: EndOfLineSequence; }[];
 
 	private readonly _initialSelection: Selection;
-	private _selectionId: string;
+	private _selectionId: string | null;
 
 	constructor(edits: TextEdit[], initialSelection: Selection) {
 		this._initialSelection = initialSelection;
 		this._edits = [];
+		this._selectionId = null;
 
 		for (let edit of edits) {
 			if (edit.range && typeof edit.text === 'string') {
@@ -415,7 +416,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._selectionId);
+		return helper.getTrackedSelection(this._selectionId!);
 	}
 }
 
@@ -651,7 +652,7 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 
 export class IndentationToSpacesCommand implements ICommand {
 
-	private selectionId: string;
+	private selectionId: string | null = null;
 
 	constructor(private readonly selection: Selection, private tabSize: number) { }
 
@@ -661,13 +662,13 @@ export class IndentationToSpacesCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+		return helper.getTrackedSelection(this.selectionId!);
 	}
 }
 
 export class IndentationToTabsCommand implements ICommand {
 
-	private selectionId: string;
+	private selectionId: string | null = null;
 
 	constructor(private readonly selection: Selection, private tabSize: number) { }
 
@@ -677,7 +678,7 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+		return helper.getTrackedSelection(this.selectionId!);
 	}
 }
 

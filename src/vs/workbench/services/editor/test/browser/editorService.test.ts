@@ -49,8 +49,8 @@ export class TestEditorControl extends BaseEditor {
 }
 
 export class TestEditorInput extends EditorInput implements IFileEditorInput {
-	public gotDisposed: boolean;
-	private fails: boolean;
+	public gotDisposed = false;
+	private fails = false;
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }

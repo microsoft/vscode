@@ -92,18 +92,18 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
-	private replDelegate: ReplDelegate;
-	private container: HTMLElement;
-	private replInput: CodeEditorWidget;
-	private replInputContainer: HTMLElement;
-	private dimension: dom.Dimension;
+	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+	private replDelegate!: ReplDelegate;
+	private container!: HTMLElement;
+	private replInput!: CodeEditorWidget;
+	private replInputContainer!: HTMLElement;
+	private dimension!: dom.Dimension;
 	private replInputHeight: number;
-	private model: ITextModel;
-	private historyNavigationEnablement: IContextKey<boolean>;
-	private scopedInstantiationService: IInstantiationService;
-	private replElementsChangeListener: IDisposable;
-	private styleElement: HTMLStyleElement;
+	private model!: ITextModel;
+	private historyNavigationEnablement!: IContextKey<boolean>;
+	private scopedInstantiationService!: IInstantiationService;
+	private replElementsChangeListener: IDisposable | undefined;
+	private styleElement: HTMLStyleElement | undefined;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,

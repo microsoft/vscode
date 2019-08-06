@@ -13,10 +13,10 @@ import { StorageScope } from 'vs/platform/storage/common/storage';
 
 class SimplePart extends Part {
 
-	minimumWidth: number;
-	maximumWidth: number;
-	minimumHeight: number;
-	maximumHeight: number;
+	minimumWidth: number = 50;
+	maximumWidth: number = 50;
+	minimumHeight: number = 50;
+	maximumHeight: number = 50;
 
 	layout(width: number, height: number): void {
 		throw new Error('Method not implemented.');

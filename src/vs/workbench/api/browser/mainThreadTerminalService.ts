@@ -5,12 +5,13 @@
 
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -22,12 +23,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _terminalProcessesReady = new Map<number, (proxy: ITerminalProcessExtHostProxy) => void>();
 	private readonly _terminalOnDidWriteDataListeners = new Map<number, IDisposable>();
 	private readonly _terminalOnDidAcceptInputListeners = new Map<number, IDisposable>();
+	private _dataEventTracker: TerminalDataEventTracker | undefined;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
@@ -172,6 +175,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
+	/** @deprecated */
 	public $registerOnDataListener(terminalId: number): void {
 		const terminalInstance = this._terminalService.getInstanceFromId(terminalId);
 		if (!terminalInstance) {
@@ -191,12 +195,32 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		terminalInstance.addDisposable(listener);
 	}
 
+	public $startSendingDataEvents(): void {
+		if (!this._dataEventTracker) {
+			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
+				this._onTerminalData2(id, data);
+			});
+		}
+	}
+
+	public $stopSendingDataEvents(): void {
+		if (this._dataEventTracker) {
+			this._dataEventTracker.dispose();
+			this._dataEventTracker = undefined;
+		}
+	}
+
 	private _onActiveTerminalChanged(terminalId: number | null): void {
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
+	/** @deprecated */
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	}
+
+	private _onTerminalData2(terminalId: number, data: string): void {
+		this._proxy.$acceptTerminalProcessData2(terminalId, data);
 	}
 
 	private _onTitleChanged(terminalId: number, name: string): void {
@@ -254,7 +278,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		} else {
 			this._terminalProcesses.set(proxy.terminalId, Promise.resolve(proxy));
 		}
-		const shellLaunchConfigDto: ShellLaunchConfigDto = {
+		const shellLaunchConfigDto: IShellLaunchConfigDto = {
 			name: request.shellLaunchConfig.name,
 			executable: request.shellLaunchConfig.executable,
 			args: request.shellLaunchConfig.args,
@@ -369,5 +393,24 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			throw new Error(`Unknown terminal: ${terminalId}`);
 		}
 		return terminal;
+	}
+}
+
+/**
+ * Encapsulates temporary tracking of data events from terminal instances, once disposed all
+ * listeners are removed.
+ */
+class TerminalDataEventTracker extends DisposableStore {
+	constructor(
+		private readonly _callback: (id: number, data: string) => void,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super();
+		this._terminalService.terminalInstances.forEach(instance => this._register(instance));
+		this.add(this._terminalService.onInstanceCreated(instance => this._register(instance)));
+	}
+
+	private _register(instance: ITerminalInstance): void {
+		this.add(instance.onData(e => this._callback(instance.id, e)));
 	}
 }

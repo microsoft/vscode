@@ -128,6 +128,8 @@ jobs:
   steps:
   - template: sync-mooncake.yml
 
+trigger: none
+
 schedules:
 - cron: "0 5 * * Mon-Fri"
   displayName: Mon-Fri at 7:00

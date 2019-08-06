@@ -158,8 +158,8 @@ class DecorationsManager implements IDisposable {
 }
 
 export class LayoutData {
-	ratio: number;
-	heightInLines: number;
+	ratio: number = 0.7;
+	heightInLines: number = 18;
 
 	static fromJSON(raw: string): LayoutData {
 		let ratio: number | undefined;
@@ -191,22 +191,21 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	private _model: ReferencesModel | undefined;
-	private _decorationsManager: DecorationsManager;
+	private _model?: ReferencesModel;
+	private _decorationsManager?: DecorationsManager;
 
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
-	private _treeContainer: HTMLElement;
-	// private _sash: VSash;
-	private _splitView: SplitView;
-	private _preview: ICodeEditor;
-	private _previewModelReference: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage: TextModel;
-	private _previewContainer: HTMLElement;
-	private _messageContainer: HTMLElement;
+	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
+	private _treeContainer!: HTMLElement;
+	private _splitView!: SplitView;
+	private _preview!: ICodeEditor;
+	private _previewModelReference!: IReference<ITextEditorModel>;
+	private _previewNotAvailableMessage!: TextModel;
+	private _previewContainer!: HTMLElement;
+	private _messageContainer!: HTMLElement;
 	private _dim: dom.Dimension = { height: 0, width: 0 };
 
 	constructor(

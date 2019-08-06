@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IMarker } from 'xterm';
-import { ITerminalCommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Terminal, IMarker, ITerminalAddon } from 'xterm';
+import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.
@@ -22,15 +21,15 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposable {
+export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
+	private _terminal: Terminal | undefined;
 
-	constructor(
-		private _xterm: Terminal
-	) {
-		this._xterm.onKey(e => this._onKey(e.key));
+	public activate(terminal: Terminal): void {
+		this._terminal = terminal;
+		terminal.onKey(e => this._onKey(e.key));
 	}
 
 	public dispose(): void {
@@ -48,116 +47,138 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	}
 
 	private _onEnter(): void {
-		if (this._xterm.buffer.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._xterm.addMarker(0);
+		if (!this._terminal) {
+			return;
+		}
+		if (this._terminal.buffer.cursorX >= MINIMUM_PROMPT_LENGTH) {
+			this._terminal.addMarker(0);
 		}
 	}
 
 	public scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
 
 		let markerIndex;
 		if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._xterm.markers.length - 1;
+			markerIndex = this._terminal.markers.length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
-			markerIndex = this._findPreviousCommand();
+			markerIndex = this._findPreviousCommand(this._terminal);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._xterm.markers.indexOf(this._currentMarker) - 1;
+			markerIndex = this._terminal.markers.indexOf(this._currentMarker) - 1;
 		}
 
 		if (markerIndex < 0) {
 			this._currentMarker = Boundary.Top;
-			this._xterm.scrollToTop();
+			this._terminal.scrollToTop();
 			return;
 		}
 
-		this._currentMarker = this._xterm.markers[markerIndex];
+		this._currentMarker = this._terminal.markers[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
 	public scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
 
 		let markerIndex;
 		if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._xterm.markers.length;
+			markerIndex = this._terminal.markers.length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
-			markerIndex = this._findNextCommand();
+			markerIndex = this._findNextCommand(this._terminal);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._xterm.markers.indexOf(this._currentMarker) + 1;
+			markerIndex = this._terminal.markers.indexOf(this._currentMarker) + 1;
 		}
 
-		if (markerIndex >= this._xterm.markers.length) {
+		if (markerIndex >= this._terminal.markers.length) {
 			this._currentMarker = Boundary.Bottom;
-			this._xterm.scrollToBottom();
+			this._terminal.scrollToBottom();
 			return;
 		}
 
-		this._currentMarker = this._xterm.markers[markerIndex];
+		this._currentMarker = this._terminal.markers[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
 	private _scrollToMarker(marker: IMarker, position: ScrollPosition): void {
+		if (!this._terminal) {
+			return;
+		}
 		let line = marker.line;
 		if (position === ScrollPosition.Middle) {
-			line = Math.max(line - Math.floor(this._xterm.rows / 2), 0);
+			line = Math.max(line - Math.floor(this._terminal.rows / 2), 0);
 		}
-		this._xterm.scrollToLine(line);
+		this._terminal.scrollToLine(line);
 	}
 
 	public selectToPreviousCommand(): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
 		this.scrollToPreviousCommand(ScrollPosition.Middle, true);
-		this._selectLines(this._currentMarker, this._selectionStart);
+		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	public selectToNextCommand(): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
 		this.scrollToNextCommand(ScrollPosition.Middle, true);
-		this._selectLines(this._currentMarker, this._selectionStart);
+		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	public selectToPreviousLine(): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-
-		this.scrollToPreviousLine(ScrollPosition.Middle, true);
-		this._selectLines(this._currentMarker, this._selectionStart);
+		this.scrollToPreviousLine(this._terminal, ScrollPosition.Middle, true);
+		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
 	public selectToNextLine(): void {
+		if (!this._terminal) {
+			return;
+		}
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-
-		this.scrollToNextLine(ScrollPosition.Middle, true);
-		this._selectLines(this._currentMarker, this._selectionStart);
+		this.scrollToNextLine(this._terminal, ScrollPosition.Middle, true);
+		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
-	private _selectLines(start: IMarker | Boundary, end: IMarker | Boundary | null): void {
+	private _selectLines(xterm: Terminal, start: IMarker | Boundary, end: IMarker | Boundary | null): void {
 		if (end === null) {
 			end = Boundary.Bottom;
 		}
 
-		let startLine = this._getLine(start);
-		let endLine = this._getLine(end);
+		let startLine = this._getLine(xterm, start);
+		let endLine = this._getLine(xterm, end);
 
 		if (startLine > endLine) {
 			const temp = startLine;
@@ -169,13 +190,13 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 		// command in the selection for the current command
 		endLine -= 1;
 
-		this._xterm.selectLines(startLine, endLine);
+		xterm.selectLines(startLine, endLine);
 	}
 
-	private _getLine(marker: IMarker | Boundary): number {
+	private _getLine(xterm: Terminal, marker: IMarker | Boundary): number {
 		// Use the _second last_ row as the last row is likely the prompt
 		if (marker === Boundary.Bottom) {
-			return this._xterm.buffer.baseY + this._xterm.rows - 1;
+			return xterm.buffer.baseY + xterm.rows - 1;
 		}
 
 		if (marker === Boundary.Top) {
@@ -185,74 +206,74 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 		return marker.line;
 	}
 
-	public scrollToPreviousLine(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	public scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._xterm.scrollToTop();
+			xterm.scrollToTop();
 			return;
 		}
 
 		if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = this._xterm.addMarker(this._getOffset() - 1);
+			this._currentMarker = xterm.addMarker(this._getOffset(xterm) - 1);
 		} else {
-			const offset = this._getOffset();
+			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._xterm.addMarker(offset - 1);
+			this._currentMarker = xterm.addMarker(offset - 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	public scrollToNextLine(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	public scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
 
 		if (this._currentMarker === Boundary.Bottom) {
-			this._xterm.scrollToBottom();
+			xterm.scrollToBottom();
 			return;
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = this._xterm.addMarker(this._getOffset() + 1);
+			this._currentMarker = xterm.addMarker(this._getOffset(xterm) + 1);
 		} else {
-			const offset = this._getOffset();
+			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._xterm.addMarker(offset + 1);
+			this._currentMarker = xterm.addMarker(offset + 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	private _getOffset(): number {
+	private _getOffset(xterm: Terminal): number {
 		if (this._currentMarker === Boundary.Bottom) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Top) {
-			return 0 - (this._xterm.buffer.baseY + this._xterm.buffer.cursorY);
+			return 0 - (xterm.buffer.baseY + xterm.buffer.cursorY);
 		} else {
-			let offset = this._getLine(this._currentMarker);
-			offset -= this._xterm.buffer.baseY + this._xterm.buffer.cursorY;
+			let offset = this._getLine(xterm, this._currentMarker);
+			offset -= xterm.buffer.baseY + xterm.buffer.cursorY;
 			return offset;
 		}
 	}
 
-	private _findPreviousCommand(): number {
+	private _findPreviousCommand(xterm: Terminal): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._xterm.markers.length - 1;
+			return xterm.markers.length - 1;
 		}
 
 		let i;
-		for (i = this._xterm.markers.length - 1; i >= 0; i--) {
-			if (this._xterm.markers[i].line < this._currentMarker.line) {
+		for (i = xterm.markers.length - 1; i >= 0; i--) {
+			if (xterm.markers[i].line < this._currentMarker.line) {
 				return i;
 			}
 		}
@@ -260,20 +281,20 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 		return -1;
 	}
 
-	private _findNextCommand(): number {
+	private _findNextCommand(xterm: Terminal): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return this._xterm.markers.length - 1;
+			return xterm.markers.length - 1;
 		}
 
 		let i;
-		for (i = 0; i < this._xterm.markers.length; i++) {
-			if (this._xterm.markers[i].line > this._currentMarker.line) {
+		for (i = 0; i < xterm.markers.length; i++) {
+			if (xterm.markers[i].line > this._currentMarker.line) {
 				return i;
 			}
 		}
 
-		return this._xterm.markers.length;
+		return xterm.markers.length;
 	}
 }

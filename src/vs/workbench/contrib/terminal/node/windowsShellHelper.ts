@@ -25,10 +25,10 @@ const SHELL_EXECUTABLES = [
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper implements IWindowsShellHelper {
-	private _onCheckShell: Emitter<Promise<string> | undefined>;
+	private _onCheckShell: Emitter<Promise<string> | undefined> = new Emitter<Promise<string> | undefined>();
 	private _isDisposed: boolean;
-	private _currentRequest: Promise<string> | null;
-	private _newLineFeed: boolean;
+	private _currentRequest: Promise<string> | undefined;
+	private _newLineFeed: boolean = false;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -47,7 +47,6 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 			}
 
 			windowsProcessTree = mod;
-			this._onCheckShell = new Emitter<Promise<string>>();
 			// The debounce is necessary to prevent multiple processes from spawning when
 			// the enter key or output is spammed
 			Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
@@ -65,6 +64,7 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 			this._xterm.onCursorMove(() => {
 				if (this._newLineFeed) {
 					this._onCheckShell.fire(undefined);
+					this._newLineFeed = false;
 				}
 			});
 
@@ -127,7 +127,7 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 		this._currentRequest = new Promise<string>(resolve => {
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
-				this._currentRequest = null;
+				this._currentRequest = undefined;
 				resolve(name);
 			});
 		});

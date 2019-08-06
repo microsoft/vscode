@@ -51,16 +51,16 @@ export class OpenEditorsView extends ViewletPanel {
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
-	private dirtyCountElement: HTMLElement;
+	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
-	private list: WorkbenchList<OpenEditor | IEditorGroup>;
-	private listLabels: ResourceLabels;
-	private contributedContextMenu: IMenu;
-	private needsRefresh: boolean;
-	private resourceContext: ResourceContextKey;
-	private groupFocusedContext: IContextKey<boolean>;
-	private dirtyEditorFocusedContext: IContextKey<boolean>;
+	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
+	private listLabels: ResourceLabels | undefined;
+	private contributedContextMenu!: IMenu;
+	private needsRefresh = false;
+	private resourceContext!: ResourceContextKey;
+	private groupFocusedContext!: IContextKey<boolean>;
+	private dirtyEditorFocusedContext!: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -466,9 +466,13 @@ interface IEditorGroupTemplateData {
 }
 
 class OpenEditorActionRunner extends ActionRunner {
-	public editor: OpenEditor;
+	public editor: OpenEditor | undefined;
 
 	run(action: IAction, context?: any): Promise<void> {
+		if (!this.editor) {
+			return Promise.resolve();
+		}
+
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
 	}
 }

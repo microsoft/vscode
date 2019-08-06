@@ -94,8 +94,8 @@ export class ExpressionContainer implements IExpressionContainer {
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
-	public valueChanged: boolean;
-	private _value: string;
+	public valueChanged = false;
+	private _value: string = '';
 	protected children?: Promise<IExpression[]>;
 
 	constructor(
@@ -201,7 +201,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
-	public type: string;
+	public type: string | undefined;
 
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, 0, id);

@@ -36,7 +36,7 @@ export class DiagnosticsChannel implements IServerChannel {
 
 export class DiagnosticsService implements IDiagnosticsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	constructor(private channel: IChannel) { }
 

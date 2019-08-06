@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class BrowserDebugHelperService implements IDebugHelperService {
 
-	_serviceBrand: ServiceIdentifier<IDebugHelperService>;
+	_serviceBrand!: ServiceIdentifier<IDebugHelperService>;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 		return undefined;

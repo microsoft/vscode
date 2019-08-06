@@ -238,14 +238,14 @@ export class OutlinePanel extends ViewletPanel {
 	private _editorDisposables = new DisposableStore();
 	private _outlineViewState = new OutlineViewState();
 	private _requestOracle?: RequestOracle;
-	private _domNode: HTMLElement;
-	private _message: HTMLDivElement;
-	private _inputContainer: HTMLDivElement;
-	private _progressBar: ProgressBar;
-	private _tree: WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
-	private _treeDataSource: OutlineDataSource;
-	private _treeRenderer: OutlineElementRenderer;
-	private _treeComparator: OutlineItemComparator;
+	private _domNode!: HTMLElement;
+	private _message!: HTMLDivElement;
+	private _inputContainer!: HTMLDivElement;
+	private _progressBar!: ProgressBar;
+	private _tree!: WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
+	private _treeDataSource!: OutlineDataSource;
+	private _treeRenderer!: OutlineElementRenderer;
+	private _treeComparator!: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
 	private _treeFakeUIEvent = new UIEvent('me');

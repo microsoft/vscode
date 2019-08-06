@@ -70,6 +70,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
+		this._result = [];
 	}
 
 	setRange(range: Range): void {

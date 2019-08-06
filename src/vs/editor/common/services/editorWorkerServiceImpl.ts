@@ -167,6 +167,7 @@ class WorkerManager extends Disposable {
 		super();
 		this._modelService = modelService;
 		this._editorWorkerClient = null;
+		this._lastWorkerUsedTime = (new Date()).getTime();
 
 		let stopWorkerInterval = this._register(new IntervalTimer());
 		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
