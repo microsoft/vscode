@@ -1160,12 +1160,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private createGridDescriptor(): ISerializedGrid {
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, 600);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, 400);
-		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, 200);
-		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, 200);
+		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, 300);
+		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, 300);
 
-		const titleBarHeight = 30; // TODO
-		const statusBarHeight = 22; // TODO
-		const activityBarWidth = 48; // TODO
+		const titleBarHeight = this.titleBarPartView.minimumHeight;
+		const statusBarHeight = this.statusBarPartView.minimumHeight;
+		const activityBarWidth = this.activityBarPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
 		const editorSectionWidth = width - activityBarWidth - (this.state.sideBar.hidden ? 0 : sideBarSize);
 
