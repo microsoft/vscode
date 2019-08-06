@@ -483,7 +483,7 @@ export interface ITerminalInstance {
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
 	 */
-	readonly commandTracker: ICommandTracker;
+	readonly commandTracker: ICommandTracker | undefined;
 
 	readonly navigationMode: INavigationMode | undefined;
 

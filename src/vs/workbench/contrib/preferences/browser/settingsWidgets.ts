@@ -346,7 +346,7 @@ export class ListSettingWidget extends Disposable {
 			.map((item, i) => this.renderItem(item, i, focused))
 			.forEach(itemElement => this.listElement.appendChild(itemElement));
 
-		const listHeight = 22 * this.model.items.length;
+		const listHeight = 24 * this.model.items.length;
 		this.listElement.style.height = listHeight + 'px';
 	}
 
