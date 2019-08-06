@@ -5,7 +5,7 @@
 
 import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, watch, IFileWatcher } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, splitInChunks } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -14,6 +14,7 @@ import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
 import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
+import { IFileWatcher, watch } from './watch';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -956,70 +957,9 @@ export class Repository implements Disposable {
 				}
 			});
 
-			const maxCommandLineLength: number = 30000;
-
-			if (toClean.length > 0) {
-				let sliceStart: number = 0;
-				let sliceEnd: number = 1;
-				let accumulatedStringLength = 0;
-
-				while (sliceEnd < toClean.length) {
-					if ((accumulatedStringLength + (toClean[sliceEnd - 1].length + 1)) > maxCommandLineLength) {
-						await this.repository.clean(toClean.slice(sliceStart, sliceEnd));
-						sliceStart = sliceEnd;
-						sliceEnd++;
-						accumulatedStringLength = 0;
-					}
-					else {
-						accumulatedStringLength += toClean[sliceEnd - 1].length + 1;
-						sliceEnd++;
-					}
-				}
-
-				await this.repository.clean(toClean.slice(sliceStart, sliceEnd));
-			}
-
-			if (toCheckout.length > 0) {
-				let sliceStart: number = 0;
-				let sliceEnd: number = 1;
-				let accumulatedStringLength = 0;
-
-				while (sliceEnd < toCheckout.length) {
-					if ((accumulatedStringLength + (toCheckout[sliceEnd - 1].length + 1)) > maxCommandLineLength) {
-						await this.repository.checkout('', toCheckout.slice(sliceStart, sliceEnd));
-						sliceStart = sliceEnd;
-						sliceEnd++;
-						accumulatedStringLength = 0;
-					}
-					else {
-						accumulatedStringLength += toCheckout[sliceEnd - 1].length + 1;
-						sliceEnd++;
-					}
-				}
-
-				await this.repository.checkout('', toCheckout.slice(sliceStart, sliceEnd));
-			}
-
-			if (submodulesToUpdate.length > 0) {
-				let sliceStart: number = 0;
-				let sliceEnd: number = 1;
-				let accumulatedStringLength = 0;
-
-				while (sliceEnd < submodulesToUpdate.length) {
-					if ((accumulatedStringLength + (submodulesToUpdate[sliceEnd - 1].length + 1)) > maxCommandLineLength) {
-						await this.repository.updateSubmodules(submodulesToUpdate.slice(sliceStart, sliceEnd));
-						sliceStart = sliceEnd;
-						sliceEnd++;
-						accumulatedStringLength = 0;
-					}
-					else {
-						accumulatedStringLength += submodulesToUpdate[sliceEnd - 1].length + 1;
-						sliceEnd++;
-					}
-				}
-
-				await this.repository.updateSubmodules(submodulesToUpdate.slice(sliceStart, sliceEnd));
-			}
+			await this.repository.clean(toClean);
+			await this.repository.checkout('', toCheckout);
+			await this.repository.updateSubmodules(submodulesToUpdate);
 		});
 	}
 
