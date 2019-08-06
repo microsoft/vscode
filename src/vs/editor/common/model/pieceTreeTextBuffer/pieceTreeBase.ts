@@ -239,7 +239,7 @@ class PieceTreeSearchCache {
 		this._cache.push(nodePosition);
 	}
 
-	public valdiate(offset: number) {
+	public validate(offset: number) {
 		let hasInvalidVal = false;
 		let tmp: Array<CacheEntry | null> = this._cache;
 		for (let i = 0; i < tmp.length; i++) {
@@ -741,7 +741,7 @@ export class PieceTreeBase {
 
 			if (nodeStartOffset === offset) {
 				this.insertContentToNodeLeft(value, node);
-				this._searchCache.valdiate(offset);
+				this._searchCache.validate(offset);
 			} else if (nodeStartOffset + node.piece.length > offset) {
 				// we are inserting into the middle of a node.
 				let nodesToDel: TreeNode[] = [];
@@ -841,7 +841,7 @@ export class PieceTreeBase {
 					return;
 				}
 				this.deleteNodeHead(startNode, endSplitPosInBuffer);
-				this._searchCache.valdiate(offset);
+				this._searchCache.validate(offset);
 				this.validateCRLFWithPrevNode(startNode);
 				this.computeBufferMetadata();
 				return;
@@ -864,7 +864,7 @@ export class PieceTreeBase {
 
 		let startSplitPosInBuffer = this.positionInBuffer(startNode, startPosition.remainder);
 		this.deleteNodeTail(startNode, startSplitPosInBuffer);
-		this._searchCache.valdiate(offset);
+		this._searchCache.validate(offset);
 		if (startNode.piece.length === 0) {
 			nodesToDel.push(startNode);
 		}
@@ -1207,7 +1207,7 @@ export class PieceTreeBase {
 
 		this._lineCnt = lfCnt;
 		this._length = len;
-		this._searchCache.valdiate(this._length);
+		this._searchCache.validate(this._length);
 	}
 
 	// #region node operations
