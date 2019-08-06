@@ -67,9 +67,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 
-	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
-
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
 
@@ -270,10 +267,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				});
 			}
 		}
-	}
-
-	setVisible(visible: boolean): void {
-		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

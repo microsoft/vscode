@@ -301,11 +301,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const wasHidden = this.state.sideBar.hidden;
-
-		if (this.state.sideBar.hidden) {
-			this.setSideBarHidden(false, true /* Skip Layout */);
-		}
-
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
 		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
 		this.state.sideBar.position = position;
@@ -326,11 +321,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.sideBar.width = this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 			}
 
-			this.workbenchGrid.removeView(this.sideBarPartView);
-			this.workbenchGrid.removeView(this.activityBarPartView);
-
-			if (!this.state.panel.hidden && this.state.panel.position === Position.BOTTOM) {
-				this.workbenchGrid.removeView(this.panelPartView);
+			if (position === Position.LEFT) {
+				this.workbenchGrid.moveViewTo(this.activityBarPartView, [1, 0]);
+				this.workbenchGrid.moveViewTo(this.sideBarPartView, [1, 1]);
+			} else {
+				this.workbenchGrid.moveViewTo(this.activityBarPartView, [1, 3]);
+				this.workbenchGrid.moveViewTo(this.sideBarPartView, [1, 2]);
 			}
 
 			this.layout();
@@ -740,10 +736,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.container.prepend(workbenchGrid.element);
 			this.workbenchGrid = workbenchGrid;
 
-			this._register((this.sideBarPartView as SidebarPart).onDidVisibilityChange((visible) => {
-				this.setSideBarHidden(!visible, true);
-			}));
-
 			this._register((this.panelPartView as PanelPart).onDidVisibilityChange((visible) => {
 				this.setPanelHidden(!visible, true);
 			}));
@@ -1146,6 +1138,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout
 		if (this.workbenchGrid instanceof Grid) {
+			// TODO
 			this.workbenchGrid.removeView(this.panelPartView);
 			this.layout();
 		} else {
