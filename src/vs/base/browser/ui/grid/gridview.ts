@@ -868,9 +868,23 @@ export class GridView implements IDisposable {
 		}
 	}
 
-	getViewSize(location: number[]): IViewSize {
+	getViewSize(location?: number[]): IViewSize {
+		if (!location) {
+			return { width: this.root.width, height: this.root.height };
+		}
+
 		const [, node] = this.getNode(location);
 		return { width: node.width, height: node.height };
+	}
+
+	getViewCachedVisibleSize(location: number[]): number | undefined {
+		const [, node] = this.getNode(location);
+
+		if (!(node instanceof LeafNode)) {
+			throw new Error('Invalid node');
+		}
+
+		return node.cachedVisibleSize;
 	}
 
 	maximizeViewSize(location: number[]): void {

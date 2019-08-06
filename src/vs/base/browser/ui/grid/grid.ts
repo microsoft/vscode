@@ -319,9 +319,18 @@ export class Grid<T extends IView = IView> extends Disposable {
 		return this.gridview.resizeView(location, size);
 	}
 
-	getViewSize(view: T): IViewSize {
+	getViewSize(view?: T): IViewSize {
+		if (!view) {
+			return this.gridview.getViewSize();
+		}
+
 		const location = this.getViewLocation(view);
 		return this.gridview.getViewSize(location);
+	}
+
+	getViewCachedVisibleSize(view: T): number | undefined {
+		const location = this.getViewLocation(view);
+		return this.gridview.getViewCachedVisibleSize(location);
 	}
 
 	maximizeViewSize(view: T): void {
@@ -422,7 +431,7 @@ export interface ISerializableView extends IView {
 }
 
 export interface IViewDeserializer<T extends ISerializableView> {
-	fromJSON(json: object | null): T;
+	fromJSON(json: any): T;
 }
 
 interface InitialLayoutContext<T extends ISerializableView> {
@@ -433,7 +442,7 @@ interface InitialLayoutContext<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: object | null;
+	data: any;
 	size: number;
 	visible?: boolean;
 }
