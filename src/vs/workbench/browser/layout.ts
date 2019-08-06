@@ -27,7 +27,7 @@ import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, Grid, SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedBranchNode, ISerializedLeafNode } from 'vs/base/browser/ui/grid/grid';
 import { WorkbenchLegacyLayout } from 'vs/workbench/browser/legacyLayout';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -1251,45 +1251,47 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, 600);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, 400);
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, 200);
-		const sideBarHidden = this.state.sideBar.hidden;
 		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, 200);
-		const panelHidden = this.state.panel.hidden;
 
 		const titleBarHeight = 30; // TODO
 		const statusBarHeight = 22; // TODO
 		const activityBarWidth = 48; // TODO
-
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
-		const middleSection: ISerializedNode[] = [
-			{
-				type: 'leaf',
-				data: { type: 'workbench.parts.activitybar' },
-				size: activityBarWidth
-			},
-			{
-				type: 'leaf',
-				data: { type: 'workbench.parts.sidebar' },
-				size: sideBarSize,
-				visible: !sideBarHidden
-			},
-			{
-				type: 'branch',
-				data: [
-					{
-						type: 'leaf',
-						data: { type: 'workbench.parts.editor' },
-						size: middleSectionHeight - panelSize
-					},
-					{
-						type: 'leaf',
-						data: { type: 'workbench.parts.panel' },
-						size: panelSize,
-						visible: !panelHidden
-					},
-				],
-				size: width - activityBarWidth - sideBarSize
-			}
-		];
+
+		const activityBarNode: ISerializedLeafNode = {
+			type: 'leaf',
+			data: { type: 'workbench.parts.activitybar' },
+			size: activityBarWidth
+		};
+
+		const sideBarNode: ISerializedLeafNode = {
+			type: 'leaf',
+			data: { type: 'workbench.parts.sidebar' },
+			size: sideBarSize,
+			visible: !this.state.sideBar.hidden
+		};
+
+		const editorSectionNode: ISerializedBranchNode = {
+			type: 'branch',
+			data: [
+				{
+					type: 'leaf',
+					data: { type: 'workbench.parts.editor' },
+					size: middleSectionHeight - panelSize
+				},
+				{
+					type: 'leaf',
+					data: { type: 'workbench.parts.panel' },
+					size: panelSize,
+					visible: !this.state.panel.hidden
+				},
+			],
+			size: width - activityBarWidth - sideBarSize
+		};
+
+		const middleSection: ISerializedNode[] = this.state.sideBar.position === Position.LEFT
+			? [activityBarNode, sideBarNode, editorSectionNode]
+			: [editorSectionNode, sideBarNode, activityBarNode];
 
 		const result: ISerializedGrid = {
 			root: {
