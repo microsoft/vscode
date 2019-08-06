@@ -762,8 +762,8 @@ export class RemoteFileDialog {
 
 	private pathAppend(uri: URI, additional: string): string {
 		if ((additional === '..') || (additional === '.')) {
-			const basePath = this.pathFromUri(uri);
-			return basePath + this.separator + additional;
+			const basePath = this.pathFromUri(uri, true);
+			return basePath + additional;
 		} else {
 			return this.pathFromUri(resources.joinPath(uri, additional));
 		}
