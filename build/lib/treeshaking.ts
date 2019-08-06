@@ -244,11 +244,11 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
 		if (this._files.hasOwnProperty(fileName)) {
 			return ts.ScriptSnapshot.fromString(this._files[fileName]);
-		}
-		if (this._libs.hasOwnProperty(fileName)) {
+		} else if (this._libs.hasOwnProperty(fileName)) {
 			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
-		}
-		return ts.ScriptSnapshot.fromString('');
+		} else { 
+			return ts.ScriptSnapshot.fromString('');
+	}
 	}
 	getScriptKind(_fileName: string): ts.ScriptKind {
 		return ts.ScriptKind.TS;
