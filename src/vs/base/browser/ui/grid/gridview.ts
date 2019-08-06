@@ -385,11 +385,11 @@ class BranchNode implements ISplitView, IDisposable {
 		const [firstChild, secondChild] = this.children;
 		const [otherFirstChild, otherSecondChild] = other.children;
 
-		if (!((firstChild instanceof LeafNode) && (secondChild instanceof LeafNode))) {
+		if (!(firstChild instanceof LeafNode) || !(secondChild instanceof LeafNode)) {
 			return Disposable.None;
 		}
 
-		if (!((otherFirstChild instanceof LeafNode) && (otherSecondChild instanceof LeafNode))) {
+		if (!(otherFirstChild instanceof LeafNode) || !(otherSecondChild instanceof LeafNode)) {
 			return Disposable.None;
 		}
 
