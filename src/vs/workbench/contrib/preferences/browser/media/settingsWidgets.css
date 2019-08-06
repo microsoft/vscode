@@ -29,7 +29,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	display: inline-block;
-	line-height: 22px;
+	line-height: 24px;
 }
 
 /* Use monospace to display glob patterns in exclude widget */
@@ -49,12 +49,11 @@
 	display: none;
 	position: absolute;
 	right: 0px;
-	margin-top: 1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	position: relative;
-	max-height: 22px;
+	max-height: 24px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
@@ -68,7 +67,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .action-label {
 	width: 16px;
-	height: 16px;
+	height: 20px;
 	padding: 2px;
 	margin-right: 2px;
 }
@@ -103,6 +102,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button.setting-list-addButton {
+	margin-top: 4px;
 	margin-right: 10px;
 }
 
@@ -112,7 +112,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput {
-	height: 22px;
+	height: 24px;
 	max-width: 320px;
 	flex: 1;
 	margin-right: 10px;
