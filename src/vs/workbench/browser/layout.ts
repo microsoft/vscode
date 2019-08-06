@@ -795,6 +795,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				position(this.container, 0, 0, 0, 0, 'relative');
 				size(this.container, this._dimension.width, this._dimension.height);
 
+				// Update the title bar part visibility
+				// TODO@steven: this shouldn't happen on every layout, only when something
+				// changes that makes the title bar switch visibility
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+
 				// Layout the grid widget
 				this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
 			} else {
