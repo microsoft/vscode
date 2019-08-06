@@ -13,7 +13,7 @@ import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { InMemoryStorageDatabase } from 'vs/base/node/storage';
+import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 
 suite('StorageService', () => {
 

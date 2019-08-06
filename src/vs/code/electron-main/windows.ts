@@ -15,7 +15,7 @@ import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleService, UnloadReason, LifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
@@ -38,6 +38,8 @@ import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { once } from 'vs/base/common/functional';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
@@ -153,15 +155,13 @@ interface IWorkspacePathToOpen {
 	label?: string;
 }
 
-export class WindowsManager implements IWindowsMainService {
+export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	_serviceBrand: any;
 
 	private static readonly windowsStateStorageKey = 'windowsState';
 
-	private static WINDOWS: ICodeWindow[] = [];
-
-	private initialUserEnv: IProcessEnvironment;
+	private static readonly WINDOWS: ICodeWindow[] = [];
 
 	private readonly windowsState: IWindowsState;
 	private lastClosedWindowState?: IWindowState;
@@ -169,20 +169,21 @@ export class WindowsManager implements IWindowsMainService {
 	private readonly dialogs: Dialogs;
 	private readonly workspacesManager: WorkspacesManager;
 
-	private _onWindowReady = new Emitter<ICodeWindow>();
-	onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
+	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
+	readonly onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
 
-	private _onWindowClose = new Emitter<number>();
-	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+	private readonly _onWindowClose = this._register(new Emitter<number>());
+	readonly onWindowClose: CommonEvent<number> = this._onWindowClose.event;
 
-	private _onWindowLoad = new Emitter<number>();
-	onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
+	private readonly _onWindowLoad = this._register(new Emitter<number>());
+	readonly onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
 
-	private _onWindowsCountChanged = new Emitter<IWindowsCountChangedEvent>();
-	onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
+	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
+	readonly onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
 	constructor(
 		private readonly machineId: string,
+		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -194,6 +195,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
+		super();
 		const windowsStateStoreData = this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey);
 
 		this.windowsState = restoreWindowsState(windowsStateStoreData);
@@ -203,12 +205,21 @@ export class WindowsManager implements IWindowsMainService {
 
 		this.dialogs = new Dialogs(stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this);
+
+		this.lifecycleService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
+		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.installWindowsMutex());
 	}
 
-	ready(initialUserEnv: IProcessEnvironment): void {
-		this.initialUserEnv = initialUserEnv;
-
-		this.registerListeners();
+	private installWindowsMutex(): void {
+		if (isWindows) {
+			try {
+				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
+				const mutex = new WindowsMutex(product.win32MutexName);
+				once(this.lifecycleService.onWillShutdown)(() => mutex.release());
+			} catch (e) {
+				this.logService.error(e);
+			}
+		}
 	}
 
 	private registerListeners(): void {
@@ -543,6 +554,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Find suitable window or folder path to open files in
 			const fileToCheck = fileInputs.filesToOpenOrCreate[0] || fileInputs.filesToDiff[0];
+
 			// only look at the windows with correct authority
 			const windows = WindowsManager.WINDOWS.filter(w => w.remoteAuthority === fileInputs!.remoteAuthority);
 
@@ -639,7 +651,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Handle folders to open (instructed and to restore)
 		const allFoldersToOpen = arrays.distinct(foldersToOpen, folder => getComparisonKey(folder.folderUri)); // prevent duplicates
-
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -713,7 +724,9 @@ export class WindowsManager implements IWindowsMainService {
 			if (fileInputs && !emptyToOpen) {
 				emptyToOpen++;
 			}
+
 			const remoteAuthority = fileInputs ? fileInputs.remoteAuthority : (openConfig.cli && openConfig.cli.remote || undefined);
+
 			for (let i = 0; i < emptyToOpen; i++) {
 				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
@@ -831,8 +844,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const cli = openConfig.cli;
-		const parseOptions: IPathParseOptions = { gotoLineMode: cli && cli.goto };
+		const parseOptions: IPathParseOptions = { gotoLineMode: openConfig.gotoLineMode };
 		for (const pathToOpen of openConfig.urisToOpen || []) {
 			if (!pathToOpen) {
 				continue;
@@ -1137,9 +1149,10 @@ export class WindowsManager implements IWindowsMainService {
 				}
 			}
 
-			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG or MENU context
+			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG / MENU context
+			// or from the integrated terminal where we assume the user prefers to open in the current window
 			else {
-				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU) {
+				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU && !(openConfig.userEnv && openConfig.userEnv['TERM_PROGRAM'] === 'vscode')) {
 					openFilesInNewWindow = true;
 				}
 			}
@@ -1289,7 +1302,7 @@ export class WindowsManager implements IWindowsMainService {
 		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
 		// loading the window.
 		if (options.emptyWindowBackupInfo) {
-			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder);
+			configuration.backupPath = join(this.environmentService.backupHome.fsPath, options.emptyWindowBackupInfo.backupFolder);
 		}
 
 		let window: ICodeWindow | undefined;
@@ -1667,14 +1680,13 @@ export class WindowsManager implements IWindowsMainService {
 
 	private onWindowError(window: ICodeWindow, error: WindowError): void {
 		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
-
-		/* __GDPR__
-			"windowerror" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('windowerror', { type: error });
-
+		type WindowErrorClassification = {
+			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+		};
+		type WindowErrorEvent = {
+			type: WindowError;
+		};
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type: error });
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			if (window.isExtensionDevelopmentHost || window.isExtensionTestHost || (window.win && window.win.webContents && window.win.webContents.isDevToolsOpened())) {

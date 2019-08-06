@@ -26,7 +26,6 @@ export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Sourc
  *         |          |                             |                          |
  *      scheme   source.path                    session id            source.reference
  *
- * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
  *
  */
 
@@ -49,7 +48,11 @@ export class Source {
 		}
 
 		if (typeof this.raw.sourceReference === 'number' && this.raw.sourceReference > 0) {
-			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
+			this.uri = uri.from({
+				scheme: DEBUG_SCHEME,
+				path,
+				query: `session=${sessionId}&ref=${this.raw.sourceReference}`
+			});
 		} else {
 			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
@@ -60,7 +63,11 @@ export class Source {
 				} else {
 					// path is relative: since VS Code cannot deal with this by itself
 					// create a debug url that will result in a DAP 'source' request when the url is resolved.
-					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
+					this.uri = uri.from({
+						scheme: DEBUG_SCHEME,
+						path,
+						query: `session=${sessionId}`
+					});
 				}
 			}
 		}
@@ -118,7 +125,7 @@ export class Source {
 						if (pair.length === 2) {
 							switch (pair[0]) {
 								case 'session':
-									sessionId = decodeURIComponent(pair[1]);
+									sessionId = pair[1];
 									break;
 								case 'ref':
 									sourceReference = parseInt(pair[1]);

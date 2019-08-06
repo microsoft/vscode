@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -37,13 +37,14 @@ import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
-import { IProgressRunner, ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -97,17 +98,20 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
-	private editor: editorCommon.IEditor;
+	private editor?: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let model: ITextModel | null = withTypedEditor(this.editor,
-			(editor) => this.findModel(editor, resource),
-			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
-		);
+		let model: ITextModel | null = null;
+		if (this.editor) {
+			model = withTypedEditor(this.editor,
+				(editor) => this.findModel(editor, resource),
+				(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
+			);
+		}
 
 		if (!model) {
 			return Promise.reject(new Error(`Model not found`));
@@ -136,7 +140,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 }
 
-export class SimpleLocalProgressService implements ILocalProgressService {
+export class SimpleEditorProgressService implements IEditorProgressService {
 	_serviceBrand: any;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
@@ -148,7 +152,7 @@ export class SimpleLocalProgressService implements ILocalProgressService {
 	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(): IProgressRunner {
-		return SimpleLocalProgressService.NULL_PROGRESS_RUNNER;
+		return SimpleEditorProgressService.NULL_PROGRESS_RUNNER;
 	}
 
 	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
@@ -220,6 +224,10 @@ export class SimpleNotificationService implements INotificationService {
 	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		return SimpleNotificationService.NO_OP;
 	}
+
+	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
+		return Disposable.None;
+	}
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -229,7 +237,9 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _dynamicCommands: { [id: string]: ICommand; };
 
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
+	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
@@ -251,8 +261,10 @@ export class StandaloneCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
+
+			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);
@@ -347,7 +359,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
@@ -384,6 +396,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	public _dumpDebugInfo(): string {
+		return '';
+	}
+
+	public _dumpDebugInfoJSON(): string {
 		return '';
 	}
 }
@@ -455,7 +471,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
-			folders: {}
+			folders: []
 		};
 	}
 }
@@ -464,12 +480,12 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
-	private readonly _onDidChangeConfigurationEmitter = new Emitter();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(private readonly configurationService: SimpleConfigurationService) {
 		this.configurationService.onDidChangeConfiguration((e) => {
-			this._onDidChangeConfigurationEmitter.fire(e);
+			this._onDidChangeConfiguration.fire(e);
 		});
 	}
 
@@ -506,7 +522,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: void;
+	_serviceBrand: void = undefined;
 
 	public isOptedIn = false;
 
@@ -515,6 +531,10 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		return Promise.resolve(undefined);
+	}
+
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -670,7 +690,7 @@ export class SimpleLayoutService implements ILayoutService {
 
 	public onLayout = Event.None;
 
-	private _dimension: IDimension;
+	private _dimension?: IDimension;
 	get dimension(): IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);

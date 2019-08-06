@@ -25,7 +25,7 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
@@ -58,7 +58,7 @@ export class DefinitionAction extends EditorAction {
 		}
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
-		const progressService = accessor.get(ILocalProgressService);
+		const progressService = accessor.get(IEditorProgressService);
 		const symbolNavService = accessor.get(ISymbolNavigationService);
 
 		const model = editor.getModel();

@@ -9,23 +9,23 @@ import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Explorer");
 	private _onDidChange = new Emitter<URI[]>();
-	private toDispose: IDisposable[];
+	private readonly toDispose = new DisposableStore();
 
 	constructor(
 		@IExplorerService private explorerService: IExplorerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		this.toDispose = [];
-		this.toDispose.push(contextService.onDidChangeWorkspaceFolders(e => {
+		this.toDispose.add(this._onDidChange);
+		this.toDispose.add(contextService.onDidChangeWorkspaceFolders(e => {
 			this._onDidChange.fire(e.changed.concat(e.added).map(wf => wf.uri));
 		}));
-		this.toDispose.push(explorerService.onDidChangeItem(change => {
+		this.toDispose.add(explorerService.onDidChangeItem(change => {
 			if (change.item) {
 				this._onDidChange.fire([change.item.resource]);
 			}
@@ -55,7 +55,7 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		return undefined;
 	}
 
-	dispose(): IDisposable[] {
-		return dispose(this.toDispose);
+	dispose(): void {
+		this.toDispose.dispose();
 	}
 }

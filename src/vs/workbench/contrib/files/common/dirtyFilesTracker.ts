@@ -10,7 +10,7 @@ import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } 
 import { platform, Platform } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -19,8 +19,8 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 
 export class DirtyFilesTracker extends Disposable implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
-	private lastDirtyCount: number;
-	private badgeHandle: IDisposable;
+	private lastKnownDirtyCount: number | undefined;
+	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -50,6 +50,10 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
+	private get hasDirtyCount(): boolean {
+		return typeof this.lastKnownDirtyCount === 'number' && this.lastKnownDirtyCount > 0;
+	}
+
 	private onUntitledDidChangeDirty(resource: URI): void {
 		const gotDirty = this.untitledEditorService.isDirty(resource);
 
@@ -57,7 +61,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 			this.updateDocumentEdited();
 		}
 
-		if (gotDirty || this.lastDirtyCount > 0) {
+		if (gotDirty || this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
@@ -100,7 +104,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 			this.updateDocumentEdited();
 		}
 
-		if (this.lastDirtyCount > 0) {
+		if (this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
@@ -118,17 +122,19 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 			this.updateDocumentEdited();
 		}
 
-		if (this.lastDirtyCount > 0) {
+		if (this.hasDirtyCount) {
 			this.updateActivityBadge();
 		}
 	}
 
 	private updateActivityBadge(): void {
 		const dirtyCount = this.textFileService.getDirty().length;
-		this.lastDirtyCount = dirtyCount;
-		dispose(this.badgeHandle);
+		this.lastKnownDirtyCount = dirtyCount;
+
+		this.badgeHandle.clear();
+
 		if (dirtyCount > 0) {
-			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.badgeHandle.value = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		}
 	}
 

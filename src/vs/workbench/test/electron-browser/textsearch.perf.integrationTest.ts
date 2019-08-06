@@ -15,7 +15,7 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'vs/base/common/path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -33,6 +33,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 declare var __dirname: string;
 
@@ -68,7 +69,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));
 
@@ -163,6 +164,10 @@ class TestTelemetryService implements ITelemetryService {
 		this.events.push(event);
 		this.emitter.fire(event);
 		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

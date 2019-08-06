@@ -57,12 +57,16 @@
 }
 
 .vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('excludeSettings.svg') center center no-repeat;
+	background: url('exclude-settings-light.svg') center center no-repeat;
 }
 
 .vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
 .hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('excludeSettings-dark.svg') center center no-repeat;
+	background: url('exclude-settings-dark.svg') center center no-repeat;
+}
+
+.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	background: url('exclude-settings-hc.svg') center center no-repeat;
 }
 
 .markers-panel .markers-panel-container {
@@ -93,6 +97,7 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	display: flex;
 	line-height: 22px;
+	padding-right: 10px;
 }
 
 .hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
@@ -108,23 +113,22 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details,
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) {
-	display: flex;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container {
+	flex: 1;
 	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message.multiline {
-	white-space: pre;
-	flex: 1;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line {
+	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) .marker-message-line {
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line > .marker-message {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message .details-container {
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
 	display: flex;
 }
 
@@ -160,49 +164,31 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-	width: 16px;
-}
-
-.markers-panel .marker-icon.warning {
-	background: url('status-warning.svg') center center no-repeat;
-}
-
-.markers-panel .marker-icon.error {
-	background: url('status-error.svg') center center no-repeat;
-}
-
-.markers-panel .marker-icon.info {
-	background: url('status-info.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.warning {
-	background: url('status-warning-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.error {
-	background: url('status-error-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.info {
-	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb.svg') center/80% no-repeat;
+	background: url('lightbulb-light.svg') center no-repeat;
 	margin-right: 0px;
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix.svg') center center no-repeat;
+	background: url('lightbulb-autofix-light.svg') center center no-repeat;
 }
 
 .vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-dark.svg') center/80% no-repeat;
+	background: url('lightbulb-dark.svg') center no-repeat;
 }
 
-.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable,
-.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb-hc.svg') center no-repeat;
+}
+
+.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
 	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
+}
+
+.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	background: url('lightbulb-autofix-hc.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {

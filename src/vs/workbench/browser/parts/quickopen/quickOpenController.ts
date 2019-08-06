@@ -34,7 +34,7 @@ import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiat
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { QUICK_INPUT_BACKGROUND, QUICK_INPUT_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -61,22 +61,22 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
 	private static readonly ID = 'workbench.component.quickopen';
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _onShow: Emitter<void> = this._register(new Emitter<void>());
-	get onShow(): Event<void> { return this._onShow.event; }
+	readonly onShow: Event<void> = this._onShow.event;
 
 	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
-	get onHide(): Event<void> { return this._onHide.event; }
+	readonly onHide: Event<void> = this._onHide.event;
 
 	private preserveInput: boolean;
 	private isQuickOpen: boolean;
 	private lastInputValue: string;
 	private lastSubmittedInputValue: string;
 	private quickOpenWidget: QuickOpenWidget;
-	private mapResolvedHandlersToPrefix: { [prefix: string]: Promise<QuickOpenHandler>; } = Object.create(null);
-	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; } = Object.create(null);
-	private handlerOnOpenCalled: { [prefix: string]: boolean; } = Object.create(null);
+	private mapResolvedHandlersToPrefix: Map<string, Promise<QuickOpenHandler>> = new Map();
+	private mapContextKeyToContext: Map<string, IContextKey<boolean>> = new Map();
+	private handlerOnOpenCalled: Set<string> = new Set();
 	private promisesToCompleteOnHide: ValueCallback[] = [];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor | null;
 	private actionProvider = new ContributableActionProvider();
@@ -188,7 +188,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			));
-			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
+			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: QUICK_INPUT_BACKGROUND, foreground: QUICK_INPUT_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			addClass(quickOpenContainer, 'show-file-icons');
@@ -258,13 +258,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.cancelPendingGetResultsInvocation();
 
 		// Pass to handlers
-		for (let prefix in this.mapResolvedHandlersToPrefix) {
-			this.mapResolvedHandlersToPrefix[prefix].then(handler => {
-				this.handlerOnOpenCalled[prefix] = false;
+		this.mapResolvedHandlersToPrefix.forEach((promise, prefix) => {
+			promise.then(handler => {
+				this.handlerOnOpenCalled.delete(prefix);
 
 				handler.onClose(reason === HideReason.CANCELED); // Don't check if onOpen was called to preserve old behaviour for now
 			});
-		}
+		});
 
 		// Complete promises that are waiting
 		while (this.promisesToCompleteOnHide.length) {
@@ -294,16 +294,16 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private resetQuickOpenContextKeys(): void {
-		Object.keys(this.mapContextKeyToContext).forEach(k => this.mapContextKeyToContext[k].reset());
+		this.mapContextKeyToContext.forEach(context => context.reset());
 	}
 
 	private setQuickOpenContextKey(id?: string): void {
 		let key: IContextKey<boolean> | undefined;
 		if (id) {
-			key = this.mapContextKeyToContext[id];
+			key = this.mapContextKeyToContext.get(id);
 			if (!key) {
 				key = new RawContextKey<boolean>(id, false).bindTo(this.contextKeyService);
-				this.mapContextKeyToContext[id] = key;
+				this.mapContextKeyToContext.set(id, key);
 			}
 		}
 
@@ -585,21 +585,23 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		let result = this.doResolveHandler(handler);
 
 		const id = handler.getId();
-		if (!this.handlerOnOpenCalled[id]) {
+		if (!this.handlerOnOpenCalled.has(id)) {
 			const original = result;
-			this.handlerOnOpenCalled[id] = true;
-			result = this.mapResolvedHandlersToPrefix[id] = original.then(resolved => {
-				this.mapResolvedHandlersToPrefix[id] = original;
+			this.handlerOnOpenCalled.add(id);
+			result = original.then(resolved => {
+				this.mapResolvedHandlersToPrefix.set(id, original);
 				resolved.onOpen();
 
 				return resolved;
 			});
+
+			this.mapResolvedHandlersToPrefix.set(id, result);
 		}
 
 		try {
 			return await result;
 		} catch (error) {
-			delete this.mapResolvedHandlersToPrefix[id];
+			this.mapResolvedHandlersToPrefix.delete(id);
 
 			throw new Error(`Unable to instantiate quick open handler ${handler.getId()}: ${JSON.stringify(error)}`);
 		}
@@ -609,12 +611,15 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const id = handler.getId();
 
 		// Return Cached
-		if (this.mapResolvedHandlersToPrefix[id]) {
-			return this.mapResolvedHandlersToPrefix[id];
+		if (this.mapResolvedHandlersToPrefix.has(id)) {
+			return this.mapResolvedHandlersToPrefix.get(id)!;
 		}
 
 		// Otherwise load and create
-		return this.mapResolvedHandlersToPrefix[id] = Promise.resolve(handler.instantiate(this.instantiationService));
+		const result = Promise.resolve(handler.instantiate(this.instantiationService));
+		this.mapResolvedHandlersToPrefix.set(id, result);
+
+		return result;
 	}
 
 	layout(dimension: Dimension): void {
@@ -740,7 +745,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
 			this.label = types.withNullAsUndefined(input.getName());
-			this.description = types.withNullAsUndefined(input.getDescription());
+			this.description = input.getDescription();
 			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;

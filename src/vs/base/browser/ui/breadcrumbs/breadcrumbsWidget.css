@@ -31,12 +31,16 @@
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
-	background-image: url(./collapsed.svg);
+	background-image: url(./tree-collapsed-light.svg);
 	opacity: .7;
 	background-size: 16px;
 	background-position: 50% 50%;
 }
 
 .vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
-	background-image: url(./collpased-dark.svg);
+	background-image: url(./tree-collapsed-dark.svg);
+}
+
+.hc-black .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
+	background-image: url(./tree-collapsed-hc.svg);
 }

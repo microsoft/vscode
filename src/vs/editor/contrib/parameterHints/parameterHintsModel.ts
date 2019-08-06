@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
@@ -30,7 +30,7 @@ namespace ParameterHintState {
 	export class Pending {
 		readonly type = Type.Pending;
 		constructor(
-			readonly request: CancelablePromise<any>
+			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>
 		) { }
 	}
 
@@ -54,6 +54,7 @@ export class ParameterHintsModel extends Disposable {
 	private readonly editor: ICodeEditor;
 	private enabled: boolean;
 	private _state: ParameterHintState.State = ParameterHintState.Default;
+	private readonly _lastSignatureHelpResult = this._register(new MutableDisposable<modes.SignatureHelpResult>());
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
 
@@ -92,7 +93,6 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
-
 		this.state = ParameterHintState.Default;
 
 		this.throttledDelayer.cancel();
@@ -181,14 +181,22 @@ export class ParameterHintsModel extends Disposable {
 		return this.state.request.then(result => {
 			// Check that we are still resolving the correct signature help
 			if (triggerId !== this.triggerId) {
+				if (result) {
+					result.dispose();
+				}
 				return false;
 			}
 
-			if (!result || !result.signatures || result.signatures.length === 0) {
+			if (!result || !result.value.signatures || result.value.signatures.length === 0) {
+				if (result) {
+					result.dispose();
+				}
+				this._lastSignatureHelpResult.clear();
 				this.cancel();
 				return false;
 			} else {
-				this.state = new ParameterHintState.Active(result);
+				this.state = new ParameterHintState.Active(result.value);
+				this._lastSignatureHelpResult.value = result;
 				this._onChangedHints.fire(this.state.hints);
 				return true;
 			}

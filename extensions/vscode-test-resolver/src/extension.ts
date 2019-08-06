@@ -8,9 +8,10 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as net from 'net';
 import { downloadAndUnzipVSCodeServer } from './download';
+import { terminateProcess } from './util/processes';
 
-let startPromise: Thenable<vscode.ResolvedAuthority> | undefined = void 0;
 let extHostProcess: cp.ChildProcess | undefined;
 const enum CharCode {
 	Backspace = 8,
@@ -22,14 +23,15 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
-		return new Promise(async (res, rej) => {
+		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
 			outputChannel = vscode.window.createOutputChannel('TestResolver');
 
-			let isStarted = false;
+			let isResolved = false;
 			async function processError(message: string) {
 				outputChannel.appendLine(message);
-				if (!isStarted) {
+				if (!isResolved) {
+					isResolved = true;
 					outputChannel.show();
 
 					const result = await vscode.window.showErrorMessage(message, { modal: true }, ...getActions());
@@ -48,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 					if (chr === CharCode.LineFeed) {
 						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
 						if (match) {
-							isStarted = true;
+							isResolved = true;
 							res(new vscode.ResolvedAuthority('localhost', parseInt(match[1], 10))); // success!
 						}
 						lastProgressLine = '';
@@ -59,62 +61,153 @@ export function activate(context: vscode.ExtensionContext) {
 					}
 				}
 			}
+			const delay = getConfiguration('startupDelay');
+			if (typeof delay === 'number') {
+				let remaining = Math.ceil(delay);
+				outputChannel.append(`Delaying startup by ${remaining} seconds (configured by "testresolver.startupDelay").`);
+				while (remaining > 0) {
+					progress.report({ message: `Delayed resolving: Remaining ${remaining}s` });
+					await (sleep(1000));
+					remaining--;
+				}
+			}
 
-			if (_authority === 'test+error' || vscode.workspace.getConfiguration('testresolver').get('error') === true) {
-				processError('Unable to start the Test Resolver.');
+			if (getConfiguration('startupError') === true) {
+				processError('Test Resolver failed for testing purposes (configured by "testresolver.startupError").');
 				return;
 			}
 
-			const { updateUrl, commit, quality } = getProductConfiguration();
+			const { updateUrl, commit, quality, serverDataFolderName, dataFolderName } = getProductConfiguration();
+			const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
+			const commandArgs = ['--port=0', '--disable-telemetry'];
+			const env = getNewEnv();
+			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
+			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
+
 			if (!commit) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
-				const nodeExec = process.platform === 'win32' ? 'node.exe' : 'node';
-				const nodePath = path.join(vscodePath, '.build', 'node-remote', nodeExec);
-
-				if (!fs.existsSync(nodePath)) {
-					try {
-						progress.report({ message: 'Installing node' });
-						outputChannel.appendLine(`Installing node at ${nodePath}`);
-						cp.execSync(`node ${path.join(vscodePath, 'node_modules/gulp/bin/gulp.js')} node-remote`);
-					} catch (e) {
-						processError(`Problem downloading node: ${e.message}`);
-
-					}
-				}
-				outputChannel.appendLine(`Using node at ${nodePath}`);
-
-				const env = getNewEnv();
-				extHostProcess = cp.spawn(nodePath, [path.join('out', 'remoteExtensionHostAgent'), '--port=0'], { cwd: vscodePath, env });
+				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
+				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
-				const serverBin = path.resolve(os.homedir(), '.vscode-remote', 'bin');
+				const serverBin = path.join(remoteDataDir, 'bin');
 				progress.report({ message: 'Installing VSCode Server' });
 				const serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 
-				const commandArgs = ['--port=0', '--disable-telemetry'];
-
-				const env = getNewEnv();
-				env['PATH'] = path.join(serverLocation, 'bin') + path.delimiter + env['PATH']; // code command for the terminal
-
-				extHostProcess = cp.spawn(path.join(serverLocation, 'server.sh'), commandArgs, { env, cwd: serverLocation });
+				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
 			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.on('error', (error: Error) => processError(`remoteExtensionHostAgent failed with error:\n${error.message}`));
-			extHostProcess.on('close', (code: number) => processError(`remoteExtensionHostAgent closed unexpectedly.\nError code: ${code}`));
+			extHostProcess.on('error', (error: Error) => {
+				processError(`server failed with error:\n${error.message}`);
+				extHostProcess = undefined;
+			});
+			extHostProcess.on('close', (code: number) => {
+				processError(`server closed unexpectedly.\nError code: ${code}`);
+				extHostProcess = undefined;
+			});
+			context.subscriptions.push({
+				dispose: () => {
+					if (extHostProcess) {
+						terminateProcess(extHostProcess, context.extensionPath);
+					}
+				}
+			});
+		});
+		return serverPromise.then(serverAddr => {
+			return new Promise<vscode.ResolvedAuthority>(async (res, _rej) => {
+				const proxyServer = net.createServer(proxySocket => {
+					outputChannel.appendLine(`Proxy connection accepted`);
+					let remoteReady = true, localReady = true;
+					const remoteSocket = net.createConnection({ port: serverAddr.port });
+
+					let isDisconnected = getConfiguration('pause') === true;
+					vscode.workspace.onDidChangeConfiguration(_ => {
+						let newIsDisconnected = getConfiguration('pause') === true;
+						if (isDisconnected !== newIsDisconnected) {
+							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
+							isDisconnected = newIsDisconnected;
+							if (!isDisconnected) {
+								outputChannel.appendLine(`Resume remote and proxy sockets.`);
+								if (remoteSocket.isPaused() && localReady) {
+									remoteSocket.resume();
+								}
+								if (proxySocket.isPaused() && remoteReady) {
+									proxySocket.resume();
+								}
+							} else {
+								outputChannel.appendLine(`Pausing remote and proxy sockets.`);
+								if (!remoteSocket.isPaused()) {
+									remoteSocket.pause();
+								}
+								if (!proxySocket.isPaused()) {
+									proxySocket.pause();
+								}
+							}
+						}
+					});
+
+					proxySocket.on('data', (data) => {
+						remoteReady = remoteSocket.write(data);
+						if (!remoteReady) {
+							proxySocket.pause();
+						}
+					});
+					remoteSocket.on('data', (data) => {
+						localReady = proxySocket.write(data);
+						if (!localReady) {
+							remoteSocket.pause();
+						}
+					});
+					proxySocket.on('drain', () => {
+						localReady = true;
+						if (!isDisconnected) {
+							remoteSocket.resume();
+						}
+					});
+					remoteSocket.on('drain', () => {
+						remoteReady = true;
+						if (!isDisconnected) {
+							proxySocket.resume();
+						}
+					});
+					proxySocket.on('close', () => {
+						outputChannel.appendLine(`Proxy socket closed, closing remote socket.`);
+						remoteSocket.end();
+					});
+					remoteSocket.on('close', () => {
+						outputChannel.appendLine(`Remote socket closed, closing proxy socket.`);
+						proxySocket.end();
+					});
+					context.subscriptions.push({
+						dispose: () => {
+							proxySocket.end();
+							remoteSocket.end();
+						}
+					});
+				});
+				proxyServer.listen(0, () => {
+					const port = (<net.AddressInfo>proxyServer.address()).port;
+					outputChannel.appendLine(`Going through proxy at port ${port}`);
+					res({ host: '127.0.0.1', port });
+				});
+				context.subscriptions.push({
+					dispose: () => {
+						proxyServer.close();
+					}
+				});
+			});
 		});
 	}
 
 	vscode.workspace.registerRemoteAuthorityResolver('test', {
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
-			if (!startPromise) {
-				startPromise = vscode.window.withProgress({
-					location: vscode.ProgressLocation.Notification,
-					title: 'Open TestResolver Remote ([details](command:remote-testresolver.showLog))',
-					cancellable: false
-				}, (progress) => doResolve(_authority, progress));
-			}
-			return startPromise;
+			return vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: 'Open TestResolver Remote ([details](command:remote-testresolver.showLog))',
+				cancellable: false
+			}, (progress) => doResolve(_authority, progress));
 		}
 	});
 
@@ -129,7 +222,6 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.show();
 		}
 	});
-
 }
 
 type ActionItem = (vscode.MessageItem & { execute: () => void; });
@@ -166,6 +258,8 @@ export interface IProductConfiguration {
 	updateUrl: string;
 	commit: string;
 	quality: string;
+	dataFolderName: string;
+	serverDataFolderName?: string;
 }
 
 function getProductConfiguration(): IProductConfiguration {
@@ -179,8 +273,12 @@ function getNewEnv(): { [x: string]: string | undefined } {
 	return env;
 }
 
-export function deactivate() {
-	if (extHostProcess) {
-		extHostProcess.kill();
-	}
+function sleep(ms: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
+	});
+}
+
+function getConfiguration<T>(id: string): T | undefined {
+	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
 }

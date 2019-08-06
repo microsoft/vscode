@@ -91,7 +91,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 					this.selection.endColumn
 			);
 		} else {
-			// The target position is before the selection's end postion. Since the selection doesn't contain the target position, the selection is one-line and target position is before this selection.
+			// The target position is before the selection's end position. Since the selection doesn't contain the target position, the selection is one-line and target position is before this selection.
 			this.targetSelection = new Selection(
 				this.targetPosition.lineNumber - this.selection.endLineNumber + this.selection.startLineNumber,
 				this.targetPosition.column,

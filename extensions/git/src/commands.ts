@@ -202,7 +202,7 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 enum PushType {
 	Push,
 	PushTo,
-	PushTags,
+	PushFollowTags,
 }
 
 interface PushOptions {
@@ -450,6 +450,8 @@ export class CommandCenter {
 			return;
 		}
 
+		url = url.trim().replace(/^git\s+clone\s+/, '');
+
 		const config = workspace.getConfiguration('git');
 		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
 		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
@@ -487,10 +489,10 @@ export class CommandCenter {
 				(_, token) => this.git.clone(url!, parentPath, token)
 			);
 
-			const choices = [];
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
-			const open = localize('openrepo', "Open Repository");
-			choices.push(open);
+			const open = localize('openrepo', "Open");
+			const openNewWindow = localize('openreponew', "Open in New Window");
+			const choices = [open, openNewWindow];
 
 			const addToWorkspace = localize('add', "Add to Workspace");
 			if (workspace.workspaceFolders) {
@@ -515,6 +517,8 @@ export class CommandCenter {
 				commands.executeCommand('vscode.openFolder', uri);
 			} else if (result === addToWorkspace) {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+			} else if (result === openNewWindow) {
+				commands.executeCommand('vscode.openFolder', uri, true);
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
@@ -599,10 +603,10 @@ export class CommandCenter {
 
 		await this.git.init(repositoryPath);
 
-		const choices = [];
 		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
-		const open = localize('openrepo', "Open Repository");
-		choices.push(open);
+		const open = localize('openrepo', "Open");
+		const openNewWindow = localize('openreponew', "Open in New Window");
+		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
 			return;
@@ -621,6 +625,8 @@ export class CommandCenter {
 			commands.executeCommand('vscode.openFolder', uri);
 		} else if (result === addToWorkspace) {
 			workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+		} else if (result === openNewWindow) {
+			commands.executeCommand('vscode.openFolder', uri, true);
 		} else {
 			await this.model.openRepository(repositoryPath);
 		}
@@ -669,7 +675,6 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
-				console.log('WHAT');
 				resource = this.getSCMResource();
 			}
 
@@ -734,6 +739,8 @@ export class CommandCenter {
 		}
 
 		const HEAD = await this.getLeftResource(resource);
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const title = `${basename} (HEAD)`;
 
 		if (!HEAD) {
 			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
@@ -744,7 +751,7 @@ export class CommandCenter {
 			preview
 		};
 
-		return await commands.executeCommand<void>('vscode.open', HEAD, opts);
+		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
 	@command('git.openChange')
@@ -1110,7 +1117,7 @@ export class CommandCenter {
 
 		if (scmResources.length === 1) {
 			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
 				if (scmResources[0].type === Status.DELETED) {
@@ -1129,7 +1136,7 @@ export class CommandCenter {
 			}
 
 			if (untrackedCount > 0) {
-				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
+				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST.", untrackedCount)}`;
 			}
 		}
 
@@ -1170,7 +1177,7 @@ export class CommandCenter {
 			await repository.clean(resources.map(r => r.resourceUri));
 			return;
 		} else if (resources.length === 1) {
-			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resources[0].resourceUri.fsPath));
 			const yes = localize('delete file', "Delete file");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1251,14 +1258,23 @@ export class CommandCenter {
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
 
+			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+			if (!suggestSmartCommit) {
+				return false;
+			}
+
 			// prompt the user if we want to commit all or not
 			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
 			const always = localize('always', "Always");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+			const never = localize('never', "Never");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
 
 			if (pick === always) {
 				config.update('enableSmartCommit', true, true);
+			} else if (pick === never) {
+				config.update('suggestSmartCommit', false, true);
+				return false;
 			} else if (pick !== yes) {
 				return false; // do not commit on cancel
 			}
@@ -1566,8 +1582,11 @@ export class CommandCenter {
 
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
-		const placeHolder = localize('provide branch name', "Please provide a branch name");
-		const name = await window.showInputBox({ placeHolder });
+		const name = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			value: repository.HEAD && repository.HEAD.name
+		});
 
 		if (!name || name.trim().length === 0) {
 			return;
@@ -1759,10 +1778,8 @@ export class CommandCenter {
 			}
 		}
 
-		if (pushOptions.pushType === PushType.PushTags) {
-			await repository.pushTags(undefined, forcePushMode);
-
-			window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
+		if (pushOptions.pushType === PushType.PushFollowTags) {
+			await repository.pushFollowTags(undefined, forcePushMode);
 			return;
 		}
 
@@ -1819,13 +1836,13 @@ export class CommandCenter {
 	}
 
 	@command('git.pushWithTags', { repository: true })
-	async pushWithTags(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags });
+	async pushFollowTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags });
 	}
 
 	@command('git.pushWithTagsForce', { repository: true })
-	async pushWithTagsForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
+	async pushFollowTagsForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })
@@ -1907,7 +1924,17 @@ export class CommandCenter {
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 
-		if (!HEAD || !HEAD.upstream) {
+		if (!HEAD) {
+			return;
+		} else if (!HEAD.upstream) {
+			const branchName = HEAD.name;
+			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const yes = localize('ok', "OK");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick === yes) {
+				await this.publish(repository);
+			}
 			return;
 		}
 
@@ -1939,8 +1966,16 @@ export class CommandCenter {
 	}
 
 	@command('git.sync', { repository: true })
-	sync(repository: Repository): Promise<void> {
-		return this._sync(repository, false);
+	async sync(repository: Repository): Promise<void> {
+		try {
+			await this._sync(repository, false);
+		} catch (err) {
+			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git._syncAll')
@@ -1957,8 +1992,16 @@ export class CommandCenter {
 	}
 
 	@command('git.syncRebase', { repository: true })
-	syncRebase(repository: Repository): Promise<void> {
-		return this._sync(repository, true);
+	async syncRebase(repository: Repository): Promise<void> {
+		try {
+			await this._sync(repository, true);
+		} catch (err) {
+			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.publish', { repository: true })

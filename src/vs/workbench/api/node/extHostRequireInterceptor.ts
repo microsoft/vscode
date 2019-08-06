@@ -75,7 +75,7 @@ export class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
 	private readonly _extApiImpl = new Map<string, typeof vscode>();
-	private _defaultApiImpl: typeof vscode;
+	private _defaultApiImpl?: typeof vscode;
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
@@ -191,7 +191,7 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName: string[] = ['open', 'opn'];
 
 	private _extensionId: string | undefined;
-	private _original: IOriginalOpen;
+	private _original?: IOriginalOpen;
 	private _impl: IOpenModule;
 
 	constructor(mainThreadWindow: MainThreadWindowShape, private _mainThreadTelemerty: MainThreadTelemetryShape, private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>) {
@@ -224,30 +224,26 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 
 	private callOriginal(target: string, options: OpenOptions | undefined): Thenable<any> {
 		this.sendNoForwardTelemetry();
-		return this._original(target, options);
+		return this._original!(target, options);
 	}
 
 	private sendShimmingTelemetry(): void {
 		if (!this._extensionId) {
 			return;
 		}
-		/* __GDPR__
-			"shimming.open" : {
-				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._mainThreadTelemerty.$publicLog('shimming.open', { extension: this._extensionId });
+		type ShimmingOpenClassification = {
+			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this._mainThreadTelemerty.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
 	}
 
 	private sendNoForwardTelemetry(): void {
 		if (!this._extensionId) {
 			return;
 		}
-		/* __GDPR__
-			"shimming.open.call.noForward" : {
-				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._mainThreadTelemerty.$publicLog('shimming.open.call.noForward', { extension: this._extensionId });
+		type ShimmingOpenCallNoForwardClassification = {
+			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this._mainThreadTelemerty.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
 	}
 }

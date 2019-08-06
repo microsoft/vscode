@@ -27,7 +27,7 @@ class StandaloneTheme implements IStandaloneTheme {
 	public readonly themeName: string;
 
 	private readonly themeData: IStandaloneThemeData;
-	private colors: { [colorId: string]: Color } | null;
+	private colors: Map<string, Color> | null;
 	private readonly defaultColors: { [colorId: string]: Color | undefined; };
 	private _tokenTheme: TokenTheme | null;
 
@@ -57,19 +57,18 @@ class StandaloneTheme implements IStandaloneTheme {
 		}
 	}
 
-	private getColors(): { [colorId: string]: Color } {
+	private getColors(): Map<string, Color> {
 		if (!this.colors) {
-			let colors: { [colorId: string]: Color } = Object.create(null);
+			const colors = new Map<string, Color>();
 			for (let id in this.themeData.colors) {
-				colors[id] = Color.fromHex(this.themeData.colors[id]);
+				colors.set(id, Color.fromHex(this.themeData.colors[id]));
 			}
 			if (this.themeData.inherit) {
 				let baseData = getBuiltinRules(this.themeData.base);
 				for (let id in baseData.colors) {
-					if (!colors[id]) {
-						colors[id] = Color.fromHex(baseData.colors[id]);
+					if (!colors.has(id)) {
+						colors.set(id, Color.fromHex(baseData.colors[id]));
 					}
-
 				}
 			}
 			this.colors = colors;
@@ -78,7 +77,7 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		const color = this.getColors()[colorId];
+		const color = this.getColors().get(colorId);
 		if (color) {
 			return color;
 		}
@@ -161,7 +160,7 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private readonly _styleElement: HTMLStyleElement;
-	private _theme: IStandaloneTheme;
+	private _theme!: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 	private readonly _onIconThemeChange: Emitter<IIconTheme>;
 	private readonly environment: IEnvironmentService = Object.create(null);

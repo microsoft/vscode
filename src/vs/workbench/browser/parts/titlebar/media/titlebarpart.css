@@ -41,7 +41,7 @@
 }
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
-
+.monaco-workbench.web .part.titlebar,
 .monaco-workbench.windows .part.titlebar,
 .monaco-workbench.linux .part.titlebar {
 	padding: 0;
@@ -51,6 +51,7 @@
 	overflow: visible;
 }
 
+.monaco-workbench.web .part.titlebar > .window-title,
 .monaco-workbench.windows .part.titlebar > .window-title,
 .monaco-workbench.linux .part.titlebar > .window-title {
 	cursor: default;

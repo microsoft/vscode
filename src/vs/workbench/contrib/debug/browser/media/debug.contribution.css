@@ -5,7 +5,7 @@
 
 /* Activity Bar */
 .monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
-	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
+	-webkit-mask: url('debug-activity-bar.svg') no-repeat 50% 50%;
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {
@@ -108,20 +108,6 @@
 .debug-error-editor {
 	padding: 5px 0 0 10px;
 	box-sizing: border-box;
-}
-
-/* Debug status */
-.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item span.octicon {
-	text-align: center;
-	font-size: 14px;
-}
-
-.monaco-workbench .part.statusbar .debug-statusbar-item.hidden {
-	display: none;
 }
 
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {

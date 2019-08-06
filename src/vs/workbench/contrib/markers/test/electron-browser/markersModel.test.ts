@@ -27,6 +27,23 @@ class TestMarkersModel extends MarkersModel {
 
 suite('MarkersModel Test', () => {
 
+	test('marker ids are unique', function () {
+		const marker1 = anErrorWithRange(3);
+		const marker2 = anErrorWithRange(3);
+		const marker3 = aWarningWithRange(3);
+		const marker4 = aWarningWithRange(3);
+
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4]);
+		const actuals = testObject.resourceMarkers[0].markers;
+
+		assert.notEqual(actuals[0].id, actuals[1].id);
+		assert.notEqual(actuals[0].id, actuals[2].id);
+		assert.notEqual(actuals[0].id, actuals[3].id);
+		assert.notEqual(actuals[1].id, actuals[2].id);
+		assert.notEqual(actuals[1].id, actuals[3].id);
+		assert.notEqual(actuals[2].id, actuals[3].id);
+	});
+
 	test('sort palces resources with no errors at the end', function () {
 		const marker1 = aMarker('a/res1', MarkerSeverity.Warning);
 		const marker2 = aMarker('a/res2');
@@ -105,22 +122,22 @@ suite('MarkersModel Test', () => {
 	test('toString()', () => {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('1', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning);
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('2', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('3', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('4', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
-		const testObject = new Marker(marker, null!);
+		const testObject = new Marker('5', marker, null!);
 
 		// hack
-		(testObject as any).relatedInformation = marker.relatedInformation!.map(r => new RelatedInformation(marker.resource, marker, r));
+		(testObject as any).relatedInformation = marker.relatedInformation!.map(r => new RelatedInformation('6', marker, r));
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation!.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
 

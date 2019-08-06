@@ -39,7 +39,7 @@ import { IActionBarOptions, ActionsOrientation, IActionViewItem } from 'vs/base/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { fillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
@@ -184,7 +184,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
-		themeService.onThemeChange(this._applyTheme, this, this._disposables);
+		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getTheme());
 
 		this.contextKeyService = contextKeyService.createScoped();
@@ -199,7 +199,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}
 		this.setTitle(this.title);
 
-		model.onDidChange(this.renderTitle, this, this._disposables);
+		this._disposables.add(model.onDidChange(this.renderTitle, this));
 	}
 
 	showChange(index: number): void {
@@ -253,12 +253,12 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
 
-		this._disposables.push(previous);
-		this._disposables.push(next);
+		this._disposables.add(previous);
+		this._disposables.add(next);
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		fillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
+		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
 		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 
@@ -1158,7 +1158,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	private enabled = false;
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
-	private transientDisposables: IDisposable[] = [];
+	private readonly transientDisposables = this._register(new DisposableStore());
 	private stylesheet: HTMLStyleElement;
 
 	constructor(
@@ -1204,7 +1204,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			this.disable();
 		}
 
-		this.transientDisposables.push(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
+		this.transientDisposables.add(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
 		this.enabled = true;
 	}
@@ -1214,7 +1214,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			return;
 		}
 
-		this.transientDisposables = dispose(this.transientDisposables);
+		this.transientDisposables.clear();
 		this.models.forEach(m => this.items[m.id].dispose());
 		this.models = [];
 		this.items = Object.create(null);

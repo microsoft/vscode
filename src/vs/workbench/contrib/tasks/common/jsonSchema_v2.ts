@@ -50,7 +50,7 @@ const taskIdentifier: IJSONSchema = {
 	properties: {
 		type: {
 			type: 'string',
-			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task indentifier.')
+			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task identifier.')
 		}
 	}
 };
@@ -75,6 +75,17 @@ const dependsOn: IJSONSchema = {
 			}
 		}
 	]
+};
+
+const dependsOrder: IJSONSchema = {
+	type: 'string',
+	enum: ['parallel', 'sequence'],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.dependsOrder.parallel', 'Run all dependsOn tasks in parallel.'),
+		nls.localize('JsonSchema.tasks.dependsOrder.sequence', 'Run all dependsOn tasks in sequence.'),
+	],
+	default: 'parallel',
+	description: nls.localize('JsonSchema.tasks.dependsOrder', 'Determines the order of the dependsOn tasks for this task. Note that this property is not recursive.')
 };
 
 const presentation: IJSONSchema = {
@@ -353,6 +364,7 @@ let taskConfiguration: IJSONSchema = {
 		},
 		runOptions: Objects.deepClone(runOptions),
 		dependsOn: Objects.deepClone(dependsOn),
+		dependsOrder: Objects.deepClone(dependsOrder)
 	}
 };
 
@@ -405,6 +417,7 @@ taskDescriptionProperties.command = Objects.deepClone(command);
 taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
+taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);
 taskDescriptionProperties.presentation = Objects.deepClone(presentation);

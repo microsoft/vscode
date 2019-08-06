@@ -237,8 +237,8 @@ suite('Resources', () => {
 		}
 	}
 
-	function assertRelativePath(u1: URI, u2: URI, expectedPath: string | undefined, ignoreJoin?: boolean) {
-		assert.equal(relativePath(u1, u2), expectedPath, `from ${u1.toString()} to ${u2.toString()}`);
+	function assertRelativePath(u1: URI, u2: URI, expectedPath: string | undefined, ignoreJoin?: boolean, ignoreCase?: boolean) {
+		assert.equal(relativePath(u1, u2, ignoreCase), expectedPath, `from ${u1.toString()} to ${u2.toString()}`);
 		if (expectedPath !== undefined && !ignoreJoin) {
 			assertEqualURI(removeTrailingPathSeparator(joinPath(u1, expectedPath)), removeTrailingPathSeparator(u2), 'joinPath on relativePath should be equal');
 		}
@@ -262,6 +262,11 @@ suite('Resources', () => {
 		assertRelativePath(URI.parse('foo://'), URI.parse('foo://a/b'), undefined);
 		assertRelativePath(URI.parse('foo://a2/b'), URI.parse('foo://a/b'), undefined);
 		assertRelativePath(URI.parse('goo://a/b'), URI.parse('foo://a/b'), undefined);
+
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://A/FOO/bar/goo'), 'bar/goo', false, true);
+		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://A/FOO/BAR/GOO'), 'BAR/GOO', false, true);
+		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://A/FOO/BAR/GOO'), '../BAR/GOO', false, true);
+		assertRelativePath(URI.parse('foo:///c:/a/foo'), URI.parse('foo:///C:/a/foo/xoo/'), 'xoo', false, true);
 
 		if (isWindows) {
 			assertRelativePath(URI.file('c:\\foo\\bar'), URI.file('c:\\foo\\bar'), '');

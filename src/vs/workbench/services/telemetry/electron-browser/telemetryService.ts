@@ -16,6 +16,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -38,7 +39,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService)),
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.installSourcePath, environmentService.configuration.remoteAuthority),
-				piiPaths: [environmentService.appRoot, environmentService.extensionsPath]
+				piiPaths: environmentService.extensionsPath ? [environmentService.appRoot, environmentService.extensionsPath] : [environmentService.appRoot]
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));
@@ -57,6 +58,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
 		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	}
+
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
+		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 
 	getTelemetryInfo(): Promise<ITelemetryInfo> {

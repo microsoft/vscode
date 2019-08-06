@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
-import { getDomainsOfRemotes, getRemotes, getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/node/workspaceStats';
+import { getDomainsOfRemotes, getRemotes, getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 
 function hash(value: string): string {
 	return crypto.createHash('sha1').update(value.toString()).digest('hex');

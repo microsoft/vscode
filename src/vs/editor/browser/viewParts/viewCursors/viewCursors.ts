@@ -49,6 +49,8 @@ export class ViewCursors extends ViewPart {
 		this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
 		this._selectionIsEmpty = true;
 
+		this._isVisible = false;
+
 		this._primaryCursor = new ViewCursor(this._context);
 		this._secondaryCursors = [];
 		this._renderData = [];

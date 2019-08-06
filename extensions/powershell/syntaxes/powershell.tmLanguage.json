@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/44eac8702f3cbe55a4ec70c1fdb163d42b4162fc",
+	"version": "https://github.com/PowerShell/EditorSyntax/commit/d10ae29c0d3ceb248172c383a159ae43b9ccfb4d",
 	"name": "PowerShell",
 	"scopeName": "source.powershell",
 	"patterns": [
@@ -670,7 +670,7 @@
 						}
 					},
 					"comment": "Style preference variables as language variables so that they stand out.",
-					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|InformationPreference|LogCommandHealthEvent|LogCommandLifecycleEvent|LogEngineHealthEvent|LogEngineLifecycleEvent|LogProviderHealthEvent|LogProviderLifecycleEvent|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|PSCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoLoadingPreference|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|ProgressPreference|VerbosePreference|WarningPreference|WhatIfPreference))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
 				},
 				{
 					"captures": {
@@ -848,7 +848,7 @@
 						}
 					},
 					"comment": "Style preference variables as language variables so that they stand out.",
-					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))\\b"
+					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|InformationPreference|LogCommandHealthEvent|LogCommandLifecycleEvent|LogEngineHealthEvent|LogEngineLifecycleEvent|LogProviderHealthEvent|LogProviderLifecycleEvent|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|PSCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoLoadingPreference|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|ProgressPreference|VerbosePreference|WarningPreference|WhatIfPreference))\\b"
 				},
 				{
 					"captures": {

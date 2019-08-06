@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -19,6 +21,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('t
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+/** A context key that is set when the user is navigating the accessibility tree */
+export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
@@ -45,6 +49,7 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 export const EXT_HOST_CREATION_DELAY = 100;
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -54,10 +59,14 @@ export const TerminalCursorStyle = {
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
+export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
+
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
 export const SHELL_PATH_INVALID_EXIT_CODE = -1;
+export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
+export const SHELL_CWD_INVALID_EXIT_CODE = -3;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -92,6 +101,7 @@ export interface ITerminalConfiguration {
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
+	inheritEnv: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
@@ -101,21 +111,20 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
-	enableLatencyMitigation: boolean;
 	experimentalRefreshOnResume: boolean;
 }
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
+
+	onWorkspacePermissionsChanged: Event<boolean>;
+
 	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
-	/**
-	 * Merges the default shell path and args into the provided launch configuration
-	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: platform.OperatingSystem): boolean;
+	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export interface ITerminalFont {
@@ -162,7 +171,7 @@ export interface IShellLaunchConfig {
 	env?: ITerminalEnvironment;
 
 	/**
-	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
+	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (e.g. if the
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
@@ -179,10 +188,14 @@ export interface IShellLaunchConfig {
 	initialText?: string;
 
 	/**
-	 * When true the terminal will be created with no process. This is primarily used to give
-	 * extensions full control over the terminal.
+	 * @deprecated use `isExtensionTerminal`
 	 */
 	isRendererOnly?: boolean;
+
+	/**
+	 * Whether an extension is controlling the terminal via a `vscode.Pseudoterminal`.
+	 */
+	isExtensionTerminal?: boolean;
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -200,7 +213,7 @@ export interface IShellLaunchConfig {
 	 * interaction is needed. Note that the terminals will still be exposed to all extensions
 	 * as normal.
 	 */
-	runInBackground?: boolean;
+	hideFromUser?: boolean;
 }
 
 export interface ITerminalService {
@@ -208,18 +221,22 @@ export interface ITerminalService {
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
+	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
+
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
+	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
+	onInstanceRequestSpawnExtHostProcess: Event<ISpawnExtHostProcessRequest>;
+	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	terminalInstances: ITerminalInstance[];
-	terminalTabs: ITerminalTab[];
+	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 
 	/**
 	 * Creates a terminal.
@@ -236,8 +253,8 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
-	getInstanceFromId(terminalId: number): ITerminalInstance;
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
+	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance | null;
@@ -265,9 +282,9 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
+	selectDefaultWindowsShell(): Promise<void>;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	getDefaultShell(p: platform.Platform): string;
-	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
 	/**
@@ -282,7 +299,29 @@ export interface ITerminalService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
+}
+
+/**
+ * Provides access to native or electron APIs to other terminal services.
+ */
+export interface ITerminalNativeService {
+	_serviceBrand: any;
+
+	readonly linuxDistro: LinuxDistro;
+
+	readonly onOpenFileRequest: Event<IOpenFileRequest>;
+	readonly onOsResume: Event<void>;
+
+	getWindowsBuildNumber(): number;
+	whenFileDeleted(path: URI): Promise<void>;
+	getWslPath(path: string): Promise<string>;
+}
+
+export interface IShellDefinition {
+	label: string;
+	path: string;
 }
 
 export const enum Direction {
@@ -350,6 +389,8 @@ export interface ITerminalInstance {
 
 	readonly cols: number;
 	readonly rows: number;
+	readonly maxCols: number;
+	readonly maxRows: number;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -368,12 +409,10 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onFocused: Event<ITerminalInstance>;
-
 	onProcessIdReady: Event<ITerminalInstance>;
-
 	onRequestExtHostProcess: Event<ITerminalInstance>;
-
 	onDimensionsChanged: Event<void>;
+	onMaximumDimensionsChanged: Event<void>;
 
 	onFocus: Event<ITerminalInstance>;
 
@@ -435,7 +474,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
-	 * being manipulating (eg. adding a split pane) and we want the terminal to ignore particular
+	 * being manipulating (e.g. adding a split pane) and we want the terminal to ignore particular
 	 * resize events.
 	 */
 	disableLayout: boolean;
@@ -444,7 +483,9 @@ export interface ITerminalInstance {
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
 	 */
-	readonly commandTracker: ITerminalCommandTracker;
+	readonly commandTracker: ICommandTracker;
+
+	readonly navigationMode: INavigationMode | undefined;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -497,7 +538,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(): void;
+	copySelection(): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
@@ -547,7 +588,7 @@ export interface ITerminalInstance {
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
 	 */
-	paste(): void;
+	paste(): Promise<void>;
 
 	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
@@ -593,17 +634,6 @@ export interface ITerminalInstance {
 	attachToElement(container: HTMLElement): void;
 
 	/**
-	 * Updates the configuration of the terminal instance.
-	 */
-	updateConfig(): void;
-
-	/**
-	 * Updates the accessibility support state of the terminal instance.
-	 * @param isEnabled Whether it's enabled.
-	 */
-	updateAccessibilitySupport(isEnabled: boolean): void;
-
-	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
@@ -641,13 +671,19 @@ export interface ITerminalInstance {
 	getCwd(): Promise<string>;
 }
 
-export interface ITerminalCommandTracker {
+export interface ICommandTracker {
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
+}
+
+export interface INavigationMode {
+	exitNavigationMode(): void;
+	focusPreviousLine(): void;
+	focusNextLine(): void;
 }
 
 export interface IBeforeProcessDataEvent {
@@ -661,9 +697,9 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
-	readonly shellProcessId: number;
+	readonly shellProcessId: number | undefined;
 	readonly remoteAuthority: string | undefined;
-	readonly os: platform.OperatingSystem | undefined;
+	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;
@@ -671,10 +707,11 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
+	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 
-	addDisposable(disposable: IDisposable): void;
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
@@ -707,8 +744,10 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
-	emitPid(pid: number): void;
+	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number): void;
+	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
+	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
@@ -721,13 +760,27 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	onRequestLatency: Event<void>;
 }
 
-export interface ITerminalProcessExtHostRequest {
+export interface ISpawnExtHostProcessRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
 	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+}
+
+export interface IStartExtensionTerminalRequest {
+	proxy: ITerminalProcessExtHostProxy;
+	cols: number;
+	rows: number;
+}
+
+export interface IAvailableShellsRequest {
+	(shells: IShellDefinition[]): void;
+}
+
+export interface IDefaultShellAndArgsRequest {
+	(shell: string, args: string[] | string | undefined): void;
 }
 
 export enum LinuxDistro {
@@ -747,8 +800,10 @@ export interface IWindowsShellHelper extends IDisposable {
 export interface ITerminalChildProcess {
 	onProcessData: Event<string>;
 	onProcessExit: Event<number>;
-	onProcessIdReady: Event<number>;
+	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
+	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 
 	/**
 	 * Shutdown the terminal process.

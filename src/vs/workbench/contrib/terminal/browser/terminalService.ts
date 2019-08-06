@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as CommonTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -21,9 +20,14 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export abstract class TerminalService extends CommonTerminalService implements ITerminalService {
-	protected _configHelper: IBrowserTerminalConfigHelper;
+export class TerminalService extends CommonTerminalService implements ITerminalService {
+	private _configHelper: IBrowserTerminalConfigHelper;
+
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -36,26 +40,27 @@ export abstract class TerminalService extends CommonTerminalService implements I
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITerminalNativeService readonly terminalNativeService: ITerminalNativeService,
+		@IQuickInputService readonly quickInputService: IQuickInputService,
+		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		super(contextKeyService, panelService, lifecycleService, storageService, notificationService, dialogService, extensionService, fileService, remoteAgentService);
+		super(contextKeyService, panelService, lifecycleService, storageService, notificationService, dialogService, extensionService, fileService, remoteAgentService, terminalNativeService, quickInputService, configurationService);
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this.terminalNativeService.linuxDistro);
 	}
 
-	public abstract getDefaultShell(p: platform.Platform): string;
-
-	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
+	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (shell.runInBackground) {
+		if (shell.hideFromUser) {
 			const instance = this.createInstance(this._terminalFocusContextKey,
 				this.configHelper,
 				undefined,
-				shell,
-				true);
+				shell);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
@@ -80,7 +85,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
-		instance.shellLaunchConfig.runInBackground = false;
+		instance.shellLaunchConfig.hideFromUser = false;
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this.configHelper,
@@ -132,7 +137,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
-		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
+		this._terminalTabs.forEach(tab => tab.attachToElement(terminalContainer));
 	}
 
 	public hidePanel(): void {

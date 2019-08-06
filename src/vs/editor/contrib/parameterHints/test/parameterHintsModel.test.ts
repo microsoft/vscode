@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -23,7 +23,7 @@ const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
 
 
-const emptySigHelpResult = {
+const emptySigHelp: modes.SignatureHelp = {
 	signatures: [{
 		label: 'none',
 		parameters: []
@@ -31,11 +31,21 @@ const emptySigHelpResult = {
 	activeParameter: 0,
 	activeSignature: 0
 };
-suite('ParameterHintsModel', () => {
-	let disposables: IDisposable[] = [];
 
-	setup(function () {
-		disposables = dispose(disposables);
+const emptySigHelpResult: modes.SignatureHelpResult = {
+	value: emptySigHelp,
+	dispose: () => { }
+};
+
+suite('ParameterHintsModel', () => {
+	const disposables = new DisposableStore();
+
+	setup(() => {
+		disposables.clear();
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	function createMockEditor(fileContents: string) {
@@ -47,8 +57,8 @@ suite('ParameterHintsModel', () => {
 				[IStorageService, new InMemoryStorageService()]
 			)
 		});
-		disposables.push(textModel);
-		disposables.push(editor);
+		disposables.add(textModel);
+		disposables.add(editor);
 		return editor;
 	}
 
@@ -56,9 +66,9 @@ suite('ParameterHintsModel', () => {
 		const triggerChar = '(';
 
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor));
+		disposables.add(new ParameterHintsModel(editor));
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
@@ -77,14 +87,14 @@ suite('ParameterHintsModel', () => {
 		const triggerChar = '(';
 
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor));
+		disposables.add(new ParameterHintsModel(editor));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
 				++invokeCount;
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
@@ -99,7 +109,7 @@ suite('ParameterHintsModel', () => {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
 					assert.strictEqual(context.isRetrigger, true);
 					assert.strictEqual(context.triggerCharacter, triggerChar);
-					assert.strictEqual(context.activeSignatureHelp, emptySigHelpResult);
+					assert.strictEqual(context.activeSignatureHelp, emptySigHelp);
 
 					done();
 				}
@@ -115,14 +125,14 @@ suite('ParameterHintsModel', () => {
 
 		const editor = createMockEditor('');
 		const hintModel = new ParameterHintsModel(editor);
-		disposables.push(hintModel);
+		disposables.add(hintModel);
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
 				++invokeCount;
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
@@ -150,10 +160,10 @@ suite('ParameterHintsModel', () => {
 
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor, 5));
+		disposables.add(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
 			signatureHelpRetriggerCharacters = [];
 
@@ -181,14 +191,14 @@ suite('ParameterHintsModel', () => {
 
 	test('Provider should be retriggered if already active', (done) => {
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor, 5));
+		disposables.add(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b'];
 			signatureHelpRetriggerCharacters = [];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
 				++invokeCount;
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
@@ -223,7 +233,7 @@ suite('ParameterHintsModel', () => {
 			signatureHelpRetriggerCharacters = [];
 
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelp | Promise<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
 				const count = invokeCount++;
 				token.onCancellationRequested(() => { didRequestCancellationOf = count; });
 
@@ -232,22 +242,25 @@ suite('ParameterHintsModel', () => {
 					hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 				}
 
-				return new Promise<modes.SignatureHelp>(resolve => {
+				return new Promise<modes.SignatureHelpResult>(resolve => {
 					setTimeout(() => {
 						resolve({
-							signatures: [{
-								label: '' + count,
-								parameters: []
-							}],
-							activeParameter: 0,
-							activeSignature: 0
+							value: {
+								signatures: [{
+									label: '' + count,
+									parameters: []
+								}],
+								activeParameter: 0,
+								activeSignature: 0
+							},
+							dispose: () => { }
 						});
 					}, 100);
 				});
 			}
 		};
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
 
 		hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 		assert.strictEqual(-1, didRequestCancellationOf);
@@ -269,14 +282,14 @@ suite('ParameterHintsModel', () => {
 		const retriggerChar = 'b';
 
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor, 5));
+		disposables.add(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [retriggerChar];
 
-			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Promise<modes.SignatureHelp> {
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelpResult | Promise<modes.SignatureHelpResult> {
 				++invokeCount;
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerKind, modes.SignatureHelpTriggerKind.TriggerCharacter);
@@ -312,26 +325,29 @@ suite('ParameterHintsModel', () => {
 
 		const editor = createMockEditor('');
 		const model = new ParameterHintsModel(editor, 5);
-		disposables.push(model);
+		disposables.add(model);
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelp | undefined> {
+			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> {
 				if (!context.isRetrigger) {
 					// retrigger after delay for widget to show up
 					setTimeout(() => editor.trigger('keyboard', Handler.Type, { text: triggerChar }), 50);
 
 					return {
-						activeParameter: 0,
-						activeSignature: 0,
-						signatures: [{
-							label: firstProviderId,
-							parameters: [
-								{ label: paramterLabel }
-							]
-						}]
+						value: {
+							activeParameter: 0,
+							activeSignature: 0,
+							signatures: [{
+								label: firstProviderId,
+								parameters: [
+									{ label: paramterLabel }
+								]
+							}]
+						},
+						dispose: () => { }
 					};
 				}
 
@@ -339,19 +355,22 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
-			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelp | undefined> {
+			async provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> {
 				if (context.isRetrigger) {
 					return {
-						activeParameter: 0,
-						activeSignature: context.activeSignatureHelp ? context.activeSignatureHelp.activeSignature + 1 : 0,
-						signatures: [{
-							label: secondProviderId,
-							parameters: context.activeSignatureHelp ? context.activeSignatureHelp.signatures[0].parameters : []
-						}]
+						value: {
+							activeParameter: 0,
+							activeSignature: context.activeSignatureHelp ? context.activeSignatureHelp.activeSignature + 1 : 0,
+							signatures: [{
+								label: secondProviderId,
+								parameters: context.activeSignatureHelp ? context.activeSignatureHelp.signatures[0].parameters : []
+							}]
+						},
+						dispose: () => { }
 					};
 				}
 
@@ -361,23 +380,23 @@ suite('ParameterHintsModel', () => {
 
 		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 
-		const firstHint = await getNextHint(model);
-		assert.strictEqual(firstHint!.signatures[0].label, firstProviderId);
-		assert.strictEqual(firstHint!.activeSignature, 0);
-		assert.strictEqual(firstHint!.signatures[0].parameters[0].label, paramterLabel);
+		const firstHint = (await getNextHint(model))!.value;
+		assert.strictEqual(firstHint.signatures[0].label, firstProviderId);
+		assert.strictEqual(firstHint.activeSignature, 0);
+		assert.strictEqual(firstHint.signatures[0].parameters[0].label, paramterLabel);
 
-		const secondHint = await getNextHint(model);
-		assert.strictEqual(secondHint!.signatures[0].label, secondProviderId);
-		assert.strictEqual(secondHint!.activeSignature, 1);
-		assert.strictEqual(secondHint!.signatures[0].parameters[0].label, paramterLabel);
+		const secondHint = (await getNextHint(model))!.value;
+		assert.strictEqual(secondHint.signatures[0].label, secondProviderId);
+		assert.strictEqual(secondHint.activeSignature, 1);
+		assert.strictEqual(secondHint.signatures[0].parameters[0].label, paramterLabel);
 	});
 });
 
 function getNextHint(model: ParameterHintsModel) {
-	return new Promise<modes.SignatureHelp | undefined>(resolve => {
+	return new Promise<modes.SignatureHelpResult | undefined>(resolve => {
 		const sub = model.onChangedHints(e => {
 			sub.dispose();
-			return resolve(e);
+			return resolve(e ? { value: e, dispose: () => { } } : undefined);
 		});
 	});
 }

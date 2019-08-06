@@ -14,6 +14,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { file } from '../utils/fileSchemes';
 
 const localize = nls.loadMessageBundle();
 
@@ -79,7 +80,10 @@ class ApplyRefactoringCommand implements Command {
 	private async toWorkspaceEdit(body: Proto.RefactorEditInfo) {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		for (const edit of body.edits) {
-			workspaceEdit.createFile(this.client.toResource(edit.fileName), { ignoreIfExists: true });
+			const resource = this.client.toResource(edit.fileName);
+			if (resource.scheme === file) {
+				workspaceEdit.createFile(resource, { ignoreIfExists: true });
+			}
 		}
 		typeConverters.WorkspaceEdit.withFileCodeEdits(workspaceEdit, this.client, body.edits);
 		return workspaceEdit;

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
@@ -195,11 +195,6 @@ class TouchHandler extends MouseHandler {
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
-
-	}
-
-	public dispose(): void {
-		super.dispose();
 	}
 
 	private onTap(event: GestureEvent): void {
@@ -219,26 +214,23 @@ class TouchHandler extends MouseHandler {
 	}
 }
 
-export class PointerHandler implements IDisposable {
+export class PointerHandler extends Disposable {
 	private readonly handler: MouseHandler;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
+		super();
 		if (window.navigator.msPointerEnabled) {
-			this.handler = new MsPointerHandler(context, viewController, viewHelper);
+			this.handler = this._register(new MsPointerHandler(context, viewController, viewHelper));
 		} else if ((<any>window).TouchEvent) {
-			this.handler = new TouchHandler(context, viewController, viewHelper);
+			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
 		} else if (window.navigator.pointerEnabled || (<any>window).PointerEvent) {
-			this.handler = new StandardPointerHandler(context, viewController, viewHelper);
+			this.handler = this._register(new StandardPointerHandler(context, viewController, viewHelper));
 		} else {
-			this.handler = new MouseHandler(context, viewController, viewHelper);
+			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));
 		}
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		return this.handler.getTargetAtClientPoint(clientX, clientY);
-	}
-
-	public dispose(): void {
-		this.handler.dispose();
 	}
 }

@@ -24,7 +24,8 @@ import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExte
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -54,6 +55,7 @@ export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loade
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false);
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
+export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
@@ -132,7 +134,7 @@ export function getStateLabel(state: State): string {
 	}
 }
 
-export class AdapterEndEvent {
+export interface AdapterEndEvent {
 	error?: Error;
 	sessionLengthInSeconds: number;
 	emittedStopped: boolean;
@@ -222,6 +224,9 @@ export interface IDebugSession extends ITreeElement {
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
+
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse>;
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse>;
 }
 
 export interface IThread extends ITreeElement {
@@ -296,6 +301,7 @@ export interface IStackFrame extends ITreeElement {
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	getSpecificSourceName(): string;
+	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;
@@ -433,7 +439,9 @@ export interface IDebugConfiguration {
 		fontSize: number;
 		fontFamily: string;
 		lineHeight: number;
+		wordWrap: boolean;
 	};
+	focusWindowOnBreak: boolean;
 }
 
 export interface IGlobalConfig {
@@ -482,7 +490,7 @@ export interface IDebugAdapter extends IDisposable {
 	startSession(): Promise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timemout?: number): void;
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void;
 	stopSession(): Promise<void>;
 }
 
@@ -550,8 +558,8 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 export interface IDebugConfigurationProvider {
 	readonly type: string;
-	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): Promise<IConfig | null | undefined>;
-	provideDebugConfigurations?(folderUri: uri | undefined): Promise<IConfig[]>;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
+	provideDebugConfigurations?(folderUri: uri | undefined, token: CancellationToken): Promise<IConfig[]>;
 	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
 }
 
@@ -565,16 +573,7 @@ export interface IDebugAdapterTrackerFactory {
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
-}
-
-export interface ITerminalSettings {
-	external: {
-		windowsExec: string,
-		osxExec: string,
-		linuxExec: string
-	};
-	integrated: ITerminalConfiguration;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 }
 
 export interface IConfigurationManager {
@@ -612,14 +611,14 @@ export interface IConfigurationManager {
 	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
 	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Promise<any>;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 }
 
 export interface ILaunch {
@@ -665,7 +664,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }>;
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditor | null, created: boolean }>;
 }
 
 // Debug service interfaces
@@ -718,7 +717,7 @@ export interface IDebugService {
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void;
+	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -829,4 +828,15 @@ export interface IDebugEditorContribution extends IEditorContribution {
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): Promise<any>;
+}
+
+// temporary debug helper service
+
+export const DEBUG_HELPER_SERVICE_ID = 'debugHelperService';
+export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HELPER_SERVICE_ID);
+
+export interface IDebugHelperService {
+	_serviceBrand: any;
+
+	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
 }

@@ -39,7 +39,7 @@ function parseLink(
 
 	return {
 		uri: OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment),
-		tooltip: localize('documentLink.tooltip', 'follow link')
+		tooltip: localize('documentLink.tooltip', 'Follow link')
 	};
 }
 
@@ -79,9 +79,9 @@ function extractDocumentLink(
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|[^\]]*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
-	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
-	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
+	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
+	private readonly referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
+	private readonly definitionPattern = /^([\t ]*\[((?:\\\]|[^\]])+)\]:\s*)(\S+)/gm;
 
 	public provideDocumentLinks(
 		document: vscode.TextDocument,
