@@ -82,7 +82,8 @@ export class ExtensionHostMain {
 			ExtHostExtensionService,
 			hostUtils,
 			uriTransformer,
-			rpcProtocol
+			rpcProtocol,
+			services, // todo@joh hack!
 		);
 
 		// error forwarding and stack trace scanning

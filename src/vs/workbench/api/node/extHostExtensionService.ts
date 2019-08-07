@@ -36,6 +36,8 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -63,7 +65,9 @@ type TelemetryActivationEventFragment = {
 	reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
+export class ExtHostExtensionService implements IExtHostExtensionService, ExtHostExtensionServiceShape {
+
+	readonly _serviceBrand: any;
 
 	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
@@ -73,8 +77,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
 	private readonly _extHostLogService: ExtHostLogService;
-
-	private readonly _instaService: IInstantiationService;
 
 	private readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	private readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -100,6 +102,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		hostUtils: IHostUtils,
 		uriTransformer: IURITransformer | null,
 		extHostContext: IMainContext,
+		services: ServiceCollection,
 		@IInstantiationService instaService: IInstantiationService,
 		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
 		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
@@ -109,7 +112,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._hostUtils = hostUtils;
 		this._extHostContext = extHostContext;
 		this._initData = initData;
-		this._instaService = instaService;
+
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
 		this._extHostLogService = extHostLogService;
@@ -146,13 +149,17 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 		this._extensionPathIndex = null;
 
+		// todo@joh this is a hack!
+		// the problem is that this service doesn't create the insta-service
+		// but downlevel things it creates depend on this service...
+		services.set(IExtHostExtensionService, this);
+
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		this._extensionApiFactory = this._instaService.invokeFunction(createApiFactory,
+		this._extensionApiFactory = instaService.invokeFunction(createApiFactory,
 			this._initData,
 			this._extHostContext,
 			this._extHostWorkspace,
 			this._extHostConfiguration,
-			this,
 			this._extHostLogService,
 			this._storage,
 			uriTransformer

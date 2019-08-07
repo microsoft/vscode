@@ -15,6 +15,8 @@ import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalSer
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
+import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
+import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 
 // register singleton services
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
@@ -25,3 +27,4 @@ registerSingleton(IExtHostCommands, ExtHostCommands);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService);
 registerSingleton(IExtHostTask, ExtHostTask);
+registerSingleton(IExtHostDebugService, ExtHostDebugService);
