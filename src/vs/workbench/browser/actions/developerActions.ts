@@ -24,6 +24,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { clamp } from 'vs/base/common/numbers';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class InspectContextKeysAction extends Action {
 
@@ -164,7 +165,11 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || length > 20) {
+			if (
+				event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+				|| length > 20
+				|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+			) {
 				keyboardMarker.innerHTML = '';
 				length = 0;
 			}
