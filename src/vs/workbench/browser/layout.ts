@@ -1161,12 +1161,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout
 		if (this.workbenchGrid instanceof Grid) {
 			const size = this.workbenchGrid.getViewSize(this.panelPartView);
+			const sideBarSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
 
 			if (position === Position.BOTTOM) {
 				this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : size.width, this.editorPartView, Direction.Down);
 			} else {
 				this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : size.height, this.editorPartView, Direction.Right);
 			}
+
+			// Reset sidebar to original size before shifting the panel
+			this.workbenchGrid.resizeView(this.sideBarPartView, sideBarSize);
 		} else {
 			this.workbenchGrid.layout();
 		}
