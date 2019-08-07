@@ -1915,4 +1915,94 @@ suite('Disk File Service', () => {
 	function hasChange(changes: IFileChange[], type: FileChangeType, resource: URI): boolean {
 		return changes.some(change => change.type === type && isEqual(change.resource, resource));
 	}
+
+	test('read - mixed positions', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		// read multiple times from position 0
+		let buffer = VSBuffer.alloc(1024);
+		let fd = await fileProvider.open(resource, { create: false });
+		for (let i = 0; i < 3; i++) {
+			await fileProvider.read(fd, 0, buffer.buffer, 0, 26);
+			assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		}
+		await fileProvider.close(fd);
+
+		// read multiple times at various locations
+		buffer = VSBuffer.alloc(1024);
+		fd = await fileProvider.open(resource, { create: false });
+
+		let posInFile = 0;
+
+		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 26);
+		assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		posInFile += 26;
+
+		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 1);
+		assert.equal(buffer.slice(0, 1).toString(), ',');
+		posInFile += 1;
+
+		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 12);
+		assert.equal(buffer.slice(0, 12).toString(), ' consectetur');
+		posInFile += 12;
+
+		await fileProvider.read(fd, 98 /* no longer in sequence of posInFile */, buffer.buffer, 0, 9);
+		assert.equal(buffer.slice(0, 9).toString(), 'fermentum');
+
+		await fileProvider.read(fd, 27, buffer.buffer, 0, 12);
+		assert.equal(buffer.slice(0, 12).toString(), ' consectetur');
+
+		await fileProvider.read(fd, 26, buffer.buffer, 0, 1);
+		assert.equal(buffer.slice(0, 1).toString(), ',');
+
+		await fileProvider.read(fd, 0, buffer.buffer, 0, 26);
+		assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+
+		await fileProvider.read(fd, posInFile /* back in sequence */, buffer.buffer, 0, 11);
+		assert.equal(buffer.slice(0, 11).toString(), ' adipiscing');
+
+		await fileProvider.close(fd);
+	});
+
+	test('write - mixed positions', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const buffer = VSBuffer.alloc(1024);
+		const fdWrite = await fileProvider.open(resource, { create: true });
+		const fdRead = await fileProvider.open(resource, { create: false });
+
+		let posInFileWrite = 0;
+		let posInFileRead = 0;
+
+		const initialContents = VSBuffer.fromString('Lorem ipsum dolor sit amet');
+		await fileProvider.write(fdWrite, posInFileWrite, initialContents.buffer, 0, initialContents.byteLength);
+		posInFileWrite += initialContents.byteLength;
+
+		await fileProvider.read(fdRead, posInFileRead, buffer.buffer, 0, 26);
+		assert.equal(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		posInFileRead += 26;
+
+		const contents = VSBuffer.fromString('Hello World');
+
+		await fileProvider.write(fdWrite, posInFileWrite, contents.buffer, 0, contents.byteLength);
+		posInFileWrite += contents.byteLength;
+
+		await fileProvider.read(fdRead, posInFileRead, buffer.buffer, 0, contents.byteLength);
+		assert.equal(buffer.slice(0, contents.byteLength).toString(), 'Hello World');
+		posInFileRead += contents.byteLength;
+
+		await fileProvider.write(fdWrite, 6, contents.buffer, 0, contents.byteLength);
+
+		await fileProvider.read(fdRead, 0, buffer.buffer, 0, 11);
+		assert.equal(buffer.slice(0, 11).toString(), 'Lorem Hello');
+
+		await fileProvider.write(fdWrite, posInFileWrite, contents.buffer, 0, contents.byteLength);
+		posInFileWrite += contents.byteLength;
+
+		await fileProvider.read(fdRead, posInFileWrite - contents.byteLength, buffer.buffer, 0, contents.byteLength);
+		assert.equal(buffer.slice(0, contents.byteLength).toString(), 'Hello World');
+
+		await fileProvider.close(fdWrite);
+		await fileProvider.close(fdRead);
+	});
 });
