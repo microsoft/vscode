@@ -102,7 +102,7 @@ export const tocData: ITOCEntry = {
 					settings: ['zenmode.*']
 				},
 				{
-					id: 'application/screencastmode',
+					id: 'workbench/screencastmode',
 					label: localize('screencastMode', "Screencast Mode"),
 					settings: ['screencastMode.*']
 				}
