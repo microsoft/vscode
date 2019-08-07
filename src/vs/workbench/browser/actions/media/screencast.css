@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench .screencast-mouse {
+.monaco-workbench .screencast-mouse {
 	position: absolute;
 	border: 2px solid red;
 	border-radius: 20px;
@@ -17,7 +17,7 @@
 	display: none;
 }
 
-.vs .monaco-workbench .screencast-keyboard {
+.monaco-workbench .screencast-keyboard {
 	position: absolute;
 	background-color: rgba(0, 0, 0 ,0.5);
 	width: 100%;
@@ -26,7 +26,7 @@
 	left: 0;
 	z-index: 100000;
 	pointer-events: none;
-	color: white;
+	color: #eee;
 	line-height: 100px;
 	text-align: center;
 	font-size: 56px;
@@ -34,6 +34,15 @@
 	transition: opacity 0.3s ease-out;
 }
 
-.vs .monaco-workbench .screencast-keyboard:empty {
+.monaco-workbench .screencast-keyboard:empty {
 	opacity: 0;
+}
+
+.monaco-workbench .screencast-keyboard > .key {
+	padding: 0 8px;
+	box-shadow: inset 0 -3px 0 hsla(0,0%,73%,.4);
+	margin-right: 6px;
+	border: 1px solid hsla(0,0%,80%,.4);
+	border-radius: 5px;
+	background-color: rgba(255, 255, 255, 0.05);
 }
