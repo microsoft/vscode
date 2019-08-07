@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 
@@ -45,10 +44,10 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			pathCandidate = preparePath(cwd, pathCandidate);
 		}
 
-		const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
+		const sanitizedFilePath = extpath.sanitizeFilePath(pathCandidate, cwd);
 
 		const basename = path.basename(sanitizedFilePath);
-		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
+		if (basename /* can be empty if code is opened on root */ && !extpath.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 

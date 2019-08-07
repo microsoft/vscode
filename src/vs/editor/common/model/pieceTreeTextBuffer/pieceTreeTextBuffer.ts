@@ -6,10 +6,9 @@
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ApplyEditsResult, EndOfLinePreference, FindMatch, IIdentifiedSingleEditOperation, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer } from 'vs/editor/common/model';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IIdentifiedSingleEditOperation, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot } from 'vs/editor/common/model';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -27,8 +26,8 @@ export interface IReverseSingleEditOperation extends IIdentifiedSingleEditOperat
 }
 
 export class PieceTreeTextBuffer implements ITextBuffer {
-	private _pieceTree: PieceTreeBase;
-	private _BOM: string;
+	private readonly _pieceTree: PieceTreeBase;
+	private readonly _BOM: string;
 	private _mightContainRTL: boolean;
 	private _mightContainNonBasicASCII: boolean;
 

@@ -13,6 +13,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -62,10 +63,8 @@ export interface ISplitLine {
 	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
 }
 
-export interface IViewModelLinesCollection {
+export interface IViewModelLinesCollection extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
-
-	dispose(): void;
 
 	setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean;
 	setTabSize(newTabSize: number): boolean;
@@ -149,20 +148,20 @@ const enum IndentGuideRepeatOption {
 
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
-	private model: ITextModel;
+	private readonly model: ITextModel;
 	private _validModelVersionId: number;
 
 	private wrappingColumn: number;
 	private columnsForFullWidthChar: number;
 	private wrappingIndent: WrappingIndent;
 	private tabSize: number;
-	private lines: ISplitLine[];
+	private lines!: ISplitLine[];
 
-	private prefixSumComputer: PrefixSumComputerWithCache;
+	private prefixSumComputer!: PrefixSumComputerWithCache;
 
-	private linePositionMapperFactory: ILineMapperFactory;
+	private readonly linePositionMapperFactory: ILineMapperFactory;
 
-	private hiddenAreasIds: string[];
+	private hiddenAreasIds!: string[];
 
 	constructor(model: ITextModel, linePositionMapperFactory: ILineMapperFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent) {
 		this.model = model;
@@ -788,8 +787,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
@@ -858,8 +856,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
 		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
 		let prevDecId: string | null = null;
-		for (let i = 0, len = result.length; i < len; i++) {
-			const dec = result[i];
+		for (const dec of result) {
 			const decId = dec.id;
 			if (prevDecId === decId) {
 				// skip
@@ -1003,11 +1000,11 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 
 export class SplitLine implements ISplitLine {
 
-	private positionMapper: ILineMapping;
-	private outputLineCount: number;
+	private readonly positionMapper: ILineMapping;
+	private readonly outputLineCount: number;
 
-	private wrappedIndent: string;
-	private wrappedIndentLength: number;
+	private readonly wrappedIndent: string;
+	private readonly wrappedIndentLength: number;
 	private _isVisible: boolean;
 
 	constructor(positionMapper: ILineMapping, isVisible: boolean) {
@@ -1380,8 +1377,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts ? opts.position : 0;
 			if (lane === 0) {

@@ -56,6 +56,8 @@ export class TestConfigurationService implements IConfigurationService {
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
+		userLocal?: T,
+		userRemote?: T,
 		workspace?: T,
 		workspaceFolder?: T
 		value: T,

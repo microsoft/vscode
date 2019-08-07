@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as glob from 'vs/base/common/glob';
 import { normalizeNFD } from 'vs/base/common/normalization';
 import * as objects from 'vs/base/common/objects';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { IFileQuery, IFolderQuery } from 'vs/platform/search/common/search';
+import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
 import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { rgPath } from 'vscode-ripgrep';
 
@@ -159,7 +159,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	return paths.isAbsolute(key) ?
+	return path.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
 }
@@ -170,7 +170,7 @@ function trimTrailingSlash(str: string): string {
 }
 
 export function fixDriveC(path: string): string {
-	const root = paths.getRoot(path);
+	const root = extpath.getRoot(path);
 	return root.toLowerCase() === 'c:/' ?
 		path.replace(/^c:[/\\]/i, '/') :
 		path;

@@ -13,7 +13,7 @@ import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationT
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -31,7 +31,8 @@ export class TypeOperations {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: false,
 				tabSize: config.tabSize,
-				oneIndent: config.oneIndent,
+				indentSize: config.indentSize,
+				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops
 			});
 		}
@@ -44,7 +45,8 @@ export class TypeOperations {
 			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: true,
 				tabSize: config.tabSize,
-				oneIndent: config.oneIndent,
+				indentSize: config.indentSize,
+				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops
 			});
 		}
@@ -53,24 +55,12 @@ export class TypeOperations {
 
 	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
 		count = count || 1;
-		let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + count, config.tabSize);
-		let newIndentation = '';
-		for (let i = 0; i < desiredIndentCount; i++) {
-			newIndentation += '\t';
-		}
-
-		return newIndentation;
+		return ShiftCommand.shiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 	}
 
 	public static unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
 		count = count || 1;
-		let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + count, config.tabSize);
-		let newIndentation = '';
-		for (let i = 0; i < desiredIndentCount; i++) {
-			newIndentation += '\t';
-		}
-
-		return newIndentation;
+		return ShiftCommand.unshiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 	}
 
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
@@ -159,7 +149,7 @@ export class TypeOperations {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
 		} else if (lineNumber > 1) {
-			let lastLineNumber = lineNumber - 1;
+			let lastLineNumber: number;
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 				let lineText = model.getLineContent(lastLineNumber);
 				let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
@@ -209,8 +199,8 @@ export class TypeOperations {
 		let position = selection.getStartPosition();
 		if (config.insertSpaces) {
 			let visibleColumnFromColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-			let tabSize = config.tabSize;
-			let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
+			let indentSize = config.indentSize;
+			let spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);
 			for (let i = 0; i < spacesCnt; i++) {
 				typeText += ' ';
 			}
@@ -254,7 +244,8 @@ export class TypeOperations {
 				commands[i] = new ShiftCommand(selection, {
 					isUnshift: false,
 					tabSize: config.tabSize,
-					oneIndent: config.oneIndent,
+					indentSize: config.indentSize,
+					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops
 				});
 			}
@@ -377,7 +368,7 @@ export class TypeOperations {
 				let offset = 0;
 				if (oldEndColumn <= firstNonWhitespace + 1) {
 					if (!config.insertSpaces) {
-						oldEndViewColumn = Math.ceil(oldEndViewColumn / config.tabSize);
+						oldEndViewColumn = Math.ceil(oldEndViewColumn / config.indentSize);
 					}
 					offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
 				}
@@ -439,7 +430,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
+	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): boolean {
 		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
 
 		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
@@ -469,6 +460,19 @@ export class TypeOperations {
 				if (chCntBefore % 2 === 0) {
 					return false;
 				}
+			}
+
+			// Must over-type a closing character typed by the editor
+			let found = false;
+			for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
+				const autoClosedCharacter = autoClosedCharacters[j];
+				if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return false;
 			}
 		}
 
@@ -535,7 +539,7 @@ export class TypeOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 
 			// Do not auto-close ' or " after a word character
-			if (chIsQuote && position.column > 1) {
+			if ((chIsQuote && position.column > 1) && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const characterBeforeCode = lineText.charCodeAt(position.column - 2);
 				const characterBeforeType = wordSeparators.get(characterBeforeCode);
@@ -582,7 +586,7 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			const closeCharacter = config.autoClosingPairsOpen[ch];
-			commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
+			commands[i] = new TypeWithAutoClosingCommand(selection, ch, closeCharacter);
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
 			shouldPushStackElementBefore: true,
@@ -811,7 +815,7 @@ export class TypeOperations {
 		});
 	}
 
-	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
 
 		if (ch === '\n') {
 			let commands: ICommand[] = [];
@@ -842,7 +846,7 @@ export class TypeOperations {
 			}
 		}
 
-		if (this._isAutoClosingCloseCharType(config, model, selections, ch)) {
+		if (this._isAutoClosingCloseCharType(config, model, selections, autoClosedCharacters, ch)) {
 			return this._runAutoClosingCloseCharType(prevEditOperationType, config, model, selections, ch);
 		}
 
@@ -930,5 +934,27 @@ export class TypeOperations {
 			commands[i] = this._enter(config, model, true, selections[i]);
 		}
 		return commands;
+	}
+}
+
+export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
+
+	private _closeCharacter: string;
+	public closeCharacterRange: Range | null;
+	public enclosingRange: Range | null;
+
+	constructor(selection: Selection, openCharacter: string, closeCharacter: string) {
+		super(selection, openCharacter + closeCharacter, 0, -closeCharacter.length);
+		this._closeCharacter = closeCharacter;
+		this.closeCharacterRange = null;
+		this.enclosingRange = null;
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let range = inverseEditOperations[0].range;
+		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		this.enclosingRange = range;
+		return super.computeCursorState(model, helper);
 	}
 }

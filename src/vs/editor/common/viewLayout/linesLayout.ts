@@ -30,7 +30,7 @@ export class LinesLayout {
 	/**
 	 * Contains whitespace information in pixels
 	 */
-	private _whitespaces: WhitespaceComputer;
+	private readonly _whitespaces: WhitespaceComputer;
 
 	constructor(lineCount: number, lineHeight: number) {
 		this._lineCount = lineCount;

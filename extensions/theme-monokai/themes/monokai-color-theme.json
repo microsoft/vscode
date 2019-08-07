@@ -23,8 +23,8 @@
 		"selection.background": "#ccccc7",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.selectionBackground": "#878b9180",
-        "editor.wordHighlightBackground": "#4a4a7680",
-        "editor.wordHighlightStrongBackground": "#6a6a9680",
+		"editor.wordHighlightBackground": "#4a4a7680",
+		"editor.wordHighlightStrongBackground": "#6a6a9680",
 		"editor.lineHighlightBackground": "#3e3d32",
 		"editorLineNumber.activeForeground": "#c2c2bf",
 		"editorCursor.foreground": "#f8f8f0",
@@ -50,6 +50,7 @@
 		"statusBar.background": "#414339",
 		"statusBar.noFolderBackground": "#414339",
 		"statusBar.debuggingBackground": "#75715E",
+		"statusBarItem.remoteBackground": "#AC6218",
 		"activityBar.background": "#272822",
 		"activityBar.foreground": "#f8f8f2",
 		"activityBar.dropBackground": "#414339",
@@ -204,7 +205,7 @@
 		},
 		{
 			"name": "Class name",
-			"scope": "entity.name.type, entity.name.class",
+			"scope": "entity.name.type, entity.name.class, entity.name.namespace, entity.name.scope-resolution",
 			"settings": {
 				"fontStyle": "underline",
 				"foreground": "#A6E22E"

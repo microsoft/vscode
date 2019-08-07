@@ -19,7 +19,7 @@ export interface LanguageFilter {
 
 export type LanguageSelector = string | LanguageFilter | Array<string | LanguageFilter>;
 
-export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value

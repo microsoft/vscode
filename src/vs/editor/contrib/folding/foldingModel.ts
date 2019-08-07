@@ -21,17 +21,17 @@ export interface FoldingModelChangeEvent {
 export type CollapseMemento = ILineRange[];
 
 export class FoldingModel {
-	private _textModel: ITextModel;
-	private _decorationProvider: IDecorationProvider;
+	private readonly _textModel: ITextModel;
+	private readonly _decorationProvider: IDecorationProvider;
 
 	private _regions: FoldingRegions;
 	private _editorDecorationIds: string[];
 	private _isInitialized: boolean;
 
 	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
+	public readonly onDidChange: Event<FoldingModelChangeEvent> = this._updateEventEmitter.event;
 
 	public get regions(): FoldingRegions { return this._regions; }
-	public get onDidChange(): Event<FoldingModelChangeEvent> { return this._updateEventEmitter.event; }
 	public get textModel() { return this._textModel; }
 	public get isInitialized() { return this._isInitialized; }
 
@@ -47,7 +47,7 @@ export class FoldingModel {
 		if (!regions.length) {
 			return;
 		}
-		let processed = {};
+		let processed: { [key: string]: boolean | undefined } = {};
 		this._decorationProvider.changeDecorations(accessor => {
 			for (let region of regions) {
 				let index = region.regionIndex;
@@ -66,7 +66,7 @@ export class FoldingModel {
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
 		let newEditorDecorations: IModelDeltaDecoration[] = [];
 
-		let isBlocked = (startLineNumber, endLineNumber) => {
+		let isBlocked = (startLineNumber: number, endLineNumber: number) => {
 			for (let blockedLineNumber of blockedLineNumers) {
 				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
 					return true;

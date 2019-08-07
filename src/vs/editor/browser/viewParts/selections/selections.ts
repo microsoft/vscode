@@ -73,7 +73,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private static readonly ROUNDED_PIECE_WIDTH = 10;
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _roundedSelection: boolean;
 	private _typicalHalfwidthCharacterWidth: number;
@@ -143,7 +143,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	private _visibleRangesHaveGaps(linesVisibleRanges: LineVisibleRangesWithStyle[]): boolean {
 
 		for (let i = 0, len = linesVisibleRanges.length; i < len; i++) {
-			let lineVisibleRanges = linesVisibleRanges[i];
+			const lineVisibleRanges = linesVisibleRanges[i];
 
 			if (lineVisibleRanges.ranges.length > 1) {
 				// There are two ranges on the same line
@@ -161,7 +161,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 		if (previousFrame && previousFrame.length > 0 && linesVisibleRanges.length > 0) {
 
-			let topLineNumber = linesVisibleRanges[0].lineNumber;
+			const topLineNumber = linesVisibleRanges[0].lineNumber;
 			if (topLineNumber === viewport.startLineNumber) {
 				for (let i = 0; !previousFrameTop && i < previousFrame.length; i++) {
 					if (previousFrame[i].lineNumber === topLineNumber) {
@@ -170,7 +170,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 				}
 			}
 
-			let bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
+			const bottomLineNumber = linesVisibleRanges[linesVisibleRanges.length - 1].lineNumber;
 			if (bottomLineNumber === viewport.endLineNumber) {
 				for (let i = previousFrame.length - 1; !previousFrameBottom && i >= 0; i--) {
 					if (previousFrame[i].lineNumber === bottomLineNumber) {
@@ -189,24 +189,24 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 		for (let i = 0, len = linesVisibleRanges.length; i < len; i++) {
 			// We know for a fact that there is precisely one range on each line
-			let curLineRange = linesVisibleRanges[i].ranges[0];
-			let curLeft = curLineRange.left;
-			let curRight = curLineRange.left + curLineRange.width;
+			const curLineRange = linesVisibleRanges[i].ranges[0];
+			const curLeft = curLineRange.left;
+			const curRight = curLineRange.left + curLineRange.width;
 
-			let startStyle = {
+			const startStyle = {
 				top: CornerStyle.EXTERN,
 				bottom: CornerStyle.EXTERN
 			};
 
-			let endStyle = {
+			const endStyle = {
 				top: CornerStyle.EXTERN,
 				bottom: CornerStyle.EXTERN
 			};
 
 			if (i > 0) {
 				// Look above
-				let prevLeft = linesVisibleRanges[i - 1].ranges[0].left;
-				let prevRight = linesVisibleRanges[i - 1].ranges[0].left + linesVisibleRanges[i - 1].ranges[0].width;
+				const prevLeft = linesVisibleRanges[i - 1].ranges[0].left;
+				const prevRight = linesVisibleRanges[i - 1].ranges[0].left + linesVisibleRanges[i - 1].ranges[0].width;
 
 				if (abs(curLeft - prevLeft) < epsilon) {
 					startStyle.top = CornerStyle.FLAT;
@@ -227,8 +227,8 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 			if (i + 1 < len) {
 				// Look below
-				let nextLeft = linesVisibleRanges[i + 1].ranges[0].left;
-				let nextRight = linesVisibleRanges[i + 1].ranges[0].left + linesVisibleRanges[i + 1].ranges[0].width;
+				const nextLeft = linesVisibleRanges[i + 1].ranges[0].left;
+				const nextRight = linesVisibleRanges[i + 1].ranges[0].left + linesVisibleRanges[i + 1].ranges[0].width;
 
 				if (abs(curLeft - nextLeft) < epsilon) {
 					startStyle.bottom = CornerStyle.FLAT;
@@ -253,9 +253,9 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _getVisibleRangesWithStyle(selection: Range, ctx: RenderingContext, previousFrame: LineVisibleRangesWithStyle[] | null): LineVisibleRangesWithStyle[] {
-		let _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
-		let linesVisibleRanges = _linesVisibleRanges.map(toStyled);
-		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
+		const _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
+		const linesVisibleRanges = _linesVisibleRanges.map(toStyled);
+		const visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
 		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._roundedSelection) {
 			this._enrichVisibleRangesWithStyle(ctx.visibleRange, linesVisibleRanges, previousFrame);
@@ -282,25 +282,25 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _actualRenderOneSelection(output2: string[], visibleStartLineNumber: number, hasMultipleSelections: boolean, visibleRanges: LineVisibleRangesWithStyle[]): void {
-		let visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle);
-		let fullLineHeight = (this._lineHeight).toString();
-		let reducedLineHeight = (this._lineHeight - 1).toString();
+		const visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle);
+		const fullLineHeight = (this._lineHeight).toString();
+		const reducedLineHeight = (this._lineHeight - 1).toString();
 
-		let firstLineNumber = (visibleRanges.length > 0 ? visibleRanges[0].lineNumber : 0);
-		let lastLineNumber = (visibleRanges.length > 0 ? visibleRanges[visibleRanges.length - 1].lineNumber : 0);
+		const firstLineNumber = (visibleRanges.length > 0 ? visibleRanges[0].lineNumber : 0);
+		const lastLineNumber = (visibleRanges.length > 0 ? visibleRanges[visibleRanges.length - 1].lineNumber : 0);
 
 		for (let i = 0, len = visibleRanges.length; i < len; i++) {
-			let lineVisibleRanges = visibleRanges[i];
-			let lineNumber = lineVisibleRanges.lineNumber;
-			let lineIndex = lineNumber - visibleStartLineNumber;
+			const lineVisibleRanges = visibleRanges[i];
+			const lineNumber = lineVisibleRanges.lineNumber;
+			const lineIndex = lineNumber - visibleStartLineNumber;
 
-			let lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
-			let top = hasMultipleSelections ? (lineNumber === firstLineNumber ? 1 : 0) : 0;
+			const lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
+			const top = hasMultipleSelections ? (lineNumber === firstLineNumber ? 1 : 0) : 0;
 
 			let lineOutput = '';
 
 			for (let j = 0, lenJ = lineVisibleRanges.ranges.length; j < lenJ; j++) {
-				let visibleRange = lineVisibleRanges.ranges[j];
+				const visibleRange = lineVisibleRanges.ranges[j];
 
 				if (visibleRangesHaveStyle) {
 					const startStyle = visibleRange.startStyle!;
@@ -366,23 +366,23 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	private _previousFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
 	public prepareRender(ctx: RenderingContext): void {
 
-		let output: string[] = [];
-		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		const output: string[] = [];
+		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - visibleStartLineNumber;
+			const lineIndex = lineNumber - visibleStartLineNumber;
 			output[lineIndex] = '';
 		}
 
-		let thisFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
+		const thisFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
 		for (let i = 0, len = this._selections.length; i < len; i++) {
-			let selection = this._selections[i];
+			const selection = this._selections[i];
 			if (selection.isEmpty()) {
 				thisFrameVisibleRangesWithStyle[i] = null;
 				continue;
 			}
 
-			let visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
+			const visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
 			thisFrameVisibleRangesWithStyle[i] = visibleRangesWithStyle;
 			this._actualRenderOneSelection(output, visibleStartLineNumber, this._selections.length > 1, visibleRangesWithStyle);
 		}
@@ -395,7 +395,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		if (!this._renderResult) {
 			return '';
 		}
-		let lineIndex = lineNumber - startLineNumber;
+		const lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
 			return '';
 		}

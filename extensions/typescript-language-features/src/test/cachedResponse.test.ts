@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { CachedResponse } from '../tsServer/cachedResponse';
-import { ServerResponse, CancelledResponse } from '../typescriptService';
+import { ServerResponse } from '../typescriptService';
 
 suite('CachedResponse', () => {
 	test('should cache simple response for same document', async () => {
@@ -36,12 +36,12 @@ suite('CachedResponse', () => {
 		const doc = await createTextDocument();
 		const response = new CachedResponse();
 
-		const cancelledResponder = createEventualResponder<CancelledResponse>();
+		const cancelledResponder = createEventualResponder<ServerResponse.Cancelled>();
 		const result1 = response.execute(doc, () => cancelledResponder.promise);
 		const result2 = response.execute(doc, respondWith('test-0'));
 		const result3 = response.execute(doc, respondWith('test-1'));
 
-		cancelledResponder.resolve(new CancelledResponse('cancelled'));
+		cancelledResponder.resolve(new ServerResponse.Cancelled('cancelled'));
 
 		assert.strictEqual((await result1).type, 'cancelled');
 		assertResult(await result2, 'test-0');
@@ -52,12 +52,12 @@ suite('CachedResponse', () => {
 		const doc = await createTextDocument();
 		const response = new CachedResponse();
 
-		const cancelledResponder = createEventualResponder<CancelledResponse>();
+		const cancelledResponder = createEventualResponder<ServerResponse.Cancelled>();
 		const result1 = response.execute(doc, respondWith('test-0'));
 		const result2 = response.execute(doc, () => cancelledResponder.promise);
 		const result3 = response.execute(doc, respondWith('test-1'));
 
-		cancelledResponder.resolve(new CancelledResponse('cancelled'));
+		cancelledResponder.resolve(new ServerResponse.Cancelled('cancelled'));
 
 		assertResult(await result1, 'test-0');
 		assertResult(await result2, 'test-0');
@@ -69,8 +69,8 @@ suite('CachedResponse', () => {
 		const doc2 = await createTextDocument();
 		const response = new CachedResponse();
 
-		const cancelledResponder = createEventualResponder<CancelledResponse>();
-		const cancelledResponder2 = createEventualResponder<CancelledResponse>();
+		const cancelledResponder = createEventualResponder<ServerResponse.Cancelled>();
+		const cancelledResponder2 = createEventualResponder<ServerResponse.Cancelled>();
 
 		const result1 = response.execute(doc1, () => cancelledResponder.promise);
 		const result2 = response.execute(doc1, respondWith('test-0'));
@@ -79,8 +79,8 @@ suite('CachedResponse', () => {
 		const result5 = response.execute(doc2, respondWith('test-2'));
 		const result6 = response.execute(doc1, respondWith('test-3'));
 
-		cancelledResponder.resolve(new CancelledResponse('cancelled'));
-		cancelledResponder2.resolve(new CancelledResponse('cancelled'));
+		cancelledResponder.resolve(new ServerResponse.Cancelled('cancelled'));
+		cancelledResponder2.resolve(new ServerResponse.Cancelled('cancelled'));
 
 		assert.strictEqual((await result1).type, 'cancelled');
 		assertResult(await result2, 'test-0');
@@ -99,7 +99,7 @@ function createTextDocument() {
 	return vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
 }
 
-function assertResult(result: ServerResponse<Proto.Response>, command: string) {
+function assertResult(result: ServerResponse.Response<Proto.Response>, command: string) {
 	if (result.type === 'response') {
 		assert.strictEqual(result.command, command);
 	} else {

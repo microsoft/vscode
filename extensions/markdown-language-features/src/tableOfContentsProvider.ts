@@ -17,6 +17,7 @@ export interface TocEntry {
 
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
+	readonly version: number;
 	readonly lineCount: number;
 	getText(): string;
 	lineAt(line: number): vscode.TextLine;

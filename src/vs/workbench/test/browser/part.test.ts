@@ -8,13 +8,29 @@ import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { append, $, hide } from 'vs/base/browser/dom';
-import { TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestStorageService, TestLayoutService } from 'vs/workbench/test/workbenchTestServices';
 import { StorageScope } from 'vs/platform/storage/common/storage';
 
-class MyPart extends Part {
+class SimplePart extends Part {
+
+	minimumWidth: number = 50;
+	maximumWidth: number = 50;
+	minimumHeight: number = 50;
+	maximumHeight: number = 50;
+
+	layout(width: number, height: number): void {
+		throw new Error('Method not implemented.');
+	}
+
+	toJSON(): object {
+		throw new Error('Method not implemented.');
+	}
+}
+
+class MyPart extends SimplePart {
 
 	constructor(private expectedParent: HTMLElement) {
-		super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService());
+		super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
@@ -36,10 +52,10 @@ class MyPart extends Part {
 	}
 }
 
-class MyPart2 extends Part {
+class MyPart2 extends SimplePart {
 
 	constructor() {
-		super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService());
+		super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
@@ -61,10 +77,10 @@ class MyPart2 extends Part {
 	}
 }
 
-class MyPart3 extends Part {
+class MyPart3 extends SimplePart {
 
 	constructor() {
-		super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService());
+		super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {

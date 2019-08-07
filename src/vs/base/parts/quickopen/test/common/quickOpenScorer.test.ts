@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { URI } from 'vs/base/common/uri';
-import { basename, dirname, nativeSep } from 'vs/base/common/paths';
+import { basename, dirname, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
@@ -515,11 +515,27 @@ suite('Quick Open Scorer', () => {
 
 		let query = 'vscode';
 
-		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		let res = [resourceA, resourceB].sort((r1, r2) => {
+			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
+				if (r1 as any /* TS fail */ === resourceA) {
+					return -1;
+				}
+
+				return 1;
+			});
+		});
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceB);
 
-		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => -1));
+		res = [resourceB, resourceA].sort((r1, r2) => {
+			return compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache, (r1, r2, query, ResourceAccessor) => {
+				if (r1 as any /* TS fail */ === resourceB) {
+					return -1;
+				}
+
+				return 1;
+			});
+		});
 		assert.equal(res[0], resourceB);
 		assert.equal(res[1], resourceA);
 	});
@@ -797,9 +813,9 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #12095)', function () {
-		const resourceA = URI.file('src/vs/workbench/parts/files/common/explorerViewModel.ts');
-		const resourceB = URI.file('src/vs/workbench/parts/files/browser/views/explorerView.ts');
-		const resourceC = URI.file('src/vs/workbench/parts/files/browser/views/explorerViewer.ts');
+		const resourceA = URI.file('src/vs/workbench/contrib/files/common/explorerViewModel.ts');
+		const resourceB = URI.file('src/vs/workbench/contrib/files/browser/views/explorerView.ts');
+		const resourceC = URI.file('src/vs/workbench/contrib/files/browser/views/explorerViewer.ts');
 
 		let query = 'filesexplorerview.ts';
 
@@ -815,6 +831,6 @@ suite('Quick Open Scorer', () => {
 		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
 		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
-		assert.equal(scorer.prepareQuery('Model' + nativeSep + 'Tester.ts').containsPathSeparator, true);
+		assert.equal(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
 	});
 });

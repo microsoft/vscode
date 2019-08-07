@@ -6,7 +6,6 @@
 import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
 import * as _ from './tree';
 import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
@@ -18,8 +17,8 @@ interface ITraitMap extends IMap<IItemMap> { }
 export class LockData {
 
 	private _item: Item;
-	private _onDispose = new Emitter<void>();
-	readonly onDispose: Event<void> = this._onDispose.event;
+	private _onDispose?= new Emitter<void>();
+	readonly onDispose: Event<void> = this._onDispose!.event;
 
 	constructor(item: Item) {
 		this._item = item;
@@ -33,7 +32,7 @@ export class LockData {
 		if (this._onDispose) {
 			this._onDispose.fire();
 			this._onDispose.dispose();
-			this._onDispose = null;
+			this._onDispose = undefined;
 		}
 	}
 }
@@ -79,7 +78,7 @@ export class Lock {
 	}
 
 	public run(item: Item, fn: () => Promise<any>): Promise<any> {
-		let lock = this.getLock(item);
+		const lock = this.getLock(item);
 
 		if (lock) {
 			return new Promise((c, e) => {
@@ -110,7 +109,7 @@ export class Lock {
 		});
 	}
 
-	private getLock(item: Item): LockData {
+	private getLock(item: Item): LockData | null {
 		let key: string;
 
 		for (key in this.locks) {
@@ -160,7 +159,7 @@ export class ItemRegistry {
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
 
-		const disposable = combinedDisposable([
+		const disposable = combinedDisposable(
 			this._onDidRevealItem.add(item.onDidReveal),
 			this._onExpandItem.add(item.onExpand),
 			this._onDidExpandItem.add(item.onDidExpand),
@@ -172,7 +171,7 @@ export class ItemRegistry {
 			this._onRefreshItemChildren.add(item.onRefreshChildren),
 			this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
 			this._onDidDisposeItem.add(item.onDidDispose)
-		]);
+		);
 
 		this.items[item.id] = { item, disposable };
 	}
@@ -187,13 +186,13 @@ export class ItemRegistry {
 		return this.items.hasOwnProperty(id);
 	}
 
-	public getItem(id: string): Item {
+	public getItem(id: string): Item | null {
 		const result = this.items[id];
 		return result ? result.item : null;
 	}
 
 	public dispose(): void {
-		this.items = null;
+		this.items = null!; // StrictNullOverride: nulling out ok in dispose
 
 		this._onDidRevealItem.dispose();
 		this._onExpandItem.dispose();
@@ -227,7 +226,7 @@ export interface IItemTraitEvent extends IBaseItemEvent {
 }
 
 export interface IItemRevealEvent extends IBaseItemEvent {
-	relativeTop: number;
+	relativeTop: number | null;
 }
 
 export interface IItemChildrenRefreshEvent extends IBaseItemEvent {
@@ -246,11 +245,11 @@ export class Item {
 	private needsChildrenRefresh: boolean;
 	private doesHaveChildren: boolean;
 
-	public parent: Item;
-	public previous: Item;
-	public next: Item;
-	public firstChild: Item;
-	public lastChild: Item;
+	public parent: Item | null;
+	public previous: Item | null;
+	public next: Item | null;
+	public firstChild: Item | null;
+	public lastChild: Item | null;
 
 	private height: number;
 	private depth: number;
@@ -307,7 +306,7 @@ export class Item {
 
 		this.traits = {};
 		this.depth = 0;
-		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
+		this.expanded = !!(this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element));
 
 		this._onDidCreate.fire(this);
 
@@ -558,20 +557,8 @@ export class Item {
 		return this.isAncestorOf(other) || other.isAncestorOf(this);
 	}
 
-	public getHierarchy(): Item[] {
-		let result: Item[] = [];
-		let node: Item = this;
-
-		do {
-			result.push(node);
-			node = node.parent;
-		} while (node);
-
-		result.reverse();
-		return result;
-	}
-
-	private isAncestorOf(item: Item): boolean {
+	private isAncestorOf(startItem: Item): boolean {
+		let item: Item | null = startItem;
 		while (item) {
 			if (item.id === this.id) {
 				return true;
@@ -581,7 +568,7 @@ export class Item {
 		return false;
 	}
 
-	private addChild(item: Item, afterItem: Item = this.lastChild): void {
+	private addChild(item: Item, afterItem: Item | null = this.lastChild): void {
 		let isEmpty = this.firstChild === null;
 		let atHead = afterItem === null;
 		let atTail = afterItem === this.lastChild;
@@ -590,18 +577,30 @@ export class Item {
 			this.firstChild = this.lastChild = item;
 			item.next = item.previous = null;
 		} else if (atHead) {
+			if (!this.firstChild) {
+				throw new Error('Invalid tree state');
+			}
 			this.firstChild.previous = item;
 			item.next = this.firstChild;
 			item.previous = null;
 			this.firstChild = item;
 		} else if (atTail) {
+			if (!this.lastChild) {
+				throw new Error('Invalid tree state');
+			}
 			this.lastChild.next = item;
 			item.next = null;
 			item.previous = this.lastChild;
 			this.lastChild = item;
 		} else {
 			item.previous = afterItem;
+			if (!afterItem) {
+				throw new Error('Invalid tree state');
+			}
 			item.next = afterItem.next;
+			if (!afterItem.next) {
+				throw new Error('Invalid tree state');
+			}
 			afterItem.next.previous = item;
 			afterItem.next = item;
 		}
@@ -617,22 +616,35 @@ export class Item {
 		if (isFirstChild && isLastChild) {
 			this.firstChild = this.lastChild = null;
 		} else if (isFirstChild) {
+			if (!item.next) {
+				throw new Error('Invalid tree state');
+			}
 			item.next.previous = null;
 			this.firstChild = item.next;
 		} else if (isLastChild) {
+			if (!item.previous) {
+				throw new Error('Invalid tree state');
+			}
 			item.previous.next = null;
 			this.lastChild = item.previous;
 		} else {
+			if (!item.next) {
+				throw new Error('Invalid tree state');
+			}
 			item.next.previous = item.previous;
+			if (!item.previous) {
+				throw new Error('Invalid tree state');
+			}
 			item.previous.next = item.next;
 		}
 
 		item.parent = null;
-		item.depth = null;
+		item.depth = NaN;
 	}
 
 	private forEachChild(fn: (child: Item) => void): void {
-		let child = this.firstChild, next: Item;
+		let child = this.firstChild;
+		let next: Item | null;
 		while (child) {
 			next = child.next;
 			fn(child);
@@ -649,9 +661,10 @@ export class Item {
 	}
 
 	private sort(elements: any[]): any[] {
-		if (this.context.sorter) {
+		const sorter = this.context.sorter;
+		if (sorter) {
 			return elements.sort((element, otherElement) => {
-				return this.context.sorter.compare(this.context.tree, element, otherElement);
+				return sorter.compare(this.context.tree, element, otherElement);
 			});
 		}
 
@@ -659,10 +672,16 @@ export class Item {
 	}
 
 	/* protected */ public _getHeight(): number {
+		if (!this.context.renderer) {
+			return 0;
+		}
 		return this.context.renderer.getHeight(this.context.tree, this.element);
 	}
 
 	/* protected */ public _isVisible(): boolean {
+		if (!this.context.filter) {
+			return false;
+		}
 		return this.context.filter.isVisible(this.context.tree, this.element);
 	}
 
@@ -737,10 +756,10 @@ class RootItem extends Item {
 
 export class TreeNavigator implements INavigator<Item> {
 
-	private start: Item;
-	private item: Item;
+	private start: Item | null;
+	private item: Item | null;
 
-	static lastDescendantOf(item: Item): Item {
+	static lastDescendantOf(item: Item | null): Item | null {
 		if (!item) {
 			return null;
 		}
@@ -760,16 +779,16 @@ export class TreeNavigator implements INavigator<Item> {
 		return TreeNavigator.lastDescendantOf(item.lastChild);
 	}
 
-	constructor(item: Item, subTreeOnly: boolean = true) {
+	constructor(item: Item | null, subTreeOnly: boolean = true) {
 		this.item = item;
 		this.start = subTreeOnly ? item : null;
 	}
 
-	public current(): Item {
+	public current(): Item | null {
 		return this.item || null;
 	}
 
-	public next(): Item {
+	public next(): Item | null {
 		if (this.item) {
 			do {
 				if ((this.item instanceof RootItem || (this.item.isVisible() && this.item.isExpanded())) && this.item.firstChild) {
@@ -791,7 +810,7 @@ export class TreeNavigator implements INavigator<Item> {
 		return this.item || null;
 	}
 
-	public previous(): Item {
+	public previous(): Item | null {
 		if (this.item) {
 			do {
 				let previous = TreeNavigator.lastDescendantOf(this.item.previous);
@@ -807,7 +826,7 @@ export class TreeNavigator implements INavigator<Item> {
 		return this.item || null;
 	}
 
-	public parent(): Item {
+	public parent(): Item | null {
 		if (this.item) {
 			let parent = this.item.parent;
 			if (parent && parent !== this.start && parent.isVisible()) {
@@ -819,55 +838,19 @@ export class TreeNavigator implements INavigator<Item> {
 		return this.item || null;
 	}
 
-	public first(): Item {
+	public first(): Item | null {
 		this.item = this.start;
 		this.next();
 		return this.item || null;
 	}
 
-	public last(): Item {
+	public last(): Item | null {
 		return TreeNavigator.lastDescendantOf(this.start);
 	}
 }
 
-function getRange(one: Item, other: Item): Item[] {
-	let oneHierarchy = one.getHierarchy();
-	let otherHierarchy = other.getHierarchy();
-	let length = arrays.commonPrefixLength(oneHierarchy, otherHierarchy);
-	let item = oneHierarchy[length - 1];
-	let nav = item.getNavigator();
-
-	let oneIndex: number | null = null;
-	let otherIndex: number | null = null;
-
-	let index = 0;
-	let result: Item[] = [];
-
-	while (item && (oneIndex === null || otherIndex === null)) {
-		result.push(item);
-
-		if (item === one) {
-			oneIndex = index;
-		}
-		if (item === other) {
-			otherIndex = index;
-		}
-
-		index++;
-		item = nav.next();
-	}
-
-	if (oneIndex === null || otherIndex === null) {
-		return [];
-	}
-
-	let min = Math.min(oneIndex, otherIndex);
-	let max = Math.max(oneIndex, otherIndex);
-	return result.slice(min, max + 1);
-}
-
 export interface IBaseEvent {
-	item: Item;
+	item: Item | null;
 }
 
 export interface IInputEvent extends IBaseEvent { }
@@ -879,10 +862,10 @@ export interface IRefreshEvent extends IBaseEvent {
 export class TreeModel {
 
 	private context: _.ITreeContext;
-	private lock: Lock;
-	private input: Item;
-	private registry: ItemRegistry;
-	private registryDisposable: IDisposable;
+	private lock!: Lock;
+	private input: Item | null;
+	private registry!: ItemRegistry;
+	private registryDisposable!: IDisposable;
 	private traitsToItems: ITraitMap;
 
 	private _onSetInput = new Emitter<IInputEvent>();
@@ -1004,7 +987,7 @@ export class TreeModel {
 		if (!elements) {
 			elements = [];
 
-			let item: Item;
+			let item: Item | null;
 			let nav = this.getNavigator();
 
 			while (item = nav.next()) {
@@ -1042,7 +1025,7 @@ export class TreeModel {
 	}
 
 	private __expandAll(elements: any[]): Promise<any> {
-		let promises = [];
+		const promises: Array<Promise<any>> = [];
 		for (let i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.expand(elements[i]));
 		}
@@ -1050,7 +1033,7 @@ export class TreeModel {
 	}
 
 	public collapse(element: any, recursive: boolean = false): Promise<any> {
-		let item = this.getItem(element);
+		const item = this.getItem(element);
 
 		if (!item) {
 			return Promise.resolve(false);
@@ -1064,7 +1047,7 @@ export class TreeModel {
 			elements = [this.input];
 			recursive = true;
 		}
-		let promises = [];
+		let promises: Array<Promise<any>> = [];
 		for (let i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.collapse(elements[i], recursive));
 		}
@@ -1076,7 +1059,7 @@ export class TreeModel {
 	}
 
 	public toggleExpansionAll(elements: any[]): Promise<any> {
-		let promises = [];
+		let promises: Array<Promise<any>> = [];
 		for (let i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.toggleExpansion(elements[i]));
 		}
@@ -1095,7 +1078,7 @@ export class TreeModel {
 
 	public getExpandedElements(): any[] {
 		let result: any[] = [];
-		let item: Item;
+		let item: Item | null;
 		let nav = this.getNavigator();
 
 		while (item = nav.next()) {
@@ -1144,7 +1127,7 @@ export class TreeModel {
 		this._onDidHighlight.fire(eventData);
 	}
 
-	public getHighlight(includeHidden?: boolean): any {
+	public getHighlight(includeHidden: boolean = false): any {
 		let result = this.getElementsWithTrait('highlighted', includeHidden);
 		return result.length === 0 ? null : result[0];
 	}
@@ -1161,28 +1144,6 @@ export class TreeModel {
 
 	public select(element: any, eventPayload?: any): void {
 		this.selectAll([element], eventPayload);
-	}
-
-	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		let fromItem = this.getItem(fromElement);
-		let toItem = this.getItem(toElement);
-
-		if (!fromItem || !toItem) {
-			return;
-		}
-
-		this.selectAll(getRange(fromItem, toItem), eventPayload);
-	}
-
-	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		let fromItem = this.getItem(fromElement);
-		let toItem = this.getItem(toElement);
-
-		if (!fromItem || !toItem) {
-			return;
-		}
-
-		this.deselectAll(getRange(fromItem, toItem), eventPayload);
 	}
 
 	public selectAll(elements: any[], eventPayload?: any): void {
@@ -1207,12 +1168,6 @@ export class TreeModel {
 		this._onDidSelect.fire(eventData);
 	}
 
-	public toggleSelection(element: any, eventPayload?: any): void {
-		this.toggleTrait('selected', element);
-		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
-		this._onDidSelect.fire(eventData);
-	}
-
 	public isSelected(element: any): boolean {
 		let item = this.getItem(element);
 
@@ -1223,14 +1178,14 @@ export class TreeModel {
 		return item.hasTrait('selected');
 	}
 
-	public getSelection(includeHidden?: boolean): any[] {
+	public getSelection(includeHidden: boolean = false): any[] {
 		return this.getElementsWithTrait('selected', includeHidden);
 	}
 
 	public selectNext(count: number = 1, clearSelection: boolean = true, eventPayload?: any): void {
 		let selection = this.getSelection();
 		let item: Item = selection.length > 0 ? selection[0] : this.input;
-		let nextItem: Item;
+		let nextItem: Item | null;
 		let nav = this.getNavigator(item, false);
 
 		for (let i = 0; i < count; i++) {
@@ -1282,21 +1237,6 @@ export class TreeModel {
 		}
 	}
 
-	public selectParent(eventPayload?: any, clearSelection: boolean = true): void {
-		let selection = this.getSelection();
-		let item: Item = selection.length > 0 ? selection[0] : this.input;
-		let nav = this.getNavigator(item, false);
-		let parent = nav.parent();
-
-		if (parent) {
-			if (clearSelection) {
-				this.setSelection([parent], eventPayload);
-			} else {
-				this.select(parent, eventPayload);
-			}
-		}
-	}
-
 	public setFocus(element?: any, eventPayload?: any): void {
 		this.setTraits('focused', element ? [element] : []);
 		let eventData: _.IFocusEvent = { focus: this.getFocus(), payload: eventPayload };
@@ -1313,14 +1253,14 @@ export class TreeModel {
 		return item.hasTrait('focused');
 	}
 
-	public getFocus(includeHidden?: boolean): any {
+	public getFocus(includeHidden: boolean = false): any {
 		let result = this.getElementsWithTrait('focused', includeHidden);
 		return result.length === 0 ? null : result[0];
 	}
 
 	public focusNext(count: number = 1, eventPayload?: any): void {
 		let item: Item = this.getFocus() || this.input;
-		let nextItem: Item;
+		let nextItem: Item | null;
 		let nav = this.getNavigator(item, false);
 
 		for (let i = 0; i < count; i++) {
@@ -1336,7 +1276,7 @@ export class TreeModel {
 
 	public focusPrevious(count: number = 1, eventPayload?: any): void {
 		let item: Item = this.getFocus() || this.input;
-		let previousItem: Item;
+		let previousItem: Item | null;
 		let nav = this.getNavigator(item, false);
 
 		for (let i = 0; i < count; i++) {
@@ -1389,12 +1329,12 @@ export class TreeModel {
 	}
 
 	public focusLast(eventPayload?: any, from?: any): void {
-		let navItem = this.getParent(from);
-		let item: Item;
-		if (from) {
+		const navItem = this.getParent(from);
+		let item: Item | null;
+		if (from && navItem) {
 			item = navItem.lastChild;
 		} else {
-			let nav = this.getNavigator(navItem);
+			const nav = this.getNavigator(navItem);
 			item = nav.last();
 		}
 
@@ -1403,9 +1343,9 @@ export class TreeModel {
 		}
 	}
 
-	private getParent(from?: any): Item {
+	private getParent(from?: any): Item | null {
 		if (from) {
-			let fromItem = this.getItem(from);
+			const fromItem = this.getItem(from);
 			if (fromItem && fromItem.parent) {
 				return fromItem.parent;
 			}
@@ -1418,7 +1358,7 @@ export class TreeModel {
 		return new TreeNavigator(this.getItem(element), subTreeOnly);
 	}
 
-	public getItem(element: any = null): Item {
+	public getItem(element: any = null): Item | null {
 		if (element === null) {
 			return this.input;
 		} else if (element instanceof Item) {
@@ -1432,7 +1372,7 @@ export class TreeModel {
 
 	public addTraits(trait: string, elements: any[]): void {
 		let items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
-		let item: Item;
+		let item: Item | null;
 		for (let i = 0, len = elements.length; i < len; i++) {
 			item = this.getItem(elements[i]);
 
@@ -1446,7 +1386,7 @@ export class TreeModel {
 
 	public removeTraits(trait: string, elements: any[]): void {
 		let items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
-		let item: Item;
+		let item: Item | null;
 		let id: string;
 
 		if (elements.length === 0) {
@@ -1471,31 +1411,12 @@ export class TreeModel {
 		}
 	}
 
-	public hasTrait(trait: string, element: any): boolean {
-		let item = this.getItem(element);
-		return item && item.hasTrait(trait);
-	}
-
-	private toggleTrait(trait: string, element: any): void {
-		let item = this.getItem(element);
-
-		if (!item) {
-			return;
-		}
-
-		if (item.hasTrait(trait)) {
-			this.removeTraits(trait, [element]);
-		} else {
-			this.addTraits(trait, [element]);
-		}
-	}
-
 	private setTraits(trait: string, elements: any[]): void {
 		if (elements.length === 0) {
 			this.removeTraits(trait, elements);
 		} else {
 			let items: { [id: string]: Item; } = {};
-			let item: Item;
+			let item: Item | null;
 
 			for (let i = 0, len = elements.length; i < len; i++) {
 				item = this.getItem(elements[i]);
@@ -1538,7 +1459,7 @@ export class TreeModel {
 	}
 
 	private getElementsWithTrait(trait: string, includeHidden: boolean): any[] {
-		let elements = [];
+		let elements: any[] = [];
 		let items = this.traitsToItems[trait] || {};
 		let id: string;
 		for (id in items) {
@@ -1552,7 +1473,7 @@ export class TreeModel {
 	public dispose(): void {
 		if (this.registry) {
 			this.registry.dispose();
-			this.registry = null;
+			this.registry = null!; // StrictNullOverride: nulling out ok in dispose
 		}
 
 		this._onSetInput.dispose();

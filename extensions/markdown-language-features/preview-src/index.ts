@@ -19,7 +19,7 @@ const settings = getSettings();
 const vscode = acquireVsCodeApi();
 
 // Set VS Code state
-const state = getData('data-state');
+let state = getData<{ line: number }>('data-state');
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -131,8 +131,8 @@ document.addEventListener('click', event => {
 			if (node.getAttribute('href').startsWith('#')) {
 				break;
 			}
-			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
-				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
+			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:') || node.href.startsWith(settings.webviewResourceRoot)) {
+				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').replace(new RegExp(`^${escapeRegExp(settings.webviewResourceRoot)}`)).split('#');
 				messaging.postMessage('clickLink', { path, fragment });
 				event.preventDefault();
 				event.stopPropagation();
@@ -152,7 +152,13 @@ if (settings.scrollEditorWithPreview) {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
 			if (typeof line === 'number' && !isNaN(line)) {
 				messaging.postMessage('revealLine', { line });
+				state.line = line;
+				vscode.setState(state);
 			}
 		}
 	}, 50));
+}
+
+function escapeRegExp(text: string) {
+	return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }

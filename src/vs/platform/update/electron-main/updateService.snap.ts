@@ -6,15 +6,14 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { stat } from 'vs/base/node/pfs';
+import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
@@ -23,7 +22,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	private _state: State = State.Uninitialized;
 
 	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
 		return this._state;
@@ -137,8 +136,6 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	_serviceBrand: any;
 
-	private snapUpdatePath: string;
-
 	constructor(
 		private snap: string,
 		private snapRevision: string,
@@ -148,8 +145,6 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(lifecycleService, environmentService, logService);
-
-		this.snapUpdatePath = path.join(this.snap, `usr/share/${product.applicationName}/snapUpdate.sh`);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
@@ -165,29 +160,17 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	protected doCheckForUpdates(context: any): void {
 		this.setState(State.CheckingForUpdates(context));
-
 		this.isUpdateAvailable().then(result => {
 			if (result) {
 				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
-				/* __GDPR__
-					"update:notAvailable" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 				this.setState(State.Idle(UpdateType.Snap));
 			}
 		}, err => {
 			this.logService.error(err);
-
-			/* __GDPR__
-				"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-				*/
-			this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+			this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 			this.setState(State.Idle(UpdateType.Snap, err.message || err));
 		});
 	}
@@ -196,19 +179,14 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', this.snapUpdatePath], {
+		spawn('sleep 3 && ' + path.basename(process.argv[0]), {
+			shell: true,
 			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore']
+			stdio: 'ignore',
 		});
 	}
 
 	private async isUpdateAvailable(): Promise<boolean> {
-		try {
-			await stat(this.snapUpdatePath);
-		} catch (err) {
-			return false;
-		}
-
 		const resolvedCurrentSnapPath = await new Promise<string>((c, e) => realpath(`${path.dirname(this.snap)}/current`, (err, r) => err ? e(err) : c(r)));
 		const currentRevision = path.basename(resolvedCurrentSnapPath);
 		return this.snapRevision !== currentRevision;

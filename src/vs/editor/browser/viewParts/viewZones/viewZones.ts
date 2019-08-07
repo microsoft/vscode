@@ -69,11 +69,11 @@ export class ViewZones extends ViewPart {
 	private _recomputeWhitespacesProps(): boolean {
 		let hadAChange = false;
 
-		let keys = Object.keys(this._zones);
+		const keys = Object.keys(this._zones);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let id = keys[i];
-			let zone = this._zones[id];
-			let props = this._computeWhitespaceProps(zone.delegate);
+			const id = keys[i];
+			const zone = this._zones[id];
+			const props = this._computeWhitespaceProps(zone.delegate);
 			if (this._context.viewLayout.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
 				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 				hadAChange = true;
@@ -150,7 +150,7 @@ export class ViewZones extends ViewPart {
 				column: zone.afterColumn
 			});
 		} else {
-			let validAfterLineNumber = this._context.model.validateModelPosition({
+			const validAfterLineNumber = this._context.model.validateModelPosition({
 				lineNumber: zone.afterLineNumber,
 				column: 1
 			}).lineNumber;
@@ -174,8 +174,8 @@ export class ViewZones extends ViewPart {
 			});
 		}
 
-		let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition);
-		let isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
+		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition);
+		const isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			afterViewLineNumber: viewPosition.lineNumber,
 			heightInPx: (isVisible ? this._heightInPixels(zone) : 0),
@@ -184,10 +184,10 @@ export class ViewZones extends ViewPart {
 	}
 
 	public addZone(zone: IViewZone): number {
-		let props = this._computeWhitespaceProps(zone);
-		let whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
+		const props = this._computeWhitespaceProps(zone);
+		const whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
 
-		let myZone: IMyViewZone = {
+		const myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
 			delegate: zone,
 			isVisible: false,
@@ -221,7 +221,7 @@ export class ViewZones extends ViewPart {
 
 	public removeZone(id: number): boolean {
 		if (this._zones.hasOwnProperty(id.toString())) {
-			let zone = this._zones[id.toString()];
+			const zone = this._zones[id.toString()];
 			delete this._zones[id.toString()];
 			this._context.viewLayout.removeWhitespace(zone.whitespaceId);
 
@@ -245,9 +245,9 @@ export class ViewZones extends ViewPart {
 	public layoutZone(id: number): boolean {
 		let changed = false;
 		if (this._zones.hasOwnProperty(id.toString())) {
-			let zone = this._zones[id.toString()];
-			let props = this._computeWhitespaceProps(zone.delegate);
-			// let newOrdinal = this._getZoneOrdinal(zone.delegate);
+			const zone = this._zones[id.toString()];
+			const props = this._computeWhitespaceProps(zone.delegate);
+			// const newOrdinal = this._getZoneOrdinal(zone.delegate);
 			changed = this._context.viewLayout.changeWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
 			// TODO@Alex: change `newOrdinal` too
 
@@ -261,7 +261,7 @@ export class ViewZones extends ViewPart {
 
 	public shouldSuppressMouseDownOnViewZone(id: number): boolean {
 		if (this._zones.hasOwnProperty(id.toString())) {
-			let zone = this._zones[id.toString()];
+			const zone = this._zones[id.toString()];
 			return Boolean(zone.delegate.suppressMouseDown);
 		}
 		return false;
@@ -310,7 +310,7 @@ export class ViewZones extends ViewPart {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		const visibleWhitespaces = ctx.viewportData.whitespaceViewportData;
-		let visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
+		const visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
 
 		let hasVisibleZone = false;
 		for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {
@@ -318,10 +318,10 @@ export class ViewZones extends ViewPart {
 			hasVisibleZone = true;
 		}
 
-		let keys = Object.keys(this._zones);
+		const keys = Object.keys(this._zones);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let id = keys[i];
-			let zone = this._zones[id];
+			const id = keys[i];
+			const zone = this._zones[id];
 
 			let newTop = 0;
 			let newHeight = 0;

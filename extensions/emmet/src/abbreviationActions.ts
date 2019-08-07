@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
 
-const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
-const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
+const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
+const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
 const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
 	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
 	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
@@ -54,7 +54,11 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = 'html';
+	args = args || {};
+	if (!args['language']) {
+		args['language'] = editor.document.languageId;
+	}
+	const syntax = getSyntaxFromArgs(args) || 'html';
 	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;
@@ -80,8 +84,8 @@ function doWrapping(individualLines: boolean, args: any) {
 
 		const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
 		const matches = firstLineOfSelection.match(/^(\s*)/);
-		const extraWhiteSpaceSelected = matches ? matches[1].length : 0;
-		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + extraWhiteSpaceSelected, rangeToReplace.end.line, rangeToReplace.end.character);
+		const extraWhitespaceSelected = matches ? matches[1].length : 0;
+		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + extraWhitespaceSelected, rangeToReplace.end.line, rangeToReplace.end.character);
 
 		let textToWrapInPreview: string[];
 		let textToReplace = editor.document.getText(rangeToReplace);
@@ -90,8 +94,8 @@ function doWrapping(individualLines: boolean, args: any) {
 		} else {
 			const wholeFirstLine = editor.document.lineAt(rangeToReplace.start).text;
 			const otherMatches = wholeFirstLine.match(/^(\s*)/);
-			const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
-			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
+			const preceedingWhitespace = otherMatches ? otherMatches[1] : '';
+			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhitespace).join('\n\t') + '\n'];
 		}
 		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
@@ -487,7 +491,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	}
 
 	let valid = true;
-	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. Eg: <div|
+	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. E.g.: <div|
 	let i = textToBackTrack.length - 1;
 	if (textToBackTrack[i] === startAngle) {
 		return false;
@@ -631,7 +635,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 	return expandedText;
 }
 
-function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
+export function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];

@@ -18,7 +18,38 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+
+
+export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
+export interface IPeekViewService {
+	_serviceBrand: any;
+	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
+}
+
+registerSingleton(IPeekViewService, class implements IPeekViewService {
+	_serviceBrand: any;
+
+	private _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
+
+	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void {
+		const existing = this._widgets.get(editor);
+		if (existing) {
+			existing.listener.dispose();
+			existing.widget.dispose();
+		}
+		const remove = () => {
+			const data = this._widgets.get(editor);
+			if (data && data.widget === widget) {
+				data.listener.dispose();
+				this._widgets.delete(editor);
+			}
+		};
+		this._widgets.set(editor, { widget, listener: widget.onDidClose(remove) });
+	}
+});
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
@@ -34,9 +65,9 @@ export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
 }
 
 export interface IPeekViewStyles extends IStyles {
-	headerBackgroundColor?: Color | null;
-	primaryHeadingColor?: Color | null;
-	secondaryHeadingColor?: Color | null;
+	headerBackgroundColor?: Color;
+	primaryHeadingColor?: Color;
+	secondaryHeadingColor?: Color;
 }
 
 export type IPeekViewOptions = IOptions & IPeekViewStyles;
@@ -123,6 +154,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		dom.append(this._headElement, titleElement);
 		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
 
+		this._fillTitleIcon(titleElement);
 		this._primaryHeading = dom.$('span.filename');
 		this._secondaryHeading = dom.$('span.dirname');
 		this._metaHeading = dom.$('span.meta');
@@ -133,12 +165,15 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 		const actionBarOptions = this._getActionBarOptions();
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
-		this._disposables.push(this._actionbarWidget);
+		this._disposables.add(this._actionbarWidget);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();
 			return Promise.resolve();
 		}), { label: false, icon: true });
+	}
+
+	protected _fillTitleIcon(container: HTMLElement): void {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {

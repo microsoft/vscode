@@ -12,10 +12,6 @@ suite('HighlightedLabel', () => {
 		label = new HighlightedLabel(document.createElement('div'), true);
 	});
 
-	teardown(() => {
-		label.dispose();
-	});
-
 	test('empty label', function () {
 		assert.equal(label.element.innerHTML, '');
 	});

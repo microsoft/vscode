@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Proto from '../protocol';
-import { CancelledResponse, ServerResponse } from '../typescriptService';
+import { ServerResponse } from '../typescriptService';
 
 export interface CallbackItem<R> {
 	readonly onSuccess: (value: R) => void;
-	readonly onError: (err: any) => void;
+	readonly onError: (err: Error) => void;
 	readonly startTime: number;
 	readonly isAsync: boolean;
 }
 
 export class CallbackMap<R extends Proto.Response> {
-	private readonly _callbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
-	private readonly _asyncCallbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
+	private readonly _callbacks = new Map<number, CallbackItem<ServerResponse.Response<R> | undefined>>();
+	private readonly _asyncCallbacks = new Map<number, CallbackItem<ServerResponse.Response<R> | undefined>>();
 
 	public destroy(cause: string): void {
-		const cancellation = new CancelledResponse(cause);
+		const cancellation = new ServerResponse.Cancelled(cause);
 		for (const callback of this._callbacks.values()) {
 			callback.onSuccess(cancellation);
 		}
@@ -29,7 +29,7 @@ export class CallbackMap<R extends Proto.Response> {
 		this._asyncCallbacks.clear();
 	}
 
-	public add(seq: number, callback: CallbackItem<ServerResponse<R> | undefined>, isAsync: boolean) {
+	public add(seq: number, callback: CallbackItem<ServerResponse.Response<R> | undefined>, isAsync: boolean) {
 		if (isAsync) {
 			this._asyncCallbacks.set(seq, callback);
 		} else {
@@ -37,7 +37,7 @@ export class CallbackMap<R extends Proto.Response> {
 		}
 	}
 
-	public fetch(seq: number): CallbackItem<ServerResponse<R> | undefined> | undefined {
+	public fetch(seq: number): CallbackItem<ServerResponse.Response<R> | undefined> | undefined {
 		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
 		this.delete(seq);
 		return callback;

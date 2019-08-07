@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join, dirname, basename } from 'path';
+import { join, dirname, basename } from 'vs/base/common/path';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -20,7 +20,7 @@ export class LogsDataCleaner extends Disposable {
 	}
 
 	private cleanUpOldLogsSoon(): void {
-		let handle: any = setTimeout(() => {
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
 			const currentLog = basename(this.environmentService.logsPath);
@@ -35,6 +35,11 @@ export class LogsDataCleaner extends Disposable {
 			}).then(null, onUnexpectedError);
 		}, 10 * 1000);
 
-		this._register(toDisposable(() => clearTimeout(handle)));
+		this._register(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

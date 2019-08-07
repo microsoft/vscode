@@ -12,7 +12,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;
@@ -65,7 +65,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;
-			hasChanged = true;
 			return true;
 		}
 

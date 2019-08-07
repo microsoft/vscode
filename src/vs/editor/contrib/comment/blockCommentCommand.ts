@@ -14,7 +14,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
+	private readonly _selection: Selection;
 	private _usedEndToken: string | null;
 
 	constructor(selection: Selection) {

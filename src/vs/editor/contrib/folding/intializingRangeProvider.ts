@@ -17,7 +17,7 @@ export class InitializingRangeProvider implements RangeProvider {
 	private decorationIds: string[] | undefined;
 	private timeout: any;
 
-	constructor(private editorModel: ITextModel, initialRanges: ILineRange[], onTimeout: () => void, timeoutTime: number) {
+	constructor(private readonly editorModel: ITextModel, initialRanges: ILineRange[], onTimeout: () => void, timeoutTime: number) {
 		if (initialRanges.length) {
 			let toDecorationRange = (range: ILineRange): IModelDeltaDecoration => {
 				return {

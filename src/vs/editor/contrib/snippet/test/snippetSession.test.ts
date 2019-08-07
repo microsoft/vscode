@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -14,11 +14,11 @@ import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('SnippetSession', function () {
 
-	let editor: ICodeEditor;
+	let editor: IActiveCodeEditor;
 	let model: TextModel;
 
-	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
-		for (const selection of editor.getSelections()!) {
+	function assertSelections(editor: IActiveCodeEditor, ...s: Selection[]) {
+		for (const selection of editor.getSelections()) {
 			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
@@ -27,7 +27,7 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
-		editor = createTestCodeEditor({ model: model });
+		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});
@@ -126,7 +126,7 @@ suite('SnippetSession', function () {
 	test('snippets, newline NO whitespace adjust', () => {
 
 		editor.setSelection(new Selection(2, 5, 2, 5));
-		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', 0, 0, false);
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined });
 		session.insert();
 		assert.equal(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
@@ -648,7 +648,7 @@ suite('SnippetSession', function () {
 		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
-		new SnippetSession(editor, 'far', 3, 0).insert();
+		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined }).insert();
 		assert.equal(model.getValue(), 'console.far');
 	});
 });

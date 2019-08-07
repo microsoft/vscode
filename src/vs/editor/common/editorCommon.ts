@@ -469,7 +469,7 @@ export interface IDiffEditor extends IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): IDiffEditorModel;
+	getModel(): IDiffEditorModel | null;
 
 	/**
 	 * Get the `original` editor.

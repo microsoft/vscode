@@ -6,11 +6,11 @@
 				"git": {
 					"name": "mmims/language-batchfile",
 					"repositoryUrl": "https://github.com/mmims/language-batchfile",
-					"commitHash": "4b67596631b4ecd2c89c2ec1b2e08a6623438903"
+					"commitHash": "95ea8c699f7a8296b15767069868532d52631c46"
 				}
 			},
 			"license": "MIT",
-			"version": "0.7.4"
+			"version": "0.7.5"
 		}
 	],
 	"version": 1

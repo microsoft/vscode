@@ -6,9 +6,13 @@
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as fs from 'fs';
+import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
 import { Logger } from '../logger';
+import { ncp } from 'ncp';
+import { URI } from 'vscode-uri';
 
 const repoPath = path.join(__dirname, '../../../..');
 
@@ -64,7 +68,7 @@ async function connect(child: cp.ChildProcess, outPath: string, handlePath: stri
 	while (true) {
 		try {
 			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(child, client, driver, logger);
+			return new Code(client, driver, logger);
 		} catch (err) {
 			if (++errCount > 50) {
 				child.kill();
@@ -90,6 +94,7 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
+	remote?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -120,6 +125,26 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--driver', handle
 	];
 
+	const env = process.env;
+
+	if (options.remote) {
+		// Replace workspace path with URI
+		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+
+		if (codePath) {
+			// running against a build: copy the test resolver extension
+			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
+			if (!fs.existsSync(testResolverExtPath)) {
+				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
+				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+			}
+		}
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+		const remoteDataDir = `${options.userDataDir}-server`;
+		mkdirp.sync(remoteDataDir);
+		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+	}
+
 	if (!codePath) {
 		args.unshift(repoPath);
 	}
@@ -136,7 +161,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.push(...options.extraArgs);
 	}
 
-	const spawnOptions: cp.SpawnOptions = {};
+	const spawnOptions: cp.SpawnOptions = { env };
 
 	const child = cp.spawn(electronPath, args, spawnOptions);
 
@@ -188,7 +213,6 @@ export class Code {
 	private driver: IDriver;
 
 	constructor(
-		private process: cp.ChildProcess,
 		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger
@@ -228,6 +252,10 @@ export class Code {
 	async reload(): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await this.driver.reloadWindow(windowId);
+	}
+
+	async exit(): Promise<void> {
+		await this.driver.exitApplication();
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
@@ -302,7 +330,6 @@ export class Code {
 
 	dispose(): void {
 		this.client.dispose();
-		this.process.kill();
 	}
 }
 

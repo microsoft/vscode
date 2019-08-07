@@ -10,6 +10,7 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { removeClasses, addClass, hasClass, addClasses, removeClass, hide, show } from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { isNumber } from 'vs/base/common/types';
 
 const css_done = 'done';
 const css_active = 'active';
@@ -146,7 +147,7 @@ export class ProgressBar extends Disposable {
 	 * Finds out if this progress bar is configured with total work
 	 */
 	hasTotal(): boolean {
-		return !isNaN(this.totalWork as number);
+		return isNumber(this.totalWork);
 	}
 
 	/**
@@ -172,10 +173,11 @@ export class ProgressBar extends Disposable {
 	}
 
 	private doSetWorked(value: number): ProgressBar {
-		assert.ok(!isNaN(this.totalWork as number), 'Total work not set');
+		assert.ok(isNumber(this.totalWork), 'Total work not set');
+		const totalWork = this.totalWork!;
 
 		this.workedVal = value;
-		this.workedVal = Math.min(this.totalWork as number, this.workedVal);
+		this.workedVal = Math.min(totalWork, this.workedVal);
 
 		if (hasClass(this.element, css_infinite)) {
 			removeClass(this.element, css_infinite);
@@ -193,7 +195,7 @@ export class ProgressBar extends Disposable {
 			addClass(this.element, css_discrete);
 		}
 
-		this.bit.style.width = 100 * (this.workedVal / (this.totalWork as number)) + '%';
+		this.bit.style.width = 100 * (this.workedVal / (totalWork)) + '%';
 
 		return this;
 	}

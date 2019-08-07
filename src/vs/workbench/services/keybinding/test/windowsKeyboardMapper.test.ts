@@ -44,7 +44,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+A', null],
+				dispatchParts: ['ctrl+A'],
 			}]
 		);
 	});
@@ -60,7 +60,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Z', null],
+				dispatchParts: ['ctrl+Z'],
 			}]
 		);
 	});
@@ -69,6 +69,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -83,7 +84,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Z', null],
+				dispatchParts: ['ctrl+Z'],
 			}
 		);
 	});
@@ -99,7 +100,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+]', null],
+				dispatchParts: ['ctrl+]'],
 			}]
 		);
 	});
@@ -108,6 +109,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -122,7 +124,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+]', null],
+				dispatchParts: ['ctrl+]'],
 			}
 		);
 	});
@@ -138,7 +140,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'shift+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['shift+]', null],
+				dispatchParts: ['shift+]'],
 			}]
 		);
 	});
@@ -154,7 +156,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+/', null],
+				dispatchParts: ['ctrl+/'],
 			}]
 		);
 	});
@@ -170,7 +172,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+shift+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+shift+/', null],
+				dispatchParts: ['ctrl+shift+/'],
 			}]
 		);
 	});
@@ -210,7 +212,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+DownArrow', null],
+				dispatchParts: ['ctrl+DownArrow'],
 			}]
 		);
 	});
@@ -226,7 +228,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+NumPad0', null],
+				dispatchParts: ['ctrl+NumPad0'],
 			}]
 		);
 	});
@@ -242,7 +244,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Home', null],
+				dispatchParts: ['ctrl+Home'],
 			}]
 		);
 	});
@@ -251,6 +253,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -265,16 +268,21 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Home', null],
+				dispatchParts: ['ctrl+Home'],
 			}
 		);
 	});
 
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
+	});
+
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+§',
 				ariaLabel: 'Control+, Control+§',
@@ -291,6 +299,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -305,7 +314,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -341,9 +350,10 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -358,9 +368,9 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			null!,
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
@@ -368,7 +378,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+,', null],
+				dispatchParts: ['ctrl+,'],
 			}]
 		);
 	});
@@ -377,6 +387,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -391,7 +402,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -413,6 +424,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -427,7 +439,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				userSettingsLabel: 'ctrl+abnt_c1',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+ABNT_C1', null],
+				dispatchParts: ['ctrl+ABNT_C1'],
 			}
 		);
 	});
@@ -436,6 +448,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
@@ -450,7 +463,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				userSettingsLabel: 'ctrl+abnt_c2',
 				isWYSIWYG: false,
 				isChord: false,
-				dispatchParts: ['ctrl+ABNT_C2', null],
+				dispatchParts: ['ctrl+ABNT_C2'],
 			}
 		);
 	});
@@ -514,7 +527,7 @@ suite('keyboardMapper - misc', () => {
 				userSettingsLabel: 'ctrl+b',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+B', null],
+				dispatchParts: ['ctrl+B'],
 			}]
 		);
 	});

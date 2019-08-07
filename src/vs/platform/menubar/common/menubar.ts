@@ -25,7 +25,7 @@ export interface IMenubarMenu {
 
 export interface IMenubarKeybinding {
 	label: string;
-	userSettingsLabel: string;
+	userSettingsLabel?: string;
 	isNative?: boolean; // Assumed true if missing
 }
 

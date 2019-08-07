@@ -102,7 +102,7 @@ export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		let { name, message } = error;
-		let stack: string = (<any>error).stacktrace || (<any>error).stack;
+		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
 			name,
@@ -146,7 +146,7 @@ export function isPromiseCanceledError(error: any): boolean {
  * Returns an error that signals cancellation.
  */
 export function canceled(): Error {
-	let error = new Error(canceledName);
+	const error = new Error(canceledName);
 	error.name = error.message;
 	return error;
 }

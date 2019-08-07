@@ -52,7 +52,7 @@ export interface ITheme {
 	 * @param color the id of the color
 	 * @param useDefault specifies if the default color should be used. If not set, the default is used.
 	 */
-	getColor(color: ColorIdentifier, useDefault?: boolean): Color | null;
+	getColor(color: ColorIdentifier, useDefault?: boolean): Color | undefined;
 
 	/**
 	 * Returns whether the theme defines a value for the color. If not, that means the

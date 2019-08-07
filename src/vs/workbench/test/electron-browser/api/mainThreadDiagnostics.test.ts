@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { MainThreadDiagnostics } from 'vs/workbench/api/electron-browser/mainThreadDiagnostics';
+import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagnostics';
 import { URI } from 'vs/base/common/uri';
 
 

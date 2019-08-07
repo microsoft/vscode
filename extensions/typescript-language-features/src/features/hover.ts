@@ -27,7 +27,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		const response = await this.client.interuptGetErr(() => this.client.execute('quickinfo', args, token));
+		const response = await this.client.interruptGetErr(() => this.client.execute('quickinfo', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}

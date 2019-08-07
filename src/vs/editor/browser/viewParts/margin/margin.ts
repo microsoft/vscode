@@ -14,7 +14,7 @@ export class Margin extends ViewPart {
 	public static readonly CLASS_NAME = 'glyph-margin';
 	public static readonly OUTER_CLASS_NAME = 'margin';
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 	private _canUseLayerHinting: boolean;
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;
@@ -28,7 +28,16 @@ export class Margin extends ViewPart {
 		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
 
-		this._domNode = this._createDomNode();
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setClassName(Margin.OUTER_CLASS_NAME);
+		this._domNode.setPosition('absolute');
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
+
+		this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
+		this._glyphMarginBackgroundDomNode.setClassName(Margin.CLASS_NAME);
+
+		this._domNode.appendChild(this._glyphMarginBackgroundDomNode);
 	}
 
 	public dispose(): void {
@@ -37,20 +46,6 @@ export class Margin extends ViewPart {
 
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;
-	}
-
-	private _createDomNode(): FastDomNode<HTMLElement> {
-		let domNode = createFastDomNode(document.createElement('div'));
-		domNode.setClassName(Margin.OUTER_CLASS_NAME);
-		domNode.setPosition('absolute');
-		domNode.setAttribute('role', 'presentation');
-		domNode.setAttribute('aria-hidden', 'true');
-
-		this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
-		this._glyphMarginBackgroundDomNode.setClassName(Margin.CLASS_NAME);
-
-		domNode.appendChild(this._glyphMarginBackgroundDomNode);
-		return domNode;
 	}
 
 	// --- begin event handlers
@@ -83,7 +78,7 @@ export class Margin extends ViewPart {
 		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
 		this._domNode.setTop(-adjustedScrollTop);
 
-		let height = Math.min(ctx.scrollHeight, 1000000);
+		const height = Math.min(ctx.scrollHeight, 1000000);
 		this._domNode.setHeight(height);
 		this._domNode.setWidth(this._contentLeft);
 

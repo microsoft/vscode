@@ -17,7 +17,7 @@ export const Extensions = {
 
 export class EditorModesRegistry {
 
-	private _languages: ILanguageExtensionPoint[];
+	private readonly _languages: ILanguageExtensionPoint[];
 	private _dynamicLanguages: ILanguageExtensionPoint[];
 
 	private readonly _onDidChangeLanguages = new Emitter<void>();

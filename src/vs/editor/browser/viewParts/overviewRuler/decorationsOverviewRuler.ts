@@ -201,7 +201,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
-	private _settings: Settings;
+	private _settings!: Settings;
 	private _cursorPositions: Position[];
 
 	constructor(context: ViewContext) {
@@ -340,7 +340,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 				let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
 				let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;
-				let height = y2 - y1;
+				const height = y2 - y1;
 				if (height < minDecorationHeight) {
 					let yCenter = ((y1 + y2) / 2) | 0;
 					if (yCenter < halfMinDecorationHeight) {

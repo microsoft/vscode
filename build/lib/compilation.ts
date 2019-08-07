@@ -17,7 +17,9 @@ import * as monacodts from '../monaco/api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
-import * as util2 from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
+
 const watch = require('./watch');
 
 const reporter = createReporter();
@@ -135,7 +137,6 @@ class MonacoGenerator {
 	private readonly _isWatch: boolean;
 	public readonly stream: NodeJS.ReadWriteStream;
 
-	private readonly _watchers: fs.FSWatcher[];
 	private readonly _watchedFiles: { [filePath: string]: boolean; };
 	private readonly _fsProvider: monacodts.FSProvider;
 	private readonly _declarationResolver: monacodts.DeclarationResolver;
@@ -143,7 +144,6 @@ class MonacoGenerator {
 	constructor(isWatch: boolean) {
 		this._isWatch = isWatch;
 		this.stream = es.through();
-		this._watchers = [];
 		this._watchedFiles = {};
 		let onWillReadFile = (moduleId: string, filePath: string) => {
 			if (!this._isWatch) {
@@ -154,26 +154,10 @@ class MonacoGenerator {
 			}
 			this._watchedFiles[filePath] = true;
 
-			const watcher = fs.watch(filePath);
-			watcher.addListener('change', () => {
+			fs.watchFile(filePath, () => {
 				this._declarationResolver.invalidateCache(moduleId);
 				this._executeSoon();
 			});
-			watcher.addListener('error', (err) => {
-				console.error(`Encountered error while watching ${filePath}.`);
-				console.log(err);
-				delete this._watchedFiles[filePath];
-				for (let i = 0; i < this._watchers.length; i++) {
-					if (this._watchers[i] === watcher) {
-						this._watchers.splice(i, 1);
-						break;
-					}
-				}
-				watcher.close();
-				this._declarationResolver.invalidateCache(moduleId);
-				this._executeSoon();
-			});
-			this._watchers.push(watcher);
 		};
 		this._fsProvider = new class extends monacodts.FSProvider {
 			public readFileSync(moduleId: string, filePath: string): Buffer {
@@ -184,11 +168,9 @@ class MonacoGenerator {
 		this._declarationResolver = new monacodts.DeclarationResolver(this._fsProvider);
 
 		if (this._isWatch) {
-			const recipeWatcher = fs.watch(monacodts.RECIPE_PATH);
-			recipeWatcher.addListener('change', () => {
+			fs.watchFile(monacodts.RECIPE_PATH, () => {
 				this._executeSoon();
 			});
-			this._watchers.push(recipeWatcher);
 		}
 	}
 
@@ -204,10 +186,6 @@ class MonacoGenerator {
 		}, 20);
 	}
 
-	public dispose(): void {
-		this._watchers.forEach(watcher => watcher.close());
-	}
-
 	private _run(): monacodts.IMonacoDeclarationResult | null {
 		let r = monacodts.run3(this._declarationResolver);
 		if (!r && !this._isWatch) {
@@ -218,7 +196,7 @@ class MonacoGenerator {
 	}
 
 	private _log(message: any, ...rest: any[]): void {
-		util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 
 	public execute(): void {

@@ -5,9 +5,8 @@
 
 import { IContextViewService, IContextViewDelegate } from './contextView';
 import { ContextView } from 'vs/base/browser/ui/contextview/contextview';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class ContextViewService extends Disposable implements IContextViewService {
 	_serviceBrand: any;
@@ -15,24 +14,23 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	private contextView: ContextView;
 
 	constructor(
-		container: HTMLElement,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService
+		@ILayoutService readonly layoutService: ILayoutService
 	) {
 		super();
 
-		this.contextView = this._register(new ContextView(container));
+		this.contextView = this._register(new ContextView(layoutService.container));
+		this.layout();
+
+		this._register(layoutService.onLayout(() => this.layout()));
 	}
 
 	// ContextView
 
 	setContainer(container: HTMLElement): void {
-		this.logService.trace('ContextViewService#setContainer');
 		this.contextView.setContainer(container);
 	}
 
 	showContextView(delegate: IContextViewDelegate): void {
-		this.logService.trace('ContextViewService#showContextView');
 		this.contextView.show(delegate);
 	}
 
@@ -41,7 +39,6 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	}
 
 	hideContextView(data?: any): void {
-		this.logService.trace('ContextViewService#hideContextView');
 		this.contextView.hide(data);
 	}
 }

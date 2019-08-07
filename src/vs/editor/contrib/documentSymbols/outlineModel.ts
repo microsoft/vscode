@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
+import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { LRUCache } from 'vs/base/common/map';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
-	abstract parent: TreeElement;
+	abstract parent: TreeElement | undefined;
 
 	abstract adopt(newParent: TreeElement): TreeElement;
 
 	remove(): void {
-		delete this.parent.children[this.id];
+		if (this.parent) {
+			delete this.parent.children[this.id];
+		}
 	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
@@ -85,21 +86,28 @@ export abstract class TreeElement {
 	}
 }
 
+export interface IOutlineMarker {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+	severity: MarkerSeverity;
+}
+
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
-	score: FuzzyScore = FuzzyScore.Default;
-	marker: { count: number, topSev: MarkerSeverity };
+	marker: { count: number, topSev: MarkerSeverity } | undefined;
 
 	constructor(
 		readonly id: string,
-		public parent: OutlineModel | OutlineGroup | OutlineElement,
+		public parent: TreeElement | undefined,
 		readonly symbol: DocumentSymbol
 	) {
 		super();
 	}
 
-	adopt(parent: OutlineModel | OutlineGroup | OutlineElement): OutlineElement {
+	adopt(parent: TreeElement): OutlineElement {
 		let res = new OutlineElement(this.id, parent, this.symbol);
 		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
 		return res;
@@ -112,51 +120,24 @@ export class OutlineGroup extends TreeElement {
 
 	constructor(
 		readonly id: string,
-		public parent: OutlineModel,
+		public parent: TreeElement | undefined,
 		readonly provider: DocumentSymbolProvider,
 		readonly providerIndex: number,
 	) {
 		super();
 	}
 
-	adopt(parent: OutlineModel): OutlineGroup {
+	adopt(parent: TreeElement): OutlineGroup {
 		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
 		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
 		return res;
 	}
 
-	updateMatches(pattern: string, topMatch: OutlineElement): OutlineElement {
-		for (const key in this.children) {
-			topMatch = this._updateMatches(pattern, this.children[key], topMatch);
-		}
-		return topMatch;
-	}
-
-	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-
-		item.score = pattern
-			? fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true)
-			: FuzzyScore.Default;
-
-		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
-			topMatch = item;
-		}
-		for (const key in item.children) {
-			let child = item.children[key];
-			topMatch = this._updateMatches(pattern, child, topMatch);
-			if (!item.score && child.score) {
-				// don't filter parents with unfiltered children
-				item.score = FuzzyScore.Default;
-			}
-		}
-		return topMatch;
-	}
-
-	getItemEnclosingPosition(position: IPosition): OutlineElement {
+	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
 		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
 
-	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
+	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement | undefined {
 		for (let key in children) {
 			let item = children[key];
 			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
@@ -167,14 +148,13 @@ export class OutlineGroup extends TreeElement {
 		return undefined;
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		for (const key in this.children) {
 			this._updateMarker(marker, this.children[key]);
 		}
 	}
 
-	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
-
+	private _updateMarker(markers: IOutlineMarker[], item: OutlineElement): void {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
@@ -189,15 +169,15 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IMarker[] = [];
-		let myTopSev: MarkerSeverity;
+		let myMarkers: IOutlineMarker[] = [];
+		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
 			let marker = markers[start];
 			myMarkers.push(marker);
-			markers[start] = undefined;
+			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
@@ -224,7 +204,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, 0.75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
 	private static readonly _keys = new class {
 
 		private _counter = 1;
@@ -265,25 +245,25 @@ export class OutlineModel extends TreeElement {
 			OutlineModel._requests.set(key, data);
 		}
 
-		if (data.model) {
+		if (data!.model) {
 			// resolved -> return data
-			return Promise.resolve(data.model);
+			return Promise.resolve(data.model!);
 		}
 
 		// increase usage counter
-		data.promiseCnt += 1;
+		data!.promiseCnt += 1;
 
 		token.onCancellationRequested(() => {
 			// last -> cancel provider request, remove cached promise
-			if (--data.promiseCnt === 0) {
-				data.source.cancel();
+			if (--data!.promiseCnt === 0) {
+				data!.source.cancel();
 				OutlineModel._requests.delete(key);
 			}
 		});
 
 		return new Promise((resolve, reject) => {
-			data.promise.then(model => {
-				data.model = model;
+			data!.promise.then(model => {
+				data!.model = model;
 				resolve(model);
 			}, err => {
 				OutlineModel._requests.delete(key);
@@ -294,13 +274,15 @@ export class OutlineModel extends TreeElement {
 
 	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		let result = new OutlineModel(textModel);
-		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
+		const cts = new CancellationTokenSource(token);
+		const result = new OutlineModel(textModel);
+		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const promises = provider.map((provider, index) => {
 
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, cts.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
 				}
@@ -317,7 +299,22 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		return Promise.all(promises).then(() => result._compact());
+		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
+			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
+			if (!equals(newProvider, provider)) {
+				cts.cancel();
+			}
+		});
+
+		return Promise.all(promises).then(() => {
+			if (cts.token.isCancellationRequested && !token.isCancellationRequested) {
+				return OutlineModel._create(textModel, token);
+			} else {
+				return result._compact();
+			}
+		}).finally(() => {
+			listener.dispose();
+		});
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
@@ -331,7 +328,7 @@ export class OutlineModel extends TreeElement {
 		container.children[res.id] = res;
 	}
 
-	static get(element: TreeElement): OutlineModel {
+	static get(element: TreeElement | undefined): OutlineModel | undefined {
 		while (element) {
 			if (element instanceof OutlineModel) {
 				return element;
@@ -373,8 +370,8 @@ export class OutlineModel extends TreeElement {
 		} else {
 			// adopt all elements of the first group
 			let group = first(this._groups);
-			for (let key in group.children) {
-				let child = group.children[key];
+			for (let key in group!.children) {
+				let child = group!.children[key];
 				child.parent = this;
 				this.children[child.id] = child;
 			}
@@ -394,23 +391,9 @@ export class OutlineModel extends TreeElement {
 		return true;
 	}
 
-	private _matches: [string, OutlineElement];
+	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement | undefined {
 
-	updateMatches(pattern: string): OutlineElement {
-		if (this._matches && this._matches[0] === pattern) {
-			return this._matches[1];
-		}
-		let topMatch: OutlineElement;
-		for (const key in this._groups) {
-			topMatch = this._groups[key].updateMatches(pattern, topMatch);
-		}
-		this._matches = [pattern, topMatch];
-		return topMatch;
-	}
-
-	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement {
-
-		let preferredGroup: OutlineGroup;
+		let preferredGroup: OutlineGroup | undefined;
 		if (context) {
 			let candidate = context.parent;
 			while (candidate && !preferredGroup) {
@@ -432,11 +415,11 @@ export class OutlineModel extends TreeElement {
 		return result;
 	}
 
-	getItemById(id: string): TreeElement {
+	getItemById(id: string): TreeElement | undefined {
 		return TreeElement.getElementById(id, this);
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		// sort markers by start range so that we can use
 		// outline element starts for quicker look up
 		marker.sort(Range.compareRangesUsingStarts);

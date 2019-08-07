@@ -23,11 +23,13 @@
 		"description": "Insert Copyright Statement"
 	},
 	"TS -> Inject Service": {
+		"scope": "typescript",
 		"description": "Constructor Injection Pattern",
 		"prefix": "@inject",
 		"body": "@$1 private readonly _$2: ${1},$0"
 	},
 	"TS -> Event & Emitter": {
+		"scope": "typescript",
 		"prefix": "emitter",
 		"description": "Add emitter and event properties",
 		"body": [

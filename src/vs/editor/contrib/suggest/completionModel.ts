@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer, FuzzyScore } from 'vs/base/common/filters';
-import { isDisposable } from 'vs/base/common/lifecycle';
-import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore, anyScore } from 'vs/base/common/filters';
+import { CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
+import { compareIgnoreCase } from 'vs/base/common/strings';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
@@ -29,8 +29,10 @@ export interface ICompletionStats {
 }
 
 export class LineContext {
-	leadingLineContent: string;
-	characterCountDelta: number;
+	constructor(
+		readonly leadingLineContent: string,
+		readonly characterCountDelta: number,
+	) { }
 }
 
 const enum Refilter {
@@ -49,9 +51,9 @@ export class CompletionModel {
 
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
-	private _filteredItems: StrictCompletionItem[];
-	private _isIncomplete: Set<CompletionItemProvider>;
-	private _stats: ICompletionStats;
+	private _filteredItems?: StrictCompletionItem[];
+	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _stats?: ICompletionStats;
 
 	constructor(
 		items: CompletionItem[],
@@ -74,18 +76,6 @@ export class CompletionModel {
 		}
 	}
 
-	dispose(): void {
-		const seen = new Set<CompletionList>();
-		for (const { container } of this._items) {
-			if (!seen.has(container)) {
-				seen.add(container);
-				if (isDisposable(container)) {
-					container.dispose();
-				}
-			}
-		}
-	}
-
 	get lineContext(): LineContext {
 		return this._lineContext;
 	}
@@ -101,12 +91,12 @@ export class CompletionModel {
 
 	get items(): CompletionItem[] {
 		this._ensureCachedState();
-		return this._filteredItems;
+		return this._filteredItems!;
 	}
 
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete;
+		return this._isIncomplete!;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
@@ -129,7 +119,7 @@ export class CompletionModel {
 
 	get stats(): ICompletionStats {
 		this._ensureCachedState();
-		return this._stats;
+		return this._stats!;
 	}
 
 	private _ensureCachedState(): void {
@@ -148,7 +138,7 @@ export class CompletionModel {
 		let wordLow = '';
 
 		// incrementally filter less
-		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
+		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
 		const target: StrictCompletionItem[] = [];
 
 		// picks a score function based on the number of
@@ -215,8 +205,15 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					item.score = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0);
-					item.score[0] = match[0]; // use score from filterText
+					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+						// filterText and label are actually the same -> use good highlights
+						item.score = match;
+					} else {
+						// re-run the scorer on the label in the hope of a result BUT use the rank
+						// of the filterText-match
+						item.score = anyScore(word, wordLow, wordPos, item.completion.label, item.labelLow, 0);
+						item.score[0] = match[0]; // use score from filterText
+					}
 
 				} else {
 					// by default match `word` against the `label`

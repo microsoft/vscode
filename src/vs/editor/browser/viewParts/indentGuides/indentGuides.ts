@@ -14,7 +14,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _primaryLineNumber: number;
 	private _lineHeight: number;
 	private _spaceWidth: number;
@@ -103,11 +103,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const tabSize = this._context.model.getTabSize();
-		const tabWidth = tabSize * this._spaceWidth;
+		const { indentSize } = this._context.model.getOptions();
+		const indentWidth = indentSize * this._spaceWidth;
 		const scrollWidth = ctx.scrollWidth;
 		const lineHeight = this._lineHeight;
-		const indentGuideWidth = tabWidth;
 
 		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
 
@@ -121,19 +120,19 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			activeIndentLevel = activeIndentInfo.indent;
 		}
 
-		let output: string[] = [];
+		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 
 			let result = '';
-			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+			const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
 			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
 			for (let i = 1; i <= indent; i++) {
-				let className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
-				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
-				left += tabWidth;
+				const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
+				left += indentWidth;
 				if (left > scrollWidth) {
 					break;
 				}
@@ -148,7 +147,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (!this._renderResult) {
 			return '';
 		}
-		let lineIndex = lineNumber - startLineNumber;
+		const lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
 			return '';
 		}

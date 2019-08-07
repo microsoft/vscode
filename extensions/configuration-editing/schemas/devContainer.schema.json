@@ -1,0 +1,181 @@
+{
+	"$schema": "http://json-schema.org/schema#",
+	"description": "Defines a dev container",
+	"allowComments": true,
+	"type": "object",
+	"definitions": {
+		"devContainerCommon": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "A name to show for the workspace folder."
+				},
+				"extensions": {
+					"type": "array",
+					"description": "An array of extensions that should be installed into the container.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"settings": {
+					"$ref": "vscode://schemas/settings/machine",
+					"description": "Machine specific settings that should be copied into the container."
+				},
+				"postCreateCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run after creating the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"devPort": {
+					"type": "integer",
+					"description": "The port VS Code can use to connect to its backend."
+				}
+			}
+		},
+		"nonComposeBase": {
+			"type": "object",
+			"properties": {
+				"appPort": {
+					"type": [
+						"integer",
+						"string",
+						"array"
+					],
+					"description": "Application ports that are exposed by the container. This can be a single port or an array of ports. Each port can be a number or a string. A number is mapped to the same port on the host. A string is passed to Docker unchanged and can be used to map ports differently, e.g. \"8000:8010\".",
+					"items": {
+						"type": [
+							"integer",
+							"string"
+						]
+					}
+				},
+				"runArgs": {
+					"type": "array",
+					"description": "The arguments required when starting in the container.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"shutdownAction": {
+					"type": "string",
+					"enum": [
+						"none",
+						"stopContainer"
+					],
+					"description": "Action to take when VS Code is shutting down. The default is to stop the container."
+				},
+				"overrideCommand": {
+					"type": "boolean",
+					"description": "Whether to overwrite the command specified in the image. The default is true."
+				},
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
+				},
+				"workspaceMount": {
+					"type": "string",
+					"description": "The --mount parameter for docker run. The default is to mount the project folder at /workspaces/$project."
+				}
+			}
+		},
+		"dockerFileContainer": {
+			"type": "object",
+			"properties": {
+				"dockerFile": {
+					"type": "string",
+					"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
+				},
+				"context": {
+					"type": "string",
+					"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
+				}
+			},
+			"required": [
+				"dockerFile"
+			]
+		},
+		"imageContainer": {
+			"type": "object",
+			"properties": {
+				"image": {
+					"type": "string",
+					"description": "The docker image that will be used to create the container."
+				}
+			},
+			"required": [
+				"image"
+			]
+		},
+		"composeContainer": {
+			"type": "object",
+			"properties": {
+				"dockerComposeFile": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "The name of the docker-compose file(s) used to start the services.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"service": {
+					"type": "string",
+					"description": "The service you want to work on."
+				},
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
+				},
+				"shutdownAction": {
+					"type": "string",
+					"enum": [
+						"none",
+						"stopCompose"
+					],
+					"description": "Action to take when VS Code is shutting down. The default is to stop the containers."
+				}
+			},
+			"required": [
+				"dockerComposeFile",
+				"service",
+				"workspaceFolder"
+			]
+		}
+	},
+	"allOf": [
+		{
+			"oneOf": [
+				{
+					"allOf": [
+						{
+							"oneOf": [
+								{
+									"$ref": "#/definitions/dockerFileContainer"
+								},
+								{
+									"$ref": "#/definitions/imageContainer"
+								}
+							]
+						},
+						{
+							"$ref": "#/definitions/nonComposeBase"
+						}
+					]
+				},
+				{
+					"$ref": "#/definitions/composeContainer"
+				}
+			]
+		},
+		{
+			"$ref": "#/definitions/devContainerCommon"
+		}
+	]
+}

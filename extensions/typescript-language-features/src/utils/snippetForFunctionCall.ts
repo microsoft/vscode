@@ -68,7 +68,7 @@ function getParameterListParts(
 				break;
 
 			case PConst.DisplayPartKind.parameterName:
-				if (parenCount === 1 && isInMethod) {
+				if (parenCount === 1 && braceCount === 0 && isInMethod) {
 					// Only take top level paren names
 					const next = displayParts[i + 1];
 					// Skip optional parameters

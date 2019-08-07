@@ -10,7 +10,6 @@ import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
@@ -22,7 +21,7 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 		return PreferencesEditorInput.ID;
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity: Verbosity): string | null {
 		return this.master.getTitle(verbosity);
 	}
 }
@@ -30,17 +29,16 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	static readonly ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(defaultSettingsResource: URI,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService);
 	}
 
 	getTypeId(): string {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
-	matches(other: any): boolean {
+	matches(other: unknown): boolean {
 		if (other instanceof DefaultPreferencesEditorInput) {
 			return true;
 		}
@@ -51,10 +49,18 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	}
 }
 
+export interface IKeybindingsEditorSearchOptions {
+	searchValue: string;
+	recordKeybindings: boolean;
+	sortByPrecedence: boolean;
+}
+
 export class KeybindingsEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.keybindings';
 	readonly keybindingsModel: KeybindingsEditorModel;
+
+	searchOptions: IKeybindingsEditorSearchOptions | null;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
@@ -73,7 +79,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return Promise.resolve(this.keybindingsModel);
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
 	}
 }
@@ -95,7 +101,7 @@ export class SettingsEditor2Input extends EditorInput {
 		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return otherInput instanceof SettingsEditor2Input;
 	}
 

@@ -5,14 +5,15 @@
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
+import { Delayer, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
-import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { isRemoteConsoleLog, log } from 'vs/base/node/console';
+import { IChannel, ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
+import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -25,11 +26,11 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 			send: r => {
 				try {
 					if (process.send) {
-						process.send(r.toString('base64'));
+						process.send((<Buffer>r.buffer).toString('base64'));
 					}
 				} catch (e) { /* not much to do */ }
 			},
-			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
+			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))
 		}, ctx);
 
 		process.once('disconnect', () => this.dispose());
@@ -132,7 +133,7 @@ export class Client implements IChannelClient, IDisposable {
 		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
 
-		always(result, () => {
+		result.finally(() => {
 			cancellationTokenListener.dispose();
 			this.activeRequests.delete(disposable);
 
@@ -198,7 +199,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child = fork(this.modulePath, args, forkOpts);
 
-			const onMessageEmitter = new Emitter<Buffer>();
+			const onMessageEmitter = new Emitter<VSBuffer>();
 			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
@@ -210,11 +211,11 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				// Anything else goes to the outside
-				onMessageEmitter.fire(Buffer.from(msg, 'base64'));
+				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = (r: Buffer) => this.child && this.child.connected && sender.send(r.toString('base64'));
+			const send = (r: VSBuffer) => this.child && this.child.connected && sender.send((<Buffer>r.buffer).toString('base64'));
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 

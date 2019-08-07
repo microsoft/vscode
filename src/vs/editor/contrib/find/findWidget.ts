@@ -13,6 +13,7 @@ import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findIn
 import { HistoryInputBox, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Delayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -27,9 +28,11 @@ import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MA
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 export interface IFindController {
 	replace(): void;
@@ -45,6 +48,7 @@ const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind'
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
+const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseCheckbox', "Preserve Case");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
@@ -83,39 +87,40 @@ export class FindWidgetViewZone implements IViewZone {
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
 	private readonly _codeEditor: ICodeEditor;
-	private _state: FindReplaceState;
-	private _controller: IFindController;
+	private readonly _state: FindReplaceState;
+	private readonly _controller: IFindController;
 	private readonly _contextViewProvider: IContextViewProvider;
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
 
-	private _domNode: HTMLElement;
-	private _findInput: FindInput;
-	private _replaceInputBox: HistoryInputBox;
+	private _domNode!: HTMLElement;
+	private _findInput!: FindInput;
+	private _replaceInputBox!: HistoryInputBox;
 
-	private _toggleReplaceBtn: SimpleButton;
-	private _matchesCount: HTMLElement;
-	private _prevBtn: SimpleButton;
-	private _nextBtn: SimpleButton;
-	private _toggleSelectionFind: SimpleCheckbox;
-	private _closeBtn: SimpleButton;
-	private _replaceBtn: SimpleButton;
-	private _replaceAllBtn: SimpleButton;
+	private _toggleReplaceBtn!: SimpleButton;
+	private _matchesCount!: HTMLElement;
+	private _prevBtn!: SimpleButton;
+	private _nextBtn!: SimpleButton;
+	private _toggleSelectionFind!: SimpleCheckbox;
+	private _closeBtn!: SimpleButton;
+	private _preserveCase!: Checkbox;
+	private _replaceBtn!: SimpleButton;
+	private _replaceAllBtn!: SimpleButton;
 
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 	private _ignoreChangeEvent: boolean;
 
-	private _findFocusTracker: dom.IFocusTracker;
-	private _findInputFocused: IContextKey<boolean>;
-	private _replaceFocusTracker: dom.IFocusTracker;
-	private _replaceInputFocused: IContextKey<boolean>;
-	private _viewZone: FindWidgetViewZone;
+	private readonly _findFocusTracker: dom.IFocusTracker;
+	private readonly _findInputFocused: IContextKey<boolean>;
+	private readonly _replaceFocusTracker: dom.IFocusTracker;
+	private readonly _replaceInputFocused: IContextKey<boolean>;
+	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: number;
 
-	private _resizeSash: Sash;
-	private _resized: boolean;
-	private _updateHistoryDelayer: Delayer<void>;
+	private _resizeSash!: Sash;
+	private _resized!: boolean;
+	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		codeEditor: ICodeEditor,
@@ -160,6 +165,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (e.accessibilitySupport) {
 				this.updateAccessibilitySupport();
 			}
+
+			if (e.contribInfo) {
+				const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+				if (addExtraSpaceOnTop && !this._viewZone) {
+					this._viewZone = new FindWidgetViewZone(0);
+					this._showViewZone();
+				}
+				if (!addExtraSpaceOnTop && this._viewZone) {
+					this._removeViewZone();
+				}
+			}
 		}));
 		this.updateAccessibilitySupport();
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
@@ -197,7 +213,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._codeEditor.addOverlayWidget(this);
-		this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
+		if (this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop) {
+			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
+		}
 
 		this._applyTheme(themeService.getTheme());
 		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
@@ -358,12 +376,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		} else {
 			label = NLS_NO_RESULTS;
 		}
+
 		this._matchesCount.appendChild(document.createTextNode(label));
 
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions
+
+	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+		}
+		return currentMatch
+			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
+			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
+	}
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
@@ -434,7 +465,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					const startLeft = editorCoords.left + (startCoords ? startCoords.left : 0);
 					const startTop = startCoords ? startCoords.top : 0;
 
-					if (startTop < this._viewZone.heightInPx) {
+					if (this._viewZone && startTop < this._viewZone.heightInPx) {
 						if (selection.endLineNumber > selection.startLineNumber) {
 							adjustEditorScrollTop = false;
 						}
@@ -468,40 +499,42 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._codeEditor.focus();
 			}
 			this._codeEditor.layoutOverlayWidget(this);
-			this._codeEditor.changeViewZones((accessor) => {
-				if (this._viewZoneId !== undefined) {
-					accessor.removeZone(this._viewZoneId);
-					this._viewZoneId = undefined;
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
-				}
-			});
+			this._removeViewZone();
 		}
 	}
 
 	private _layoutViewZone() {
-		if (!this._isVisible) {
+		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+
+		if (!addExtraSpaceOnTop) {
+			this._removeViewZone();
 			return;
 		}
 
-		if (this._viewZoneId !== undefined) {
+		if (!this._isVisible) {
+			return;
+		}
+		const viewZone = this._viewZone;
+		if (this._viewZoneId !== undefined || !viewZone) {
 			return;
 		}
 
 		this._codeEditor.changeViewZones((accessor) => {
 			if (this._state.isReplaceRevealed) {
-				this._viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
+				viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
 			} else {
-				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+				viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 
-			this._viewZoneId = accessor.addZone(this._viewZone);
+			this._viewZoneId = accessor.addZone(viewZone);
 			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
-			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + this._viewZone.heightInPx);
+			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + viewZone.heightInPx);
 		});
 	}
 
 	private _showViewZone(adjustScroll: boolean = true) {
-		if (!this._isVisible) {
+		const viewZone = this._viewZone;
+		if (!this._isVisible || !viewZone) {
 			return;
 		}
 
@@ -510,17 +543,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			if (this._viewZoneId !== undefined) {
 				if (this._state.isReplaceRevealed) {
-					this._viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
+					viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
 					scrollAdjustment = FIND_REPLACE_AREA_HEIGHT - FIND_INPUT_AREA_HEIGHT;
 				} else {
-					this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+					viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 					scrollAdjustment = FIND_INPUT_AREA_HEIGHT - FIND_REPLACE_AREA_HEIGHT;
 				}
 				accessor.removeZone(this._viewZoneId);
 			} else {
-				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+				viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
-			this._viewZoneId = accessor.addZone(this._viewZone);
+			this._viewZoneId = accessor.addZone(viewZone);
 
 			if (adjustScroll) {
 				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
@@ -528,9 +561,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		});
 	}
 
+	private _removeViewZone() {
+		this._codeEditor.changeViewZones((accessor) => {
+			if (this._viewZoneId !== undefined) {
+				accessor.removeZone(this._viewZoneId);
+				this._viewZoneId = undefined;
+				if (this._viewZone) {
+					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					this._viewZone = undefined;
+				}
+			}
+		});
+	}
+
 	private _applyTheme(theme: ITheme) {
 		let inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
@@ -542,18 +589,30 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
+		this._preserveCase.style(inputStyles);
 	}
 
 	private _tryUpdateWidgetWidth() {
 		if (!this._isVisible) {
 			return;
 		}
-		let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-		let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+
+		const editorContentWidth = this._codeEditor.getConfiguration().layoutInfo.contentWidth;
+
+		if (editorContentWidth <= 0) {
+			// for example, diff view original editor
+			dom.addClass(this._domNode, 'hiddenEditor');
+			return;
+		} else if (dom.hasClass(this._domNode, 'hiddenEditor')) {
+			dom.removeClass(this._domNode, 'hiddenEditor');
+		}
+
+		const editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+		const minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -725,7 +784,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		return ` (${kb.getLabel()})`;
 	}
 
-	private _buildFindPart(): HTMLElement {
+	private _buildDomNode(): void {
 		// Find input
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
@@ -735,16 +794,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			validation: (value: string): InputBoxMessage | null => {
-				if (value.length === 0) {
-					return null;
-				}
-				if (!this._findInput.getRegex()) {
+				if (value.length === 0 || !this._findInput.getRegex()) {
 					return null;
 				}
 				try {
-					/* tslint:disable:no-unused-expression */
+					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
-					/* tslint:enable:no-unused-expression */
 					return null;
 				} catch (e) {
 					return { content: e.message };
@@ -825,7 +880,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 						}
 					}
 				} else {
-					this._state.change({ searchScope: undefined }, true);
+					this._state.change({ searchScope: null }, true);
 				}
 			}
 		}));
@@ -835,7 +890,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			className: 'close-fw',
 			onTrigger: () => {
-				this._state.change({ isRevealed: false, searchScope: undefined }, false);
+				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
 			onKeyDown: (e) => {
 				if (e.equals(KeyCode.Tab)) {
@@ -853,10 +908,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		findPart.appendChild(this._closeBtn.domNode);
 
-		return findPart;
-	}
-
-	private _buildReplacePart(): HTMLElement {
 		// Replace input
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
@@ -871,6 +922,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
 		this._register(this._replaceInputBox.onDidChange(() => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
+		}));
+
+		this._preserveCase = this._register(new Checkbox({
+			actionClassName: 'monaco-preserve-case',
+			title: NLS_PRESERVE_CASE_LABEL,
+			isChecked: false,
+		}));
+		this._preserveCase.checked = !!this._state.preserveCase;
+		this._register(this._preserveCase.onChange(viaKeyboard => {
+			if (!viaKeyboard) {
+				this._state.change({ preserveCase: !this._state.preserveCase }, false);
+				this._replaceInputBox.focus();
+			}
 		}));
 
 		// Replace one button
@@ -897,21 +961,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		}));
 
+		let controls = document.createElement('div');
+		controls.className = 'controls';
+		controls.style.display = 'block';
+		controls.appendChild(this._preserveCase.domNode);
+		replaceInput.appendChild(controls);
+
 		let replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
 		replacePart.appendChild(replaceInput);
 		replacePart.appendChild(this._replaceBtn.domNode);
 		replacePart.appendChild(this._replaceAllBtn.domNode);
-
-		return replacePart;
-	}
-
-	private _buildDomNode(): void {
-		// Find part
-		let findPart = this._buildFindPart();
-
-		// Replace part
-		let replacePart = this._buildReplacePart();
 
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
@@ -940,10 +1000,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
 
-		this._buildSash();
-	}
-
-	private _buildSash() {
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
 		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
@@ -975,7 +1031,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private updateAccessibilitySupport(): void {
 		const value = this._codeEditor.getConfiguration().accessibilitySupport;
-		this._findInput.setFocusInputOnOptionClick(value !== platform.AccessibilitySupport.Enabled);
+		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
 	}
 }
 
@@ -1130,7 +1186,7 @@ export class SimpleButton extends Widget {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | null): void => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
 		if (color) {
 			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
 		}
@@ -1168,6 +1224,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .find-widget { border: 2px solid ${hcBorder}; }`);
 	}
 
+	const foreground = theme.getColor(editorWidgetForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
+	}
+
 	const error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
@@ -1186,5 +1247,10 @@ registerThemingParticipant((theme, collector) => {
 	const inputActiveBorder = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveBorder) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
+	}
+
+	const inputActiveBackground = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveBackground) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { background-color: ${inputActiveBackground.toString()}; }`);
 	}
 });

@@ -9,8 +9,8 @@ import * as net from 'net';
  * @returns Returns a random port between 1025 and 65535.
  */
 export function randomPort(): number {
-	let min = 1025;
-	let max = 65535;
+	const min = 1025;
+	const max = 65535;
 	return min + Math.floor((max - min) * Math.random());
 }
 

@@ -12,12 +12,12 @@ export class TestTheme implements ITheme {
 	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
 	}
 
-	getColor(color: string, useDefault?: boolean): Color | null {
+	getColor(color: string, useDefault?: boolean): Color | undefined {
 		let value = this.colors[color];
 		if (value) {
 			return Color.fromHex(value);
 		}
-		return null;
+		return undefined;
 	}
 
 	defines(color: string): boolean {
