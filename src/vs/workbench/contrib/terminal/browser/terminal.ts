@@ -35,5 +35,5 @@ export interface ITerminalInstanceService {
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
-	panelContainer: HTMLElement;
+	panelContainer: HTMLElement | undefined;
 }

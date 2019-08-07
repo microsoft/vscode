@@ -269,6 +269,11 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
+	 * Controls the number of context lines above and below the cursor.
+	 * Defaults to 0.
+	*/
+	scrollOff?: number;
+	/**
 	 * Render last line number when the file ends with a newline.
 	 * Defaults to true.
 	*/
@@ -982,6 +987,7 @@ export interface InternalEditorViewOptions {
 	readonly ariaLabel: string;
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+	readonly scrollOff: number;
 	readonly renderFinalNewline: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
@@ -1092,6 +1098,7 @@ export class InternalEditorOptions {
 	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
+	readonly scrollOff: number;
 	readonly readOnly: boolean;
 	/**
 	 * @internal
@@ -1184,6 +1191,7 @@ export class InternalEditorOptions {
 			&& this.pixelRatio === other.pixelRatio
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
+			&& this.scrollOff === other.scrollOff
 			&& this.readOnly === other.readOnly
 			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
@@ -1216,6 +1224,7 @@ export class InternalEditorOptions {
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
+			scrollOff: (this.scrollOff !== newOpts.scrollOff),
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
@@ -1290,6 +1299,7 @@ export class InternalEditorOptions {
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
+			&& a.scrollOff === b.scrollOff
 			&& a.renderFinalNewline === b.renderFinalNewline
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
@@ -1620,6 +1630,7 @@ export interface IConfigurationChangedEvent {
 	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
+	readonly scrollOff: boolean;
 	readonly readOnly: boolean;
 	readonly accessibilitySupport: boolean;
 	readonly multiCursorModifier: boolean;
@@ -2049,6 +2060,7 @@ export class EditorOptionsValidator {
 			disableMonospaceOptimizations: disableMonospaceOptimizations,
 			rulers: rulers,
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
+			scrollOff: _clampedInt(opts.scrollOff, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			renderFinalNewline: _boolean(opts.renderFinalNewline, defaults.renderFinalNewline),
@@ -2172,6 +2184,7 @@ export class InternalEditorOptionsFactory {
 				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
+				scrollOff: opts.viewInfo.scrollOff,
 				renderFinalNewline: opts.viewInfo.renderFinalNewline,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
@@ -2636,6 +2649,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
+		scrollOff: 0,
 		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,

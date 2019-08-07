@@ -220,16 +220,6 @@ export interface IExtensionService {
 	restartExtensionHost(): void;
 
 	/**
-	 * Starts the extension host.
-	 */
-	startExtensionHost(): void;
-
-	/**
-	 * Stops the extension host.
-	 */
-	stopExtensionHost(): void;
-
-	/**
 	 * Modify the environment of the remote extension host
 	 * @param env New properties for the remote extension host
 	 */
@@ -282,8 +272,6 @@ export class NullExtensionService implements IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	getInspectPort(): number { return 0; }
 	restartExtensionHost(): void { }
-	startExtensionHost(): void { }
-	stopExtensionHost(): void { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }

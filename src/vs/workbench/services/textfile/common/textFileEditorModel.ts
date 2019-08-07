@@ -308,7 +308,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				try {
 					return await this.loadFromBackup(backup, options);
 				} catch (error) {
-					// ignore error and continue to load as file below
+					this.logService.error(error); // ignore error and continue to load as file below
 				}
 			}
 		}
