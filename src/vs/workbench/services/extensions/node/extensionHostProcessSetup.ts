@@ -22,6 +22,7 @@ import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import 'vs/workbench/api/node/extHost.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;

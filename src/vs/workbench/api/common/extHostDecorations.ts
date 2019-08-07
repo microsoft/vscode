@@ -5,26 +5,31 @@
 
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { asArray } from 'vs/base/common/arrays';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
 	extensionId: ExtensionIdentifier;
 }
 
-export class ExtHostDecorations implements ExtHostDecorationsShape {
+export class ExtHostDecorations implements IExtHostDecorations {
 
 	private static _handlePool = 0;
 
+	readonly _serviceBrand: undefined;
 	private readonly _provider = new Map<number, ProviderData>();
 	private readonly _proxy: MainThreadDecorationsShape;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
+	constructor(
+		@IExtHostContextService contextService: IExtHostContextService,
+	) {
+		this._proxy = contextService.rpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
 	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
@@ -70,3 +75,6 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		});
 	}
 }
+
+export const IExtHostDecorations = createDecorator<IExtHostDecorations>('IExtHostDecorations');
+export interface IExtHostDecorations extends ExtHostDecorations, ExtHostDecorationsShape { }

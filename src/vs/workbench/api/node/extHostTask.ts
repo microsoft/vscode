@@ -27,10 +27,10 @@ import {
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO | undefined {
@@ -358,7 +358,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _workspaceProvider: IExtHostWorkspaceProvider;
 	private _editorService: ExtHostDocumentsAndEditors;
 	private _configurationService: ExtHostConfiguration;
-	private _terminalService: ExtHostTerminalService;
+	private _terminalService: IExtHostTerminalService;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
@@ -376,7 +376,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		workspaceService: ExtHostWorkspace,
 		editorService: ExtHostDocumentsAndEditors,
 		configurationService: ExtHostConfiguration,
-		extHostTerminalService: ExtHostTerminalService) {
+		extHostTerminalService: IExtHostTerminalService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;

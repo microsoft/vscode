@@ -6,16 +6,23 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
 	let editors: ExtHostDocumentsAndEditors;
 
 	setup(function () {
+
 		editors = new ExtHostDocumentsAndEditors({
-			getProxy: () => { return undefined!; },
-			set: undefined!,
-			assertRegistered: undefined!
+			_serviceBrand: undefined,
+			rpc: {
+				getProxy: () => { return undefined!; },
+				set: undefined!,
+				assertRegistered: undefined!
+			},
+			initData: new class extends mock<IInitData>() { }
 		});
 	});
 

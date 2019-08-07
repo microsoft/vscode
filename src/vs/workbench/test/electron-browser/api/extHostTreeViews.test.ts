@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTreeViewsShape, MainContext, IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { TreeDataProvider, TreeItem } from 'vscode';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -18,6 +18,7 @@ import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 
 suite('ExtHostTreeView', function () {
 
@@ -71,7 +72,10 @@ suite('ExtHostTreeView', function () {
 
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		target = new RecordingShape();
-		testObject = new ExtHostTreeViews(target, new ExtHostCommands(rpcProtocol, new NullLogService()), new NullLogService());
+		testObject = new ExtHostTreeViews(target, new ExtHostCommands(
+			new ExtHostContextService(rpcProtocol, new class extends mock<IInitData>() { }),
+			new NullLogService()
+		), new NullLogService());
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
 		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);

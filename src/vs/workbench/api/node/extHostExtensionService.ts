@@ -13,12 +13,12 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
-import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostExtensionServiceShape, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
@@ -34,6 +34,8 @@ import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths
 import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -70,8 +72,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _extHostContext: IMainContext;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
-	private readonly _environment: IEnvironment;
 	private readonly _extHostLogService: ExtHostLogService;
+
+	private readonly _instaService: IInstantiationService;
 
 	private readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	private readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -95,20 +98,19 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	constructor(
 		hostUtils: IHostUtils,
-		initData: IInitData,
-		extHostContext: IMainContext,
-		extHostWorkspace: ExtHostWorkspace,
-		extHostConfiguration: ExtHostConfiguration,
-		environment: IEnvironment,
-		extHostLogService: ExtHostLogService,
-		uriTransformer: IURITransformer | null
+		uriTransformer: IURITransformer | null,
+		@IInstantiationService instaService: IInstantiationService,
+		@IExtHostContextService extHostContext: IExtHostContextService,
+		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
+		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
+		@ILogService extHostLogService: ExtHostLogService,
 	) {
 		this._hostUtils = hostUtils;
-		this._initData = initData;
-		this._extHostContext = extHostContext;
+		this._initData = extHostContext.initData;
+		this._extHostContext = extHostContext.rpc;
+		this._instaService = instaService;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
-		this._environment = environment;
 		this._extHostLogService = extHostLogService;
 		this._disposables = new DisposableStore();
 
@@ -119,14 +121,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._almostReadyToRunExtensions = new Barrier();
 		this._readyToStartExtensionHost = new Barrier();
 		this._readyToRunExtensions = new Barrier();
-		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
+		this._registry = new ExtensionDescriptionRegistry(this._initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
-		this._storagePath = new ExtensionStoragePaths(withNullAsUndefined(initData.workspace), initData.environment);
+		this._storagePath = new ExtensionStoragePaths(withNullAsUndefined(this._initData.workspace), this._initData.environment);
 
 		const hostExtensions = new Set<string>();
-		initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
+		this._initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
 
-		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, initData.hostExtensions, {
+		this._activator = new ExtensionsActivator(this._registry, this._initData.resolvedExtensions, this._initData.hostExtensions, {
 			onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
 				this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
 			},
@@ -144,7 +146,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extensionPathIndex = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		this._extensionApiFactory = createApiFactory(
+		this._extensionApiFactory = this._instaService.invokeFunction(createApiFactory,
 			this._initData,
 			this._extHostContext,
 			this._extHostWorkspace,
@@ -171,7 +173,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
-			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
+			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._initData.environment));
 			if (this._initData.remote.isRemote) {
 				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(
 					this._extHostContext.getProxy(MainContext.MainThreadWindow),

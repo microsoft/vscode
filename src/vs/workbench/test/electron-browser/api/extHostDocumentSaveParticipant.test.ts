@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTextEditorsShape, IWorkspaceEditDto, IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -17,6 +17,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -37,7 +38,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	};
 
 	setup(() => {
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
+		const extHostContext = new ExtHostContextService(SingleProxyRPCProtocol(null), new class extends mock<IInitData>() { });
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(extHostContext);
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,

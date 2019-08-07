@@ -21,7 +21,7 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, ExtHostContext, IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +30,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -93,7 +95,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			inst = instantiationService;
 		}
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
+		const extHostContext = new ExtHostContextService(rpcProtocol, new class extends mock<IInitData>() { });
+
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(extHostContext);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -107,7 +111,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		commands = new ExtHostCommands(extHostContext, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);

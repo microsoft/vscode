@@ -11,14 +11,18 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
-import { IMainContext, IWorkspaceData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IMainContext, IWorkspaceData, MainContext, IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TestRPCProtocol } from './testRPCProtocol';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
-	const result = new ExtHostWorkspace(mainContext, logService);
+	const result = new ExtHostWorkspace({
+		_serviceBrand: undefined,
+		rpc: mainContext,
+		initData: new class extends mock<IInitData>() { workspace = data; }
+	}, logService);
 	result.$initializeWorkspace(data);
 	return result;
 }

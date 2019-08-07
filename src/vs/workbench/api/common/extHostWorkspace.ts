@@ -20,11 +20,13 @@ import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspa
 import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from './extHost.protocol';
+import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, MainContext } from './extHost.protocol';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -153,6 +155,8 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspaceProvider {
 
+	readonly _serviceBrand: any;
+
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
@@ -169,20 +173,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
-		mainContext: IMainContext,
-		logService: ILogService,
-		data?: IStaticWorkspaceData
+		@IExtHostContextService extHostContext: IExtHostContextService,
+		@ILogService logService: ILogService,
 	) {
 		this._logService = logService;
 		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
-		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
-		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
+		this._proxy = extHostContext.rpc.getProxy(MainContext.MainThreadWorkspace);
+		this._messageService = extHostContext.rpc.getProxy(MainContext.MainThreadMessageService);
+		const data = extHostContext.initData.workspace;
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled) : undefined;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData): void {
+	$initializeWorkspace(data: IWorkspaceData | null): void {
 		this.$acceptWorkspaceData(data);
 		this._barrier.open();
 	}
@@ -389,7 +393,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 	}
 
-	$acceptWorkspaceData(data: IWorkspaceData): void {
+	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
 		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace);
 
@@ -545,3 +549,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._proxy.$resolveProxy(url);
 	}
 }
+
+export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
+export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }
