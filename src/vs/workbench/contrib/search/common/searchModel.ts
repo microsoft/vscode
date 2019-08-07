@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,7 +22,7 @@ import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -155,6 +155,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
+		},
+		minimap: {
+			color: themeColorFromId(minimapFindMatch),
+			position: MinimapPosition.Inline
 		}
 	});
 
@@ -164,6 +168,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
+		},
+		minimap: {
+			color: themeColorFromId(minimapFindMatch),
+			position: MinimapPosition.Inline
 		}
 	});
 
