@@ -27,7 +27,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
@@ -319,6 +319,11 @@ registerThemingParticipant((theme, collector) => {
 	const widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
+	}
+
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetBackground) {
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
 	}
 
 	const widgetShadowColor = theme.getColor(widgetShadow);

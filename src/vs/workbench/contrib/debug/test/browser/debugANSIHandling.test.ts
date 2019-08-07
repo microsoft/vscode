@@ -29,7 +29,7 @@ suite('Debug - ANSI Handling', () => {
 
 		const colors: { [id: string]: string; } = {};
 		for (let color in ansiColorMap) {
-			colors[color] = ansiColorMap[color].defaults.dark;
+			colors[color] = <any>ansiColorMap[color].defaults.dark;
 		}
 		const testTheme = new TestTheme(colors);
 		themeService = new TestThemeService(testTheme);

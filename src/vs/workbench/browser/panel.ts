@@ -25,7 +25,7 @@ export class PanelDescriptor extends CompositeDescriptor<Panel> {
 }
 
 export class PanelRegistry extends CompositeRegistry<Panel> {
-	private defaultPanelId: string;
+	private defaultPanelId!: string;
 
 	/**
 	 * Registers a panel to the platform.
@@ -39,6 +39,13 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 */
 	deregisterPanel(id: string): void {
 		super.deregisterComposite(id);
+	}
+
+	/**
+	 * Returns a panel by id.
+	 */
+	getPanel(id: string): PanelDescriptor | null {
+		return this.getComposite(id);
 	}
 
 	/**

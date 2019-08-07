@@ -36,7 +36,6 @@ export interface IVersionAccessor extends IApplicationAccessor {
 enum Platform {
 	WIN_32 = 'win32-ia32',
 	WIN_64 = 'win32-x64',
-	LINUX_32 = 'linux-ia32',
 	LINUX_64 = 'linux-x64',
 	MAC_OS = 'darwin-x64'
 }
@@ -147,6 +146,10 @@ async function ensureVersionAndSymbols(options: IOptions) {
 	// Check version does not exist
 	console.log(`HockeyApp: checking for existing version ${options.versions.code} (${options.platform})`);
 	const versions = await getVersions({ accessToken: options.access.hockeyAppToken, appId: options.access.hockeyAppId });
+	if (!Array.isArray(versions.app_versions)) {
+		throw new Error(`Unexpected response: ${JSON.stringify(versions)}`);
+	}
+
 	if (versions.app_versions.some(v => v.version === options.versions.code)) {
 		console.log(`HockeyApp: Returning without uploading symbols because version ${options.versions.code} (${options.platform}) was already found`);
 		return;
@@ -185,13 +188,17 @@ const hockeyAppToken = process.argv[3];
 const is64 = process.argv[4] === 'x64';
 const hockeyAppId = process.argv[5];
 
+if (process.argv.length !== 6) {
+	throw new Error(`HockeyApp: Unexpected number of arguments. Got ${process.argv}`);
+}
+
 let platform: Platform;
 if (process.platform === 'darwin') {
 	platform = Platform.MAC_OS;
 } else if (process.platform === 'win32') {
 	platform = is64 ? Platform.WIN_64 : Platform.WIN_32;
 } else {
-	platform = is64 ? Platform.LINUX_64 : Platform.LINUX_32;
+	platform = Platform.LINUX_64;
 }
 
 // Create version and upload symbols in HockeyApp
@@ -212,7 +219,9 @@ if (repository && codeVersion && electronVersion && (product.quality === 'stable
 	}).then(() => {
 		console.log('HockeyApp: done');
 	}).catch(error => {
-		console.error(`HockeyApp: error (${error})`);
+		console.error(`HockeyApp: error ${error} (AppID: ${hockeyAppId})`);
+
+		return process.exit(1);
 	});
 } else {
 	console.log(`HockeyApp: skipping due to unexpected context (repository: ${repository}, codeVersion: ${codeVersion}, electronVersion: ${electronVersion}, quality: ${product.quality})`);

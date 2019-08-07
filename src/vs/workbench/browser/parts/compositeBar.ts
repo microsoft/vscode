@@ -46,10 +46,10 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar extends Widget implements ICompositeBar {
 
-	private dimension: Dimension;
+	private dimension: Dimension | undefined;
 
-	private compositeSwitcherBar: ActionBar;
-	private compositeOverflowAction: CompositeOverflowActivityAction | null;
+	private compositeSwitcherBar!: ActionBar;
+	private compositeOverflowAction: CompositeOverflowActivityAction | undefined;
 	private compositeOverflowActionViewItem: CompositeOverflowActivityActionViewItem | undefined;
 
 	private model: CompositeBarModel;
@@ -201,6 +201,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		const activity: ICompositeActivity = { badge, clazz, priority };
 		this.model.addActivity(compositeId, activity);
+
 		return toDisposable(() => this.model.removeActivity(compositeId, activity));
 	}
 
@@ -342,7 +343,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeSwitcherBar.pull(this.compositeSwitcherBar.length() - 1);
 
 			this.compositeOverflowAction.dispose();
-			this.compositeOverflowAction = null;
+			this.compositeOverflowAction = undefined;
 
 			if (this.compositeOverflowActionViewItem) {
 				this.compositeOverflowActionViewItem.dispose();
@@ -427,7 +428,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 	}
 
-	private getContextMenuActions(): IAction[] {
+	private getContextMenuActions(): ReadonlyArray<IAction> {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,
@@ -459,7 +460,7 @@ interface ICompositeBarModelItem extends ICompositeBarItem {
 
 class CompositeBarModel {
 
-	private _items: ICompositeBarModelItem[];
+	private _items: ICompositeBarModelItem[] = [];
 	private readonly options: ICompositeBarOptions;
 	activeItem?: ICompositeBarModelItem;
 

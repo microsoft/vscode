@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Promise<T> {
@@ -415,11 +415,11 @@ export class Limiter<T> {
 		this._onFinished = new Emitter<void>();
 	}
 
-	public get onFinished(): Event<void> {
+	get onFinished(): Event<void> {
 		return this._onFinished.event;
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this._size;
 		// return this.runningPromises + this.outstandingPromises.length;
 	}
@@ -455,7 +455,7 @@ export class Limiter<T> {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._onFinished.dispose();
 	}
 }
@@ -475,35 +475,30 @@ export class Queue<T> extends Limiter<T> {
  * by disposing them once the queue is empty.
  */
 export class ResourceQueue {
-	private queues: { [path: string]: Queue<void> };
+	private queues: Map<string, Queue<void>> = new Map();
 
-	constructor() {
-		this.queues = Object.create(null);
-	}
-
-	public queueFor(resource: URI): Queue<void> {
+	queueFor(resource: URI): Queue<void> {
 		const key = resource.toString();
-		if (!this.queues[key]) {
+		if (!this.queues.has(key)) {
 			const queue = new Queue<void>();
 			queue.onFinished(() => {
 				queue.dispose();
-				delete this.queues[key];
+				this.queues.delete(key);
 			});
 
-			this.queues[key] = queue;
+			this.queues.set(key, queue);
 		}
 
-		return this.queues[key];
+		return this.queues.get(key)!;
 	}
 }
 
-export class TimeoutTimer extends Disposable {
+export class TimeoutTimer implements IDisposable {
 	private _token: any;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
 	constructor(runner?: () => void, timeout?: number) {
-		super();
 		this._token = -1;
 
 		if (typeof runner === 'function' && typeof timeout === 'number') {
@@ -513,7 +508,6 @@ export class TimeoutTimer extends Disposable {
 
 	dispose(): void {
 		this.cancel();
-		super.dispose();
 	}
 
 	cancel(): void {
@@ -543,18 +537,16 @@ export class TimeoutTimer extends Disposable {
 	}
 }
 
-export class IntervalTimer extends Disposable {
+export class IntervalTimer implements IDisposable {
 
 	private _token: any;
 
 	constructor() {
-		super();
 		this._token = -1;
 	}
 
 	dispose(): void {
 		this.cancel();
-		super.dispose();
 	}
 
 	cancel(): void {

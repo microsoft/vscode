@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
 		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ruby.tmbundle Syntaxes/Ruby.plist ./syntaxes/ruby.tmLanguage.json"
@@ -11,7 +12,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "ruby",
-			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru", ".erb" ],
+			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru", ".erb", ".podspec", ".rbi" ],
 			"filenames": [ "rakefile", "gemfile", "guardfile", "podfile", "capfile" ],
 			"aliases": [ "Ruby", "rb" ],
 			"firstLine": "^#!\\s*/.*\\bruby\\b",

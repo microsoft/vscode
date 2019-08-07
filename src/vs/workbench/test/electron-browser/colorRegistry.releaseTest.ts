@@ -12,12 +12,15 @@ import { debugExceptionWidgetBackground } from 'vs/workbench/contrib/debug/brows
 import { debugToolBarBackground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { buttonBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
 import { embeddedEditorBackground } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
-import { request, asText } from 'vs/base/node/request';
+import { asText } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { RequestService } from 'vs/platform/request/node/requestService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 
 interface ColorInfo {
@@ -40,7 +43,7 @@ export const experimental: string[] = []; // 'settings.modifiedItemForeground', 
 suite('Color Registry', function () {
 
 	test('all colors documented', async function () {
-		const reqContext = await request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' }, CancellationToken.None);
+		const reqContext = await new RequestService(new TestConfigurationService(), new NullLogService()).request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;

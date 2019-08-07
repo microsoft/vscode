@@ -4,6 +4,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.1",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -24,12 +25,13 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^10.12.21"
+    "@types/node": "^10.14.8"
   },
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onLanguage:json",
+    "workspaceContains:package.json",
     "onView:npm"
   ],
   "contributes": {
@@ -46,7 +48,7 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "config.npm.enableScriptExplorer"
+          "when": "npm:showScriptExplorer || config.npm.enableScriptExplorer"
         }
       ]
     },

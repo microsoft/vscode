@@ -9,7 +9,7 @@ import { CancelablePromise, createCancelablePromise, first, timeout } from 'vs/b
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerDefaultLanguageCommand, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -164,7 +164,7 @@ class WordHighlighter {
 	private occurrencesHighlight: boolean;
 	private readonly model: ITextModel;
 	private _decorationIds: string[];
-	private toUnhook: IDisposable[];
+	private readonly toUnhook = new DisposableStore();
 
 	private workerRequestTokenId: number = 0;
 	private workerRequest: IOccurenceAtPositionRequest | null;
@@ -183,8 +183,7 @@ class WordHighlighter {
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
-		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 
 			if (this._ignorePositionChangeEvent) {
 				// We are changing the position => ignore this event
@@ -199,10 +198,10 @@ class WordHighlighter {
 
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.push(editor.onDidChangeModelContent((e) => {
+		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
 		}));
-		this.toUnhook.push(editor.onDidChangeConfiguration((e) => {
+		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
 			let newValue = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
@@ -454,7 +453,7 @@ class WordHighlighter {
 
 	public dispose(): void {
 		this._stopAll();
-		this.toUnhook = dispose(this.toUnhook);
+		this.toUnhook.dispose();
 	}
 }
 
@@ -470,6 +469,7 @@ class WordHighlighterContribution extends Disposable implements editorCommon.IEd
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
+		this.wordHighligher = null;
 		const createWordHighlighterIfPossible = () => {
 			if (editor.hasModel()) {
 				this.wordHighligher = new WordHighlighter(editor, contextKeyService);

@@ -27,6 +27,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 		this._name = name;
 		this._proxy = proxy;
 		this._id = proxy.$register(this.name, log, file);
+		this._disposed = false;
 		this._offset = 0;
 	}
 
@@ -121,7 +122,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	private readonly _logsLocation: URI;
 	private readonly _proxy: MainThreadOutputServiceShape;
 	private readonly _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
-	private _visibleChannelDisposable: IDisposable;
+	private _visibleChannelDisposable?: IDisposable;
 
 	constructor(factory: IOutputChannelFactory, logsLocation: URI, mainContext: IMainContext) {
 		this._factory = factory;

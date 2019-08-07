@@ -16,9 +16,7 @@ const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 
 
 export class BackupModelTracker extends Disposable implements IWorkbenchContribution {
 
-	_serviceBrand: any;
-
-	private configuredAutoSaveAfterDelay: boolean;
+	private configuredAutoSaveAfterDelay = false;
 
 	constructor(
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -49,11 +47,11 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
 		if (!configuration || !configuration.files) {
 			this.configuredAutoSaveAfterDelay = false;
+
 			return;
 		}
-		this.configuredAutoSaveAfterDelay =
-			(configuration.files.autoSave === AutoSaveConfiguration.AFTER_DELAY &&
-				configuration.files.autoSaveDelay <= AUTO_SAVE_AFTER_DELAY_DISABLED_TIME);
+
+		this.configuredAutoSaveAfterDelay = (configuration.files.autoSave === AutoSaveConfiguration.AFTER_DELAY && configuration.files.autoSaveDelay <= AUTO_SAVE_AFTER_DELAY_DISABLED_TIME);
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {

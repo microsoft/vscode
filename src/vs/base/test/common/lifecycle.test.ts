@@ -42,7 +42,8 @@ suite('Lifecycle', () => {
 		assert(!disposable.isDisposed);
 		assert(!disposable2.isDisposed);
 
-		dispose(disposable, disposable2);
+		dispose(disposable);
+		dispose(disposable2);
 
 		assert(disposable.isDisposed);
 		assert(disposable2.isDisposed);

@@ -35,12 +35,12 @@ export class ExceptionWidget extends ZoneWidget {
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(themeService.getTheme());
-		this._disposables.push(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._disposables.add(themeService.onThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
-		this._disposables.push(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
-		this._disposables.push(onDidLayoutChangeScheduler);
+		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
+		this._disposables.add(onDidLayoutChangeScheduler);
 	}
 
 	private _applyTheme(theme: ITheme): void {

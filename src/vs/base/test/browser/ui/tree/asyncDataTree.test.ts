@@ -326,4 +326,57 @@ suite('AsyncDataTree', function () {
 		assert(!hasClass(twistie, 'collapsed'));
 		assert(tree.getNode(_('a')).collapsed);
 	});
+
+	test('support default collapse state per element', async () => {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new class implements IListVirtualDelegate<Element> {
+			getHeight() { return 20; }
+			getTemplateId(element: Element): string { return 'default'; }
+		};
+
+		const renderer = new class implements ITreeRenderer<Element, void, HTMLElement> {
+			readonly templateId = 'default';
+			renderTemplate(container: HTMLElement): HTMLElement {
+				return container;
+			}
+			renderElement(element: ITreeNode<Element, void>, index: number, templateData: HTMLElement): void {
+				templateData.textContent = element.element.id;
+			}
+			disposeTemplate(templateData: HTMLElement): void {
+				// noop
+			}
+		};
+
+		const getChildrenCalls: string[] = [];
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			getChildren(element: Element): Promise<Element[]> {
+				getChildrenCalls.push(element.id);
+				return Promise.resolve(element.children || []);
+			}
+		};
+
+		const root: Element = {
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+			}]
+		};
+
+		const _: (id: string) => Element = find.bind(null, root.children);
+
+		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, {
+			collapseByDefault: el => el.id !== 'a'
+		});
+		tree.layout(200);
+
+		await tree.setInput(root);
+		assert(!tree.getNode(_('a')).collapsed);
+		assert.deepStrictEqual(getChildrenCalls, ['root', 'a']);
+	});
 });

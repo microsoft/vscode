@@ -14,22 +14,25 @@ import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MN
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
+import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
+	disableAltFocus?: boolean;
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 }
 
 export interface MenuBarMenu {
-	actions: IAction[];
+	actions: ReadonlyArray<IAction>;
 	label: string;
 }
 
@@ -48,7 +51,7 @@ export class MenuBar extends Disposable {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
-		actions?: IAction[];
+		actions?: ReadonlyArray<IAction>;
 	}[];
 
 	private overflowMenu: {
@@ -114,9 +117,9 @@ export class MenuBar extends Disposable {
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
-			if (event.equals(KeyCode.LeftArrow)) {
+			if (event.equals(KeyCode.LeftArrow) || (isMacintosh && event.equals(KeyCode.Tab | KeyMod.Shift))) {
 				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow)) {
+			} else if (event.equals(KeyCode.RightArrow) || (isMacintosh && event.equals(KeyCode.Tab))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
@@ -125,6 +128,11 @@ export class MenuBar extends Disposable {
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
+			}
+
+			// Never allow default tab behavior
+			if (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab)) {
+				event.preventDefault();
 			}
 
 			if (eventHandled) {
@@ -776,6 +784,13 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
+		// Prevent alt-key default if the menu is not hidden and we use alt to focus
+		if (modifierKeyStatus.event && !this.options.disableAltFocus) {
+			if (ScanCodeUtils.toEnum(modifierKeyStatus.event.code) === ScanCode.AltLeft) {
+				modifierKeyStatus.event.preventDefault();
+			}
+		}
+
 		// Alt key pressed while menu is focused. This should return focus away from the menubar
 		if (this.isFocused && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.altKey) {
 			this.setUnfocusedState();
@@ -786,7 +801,7 @@ export class MenuBar extends Disposable {
 		// Clean alt key press and release
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.awaitingAltRelease) {
-				if (!this.isFocused) {
+				if (!this.isFocused && !(this.options.disableAltFocus && this.options.visibility !== 'toggle')) {
 					this.mnemonicsInUse = true;
 					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
 					this.focusState = MenubarState.FOCUSED;
@@ -891,6 +906,7 @@ interface IModifierKeyStatus {
 	ctrlKey: boolean;
 	lastKeyPressed?: ModifierKey;
 	lastKeyReleased?: ModifierKey;
+	event?: KeyboardEvent;
 }
 
 
@@ -909,7 +925,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			ctrlKey: false
 		};
 
-		this._subscriptions.push(domEvent(document.body, 'keydown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (e.altKey && !this._keyStatus.altKey) {
@@ -929,11 +945,12 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyPressed) {
+				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'keyup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -953,25 +970,26 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyReleased) {
+				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mouseup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousemove', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}));
 
-		this._subscriptions.push(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 			this._keyStatus.lastKeyReleased = undefined;
 			this._keyStatus.altKey = false;

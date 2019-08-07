@@ -17,12 +17,13 @@ import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, EnablementState, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -151,7 +152,7 @@ const extensionPacks: ExtensionSuggestion[] = [
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
-	{ name: localize('welcomePage.docker', "Docker"), id: 'peterjausovec.vscode-docker' },
+	{ name: localize('welcomePage.docker', "Docker"), id: 'ms-azuretools.vscode-docker' },
 ];
 
 const keymapExtensions: ExtensionSuggestion[] = [
@@ -360,13 +361,7 @@ class WelcomePage extends Disposable {
 			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			a.href = 'javascript:void(0)';
 			a.addEventListener('click', e => {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('workbenchActionExecuted', {
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
@@ -463,7 +458,7 @@ class WelcomePage extends Disposable {
 						.then(installed => {
 							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement([local], EnablementState.Disabled).then(() => local);
+							return this.extensionEnablementService.setEnablement([local], EnablementState.DisabledGlobally).then(() => local);
 						});
 				});
 
@@ -478,12 +473,12 @@ class WelcomePage extends Disposable {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
 						}, 300);
 						const extensionsToDisable = extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled).map(extension => extension.local);
-						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.Disabled) : Promise.resolve()
+						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.DisabledGlobally) : Promise.resolve()
 							.then(() => {
 								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
 									if (foundExtension) {
-										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.Enabled)
+										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.EnabledGlobally)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {

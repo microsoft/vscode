@@ -113,7 +113,7 @@ export class TypeScriptVersionPicker {
 				return { oldVersion: previousVersion, newVersion: shippedVersion };
 
 			case MessageAction.learnMore:
-				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+				vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
 				return { oldVersion: this.currentVersion };
 
 			default:

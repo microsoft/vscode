@@ -44,7 +44,7 @@ export class FileQuickOpenModel extends QuickOpenModel {
 }
 
 export class FileEntry extends EditorQuickOpenEntry {
-	private range: IRange | null;
+	private range: IRange | null = null;
 
 	constructor(
 		private resource: URI,
@@ -112,12 +112,11 @@ export interface IOpenFileOptions {
 }
 
 export class OpenFileHandler extends QuickOpenHandler {
-	private options: IOpenFileOptions;
+	private options: IOpenFileOptions | undefined;
 	private queryBuilder: QueryBuilder;
 	private cacheState: CacheState;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -208,7 +207,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
 		const queryOptions: IFileQueryBuilderOptions = {
 			_reason: 'openFileHandler',
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: query.original,
 			cacheKey
 		};
@@ -233,7 +232,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheQuery(cacheKey: string): IFileQuery {
 		const options: IFileQueryBuilderOptions = {
 			_reason: 'openFileHandler',
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: '',
 			cacheKey: cacheKey,
 			maxResults: 0,
@@ -278,7 +277,7 @@ export class CacheState {
 	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: Promise<void>;
+	private promise: Promise<void> | undefined;
 
 	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | null) {
 		this.query = cacheQuery(this._cacheKey);

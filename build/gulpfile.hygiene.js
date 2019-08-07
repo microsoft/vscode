@@ -119,7 +119,8 @@ const copyrightFilter = [
 	'!resources/completions/**',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
-	'!extensions/*/server/bin/*'
+	'!extensions/*/server/bin/*',
+	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
 const eslintFilter = [
@@ -174,6 +175,17 @@ gulp.task('tslint', () => {
 
 function hygiene(some) {
 	let errorCount = 0;
+
+	const productJson = es.through(function (file) {
+		const product = JSON.parse(file.contents.toString('utf8'));
+
+		if (product.extensionsGallery) {
+			console.error('product.json: Contains "extensionsGallery"');
+			errorCount++;
+		}
+
+		this.emit('data', file);
+	});
 
 	const indentation = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
@@ -258,8 +270,13 @@ function hygiene(some) {
 		input = some;
 	}
 
+	const productJsonFilter = filter('product.json', { restore: true });
+
 	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
+		.pipe(productJsonFilter)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
+		.pipe(productJsonFilter.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))

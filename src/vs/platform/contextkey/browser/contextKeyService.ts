@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -323,7 +323,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	private _lastContextId: number;
 	private readonly _contexts = new Map<number, Context>();
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
@@ -332,7 +332,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
 		this._contexts.set(this._myContextId, myContext);
-		this._toDispose.push(myContext);
+		this._toDispose.add(myContext);
 
 		// Uncomment this to see the contexts continuously logged
 		// let lastLoggedValue: string | null = null;
@@ -348,7 +348,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	public dispose(): void {
 		this._isDisposed = true;
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	public getContextValuesContainer(contextId: number): Context {

@@ -36,11 +36,12 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class DebugViewlet extends ViewContainerViewlet {
 
-	private startDebugActionViewItem: StartDebugActionViewItem;
+	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
-	private breakpointView: ViewletPanel;
+	private breakpointView: ViewletPanel | undefined;
 	private panelListeners = new Map<string, IDisposable>();
-	private debugToolBarMenu: IMenu;
+	private debugToolBarMenu: IMenu | undefined;
+	private disposeOnTitleUpdate: IDisposable | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -114,7 +115,14 @@ export class DebugViewlet extends ViewContainerViewlet {
 			this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
 			this._register(this.debugToolBarMenu);
 		}
-		return DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+
+		const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+		if (this.disposeOnTitleUpdate) {
+			dispose(this.disposeOnTitleUpdate);
+		}
+		this.disposeOnTitleUpdate = disposable;
+
+		return actions;
 	}
 
 	get showInitialDebugActions(): boolean {

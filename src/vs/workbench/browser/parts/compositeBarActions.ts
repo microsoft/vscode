@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -52,10 +52,10 @@ export interface ICompositeBar {
 export class ActivityAction extends Action {
 
 	private _onDidChangeActivity = new Emitter<this>();
-	get onDidChangeActivity(): Event<this> { return this._onDidChangeActivity.event; }
+	readonly onDidChangeActivity: Event<this> = this._onDidChangeActivity.event;
 
 	private _onDidChangeBadge = new Emitter<this>();
-	get onDidChangeBadge(): Event<this> { return this._onDidChangeBadge.event; }
+	readonly onDidChangeBadge: Event<this> = this._onDidChangeBadge.event;
 
 	private badge?: IBadge;
 	private clazz: string | undefined;
@@ -124,13 +124,13 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container: HTMLElement;
-	protected label: HTMLElement;
-	protected badge: HTMLElement;
-	protected options: IActivityActionViewItemOptions;
+	protected container!: HTMLElement;
+	protected label!: HTMLElement;
+	protected badge!: HTMLElement;
+	protected options!: IActivityActionViewItemOptions;
 
-	private badgeContent: HTMLElement;
-	private badgeDisposable: IDisposable = Disposable.None;
+	private badgeContent: HTMLElement | undefined;
+	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private mouseUpTimeout: any;
 
 	constructor(
@@ -236,8 +236,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		const badge = action.getBadge();
 		const clazz = action.getClass();
 
-		this.badgeDisposable.dispose();
-		this.badgeDisposable = Disposable.None;
+		this.badgeDisposable.clear();
 
 		dom.clearNode(this.badgeContent);
 		dom.hide(this.badge);
@@ -280,7 +279,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 			if (clazz) {
 				dom.addClasses(this.badge, clazz);
-				this.badgeDisposable = toDisposable(() => dom.removeClasses(this.badge, clazz));
+				this.badgeDisposable.value = toDisposable(() => dom.removeClasses(this.badge, clazz));
 			}
 		}
 
@@ -348,7 +347,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
-	private actions: Action[];
+	private actions: Action[] | undefined;
 
 	constructor(
 		action: ActivityAction,
@@ -372,8 +371,8 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element!,
-			getActions: () => this.actions,
-			onHide: () => dispose(this.actions)
+			getActions: () => this.actions!,
+			onHide: () => dispose(this.actions!)
 		});
 	}
 
@@ -403,7 +402,9 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	dispose(): void {
 		super.dispose();
 
-		this.actions = dispose(this.actions);
+		if (this.actions) {
+			this.actions = dispose(this.actions);
+		}
 	}
 }
 
@@ -432,7 +433,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 
-	private compositeActivity: IActivity | null;
+	private compositeActivity: IActivity | undefined;
 	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
 
 	constructor(
@@ -455,7 +456,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = null; this.updateActivity(); }, this));
+		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = undefined; this.updateActivity(); }, this));
 	}
 
 	protected get activity(): IActivity {
@@ -549,11 +550,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}));
 
 		// Activate on drag over to reveal targets
-		[this.badge, this.label].forEach(b => new DelayedDragHandler(b, () => {
+		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
 			if (!this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) && !this.getAction().checked) {
 				this.getAction().run();
 			}
-		}));
+		})));
 
 		this.updateStyles();
 	}

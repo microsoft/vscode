@@ -55,12 +55,12 @@ suite('SearchResult', () => {
 	test('File Match', function () {
 		let fileMatch = aFileMatch('folder/file.txt');
 		assert.equal(fileMatch.matches(), 0);
-		assert.equal(fileMatch.resource().toString(), 'file:///folder/file.txt');
+		assert.equal(fileMatch.resource.toString(), 'file:///folder/file.txt');
 		assert.equal(fileMatch.name(), 'file.txt');
 
 		fileMatch = aFileMatch('file.txt');
 		assert.equal(fileMatch.matches(), 0);
-		assert.equal(fileMatch.resource().toString(), 'file:///file.txt');
+		assert.equal(fileMatch.resource.toString(), 'file:///file.txt');
 		assert.equal(fileMatch.name(), 'file.txt');
 	});
 
@@ -156,7 +156,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.equal(1, actual.length);
-		assert.equal('file://c:/', actual[0].resource().toString());
+		assert.equal('file://c:/', actual[0].resource.toString());
 
 		const actuaMatches = actual[0].matches();
 		assert.equal(3, actuaMatches.length);
@@ -186,7 +186,7 @@ suite('SearchResult', () => {
 
 		const actual = testObject.matches();
 		assert.equal(2, actual.length);
-		assert.equal('file://c:/1', actual[0].resource().toString());
+		assert.equal('file://c:/1', actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
 		assert.equal(2, actuaMatches.length);
@@ -228,13 +228,30 @@ suite('SearchResult', () => {
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
-		const objectRoRemove = testObject.matches()[0];
+		const objectToRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
-		testObject.remove(objectRoRemove);
+		testObject.remove(objectToRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
+		assert.deepEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+	});
+
+	test('remove array triggers change event', function () {
+		const target = sinon.spy();
+		const testObject = aSearchResult();
+		testObject.add([
+			aRawMatch('file://c:/1',
+				new TextSearchMatch('preview 1', lineOneRange)),
+			aRawMatch('file://c:/2',
+				new TextSearchMatch('preview 2', lineOneRange))]);
+		const arrayToRemove = testObject.matches();
+		testObject.onChange(target);
+
+		testObject.remove(arrayToRemove);
+
+		assert.ok(target.calledOnce);
+		assert.deepEqual([{ elements: arrayToRemove, removed: true }], target.args[0]);
 	});
 
 	test('remove triggers change event', function () {
@@ -243,13 +260,13 @@ suite('SearchResult', () => {
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
-		const objectRoRemove = testObject.matches()[0];
+		const objectToRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
-		testObject.remove(objectRoRemove);
+		testObject.remove(objectToRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
+		assert.deepEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
 	});
 
 	test('Removing all line matches and adding back will add file back to result', function () {
@@ -290,13 +307,13 @@ suite('SearchResult', () => {
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		testObject.onChange(target);
-		const objectRoRemove = testObject.matches()[0];
+		const objectToRemove = testObject.matches()[0];
 
-		testObject.replace(objectRoRemove);
+		testObject.replace(objectToRemove);
 
 		return voidPromise.then(() => {
 			assert.ok(target.calledOnce);
-			assert.deepEqual([{ elements: [objectRoRemove], removed: true }], target.args[0]);
+			assert.deepEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
 		});
 	});
 

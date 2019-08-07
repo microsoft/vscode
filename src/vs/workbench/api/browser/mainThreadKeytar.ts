@@ -5,27 +5,19 @@
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadKeytarShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-
-interface IKeytarModule {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-}
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 @extHostNamedCustomer(MainContext.MainThreadKeytar)
 export class MainThreadKeytar implements MainThreadKeytarShape {
 
-	private _keytar: IKeytarModule | null;
+	private readonly _credentialsService?: ICredentialsService;
 
 	constructor(
-		extHostContext: IExtHostContext
+		_extHostContext: IExtHostContext,
+		@optional(ICredentialsService) credentialsService: ICredentialsService,
 	) {
-		try {
-			this._keytar = <IKeytarModule>require.__$__nodeRequire('keytar');
-		} catch (e) {
-			this._keytar = null;
-		}
+		this._credentialsService = credentialsService;
 	}
 
 	dispose(): void {
@@ -33,28 +25,28 @@ export class MainThreadKeytar implements MainThreadKeytarShape {
 	}
 
 	async $getPassword(service: string, account: string): Promise<string | null> {
-		if (this._keytar) {
-			return this._keytar.getPassword(service, account);
+		if (this._credentialsService) {
+			return this._credentialsService.getPassword(service, account);
 		}
 		return null;
 	}
 
 	async $setPassword(service: string, account: string, password: string): Promise<void> {
-		if (this._keytar) {
-			return this._keytar.setPassword(service, account, password);
+		if (this._credentialsService) {
+			return this._credentialsService.setPassword(service, account, password);
 		}
 	}
 
 	async $deletePassword(service: string, account: string): Promise<boolean> {
-		if (this._keytar) {
-			return this._keytar.deletePassword(service, account);
+		if (this._credentialsService) {
+			return this._credentialsService.deletePassword(service, account);
 		}
 		return false;
 	}
 
 	async $findPassword(service: string): Promise<string | null> {
-		if (this._keytar) {
-			return this._keytar.findPassword(service);
+		if (this._credentialsService) {
+			return this._credentialsService.findPassword(service);
 		}
 		return null;
 	}

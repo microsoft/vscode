@@ -8,17 +8,18 @@ import 'vs/css!./selectBox';
 import { Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
-import { deepClone, mixin } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
-export interface ISelectBoxDelegate {
+export interface ISelectBoxDelegate extends IDisposable {
 
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;
@@ -27,7 +28,6 @@ export interface ISelectBoxDelegate {
 	setAriaLabel(label: string): void;
 	focus(): void;
 	blur(): void;
-	dispose(): void;
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;
@@ -72,13 +72,10 @@ export interface ISelectData {
 }
 
 export class SelectBox extends Widget implements ISelectBoxDelegate {
-	private styles: ISelectBoxStyles;
 	private selectBoxDelegate: ISelectBoxDelegate;
 
 	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
 		super();
-
-		mixin(this.styles, defaultStyles, false);
 
 		// Default to native SelectBox for OSX unless overridden
 		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.useCustomDrawn)) {

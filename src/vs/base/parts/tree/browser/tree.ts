@@ -231,7 +231,7 @@ export interface IDataSource {
 	 *
 	 * You should not attempt to "move" an element to a different
 	 * parent by keeping its ID. The idea here is to have tree location
-	 * related IDs (eg. full file path, in the Explorer example).
+	 * related IDs (e.g. full file path, in the Explorer example).
 	 */
 	getId(tree: ITree, element: any): string;
 
@@ -576,7 +576,7 @@ export interface IActionProvider {
 	hasActions(tree: ITree | null, element: any): boolean;
 
 	/**
-	 * Returns a promise of an array with the actions of the element that should show up in place right to the element in the tree.
+	 * Returns an array with the actions of the element that should show up in place right to the element in the tree.
 	 */
-	getActions(tree: ITree | null, element: any): IAction[] | null;
+	getActions(tree: ITree | null, element: any): ReadonlyArray<IAction> | null;
 }

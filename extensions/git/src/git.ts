@@ -11,10 +11,14 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
-import { CancellationToken, Uri, workspace } from 'vscode';
+import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
+import { CancellationToken } from 'vscode';
+import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+
+// https://github.com/microsoft/vscode/issues/65693
+const MAX_CLI_LENGTH = 30000;
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -328,8 +332,8 @@ export class Git {
 		this.env = options.env || {};
 	}
 
-	open(repository: string): Repository {
-		return new Repository(this, repository);
+	open(repository: string, dotGit: string): Repository {
+		return new Repository(this, repository, dotGit);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -338,7 +342,7 @@ export class Git {
 	}
 
 	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
-		let baseFolderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(parentPath, folderName);
 		let count = 1;
@@ -367,6 +371,17 @@ export class Git {
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
 		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
 		return path.normalize(result.stdout.trim());
+	}
+
+	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
+		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir']);
+		let dotGitPath = result.stdout.trim();
+
+		if (!path.isAbsolute(dotGitPath)) {
+			dotGitPath = path.join(repositoryPath, dotGitPath);
+		}
+
+		return path.normalize(dotGitPath);
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -557,7 +572,7 @@ export function parseGitmodules(raw: string): Submodule[] {
 			return;
 		}
 
-		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+		const propertyMatch = /^\s*(\w+)\s+=\s+(.*)$/.exec(line);
 
 		if (!propertyMatch) {
 			return;
@@ -636,6 +651,8 @@ export interface CommitOptions {
 
 export interface PullOptions {
 	unshallow?: boolean;
+	tags?: boolean;
+	readonly cancellationToken?: CancellationToken;
 }
 
 export enum ForcePushMode {
@@ -647,7 +664,8 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repositoryRoot: string
+		private repositoryRoot: string,
+		readonly dotGit: string
 	) { }
 
 	get git(): Git {
@@ -995,7 +1013,7 @@ export class Repository {
 				break;
 			}
 
-			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
+			const originalUri = URI.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
 			let status: Status = Status.UNTRACKED;
 
 			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
@@ -1023,7 +1041,7 @@ export class Repository {
 						break;
 					}
 
-					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
+					const uri = URI.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
 					result.push({
 						uri,
 						renameUri: uri,
@@ -1124,13 +1142,14 @@ export class Repository {
 			args.push(treeish);
 		}
 
-		if (paths && paths.length) {
-			args.push('--');
-			args.push.apply(args, paths);
-		}
-
 		try {
-			await this.run(args);
+			if (paths && paths.length > 0) {
+				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+					await this.run([...args, '--', ...chunk]);
+				}
+			} else {
+				await this.run(args);
+			}
 		} catch (err) {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
@@ -1261,11 +1280,17 @@ export class Repository {
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
-		const tasks = groups.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)));
 
-		for (let task of tasks) {
-			await task();
+		const limiter = new Limiter(5);
+		const promises: Promise<any>[] = [];
+
+		for (const paths of groups) {
+			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				promises.push(limiter.queue(() => this.run(['clean', '-f', '-q', '--', ...chunk])));
+			}
 		}
+
+		await Promise.all(promises);
 	}
 
 	async undo(): Promise<void> {
@@ -1363,9 +1388,8 @@ export class Repository {
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
 		const args = ['pull'];
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
 
-		if (config.get<boolean>('pullTags')) {
+		if (options.tags) {
 			args.push('--tags');
 		}
 
@@ -1383,7 +1407,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args);
+			await this.run(args, options);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -1418,7 +1442,7 @@ export class Repository {
 		}
 
 		if (tags) {
-			args.push('--tags');
+			args.push('--follow-tags');
 		}
 
 		if (remote) {
@@ -1656,13 +1680,16 @@ export class Repository {
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
-		} else if (/^@/.test(name)) {
-			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
-			const symbolicFullName = symbolicFullNameResult.stdout.trim();
-			name = symbolicFullName || name;
 		}
 
-		const result = await this.run(['rev-parse', name]);
+		let result = await this.run(['rev-parse', name]);
+
+		if (!result.stdout && /^@/.test(name)) {
+			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
+			name = symbolicFullNameResult.stdout.trim();
+
+			result = await this.run(['rev-parse', name]);
+		}
 
 		if (!result.stdout) {
 			return Promise.reject<Branch>(new Error('No such branch'));
@@ -1732,8 +1759,11 @@ export class Repository {
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
-		const args = ['submodule', 'update', '--', ...paths];
-		await this.run(args);
+		const args = ['submodule', 'update', '--'];
+
+		for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			await this.run([...args, ...chunk]);
+		}
 	}
 
 	async getSubmodules(): Promise<Submodule[]> {

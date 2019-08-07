@@ -80,7 +80,7 @@ suite('EditorGroupsService', () => {
 		}
 
 		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testEditorInputForGroupsService', TestEditorInputFactory);
-		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForGroupsService', 'My Test File Editor'), new SyncDescriptor(TestEditorInput));
+		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForGroupsService', 'My Test File Editor'), [new SyncDescriptor(TestEditorInput)]);
 	}
 
 	registerTestEditorInput();
@@ -118,11 +118,6 @@ suite('EditorGroupsService', () => {
 			groupMovedCounter++;
 		});
 
-		let preferredSizeChangeCounter = 0;
-		const preferredSizeChangeListener = part.onDidPreferredSizeChange(() => {
-			preferredSizeChangeCounter++;
-		});
-
 		// always a root group
 		const rootGroup = part.groups[0];
 		assert.equal(part.groups.length, 1);
@@ -141,7 +136,6 @@ suite('EditorGroupsService', () => {
 		assert.equal(part.groups.length, 2);
 		assert.equal(part.count, 2);
 		assert.ok(part.activeGroup === rootGroup);
-		assert.equal(preferredSizeChangeCounter, 1);
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(rightGroup.label, 'Group 2');
 
@@ -189,7 +183,6 @@ suite('EditorGroupsService', () => {
 		assert.equal(part.groups.length, 3);
 		assert.ok(part.activeGroup === rightGroup);
 		assert.ok(!downGroup.activeControl);
-		assert.equal(preferredSizeChangeCounter, 2);
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(rightGroup.label, 'Group 2');
 		assert.equal(downGroup.label, 'Group 3');
@@ -208,13 +201,11 @@ suite('EditorGroupsService', () => {
 
 		part.moveGroup(downGroup, rightGroup, GroupDirection.DOWN);
 		assert.equal(groupMovedCounter, 1);
-		assert.equal(preferredSizeChangeCounter, 2);
 
 		part.removeGroup(downGroup);
 		assert.ok(!part.getGroup(downGroup.id));
 		assert.equal(didDispose, true);
 		assert.equal(groupRemovedCounter, 1);
-		assert.equal(preferredSizeChangeCounter, 3);
 		assert.equal(part.groups.length, 2);
 		assert.ok(part.activeGroup === rightGroup);
 		assert.equal(rootGroup.label, 'Group 1');
@@ -254,13 +245,11 @@ suite('EditorGroupsService', () => {
 		assert.ok(part.activeGroup === rootGroup);
 
 		part.setGroupOrientation(part.orientation === GroupOrientation.HORIZONTAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL);
-		assert.equal(preferredSizeChangeCounter, 5);
 
 		activeGroupChangeListener.dispose();
 		groupAddedListener.dispose();
 		groupRemovedListener.dispose();
 		groupMovedListener.dispose();
-		preferredSizeChangeListener.dispose();
 
 		part.dispose();
 	});

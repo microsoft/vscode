@@ -66,7 +66,7 @@
 	content: ' ';
 	position: absolute;
 	display: block;
-	background: url('collapsed.svg') 50% 50% no-repeat;
+	background: url('tree-collapsed-light.svg') 50% 50% no-repeat;
 	width: 16px;
 	height: 100%;
 	top: 0;
@@ -74,7 +74,7 @@
 }
 
 .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.expanded > .content:before {
-	background-image: url('expanded.svg');
+	background-image: url('tree-expanded-light.svg');
 }
 
 .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
@@ -88,11 +88,11 @@
 }
 
 .vs-dark .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.has-children > .content:before {
-	background-image: url('collapsed-dark.svg');
+	background-image: url('tree-collapsed-dark.svg');
 }
 
 .vs-dark .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.expanded > .content:before {
-	background-image: url('expanded-dark.svg');
+	background-image: url('tree-expanded-dark.svg');
 }
 
 .vs-dark .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
@@ -100,11 +100,11 @@
 }
 
 .hc-black .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.has-children > .content:before	{
-	background-image: url('collapsed-hc.svg');
+	background-image: url('tree-collapsed-hc.svg');
 }
 
 .hc-black .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.expanded > .content:before {
-	background-image: url('expanded-hc.svg');
+	background-image: url('tree-expanded-hc.svg');
 }
 
 .hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
@@ -112,10 +112,13 @@
 }
 
 .monaco-tree-action.collapse-all {
-	background: url('CollapseAll.svg') center center no-repeat;
+	background: url('collapse-all-light.svg') center center no-repeat;
 }
 
-.hc-black .monaco-tree-action.collapse-all,
 .vs-dark .monaco-tree-action.collapse-all {
-	background: url('CollapseAll_inverse.svg') center center no-repeat;
+	background: url('collapse-all-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-tree-action.collapse-all {
+	background: url('collapse-all-hc.svg') center center no-repeat;
 }

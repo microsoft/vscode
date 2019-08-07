@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
-export class CommitCharacterController extends Disposable {
+export class CommitCharacterController {
+
+	private readonly _disposables = new DisposableStore();
 
 	private _active?: {
 		readonly acceptCharacters: CharacterSet;
@@ -17,13 +19,12 @@ export class CommitCharacterController extends Disposable {
 	};
 
 	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
-		super();
 
-		this._register(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
-		this._register(widget.onDidFocus(this._onItem, this));
-		this._register(widget.onDidHide(this.reset, this));
+		this._disposables.add(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
+		this._disposables.add(widget.onDidFocus(this._onItem, this));
+		this._disposables.add(widget.onDidHide(this.reset, this));
 
-		this._register(editor.onWillType(text => {
+		this._disposables.add(editor.onWillType(text => {
 			if (this._active) {
 				const ch = text.charCodeAt(text.length - 1);
 				if (this._active.acceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
@@ -35,10 +36,17 @@ export class CommitCharacterController extends Disposable {
 
 	private _onItem(selected: ISelectedSuggestion | undefined): void {
 		if (!selected || !isNonEmptyArray(selected.item.completion.commitCharacters)) {
+			// no item or no commit characters
 			this.reset();
 			return;
 		}
 
+		if (this._active && this._active.item.item === selected.item) {
+			// still the same item
+			return;
+		}
+
+		// keep item and its commit characters
 		const acceptCharacters = new CharacterSet();
 		for (const ch of selected.item.completion.commitCharacters) {
 			if (ch.length > 0) {
@@ -50,5 +58,9 @@ export class CommitCharacterController extends Disposable {
 
 	reset(): void {
 		this._active = undefined;
+	}
+
+	dispose() {
+		this._disposables.dispose();
 	}
 }

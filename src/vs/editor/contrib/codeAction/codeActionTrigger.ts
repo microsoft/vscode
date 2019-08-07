@@ -5,6 +5,7 @@
 
 import { startsWith } from 'vs/base/common/strings';
 import { CodeAction } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -90,4 +91,8 @@ export interface CodeActionTrigger {
 	readonly type: 'auto' | 'manual';
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
+	readonly context?: {
+		readonly notAvailableMessage: string;
+		readonly position: Position;
+	};
 }

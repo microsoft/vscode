@@ -4,7 +4,8 @@
   "description": "",
   "author": "Microsoft ",
   "private": true,
+  "license": "MIT",
   "devDependencies": {
-    "gulp-watch": "^4.3.9"
+    "gulp-watch": "5.0.1"
   }
 }

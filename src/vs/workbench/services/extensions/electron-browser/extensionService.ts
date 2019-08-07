@@ -7,18 +7,18 @@ import { ipcRenderer as ipc } from 'electron';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { runWhenIdle } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,12 +26,12 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 
@@ -166,13 +166,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
-			if (extension.location.scheme !== Schemas.file) {
-				continue;
-			}
-
-			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
-			if (existingExtensionDescription) {
-				// this extension is already running (most likely at a different version)
+			if (!this._canAddExtension(extension)) {
 				continue;
 			}
 
@@ -208,10 +202,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// Update the local registry
 		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		this._onDidChangeExtensions.fire(undefined);
+
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}
+
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(toAdd);
 
 		// Update extension points
 		this._rehandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -220,8 +219,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		if (this._extensionHostProcessManagers.length > 0) {
 			await this._extensionHostProcessManagers[0].deltaExtensions(toAdd, toRemove.map(e => e.identifier));
 		}
-
-		this._onDidChangeExtensions.fire(undefined);
 
 		for (let i = 0; i < toAdd.length; i++) {
 			this._activateAddedExtensionIfNeeded(toAdd[i]);
@@ -232,21 +229,28 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._doHandleExtensionPoints(extensionDescriptions);
 	}
 
-	public canAddExtension(extension: IExtensionDescription): boolean {
+	public canAddExtension(extensionDescription: IExtensionDescription): boolean {
+		return this._canAddExtension(toExtension(extensionDescription));
+	}
+
+	public _canAddExtension(extension: IExtension): boolean {
 		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
 		}
 
-		if (extension.extensionLocation.scheme !== Schemas.file) {
+		if (extension.location.scheme !== Schemas.file) {
 			return false;
 		}
 
-		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+		const extensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
 		if (extensionDescription) {
-			// ignore adding an extension which is already running and cannot be removed
-			if (!this._canRemoveExtension(extensionDescription)) {
-				return false;
-			}
+			// this extension is already running (most likely at a different version)
+			return false;
+		}
+
+		// Check if extension is renamed
+		if (extension.identifier.uuid && this._registry.getAllExtensionDescriptions().some(e => e.uuid === extension.identifier.uuid)) {
+			return false;
 		}
 
 		return true;
@@ -290,7 +294,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
 				}
 
-				if (this._allRequestedActivateEvents[activationEvent]) {
+				if (this._allRequestedActivateEvents.has(activationEvent)) {
 					// This activation event was fired before the extension was added
 					shouldActivate = true;
 					shouldActivateReason = activationEvent;
@@ -337,7 +341,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let extensions: Promise<IExtensionDescription[]>;
 		if (isInitialStart) {
 			autoStart = false;
-			extensions = this._extensionScanner.scannedExtensions;
+			extensions = this._extensionScanner.scannedExtensions.then(extensions => extensions.filter(extension => this._isEnabled(extension))); // remove disabled extensions
 		} else {
 			// restart case
 			autoStart = true;
@@ -351,7 +355,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), nodeWebSocketFactory);
+			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
 			result.push(remoteExtHostProcessManager);
 		}
@@ -414,8 +418,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const extensionHost = this._extensionHostProcessManagers[0];
 		this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
 		try {
-			const resolvedAuthority = await extensionHost.resolveAuthority(remoteAuthority);
-			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority);
+			const result = await extensionHost.resolveAuthority(remoteAuthority);
+			this._remoteAuthorityResolverService.setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
 			this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 		}
@@ -436,7 +440,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		localExtensions = localExtensions.filter(extension => this._isEnabled(extension));
 
 		if (remoteAuthority) {
-			let resolvedAuthority: ResolvedAuthority;
+			let resolvedAuthority: ResolverResult;
 
 			try {
 				resolvedAuthority = await extensionHost.resolveAuthority(remoteAuthority);
@@ -458,7 +462,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			// set the resolved authority
-			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority);
+			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
 
 			// monitor for breakage
 			const connection = this._remoteAgentService.getConnection();
@@ -468,7 +472,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					if (!remoteAuthority) {
 						return;
 					}
-					if (e.type === PersistenConnectionEventType.ConnectionLost) {
+					if (e.type === PersistentConnectionEventType.ConnectionLost) {
 						this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
 					}
 				});
