@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/screencast';
+
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
@@ -110,19 +112,7 @@ export class ToggleScreencastModeAction extends Action {
 
 		const container = this.layoutService.getWorkbenchElement();
 
-		const mouseMarker = append(container, $('div'));
-		mouseMarker.style.position = 'absolute';
-		mouseMarker.style.border = '2px solid red';
-		mouseMarker.style.borderRadius = '20px';
-		mouseMarker.style.width = '20px';
-		mouseMarker.style.height = '20px';
-		mouseMarker.style.top = '0';
-		mouseMarker.style.left = '0';
-		mouseMarker.style.zIndex = '100000';
-		mouseMarker.style.content = ' ';
-		mouseMarker.style.pointerEvents = 'none';
-		mouseMarker.style.display = 'none';
-
+		const mouseMarker = append(container, $('.screencast-mouse'));
 		const onMouseDown = domEvent(container, 'mousedown', true);
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
@@ -143,23 +133,10 @@ export class ToggleScreencastModeAction extends Action {
 			});
 		});
 
-		const keyboardMarker = append(container, $('div'));
-		keyboardMarker.style.position = 'absolute';
-		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
-		keyboardMarker.style.width = '100%';
-		keyboardMarker.style.height = '100px';
-		keyboardMarker.style.bottom = '20%';
-		keyboardMarker.style.left = '0';
-		keyboardMarker.style.zIndex = '100000';
-		keyboardMarker.style.pointerEvents = 'none';
-		keyboardMarker.style.color = 'white';
-		keyboardMarker.style.lineHeight = '100px';
-		keyboardMarker.style.textAlign = 'center';
-		keyboardMarker.style.fontSize = '56px';
-		keyboardMarker.style.display = 'none';
-
+		const keyboardMarker = append(container, $('.screencast-keyboard'));
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let length = 0;
 
 		const keyboardListener = onKeyDown(e => {
 			keyboardTimeout.dispose();
@@ -168,20 +145,21 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
-				keyboardMarker.textContent = label;
+			if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || length > 20) {
+				keyboardMarker.innerHTML = '';
+				length = 0;
 			}
 
-			keyboardMarker.style.display = 'block';
+			const key = $('span.key', {}, label || '');
+			length++;
+			append(keyboardMarker, key);
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
-				keyboardMarker.style.display = 'none';
+				length = 0;
 			});
 		});
 
