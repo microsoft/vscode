@@ -1046,6 +1046,13 @@ declare module 'vscode' {
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
+
+	export interface TreeViewOptions2<T> extends TreeViewOptions<T> {
+		/**
+		 * Whether the tree supports multi-select.
+		 */
+		canSelectMany?: boolean;
+	}
 	//#endregion
 
 	//#region CustomExecution
