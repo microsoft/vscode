@@ -157,23 +157,30 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
 		keyboardMarker.style.display = 'none';
+		keyboardMarker.style.overflow = 'hidden';
 
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let length = 0;
 
 		const keyboardListener = onKeyDown(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-			const label = keybinding.getLabel();
+			let label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
-				keyboardMarker.textContent = label;
+			if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || length > 20) {
+				keyboardMarker.textContent = '';
+				length = 0;
 			}
 
+			if (!this.keybindingService.mightProducePrintableCharacter(event) && label) {
+				label = ` ${label.replace(/\+$/, '')} `;
+			}
+
+			length++;
+			keyboardMarker.textContent! += label;
 			keyboardMarker.style.display = 'block';
 
 			const promise = timeout(800);
@@ -181,6 +188,7 @@ export class ToggleScreencastModeAction extends Action {
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
+				length = 0;
 				keyboardMarker.style.display = 'none';
 			});
 		});
