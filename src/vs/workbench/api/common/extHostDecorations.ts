@@ -11,7 +11,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { asArray } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
@@ -27,9 +27,9 @@ export class ExtHostDecorations implements IExtHostDecorations {
 	private readonly _proxy: MainThreadDecorationsShape;
 
 	constructor(
-		@IExtHostContextService contextService: IExtHostContextService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 	) {
-		this._proxy = contextService.rpc.getProxy(MainContext.MainThreadDecorations);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
 	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {

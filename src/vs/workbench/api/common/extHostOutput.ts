@@ -10,7 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
@@ -143,8 +143,8 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	protected readonly _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
 	protected readonly _visibleChannelDisposable = new MutableDisposable();
 
-	constructor(@IExtHostContextService extHostContext: IExtHostContextService) {
-		this._proxy = extHostContext.rpc.getProxy(MainContext.MainThreadOutputService);
+	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
 	}
 
 	$setVisibleChannel(channelId: string): void {

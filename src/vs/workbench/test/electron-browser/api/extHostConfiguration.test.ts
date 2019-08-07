@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadConfigurationShape, IConfigurationInitData, IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -15,6 +15,7 @@ import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/
 import { ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assign } from 'vs/base/common/objects';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 suite('ExtHostConfiguration', function () {
 
@@ -27,11 +28,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace({
-			_serviceBrand: undefined,
-			rpc: new TestRPCProtocol(),
-			initData: new class extends mock<IInitData>() { }
-		}, new NullLogService());
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new NullLogService());
 	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {

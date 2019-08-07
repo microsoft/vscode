@@ -11,7 +11,8 @@ import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender
 import { toLocalISOString } from 'vs/base/common/date';
 import { dirExists, mkdirp } from 'vs/base/node/pfs';
 import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
@@ -49,9 +50,12 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 	private _logsLocation: URI;
 	private _namePool: number = 1;
 
-	constructor(@IExtHostContextService extHostContext: IExtHostContextService) {
-		super(extHostContext);
-		this._logsLocation = extHostContext.initData.logsLocation;
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+	) {
+		super(extHostRpc);
+		this._logsLocation = initData.logsLocation;
 	}
 
 	createOutputChannel(name: string): vscode.OutputChannel {

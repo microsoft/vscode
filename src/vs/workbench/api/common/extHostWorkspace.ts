@@ -25,8 +25,9 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Barrier } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -173,16 +174,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
-		@IExtHostContextService extHostContext: IExtHostContextService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@ILogService logService: ILogService,
 	) {
 		this._logService = logService;
 		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
-		this._proxy = extHostContext.rpc.getProxy(MainContext.MainThreadWorkspace);
-		this._messageService = extHostContext.rpc.getProxy(MainContext.MainThreadMessageService);
-		const data = extHostContext.initData.workspace;
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWorkspace);
+		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
+		const data = initData.workspace;
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled) : undefined;
 	}
 

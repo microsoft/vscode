@@ -15,7 +15,7 @@ import { win32 } from 'vs/base/node/processes';
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { ExtHostWorkspace, IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
+import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
@@ -25,8 +25,8 @@ import {
 	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../common/shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -354,11 +354,11 @@ interface HandlerData {
 
 export class ExtHostTask implements ExtHostTaskShape {
 
-	private _proxy: MainThreadTaskShape;
-	private _workspaceProvider: IExtHostWorkspaceProvider;
-	private _editorService: ExtHostDocumentsAndEditors;
-	private _configurationService: ExtHostConfiguration;
-	private _terminalService: IExtHostTerminalService;
+	private readonly _proxy: MainThreadTaskShape;
+	private readonly _workspaceProvider: IExtHostWorkspaceProvider;
+	private readonly _editorService: IExtHostDocumentsAndEditors;
+	private readonly _configurationService: IExtHostConfiguration;
+	private readonly _terminalService: IExtHostTerminalService;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
@@ -373,10 +373,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	constructor(
 		mainContext: IMainContext,
-		workspaceService: ExtHostWorkspace,
-		editorService: ExtHostDocumentsAndEditors,
-		configurationService: ExtHostConfiguration,
-		extHostTerminalService: IExtHostTerminalService) {
+		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
+		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
+		@IExtHostConfiguration configurationService: IExtHostConfiguration,
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;

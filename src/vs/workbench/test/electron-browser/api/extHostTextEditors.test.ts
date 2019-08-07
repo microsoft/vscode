@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto, IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
-import { ExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 
@@ -29,8 +28,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 				return Promise.resolve(true);
 			}
 		});
-		const extHostContext = new ExtHostContextService(SingleProxyRPCProtocol(null), new class extends mock<IInitData>() { });
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(extHostContext);
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,

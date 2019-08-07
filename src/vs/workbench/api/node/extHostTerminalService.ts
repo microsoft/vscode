@@ -23,8 +23,8 @@ import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/work
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 export class BaseExtHostTerminal {
 	public _id: number | undefined;
@@ -228,13 +228,13 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
-		@IExtHostContextService extHostContext: IExtHostContextService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostConfiguration private _extHostConfiguration: ExtHostConfiguration,
 		@IExtHostWorkspace private _extHostWorkspace: ExtHostWorkspace,
 		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		@ILogService private _logService: ILogService
 	) {
-		this._proxy = extHostContext.rpc.getProxy(MainContext.MainThreadTerminalService);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()

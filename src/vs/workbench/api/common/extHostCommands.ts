@@ -19,8 +19,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 interface CommandHandler {
 	callback: Function;
@@ -46,10 +46,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	constructor(
-		@IExtHostContextService extHostContext: IExtHostContextService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService logService: ILogService
 	) {
-		this._proxy = extHostContext.rpc.getProxy(MainContext.MainThreadCommands);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._onDidExecuteCommand = new Emitter<vscode.CommandExecutionEvent>({
 			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
 			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),

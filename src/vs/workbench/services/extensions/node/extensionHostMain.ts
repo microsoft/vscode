@@ -17,9 +17,10 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IExtHostContextService, ExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -68,10 +69,11 @@ export class ExtensionHostMain {
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostContextService, new ExtHostContextService(rpcProtocol, initData));
+		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
+		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
 		services.set(ILogService, extHostLogService);
 
-		const instaService: IInstantiationService = new InstantiationService(services);
+		const instaService: IInstantiationService = new InstantiationService(services, true);
 
 		extHostLogService.info('extension host started');
 		extHostLogService.trace('initData', initData);
@@ -79,7 +81,8 @@ export class ExtensionHostMain {
 		this._extensionService = instaService.createInstance(
 			ExtHostExtensionService,
 			hostUtils,
-			uriTransformer
+			uriTransformer,
+			rpcProtocol
 		);
 
 		// error forwarding and stack trace scanning

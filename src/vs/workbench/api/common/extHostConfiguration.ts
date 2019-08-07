@@ -18,8 +18,8 @@ import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/confi
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -50,10 +50,10 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private _actual: ExtHostConfigProvider | null;
 
 	constructor(
-		@IExtHostContextService extHostContext: IExtHostContextService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace
 	) {
-		this._proxy = extHostContext.rpc.getProxy(MainContext.MainThreadConfiguration);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadConfiguration);
 		this._extHostWorkspace = extHostWorkspace;
 		this._barrier = new Barrier();
 		this._actual = null;

@@ -6,24 +6,14 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
 	let editors: ExtHostDocumentsAndEditors;
 
 	setup(function () {
-
-		editors = new ExtHostDocumentsAndEditors({
-			_serviceBrand: undefined,
-			rpc: {
-				getProxy: () => { return undefined!; },
-				set: undefined!,
-				assertRegistered: undefined!
-			},
-			initData: new class extends mock<IInitData>() { }
-		});
+		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol());
 	});
 
 	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {

@@ -21,7 +21,7 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { MainContext, ExtHostContext, IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,8 +30,6 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -95,9 +93,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			inst = instantiationService;
 		}
 
-		const extHostContext = new ExtHostContextService(rpcProtocol, new class extends mock<IInitData>() { });
-
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(extHostContext);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -111,7 +107,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		commands = new ExtHostCommands(extHostContext, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
@@ -185,7 +181,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query): vscode.SymbolInformation[] {
+			provideWorkspaceSymbols(): vscode.SymbolInformation[] {
 				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
@@ -316,7 +312,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('reference search, back and forth', function () {
 
 		disposables.push(extHost.registerReferenceProvider(nullExtensionDescription, defaultSelector, <vscode.ReferenceProvider>{
-			provideReferences(doc: any) {
+			provideReferences() {
 				return [
 					new types.Location(URI.parse('some:uri/path'), new types.Range(0, 1, 0, 5))
 				];
@@ -392,7 +388,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(doc, pos): any {
+			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
@@ -728,7 +724,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			},
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+			provideColorPresentations(): vscode.ColorPresentation[] {
 				const cp = new types.ColorPresentation('#ABC');
 				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
 				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];

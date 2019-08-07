@@ -12,8 +12,8 @@ import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -37,7 +37,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		@IExtHostContextService private readonly _ctx: IExtHostContextService,
+		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
 	) { }
 
 	dispose() {
@@ -68,7 +68,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				assert.ok(!this._documents.has(resource.toString()), `document '${resource} already exists!'`);
 
 				const documentData = new ExtHostDocumentData(
-					this._ctx.rpc.getProxy(MainContext.MainThreadDocuments),
+					this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
 					resource,
 					data.lines,
 					data.EOL,
@@ -99,7 +99,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 				const documentData = this._documents.get(resource.toString())!;
 				const editor = new ExtHostTextEditor(
-					this._ctx.rpc.getProxy(MainContext.MainThreadTextEditors),
+					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.Selection.to),

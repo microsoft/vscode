@@ -35,7 +35,7 @@ import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/work
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostContextService } from 'vs/workbench/api/common/extHostContextService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -99,15 +99,16 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	constructor(
 		hostUtils: IHostUtils,
 		uriTransformer: IURITransformer | null,
+		extHostContext: IMainContext,
 		@IInstantiationService instaService: IInstantiationService,
-		@IExtHostContextService extHostContext: IExtHostContextService,
 		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
 		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
 		@ILogService extHostLogService: ExtHostLogService,
+		@IExtHostInitDataService initData: IExtHostInitDataService
 	) {
 		this._hostUtils = hostUtils;
-		this._initData = extHostContext.initData;
-		this._extHostContext = extHostContext.rpc;
+		this._extHostContext = extHostContext;
+		this._initData = initData;
 		this._instaService = instaService;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
