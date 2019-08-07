@@ -136,6 +136,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			let charCodeIsTab = (charCode === CharCode.Tab);
 			let charCodeClass = classifier.get(charCode);
 
+			if (strings.isLowSurrogate(charCode)/*  && i + 1 < len */) {
+				// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				// => advance visibleColumn by 1 and advance to next char code...
+				visibleColumn = visibleColumn + 1;
+				continue;
+			}
+
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
 				// This is a character that indicates that a break should happen before it
 				// Since we are certain the character before `i` fits, there's no extra checking needed,
