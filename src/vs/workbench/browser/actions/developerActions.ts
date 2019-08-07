@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/screencast';
+
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
@@ -11,6 +13,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -20,6 +23,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { clamp } from 'vs/base/common/numbers';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class InspectContextKeysAction extends Action {
 
@@ -96,7 +101,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -108,26 +114,17 @@ export class ToggleScreencastModeAction extends Action {
 			return;
 		}
 
-		const container = this.layoutService.getWorkbenchElement();
+		const disposables = new DisposableStore();
 
-		const mouseMarker = append(container, $('div'));
-		mouseMarker.style.position = 'absolute';
-		mouseMarker.style.border = '2px solid red';
-		mouseMarker.style.borderRadius = '20px';
-		mouseMarker.style.width = '20px';
-		mouseMarker.style.height = '20px';
-		mouseMarker.style.top = '0';
-		mouseMarker.style.left = '0';
-		mouseMarker.style.zIndex = '100000';
-		mouseMarker.style.content = ' ';
-		mouseMarker.style.pointerEvents = 'none';
-		mouseMarker.style.display = 'none';
+		const container = this.layoutService.getWorkbenchElement();
+		const mouseMarker = append(container, $('.screencast-mouse'));
+		disposables.add(toDisposable(() => mouseMarker.remove()));
 
 		const onMouseDown = domEvent(container, 'mousedown', true);
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
-		const mouseListener = onMouseDown(e => {
+		disposables.add(onMouseDown(e => {
 			mouseMarker.style.top = `${e.clientY - 10}px`;
 			mouseMarker.style.left = `${e.clientX - 10}px`;
 			mouseMarker.style.display = 'block';
@@ -141,56 +138,59 @@ export class ToggleScreencastModeAction extends Action {
 				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
 			});
-		});
+		}));
 
-		const keyboardMarker = append(container, $('div'));
-		keyboardMarker.style.position = 'absolute';
-		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
-		keyboardMarker.style.width = '100%';
-		keyboardMarker.style.height = '100px';
-		keyboardMarker.style.bottom = '20%';
-		keyboardMarker.style.left = '0';
-		keyboardMarker.style.zIndex = '100000';
-		keyboardMarker.style.pointerEvents = 'none';
-		keyboardMarker.style.color = 'white';
-		keyboardMarker.style.lineHeight = '100px';
-		keyboardMarker.style.textAlign = 'center';
-		keyboardMarker.style.fontSize = '56px';
-		keyboardMarker.style.display = 'none';
+		const keyboardMarker = append(container, $('.screencast-keyboard'));
+		disposables.add(toDisposable(() => keyboardMarker.remove()));
+
+		const updateKeyboardMarker = () => {
+			keyboardMarker.style.bottom = `${clamp(this.configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
+		};
+
+		updateKeyboardMarker();
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
+				updateKeyboardMarker();
+			}
+		}));
 
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let length = 0;
 
-		const keyboardListener = onKeyDown(e => {
+		disposables.add(onKeyDown(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
-			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-			const label = keybinding.getLabel();
+			const shortcut = this.keybindingService.softDispatch(event, event.target);
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
-				keyboardMarker.textContent = label;
+			if (shortcut || !this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+				if (
+					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+					|| length > 20
+					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+				) {
+					keyboardMarker.innerHTML = '';
+					length = 0;
+				}
+
+				const keybinding = this.keybindingService.resolveKeyboardEvent(event);
+				const label = keybinding.getLabel();
+				const key = $('span.key', {}, label || '');
+				length++;
+				append(keyboardMarker, key);
 			}
-
-			keyboardMarker.style.display = 'block';
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
-				keyboardMarker.style.display = 'none';
+				length = 0;
 			});
-		});
+		}));
 
-		ToggleScreencastModeAction.disposable = toDisposable(() => {
-			mouseListener.dispose();
-			keyboardListener.dispose();
-			mouseMarker.remove();
-			keyboardMarker.remove();
-		});
+		ToggleScreencastModeAction.disposable = disposables;
 	}
 }
 
