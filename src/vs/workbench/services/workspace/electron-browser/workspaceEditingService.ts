@@ -397,11 +397,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		const result = await this.windowService.enterWorkspace(path);
 		if (result) {
+
+			// Migrate storage to new workspace
 			await this.migrateStorage(result.workspace);
 
 			// Reinitialize backup service
+			this.environmentService.configuration.backupPath = result.backupPath;
+			this.environmentService.configuration.backupWorkspaceResource = result.backupPath ? toBackupWorkspaceResource(result.backupPath, this.environmentService) : undefined;
 			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.initialize(toBackupWorkspaceResource(result.backupPath!, this.environmentService));
+				this.backupFileService.reinitialize();
 			}
 		}
 
