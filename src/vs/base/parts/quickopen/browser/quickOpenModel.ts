@@ -57,7 +57,7 @@ export class QuickOpenEntry {
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights?: IHighlight[];
 	private detailHighlights?: IHighlight[];
-	private hidden: boolean;
+	private hidden: boolean | undefined;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -148,7 +148,7 @@ export class QuickOpenEntry {
 	 * Allows to reuse the same model while filtering. Hidden entries will not show up in the viewer.
 	 */
 	isHidden(): boolean {
-		return this.hidden;
+		return !!this.hidden;
 	}
 
 	/**
