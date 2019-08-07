@@ -28,8 +28,8 @@
 		"prefix": "con",
 		"body": [
 			"${1:public} function __construct(${2:${3:Type} $${4:var}${5: = ${6:null}}}) {",
-            "\t\\$this->${4:var} = $${4:var};$0",
-            "}"
+			"\t\\$this->${4:var} = $${4:var};$0",
+			"}"
 		]
 	},
 	"PHPDoc property": {
@@ -107,7 +107,7 @@
 		],
 		"description": "Do-While loop"
 	},
-		"while …": {
+	"while …": {
 		"prefix": "while",
 		"body": [
 			"while (${1:$${2:a} <= ${3:10}}) {",
