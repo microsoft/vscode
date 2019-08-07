@@ -22,6 +22,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { clamp } from 'vs/base/common/numbers';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class InspectContextKeysAction extends Action {
 
@@ -98,7 +101,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -110,14 +114,17 @@ export class ToggleScreencastModeAction extends Action {
 			return;
 		}
 
-		const container = this.layoutService.getWorkbenchElement();
+		const disposables = new DisposableStore();
 
+		const container = this.layoutService.getWorkbenchElement();
 		const mouseMarker = append(container, $('.screencast-mouse'));
+		disposables.add(toDisposable(() => mouseMarker.remove()));
+
 		const onMouseDown = domEvent(container, 'mousedown', true);
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
-		const mouseListener = onMouseDown(e => {
+		disposables.add(onMouseDown(e => {
 			mouseMarker.style.top = `${e.clientY - 10}px`;
 			mouseMarker.style.left = `${e.clientX - 10}px`;
 			mouseMarker.style.display = 'block';
@@ -131,21 +138,38 @@ export class ToggleScreencastModeAction extends Action {
 				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
 			});
-		});
+		}));
 
 		const keyboardMarker = append(container, $('.screencast-keyboard'));
+		disposables.add(toDisposable(() => keyboardMarker.remove()));
+
+		const updateKeyboardMarker = () => {
+			keyboardMarker.style.bottom = `${clamp(this.configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
+		};
+
+		updateKeyboardMarker();
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
+				updateKeyboardMarker();
+			}
+		}));
+
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
 		let length = 0;
 
-		const keyboardListener = onKeyDown(e => {
+		disposables.add(onKeyDown(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || length > 20) {
+			if (
+				event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+				|| length > 20
+				|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+			) {
 				keyboardMarker.innerHTML = '';
 				length = 0;
 			}
@@ -161,14 +185,9 @@ export class ToggleScreencastModeAction extends Action {
 				keyboardMarker.textContent = '';
 				length = 0;
 			});
-		});
+		}));
 
-		ToggleScreencastModeAction.disposable = toDisposable(() => {
-			mouseListener.dispose();
-			keyboardListener.dispose();
-			mouseMarker.remove();
-			keyboardMarker.remove();
-		});
+		ToggleScreencastModeAction.disposable = disposables;
 	}
 }
 
