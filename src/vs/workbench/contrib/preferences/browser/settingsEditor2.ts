@@ -281,6 +281,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
+
+		if (!this.isVisible()) {
+			return;
+		}
+
 		this.layoutTrees(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;

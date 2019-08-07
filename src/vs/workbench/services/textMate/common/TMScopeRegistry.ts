@@ -31,7 +31,7 @@ export class TMScopeRegistry extends Disposable {
 
 	constructor() {
 		super();
-		this.reset();
+		this._scopeNameToLanguageRegistration = Object.create(null);
 	}
 
 	public reset(): void {

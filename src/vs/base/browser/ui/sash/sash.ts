@@ -61,7 +61,7 @@ export class Sash extends Disposable {
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
-	private orientation: Orientation;
+	private orientation!: Orientation;
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }

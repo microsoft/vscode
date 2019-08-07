@@ -176,9 +176,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 
-		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = keybindingService;
-		}
+		this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
 
 		// Create the ARIA dom node as soon as the first editor is instantiated
 		createAriaDomNode();

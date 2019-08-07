@@ -457,7 +457,12 @@ export function createApiFactory(
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
 			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
 				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
+			onDidWriteTerminalData(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
 			get state() {
 				return extHostWindow.state;
@@ -532,15 +537,10 @@ export function createApiFactory(
 				if (typeof nameOrOptions === 'object') {
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
-					} else {
-						nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
-						return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 					}
+					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
-			},
-			createTerminalRenderer(name: string): vscode.TerminalRenderer {
-				return extHostTerminalService.createTerminalRenderer(name);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
@@ -847,7 +847,6 @@ export function createApiFactory(
 			EventEmitter: Emitter,
 			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
-			CustomExecution: extHostTypes.CustomExecution,
 			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,

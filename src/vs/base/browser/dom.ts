@@ -50,8 +50,8 @@ interface IDomClassList {
 
 const _manualClassList = new class implements IDomClassList {
 
-	private _lastStart: number;
-	private _lastEnd: number;
+	private _lastStart: number = -1;
+	private _lastEnd: number = -1;
 
 	private _findClassName(node: HTMLElement, className: string): void {
 
@@ -1200,7 +1200,7 @@ export function asDomUri(uri: URI): URI {
 	if (Schemas.vscodeRemote === uri.scheme) {
 		// rewrite vscode-remote-uris to uris of the window location
 		// so that they can be intercepted by the service worker
-		return _location.with({ path: '/vscode-resources/fetch', query: `u=${JSON.stringify(uri)}` });
+		return _location.with({ path: '/vscode-remote', query: JSON.stringify(uri) });
 	}
 	return uri;
 }

@@ -11,11 +11,14 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+
+// https://github.com/microsoft/vscode/issues/65693
+const MAX_CLI_LENGTH = 30000;
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -339,7 +342,7 @@ export class Git {
 	}
 
 	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
-		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(parentPath, folderName);
 		let count = 1;
@@ -649,6 +652,7 @@ export interface CommitOptions {
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
+	readonly cancellationToken?: CancellationToken;
 }
 
 export enum ForcePushMode {
@@ -1138,13 +1142,14 @@ export class Repository {
 			args.push(treeish);
 		}
 
-		if (paths && paths.length) {
-			args.push('--');
-			args.push.apply(args, paths);
-		}
-
 		try {
-			await this.run(args);
+			if (paths && paths.length > 0) {
+				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+					await this.run([...args, '--', ...chunk]);
+				}
+			} else {
+				await this.run(args);
+			}
 		} catch (err) {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
@@ -1275,11 +1280,17 @@ export class Repository {
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
-		const tasks = groups.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)));
 
-		for (let task of tasks) {
-			await task();
+		const limiter = new Limiter(5);
+		const promises: Promise<any>[] = [];
+
+		for (const paths of groups) {
+			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				promises.push(limiter.queue(() => this.run(['clean', '-f', '-q', '--', ...chunk])));
+			}
 		}
+
+		await Promise.all(promises);
 	}
 
 	async undo(): Promise<void> {
@@ -1396,7 +1407,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args);
+			await this.run(args, options);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -1745,8 +1756,11 @@ export class Repository {
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
-		const args = ['submodule', 'update', '--', ...paths];
-		await this.run(args);
+		const args = ['submodule', 'update', '--'];
+
+		for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			await this.run([...args, ...chunk]);
+		}
 	}
 
 	async getSubmodules(): Promise<Submodule[]> {

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/b57388e5a0971412c081cf0cea8b50b9c24ea4e8",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/687070defaf355022a5d82d091258eccfea7317c",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -238,7 +238,7 @@
 				},
 				{
 					"name": "keyword.fsharp",
-					"match": "\\b(private|to|public|internal|function|yield!|yield|class|exception|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|property|union|enum|member|try|finally|and|when|use|use\\!|struct|while|mutable)(?!')\\b"
+					"match": "\\b(private|to|public|internal|function|yield!|yield|class|exception|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|enum|member|try|finally|and|when|or|use|use\\!|struct|while|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
 				},
 				{
 					"name": "keyword.fsharp",
@@ -601,7 +601,7 @@
 				},
 				{
 					"name": "constant.others.fsharp",
-					"match": "\\b(true|false|null|unit)\\b"
+					"match": "\\b(true|false|null|unit|void)\\b"
 				}
 			]
 		},
@@ -826,15 +826,26 @@
 					]
 				},
 				{
-					"match": "(\\*)(\\s*([?[:alpha:]0-9'`^._ ]+))*",
-					"captures": {
+					"begin": "(\\*)(\\s*([?[:alpha:]0-9'`^._ ]+))*",
+					"beginCaptures": {
 						"1": {
 							"name": "keyword.symbol.fsharp"
 						},
 						"2": {
 							"name": "entity.name.type.fsharp"
 						}
-					}
+					},
+					"end": "(?==)|(?=\\))",
+					"endCaptures": {
+						"1": {
+							"name": "keyword.symbol.fsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#tuple_signature"
+						}
+					]
 				},
 				{
 					"begin": "(<+(?![[:space:]]*\\)))",
@@ -881,14 +892,6 @@
 				},
 				{
 					"include": "#definition"
-				},
-				{
-					"match": "(?<=>)\\s*(``([[:alpha:]0-9'^._ ]+)``|[[:alpha:]0-9'`^._]+)",
-					"captures": {
-						"1": {
-							"name": "entity.name.type.fsharp"
-						}
-					}
 				},
 				{
 					"include": "#variables"
@@ -978,6 +981,29 @@
 							"include": "#common_binding_definition"
 						}
 					]
+				},
+				{
+					"name": "binding.fsharp",
+					"begin": "\\b(new)\\b\\s+(\\()",
+					"end": "(\\))",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.fsharp"
+						},
+						"2": {
+							"name": "keyword.fsharp"
+						}
+					},
+					"endCaptures": {
+						"1": {
+							"name": "keyword.fsharp"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#common_binding_definition"
+						}
+					]
 				}
 			]
 		},
@@ -1037,7 +1063,7 @@
 			"patterns": [
 				{
 					"name": "keyword.fsharp",
-					"match": "\\b(private|to|public|internal|function|yield!|yield|class|exception|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|property|union|enum|member|try|finally|and|when|or|use|use\\!|struct|while|mutable)(?!')\\b"
+					"match": "\\b(private|to|public|internal|function|yield!|yield|class|exception|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|enum|member|try|finally|and|when|or|use|use\\!|struct|while|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
 				},
 				{
 					"name": "keyword.symbol.fsharp",
@@ -1049,7 +1075,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.section.fsharp",
-					"begin": "\\b(namespace|module)\\s*(public|internal|private)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
+					"begin": "\\b(namespace global)|(namespace|module)\\s*(public|internal|private|rec)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
 					"end": "(\\s?=|\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -1059,6 +1085,9 @@
 							"name": "keyword.fsharp"
 						},
 						"3": {
+							"name": "keyword.fsharp"
+						},
+						"4": {
 							"name": "entity.name.section.fsharp"
 						}
 					},

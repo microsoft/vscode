@@ -71,7 +71,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private readonly _onActiveOutputChannel = this._register(new Emitter<string>());
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
-	private _outputPanel: OutputPanel;
+	private _outputPanel: OutputPanel | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -224,7 +224,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!channel.outputChannelDescriptor.file && channel.outputChannelDescriptor.log);
 			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
 				.then(() => {
-					if (!preserveFocus) {
+					if (!preserveFocus && this._outputPanel) {
 						this._outputPanel.focus();
 					}
 				});

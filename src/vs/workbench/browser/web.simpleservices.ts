@@ -164,63 +164,6 @@ export class SimpleLogService extends ConsoleLogService { }
 
 //#endregion
 
-//#region Multi Extension Management
-
-export class SimpleMultiExtensionsManagementService implements IExtensionManagementService {
-
-	_serviceBrand: any;
-
-	onInstallExtension = Event.None;
-	onDidInstallExtension = Event.None;
-	onUninstallExtension = Event.None;
-	onDidUninstallExtension = Event.None;
-
-	zip(extension: ILocalExtension): Promise<URI> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	install(vsix: URI): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-//#endregion
-
 //#region Update
 
 export class SimpleUpdateService implements IUpdateService {

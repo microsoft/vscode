@@ -519,7 +519,7 @@ const DefaultOpenController: IOpenController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
-	readonly multipleSelectionController: IMultipleSelectionController<T>;
+	readonly multipleSelectionController: IMultipleSelectionController<T> | undefined;
 	private openController: IOpenController;
 	private mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();

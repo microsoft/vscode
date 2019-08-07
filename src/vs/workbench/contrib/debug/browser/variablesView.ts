@@ -39,8 +39,8 @@ export const variableSetEmitter = new Emitter<void>();
 export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
-	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
+	private needsRefresh = false;
+	private tree!: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
 	private savedViewState: IAsyncDataTreeViewState | undefined;
 
 	constructor(

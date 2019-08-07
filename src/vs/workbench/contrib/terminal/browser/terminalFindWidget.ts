@@ -78,4 +78,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	protected onFindInputFocusTrackerBlur() {
 		this._findInputFocused.reset();
 	}
+
+	public findFirst() {
+		const instance = this._terminalService.getActiveInstance();
+		if (instance) {
+			if (instance.hasSelection()) {
+				instance.clearSelection();
+			}
+			instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		}
+	}
 }

@@ -34,7 +34,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -79,7 +79,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
-	private blockOpeningViewlet: boolean;
+	private blockOpeningViewlet = false;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,

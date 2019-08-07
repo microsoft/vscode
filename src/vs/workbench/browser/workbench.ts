@@ -238,7 +238,7 @@ export class Workbench extends Layout {
 		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
-	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
+	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
 	private setFontAliasing(configurationService: IConfigurationService) {
 		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>('workbench.fontAliasing');
 		if (this.fontAliasing === aliasing) {

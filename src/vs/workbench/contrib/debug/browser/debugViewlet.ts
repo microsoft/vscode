@@ -36,12 +36,12 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export class DebugViewlet extends ViewContainerViewlet {
 
-	private startDebugActionViewItem: StartDebugActionViewItem;
+	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
-	private breakpointView: ViewletPanel;
+	private breakpointView: ViewletPanel | undefined;
 	private panelListeners = new Map<string, IDisposable>();
-	private debugToolBarMenu: IMenu;
-	private disposeOnTitleUpdate: IDisposable;
+	private debugToolBarMenu: IMenu | undefined;
+	private disposeOnTitleUpdate: IDisposable | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,

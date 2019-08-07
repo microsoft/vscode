@@ -34,6 +34,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -63,7 +64,7 @@ enum Storage {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
@@ -586,7 +587,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposables.clear();
 
-		const setLineNumbers = (lineNumbers: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => editor.updateOptions({ lineNumbers }));
+		const setLineNumbers = (lineNumbers?: any) => this.editorService.visibleTextEditorWidgets.forEach(editor => {
+			// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
+			if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
+				const model = editor.getModel();
+				this.configurationService.getValue('editor.lineNumbers', { resource: model.uri });
+			} else {
+				editor.updateOptions({ lineNumbers });
+			}
+		});
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
@@ -649,7 +658,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.centerEditorLayout(false, true);
 			}
 
-			setLineNumbers(this.configurationService.getValue('editor.lineNumbers'));
+			setLineNumbers();
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.doUpdateLayoutConfiguration(true);
@@ -814,15 +823,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setEditorHidden(!visible, true);
 			}));
 
-			this._register(this.lifecycleService.onBeforeShutdown(beforeShutdownEvent => {
-				beforeShutdownEvent.veto(new Promise((resolve) => {
-					const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
-					const serializedGrid = grid.serialize();
+			this._register(this.storageService.onWillSaveState(() => {
+				const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
+				const serializedGrid = grid.serialize();
 
-					this.storageService.store(Storage.GRID_LAYOUT, JSON.stringify(serializedGrid), StorageScope.GLOBAL);
-
-					resolve();
-				}));
+				this.storageService.store(Storage.GRID_LAYOUT, JSON.stringify(serializedGrid), StorageScope.GLOBAL);
 			}));
 		} else {
 			this.workbenchGrid = instantiationService.createInstance(

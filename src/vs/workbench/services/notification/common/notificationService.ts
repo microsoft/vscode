@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand!: ServiceIdentifier<INotificationService>;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 

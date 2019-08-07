@@ -106,20 +106,15 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand!: ServiceIdentifier<IBackupFileService>;
 
 	private impl: IBackupFileService;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IFileService protected fileService: IFileService
 	) {
-		const backupWorkspaceResource = environmentService.configuration.backupWorkspaceResource;
-		if (backupWorkspaceResource) {
-			this.impl = new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, fileService);
-		} else {
-			this.impl = new InMemoryBackupFileService(this.hashPath);
-		}
+		this.initialize();
 	}
 
 	protected hashPath(resource: URI): string {
@@ -128,9 +123,25 @@ export class BackupFileService implements IBackupFileService {
 		return hash(str).toString(16);
 	}
 
-	initialize(backupWorkspaceResource: URI): void {
+	private initialize(): void {
+		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+		if (backupWorkspaceResource) {
+			this.impl = new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService);
+		} else {
+			this.impl = new InMemoryBackupFileService(this.hashPath);
+		}
+	}
+
+	reinitialize(): void {
+
+		// Re-init implementation (unless we are running in-memory)
 		if (this.impl instanceof BackupFileServiceImpl) {
-			this.impl.initialize(backupWorkspaceResource);
+			const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+			if (backupWorkspaceResource) {
+				this.impl.initialize(backupWorkspaceResource);
+			} else {
+				this.impl = new InMemoryBackupFileService(this.hashPath);
+			}
 		}
 	}
 
@@ -177,15 +188,15 @@ class BackupFileServiceImpl implements IBackupFileService {
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand!: ServiceIdentifier<IBackupFileService>;
 
-	private backupWorkspacePath: URI;
+	private backupWorkspacePath!: URI;
 
 	private isShuttingDown: boolean;
 	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
 
-	private ready: Promise<IBackupFilesModel>;
-	private model: IBackupFilesModel;
+	private ready!: Promise<IBackupFilesModel>;
+	private model!: IBackupFilesModel;
 
 	constructor(
 		backupWorkspaceResource: URI,
@@ -201,10 +212,10 @@ class BackupFileServiceImpl implements IBackupFileService {
 	initialize(backupWorkspaceResource: URI): void {
 		this.backupWorkspacePath = backupWorkspaceResource;
 
-		this.ready = this.init();
+		this.ready = this.doInitialize();
 	}
 
-	private init(): Promise<IBackupFilesModel> {
+	private doInitialize(): Promise<IBackupFilesModel> {
 		this.model = new BackupFilesModel(this.fileService);
 
 		return this.model.resolve(this.backupWorkspacePath);
@@ -380,7 +391,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 export class InMemoryBackupFileService implements IBackupFileService {
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand!: ServiceIdentifier<IBackupFileService>;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 

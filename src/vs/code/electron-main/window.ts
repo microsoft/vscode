@@ -838,17 +838,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private useNativeFullScreen(): boolean {
-		return true; // TODO@ben enable simple fullscreen again (https://github.com/microsoft/vscode/issues/75054)
-		// const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		// if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-		// 	return true; // default
-		// }
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+			return true; // default
+		}
 
-		// if (windowConfig.nativeTabs) {
-		// 	return true; // https://github.com/electron/electron/issues/16142
-		// }
+		if (windowConfig.nativeTabs) {
+			return true; // https://github.com/electron/electron/issues/16142
+		}
 
-		// return windowConfig.nativeFullScreen !== false;
+		return windowConfig.nativeFullScreen !== false;
 	}
 
 	isMinimized(): boolean {
