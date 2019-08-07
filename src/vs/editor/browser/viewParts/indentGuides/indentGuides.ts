@@ -21,6 +21,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _renderResult: string[] | null;
 	private _enabled: boolean;
 	private _activeIndentEnabled: boolean;
+	private _maxIndentLeft: number;
 
 	constructor(context: ViewContext) {
 		super();
@@ -30,6 +31,9 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
+		const wrappingColumn = this._context.configuration.editor.wrappingInfo.wrappingColumn;
+		this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
+
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -53,6 +57,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
+		}
+		if (e.wrappingInfo || e.fontInfo) {
+			const wrappingColumn = this._context.configuration.editor.wrappingInfo.wrappingColumn;
+			this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 		}
 		return true;
 	}
@@ -133,7 +141,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 				const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
 				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
 				left += indentWidth;
-				if (left > scrollWidth) {
+				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
 					break;
 				}
 			}

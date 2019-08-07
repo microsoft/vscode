@@ -17,11 +17,15 @@ export class MoveCaretCommand implements ICommand {
 	private _cutEndIndex: number;
 	private _moved: boolean;
 
-	private _selectionId: string;
+	private _selectionId: string | null;
 
 	constructor(selection: Selection, isMovingLeft: boolean) {
 		this._selection = selection;
 		this._isMovingLeft = isMovingLeft;
+		this._cutStartIndex = -1;
+		this._cutEndIndex = -1;
+		this._moved = false;
+		this._selectionId = null;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
@@ -64,7 +68,7 @@ export class MoveCaretCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId!);
 		if (this._moved) {
 			result = result.setStartPosition(result.startLineNumber, this._cutStartIndex);
 			result = result.setEndPosition(result.startLineNumber, this._cutEndIndex);
