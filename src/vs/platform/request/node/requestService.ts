@@ -38,7 +38,7 @@ export class RequestService extends Disposable implements IRequestService {
 	_serviceBrand: any;
 
 	private proxyUrl?: string;
-	private strictSSL: boolean;
+	private strictSSL: boolean | undefined;
 	private authorization?: string;
 
 	constructor(
