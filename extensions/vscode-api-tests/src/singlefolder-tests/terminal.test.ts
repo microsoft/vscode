@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Terminal, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual } from 'assert';
 
 suite('window namespace tests', () => {
@@ -228,59 +228,7 @@ suite('window namespace tests', () => {
 			});
 		});
 
-		suite('Terminal renderers (deprecated)', () => {
-			test('should fire onDidOpenTerminal and onDidCloseTerminal from createTerminalRenderer terminal', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
-					equal(term.name, 'c');
-					reg1.dispose();
-					const reg2 = window.onDidCloseTerminal(() => {
-						reg2.dispose();
-						done();
-					});
-					term.dispose();
-				});
-				window.createTerminalRenderer('c');
-			});
-
-			test('should get maximum dimensions set when shown', (done) => {
-				let terminal: Terminal;
-				const reg1 = window.onDidOpenTerminal(term => {
-					reg1.dispose();
-					term.show();
-					terminal = term;
-				});
-				const renderer = window.createTerminalRenderer('foo');
-				const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
-					ok(dimensions.columns > 0);
-					ok(dimensions.rows > 0);
-					reg2.dispose();
-					const reg3 = window.onDidCloseTerminal(() => {
-						reg3.dispose();
-						done();
-					});
-					terminal.dispose();
-				});
-			});
-
-			test('should fire Terminal.onData on write', (done) => {
-				const reg1 = window.onDidOpenTerminal(terminal => {
-					reg1.dispose();
-					const reg2 = terminal.onDidWriteData(data => {
-						equal(data, 'bar');
-						reg2.dispose();
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
-						terminal.dispose();
-					});
-					renderer.write('bar');
-				});
-				const renderer = window.createTerminalRenderer('foo');
-			});
-		});
-
-		suite('Virtual process terminals', () => {
+		suite('Extension pty terminals', () => {
 			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
 				const reg1 = window.onDidOpenTerminal(term => {
 					equal(term.name, 'c');

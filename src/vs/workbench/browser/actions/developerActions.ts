@@ -133,23 +133,10 @@ export class ToggleScreencastModeAction extends Action {
 			});
 		});
 
-		const keyboardMarker = append(container, $('div'));
-		keyboardMarker.style.position = 'absolute';
-		keyboardMarker.style.backgroundColor = 'rgba(0, 0, 0 ,0.5)';
-		keyboardMarker.style.width = '100%';
-		keyboardMarker.style.height = '100px';
-		keyboardMarker.style.bottom = '20%';
-		keyboardMarker.style.left = '0';
-		keyboardMarker.style.zIndex = '100000';
-		keyboardMarker.style.pointerEvents = 'none';
-		keyboardMarker.style.color = 'white';
-		keyboardMarker.style.lineHeight = '100px';
-		keyboardMarker.style.textAlign = 'center';
-		keyboardMarker.style.fontSize = '56px';
-		keyboardMarker.style.display = 'none';
-
+		const keyboardMarker = append(container, $('.screencast-keyboard'));
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let length = 0;
 
 		const keyboardListener = onKeyDown(e => {
 			keyboardTimeout.dispose();
@@ -158,20 +145,21 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
-				keyboardMarker.textContent = label;
+			if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || length > 20) {
+				keyboardMarker.innerHTML = '';
+				length = 0;
 			}
 
-			keyboardMarker.style.display = 'block';
+			const key = $('span.key', {}, label || '');
+			length++;
+			append(keyboardMarker, key);
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
-				keyboardMarker.style.display = 'none';
+				length = 0;
 			});
 		});
 

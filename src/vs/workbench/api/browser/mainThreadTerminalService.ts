@@ -22,7 +22,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _terminalProcesses = new Map<number, Promise<ITerminalProcessExtHostProxy>>();
 	private readonly _terminalProcessesReady = new Map<number, (proxy: ITerminalProcessExtHostProxy) => void>();
 	private readonly _terminalOnDidWriteDataListeners = new Map<number, IDisposable>();
-	private readonly _terminalOnDidAcceptInputListeners = new Map<number, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 
 	constructor(

@@ -172,7 +172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _idCounter = 1;
 
-	private _processManager: ITerminalProcessManager | undefined;
+	private _processManager!: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
 	private _id: number;
