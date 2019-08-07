@@ -518,6 +518,28 @@ import product from 'vs/platform/product/node/product';
 		}
 	});
 
+	// Screencast Mode
+	registry.registerConfiguration({
+		id: 'screencastMode',
+		order: 9,
+		title: nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+		type: 'object',
+		properties: {
+			'screencastMode.verticalOffset': {
+				type: 'number',
+				default: 20,
+				minimum: 0,
+				maximum: 90,
+				description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			},
+			'screencastMode.onlyKeyboardShortcuts': {
+				type: 'boolean',
+				description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+				default: false
+			}
+		}
+	});
+
 	// Telemetry
 	registry.registerConfiguration({
 		'id': 'telemetry',
