@@ -17,12 +17,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
@@ -41,7 +41,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 	) {
 
@@ -121,14 +121,16 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 					environment: {
 						isExtensionDevelopmentDebug: false, // < todo@joh
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
+						appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
 						appName: this._productService.nameLong,
 						appUriScheme: this._productService.urlProtocol,
 						appLanguage: platform.language,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: URI.file(this._environmentService.userHome)
+						userHome: URI.file(this._environmentService.userHome),
+						webviewResourceRoot: this._environmentService.webviewResourceRoot,
+						webviewCspSource: this._environmentService.webviewCspSource,
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: workspace.configuration || undefined,
@@ -141,7 +143,11 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
-					autoStart: true// < todo@joh this._autoStart
+					autoStart: true,// < todo@joh this._autoStart,
+					remote: {
+						authority: this._environmentService.configuration.remoteAuthority,
+						isRemote: false
+					},
 				};
 				return r;
 			});

@@ -350,7 +350,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		const result: ExtensionHostProcessManager[] = [];
-		const workerExtensions = { ['jrieken.helloworld']: true };
+		const workerExtensions: Record<string, true> = { ['jrieken.helloworld']: true };
 
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions.then(e => e.filter(e => !workerExtensions[e.identifier.value])), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
