@@ -27,6 +27,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { memoize } from 'vs/base/common/decorators';
 
 export class Match {
 
@@ -74,6 +75,7 @@ export class Match {
 		return this._range;
 	}
 
+	@memoize
 	preview(): { before: string; inside: string; after: string; } {
 		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
