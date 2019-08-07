@@ -66,6 +66,17 @@ jobs:
   steps:
   - template: linux/product-build-linux-multiarch.yml
 
+- job: LinuxArm64
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  variables:
+    VSCODE_ARCH: arm64
+  dependsOn:
+  - Compile
+  steps:
+  - template: linux/product-build-linux-multiarch.yml
+
 - job: LinuxAlpine
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_QUALITY'], 'stable'))
   pool:
@@ -127,6 +138,8 @@ jobs:
   - macOS
   steps:
   - template: sync-mooncake.yml
+
+trigger: none
 
 schedules:
 - cron: "0 5 * * Mon-Fri"

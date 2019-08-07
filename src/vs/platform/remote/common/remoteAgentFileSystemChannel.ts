@@ -33,7 +33,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
-	private _capabilities: FileSystemProviderCapabilities;
+	private _capabilities!: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
 
 	constructor(private readonly channel: IChannel, environment: Promise<IRemoteAgentEnvironment | null>) {

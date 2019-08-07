@@ -19,7 +19,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerModel implements IDisposable {
 
-	private _roots: ExplorerItem[];
+	private _roots!: ExplorerItem[];
 	private _listener: IDisposable;
 	private _onDidChangeRoots = new Emitter<void>();
 
@@ -75,7 +75,7 @@ export class ExplorerModel implements IDisposable {
 
 export class ExplorerItem {
 	private _isDirectoryResolved: boolean;
-	public isError: boolean;
+	public isError = false;
 
 	constructor(
 		public resource: URI,

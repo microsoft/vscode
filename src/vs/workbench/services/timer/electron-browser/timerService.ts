@@ -305,7 +305,7 @@ class TimerService implements ITimerService {
 
 	_serviceBrand: any;
 
-	private _startupMetrics: Promise<IStartupMetrics>;
+	private _startupMetrics?: Promise<IStartupMetrics>;
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,

@@ -20,6 +20,7 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -42,10 +43,10 @@ enum ProcessType {
  * - Pty Process: The pseudoterminal master process (or the winpty agent process)
  * - Shell Process: The pseudoterminal slave process (ie. the shell)
  */
-export class TerminalProcessManager implements ITerminalProcessManager {
+export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
-	public shellProcessId: number;
+	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;
@@ -54,23 +55,22 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
 	private _latency: number = -1;
-	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
-	private _initialCwd: string;
+	private _initialCwd: string | undefined;
 
-	private readonly _onProcessReady = new Emitter<void>();
+	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
-	private readonly _onBeforeProcessData = new Emitter<IBeforeProcessDataEvent>();
+	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
 	public get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
-	private readonly _onProcessData = new Emitter<string>();
+	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessTitle = new Emitter<string>();
+	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
-	private readonly _onProcessExit = new Emitter<number>();
+	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessOverrideShellLaunchConfig = new Emitter<IShellLaunchConfig>();
+	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 
 	constructor(
@@ -87,6 +87,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
 	) {
+		super();
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -105,6 +106,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
+		super.dispose();
 	}
 
 	public async createProcess(
@@ -259,7 +261,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		return Promise.resolve(this._initialCwd);
+		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
 	}
 
 	public getCwd(): Promise<string> {
@@ -275,8 +277,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			return Promise.resolve(0);
 		}
 		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
-			this._latencyRequest = this._process.getLatency();
-			this._latency = await this._latencyRequest;
+			const latencyRequest = this._process.getLatency();
+			this._latency = await latencyRequest;
 			this._latencyLastMeasured = Date.now();
 		}
 		return Promise.resolve(this._latency);

@@ -127,13 +127,13 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public refCount: number;
 
 	public className: string | undefined;
-	public inlineClassName: string;
-	public inlineClassNameAffectsLetterSpacing: boolean;
+	public inlineClassName: string | undefined;
+	public inlineClassNameAffectsLetterSpacing: boolean | undefined;
 	public beforeContentClassName: string | undefined;
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
-	public overviewRuler: IModelDecorationOverviewRulerOptions;
+	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {

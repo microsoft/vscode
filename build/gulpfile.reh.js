@@ -47,6 +47,7 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
 	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'arm64', pkgTarget: 'node8-linux-arm64' },
 	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 

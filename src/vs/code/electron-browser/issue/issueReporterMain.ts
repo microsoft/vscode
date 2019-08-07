@@ -64,9 +64,9 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private environmentService: IEnvironmentService;
-	private telemetryService: ITelemetryService;
-	private logService: ILogService;
+	private environmentService!: IEnvironmentService;
+	private telemetryService!: ITelemetryService;
+	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -74,7 +74,7 @@ export class IssueReporter extends Disposable {
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
 
-	private readonly previewButton: Button;
+	private readonly previewButton!: Button;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();

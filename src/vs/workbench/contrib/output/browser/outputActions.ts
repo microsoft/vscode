@@ -122,8 +122,8 @@ export class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	private outputChannels: IOutputChannelDescriptor[];
-	private logChannels: IOutputChannelDescriptor[];
+	private outputChannels: IOutputChannelDescriptor[] = [];
+	private logChannels: IOutputChannelDescriptor[] = [];
 
 	constructor(
 		action: IAction,

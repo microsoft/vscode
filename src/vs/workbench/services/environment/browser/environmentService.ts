@@ -65,7 +65,8 @@ export interface IBrowserWindowConfiguration {
 }
 
 export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
-	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
+
+	_serviceBrand!: ServiceIdentifier<IEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 

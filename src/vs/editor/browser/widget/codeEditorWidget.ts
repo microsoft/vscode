@@ -279,7 +279,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
-		this._attachModel(null);
+		this._modelData = null;
 
 		this._contributions = {};
 		this._actions = {};

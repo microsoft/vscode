@@ -91,15 +91,15 @@ class LayoutInfo {
 
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
-	private _changeDirectionAction: ChangeHierarchyDirectionAction;
-	private _parent: HTMLElement;
-	private _message: HTMLElement;
-	private _splitView: SplitView;
-	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
+	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
+	private _parent!: HTMLElement;
+	private _message!: HTMLElement;
+	private _splitView!: SplitView;
+	private _tree!: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
-	private _editor: EmbeddedCodeEditorWidget;
-	private _dim: Dimension;
-	private _layoutInfo: LayoutInfo;
+	private _editor!: EmbeddedCodeEditorWidget;
+	private _dim!: Dimension;
+	private _layoutInfo!: LayoutInfo;
 
 	constructor(
 		editor: ICodeEditor,

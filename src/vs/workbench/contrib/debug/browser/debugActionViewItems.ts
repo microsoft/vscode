@@ -27,13 +27,13 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	public actionRunner: IActionRunner;
-	private container: HTMLElement;
-	private start: HTMLElement;
+	actionRunner!: IActionRunner;
+	private container!: HTMLElement;
+	private start!: HTMLElement;
 	private selectBox: SelectBox;
-	private options: { label: string, handler?: (() => boolean) }[];
+	private options: { label: string, handler?: (() => boolean) }[] = [];
 	private toDispose: IDisposable[];
-	private selected: number;
+	private selected = 0;
 
 	constructor(
 		private context: any,
@@ -66,7 +66,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}));
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		this.container = container;
 		dom.addClass(container, 'start-debug-action-item');
 		this.start = dom.append(container, $('.icon'));
@@ -129,15 +129,15 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.updateOptions();
 	}
 
-	public setActionContext(context: any): void {
+	setActionContext(context: any): void {
 		this.context = context;
 	}
 
-	public isEnabled(): boolean {
+	isEnabled(): boolean {
 		return true;
 	}
 
-	public focus(fromRight?: boolean): void {
+	focus(fromRight?: boolean): void {
 		if (fromRight) {
 			this.selectBox.focus();
 		} else {
@@ -145,11 +145,11 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}
 	}
 
-	public blur(): void {
+	blur(): void {
 		this.container.blur();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 

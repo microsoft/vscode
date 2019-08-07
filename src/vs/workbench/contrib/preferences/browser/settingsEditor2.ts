@@ -281,6 +281,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
+
+		if (!this.isVisible()) {
+			return;
+		}
+
 		this.layoutTrees(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
@@ -970,14 +975,9 @@ export class SettingsEditor2 extends BaseEditor {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
-				/**
-				 * Update `list`s live if focused item is whole list or list item,
-				 * as they have a separate "submit edit" step built in before this
-				 */
-				if (
-					focusedKey === key &&
-					!DOM.hasClass(focusedSetting, 'setting-item-list') &&
-					!DOM.hasClass(focusedSetting, 'setting-item-contents')
+				if (focusedKey === key &&
+					// update `list`s live, as they have a separate "submit edit" step built in before this
+					(focusedSetting.parentElement && !DOM.hasClass(focusedSetting.parentElement, 'setting-item-list'))
 				) {
 
 					this.updateModifiedLabelForKey(key);

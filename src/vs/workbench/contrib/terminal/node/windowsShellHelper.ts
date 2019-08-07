@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ITerminalInstance, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
@@ -24,17 +25,19 @@ const SHELL_EXECUTABLES = [
 
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
-export class WindowsShellHelper implements IWindowsShellHelper {
-	private _onCheckShell: Emitter<Promise<string> | undefined>;
+export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
+	private _onCheckShell: Emitter<Promise<string> | undefined> = this._register(new Emitter<Promise<string> | undefined>());
 	private _isDisposed: boolean;
-	private _currentRequest: Promise<string> | null;
-	private _newLineFeed: boolean;
+	private _currentRequest: Promise<string> | undefined;
+	private _newLineFeed: boolean = false;
 
 	public constructor(
 		private _rootProcessId: number,
 		private _terminalInstance: ITerminalInstance,
 		private _xterm: XTermTerminal
 	) {
+		super();
+
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
@@ -47,7 +50,6 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 			}
 
 			windowsProcessTree = mod;
-			this._onCheckShell = new Emitter<Promise<string>>();
 			// The debounce is necessary to prevent multiple processes from spawning when
 			// the enter key or output is spammed
 			Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
@@ -65,6 +67,7 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 			this._xterm.onCursorMove(() => {
 				if (this._newLineFeed) {
 					this._onCheckShell.fire(undefined);
+					this._newLineFeed = false;
 				}
 			});
 
@@ -111,6 +114,7 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 
 	public dispose(): void {
 		this._isDisposed = true;
+		super.dispose();
 	}
 
 	/**
@@ -127,7 +131,7 @@ export class WindowsShellHelper implements IWindowsShellHelper {
 		this._currentRequest = new Promise<string>(resolve => {
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
-				this._currentRequest = null;
+				this._currentRequest = undefined;
 				resolve(name);
 			});
 		});

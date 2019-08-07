@@ -5,12 +5,12 @@
 				"type": "git",
 				"git": {
 					"name": "PowerShell/EditorSyntax",
-					"repositoryUrl": "https://github.com/powershell/editorsyntax",
-					"commitHash": "12b7d7257eb493e45a9af0af9094ec0c2a996712"
+					"repositoryUrl": "https://github.com/PowerShell/EditorSyntax",
+					"commitHash": "d10ae29c0d3ceb248172c383a159ae43b9ccfb4d"
 				}
 			},
 			"license": "MIT",
-			"version": "0.0.0"
+			"version": "1.0.0"
 		}
 	],
 	"version": 1

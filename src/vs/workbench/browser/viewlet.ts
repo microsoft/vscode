@@ -76,7 +76,7 @@ export const Extensions = {
 };
 
 export class ViewletRegistry extends CompositeRegistry<Viewlet> {
-	private defaultViewletId: string;
+	private defaultViewletId!: string;
 
 	/**
 	 * Registers a viewlet to the platform.

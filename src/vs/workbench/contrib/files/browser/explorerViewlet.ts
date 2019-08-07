@@ -37,7 +37,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
-	private openEditorsVisibleContextKey: IContextKey<boolean>;
+	private openEditorsVisibleContextKey!: IContextKey<boolean>;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,

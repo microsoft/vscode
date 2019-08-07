@@ -10,7 +10,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class ProductService implements IProductService {
 
-	_serviceBrand: ServiceIdentifier<IProductService>;
+	_serviceBrand!: ServiceIdentifier<IProductService>;
 
 	get version(): string { return pkg.version; }
 

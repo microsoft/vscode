@@ -155,13 +155,13 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private columnsForFullWidthChar: number;
 	private wrappingIndent: WrappingIndent;
 	private tabSize: number;
-	private lines: ISplitLine[];
+	private lines!: ISplitLine[];
 
-	private prefixSumComputer: PrefixSumComputerWithCache;
+	private prefixSumComputer!: PrefixSumComputerWithCache;
 
 	private readonly linePositionMapperFactory: ILineMapperFactory;
 
-	private hiddenAreasIds: string[];
+	private hiddenAreasIds!: string[];
 
 	constructor(model: ITextModel, linePositionMapperFactory: ILineMapperFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent) {
 		this.model = model;

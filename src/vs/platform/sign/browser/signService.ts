@@ -8,7 +8,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class SignService implements ISignService {
 
-	_serviceBrand: ServiceIdentifier<ISignService>;
+	_serviceBrand!: ServiceIdentifier<ISignService>;
 
 	private readonly _tkn: string | null;
 

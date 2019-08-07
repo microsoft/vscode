@@ -265,16 +265,16 @@ class PieceTreeSearchCache {
 }
 
 export class PieceTreeBase {
-	root: TreeNode;
-	protected _buffers: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
-	protected _lineCnt: number;
-	protected _length: number;
-	protected _EOL: string;
-	protected _EOLLength: number;
-	protected _EOLNormalized: boolean;
-	private _lastChangeBufferPos: BufferCursor;
-	private _searchCache: PieceTreeSearchCache;
-	private _lastVisitedLine: { lineNumber: number; value: string; };
+	root!: TreeNode;
+	protected _buffers!: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
+	protected _lineCnt!: number;
+	protected _length!: number;
+	protected _EOL!: string;
+	protected _EOLLength!: number;
+	protected _EOLNormalized!: boolean;
+	private _lastChangeBufferPos!: BufferCursor;
+	private _searchCache!: PieceTreeSearchCache;
+	private _lastVisitedLine!: { lineNumber: number; value: string; };
 
 	constructor(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
 		this.create(chunks, eol, eolNormalized);

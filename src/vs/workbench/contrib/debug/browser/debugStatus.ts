@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export class DebugStatusContribution implements IWorkbenchContribution {
 
-	private showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
+	private showInStatusBar!: 'never' | 'always' | 'onFirstSessionStart';
 	private toDispose: IDisposable[] = [];
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 

@@ -880,7 +880,7 @@ class InputBox extends QuickInput implements IInputBox {
 
 export class QuickInputService extends Component implements IQuickInputService {
 
-	public _serviceBrand: ServiceIdentifier<any>;
+	public _serviceBrand!: ServiceIdentifier<any>;
 
 	private static readonly ID = 'workbench.component.quickinput';
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget

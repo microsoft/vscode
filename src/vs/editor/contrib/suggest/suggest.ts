@@ -27,7 +27,7 @@ export const Context = {
 
 export class CompletionItem {
 
-	_brand: 'ISuggestionItem';
+	_brand!: 'ISuggestionItem';
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
 

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.37.0",
-  "distro": "f9c5d20222a2776b589107efa7d2e3aa4b80050d",
+  "version": "1.38.0",
+  "distro": "1f46578f6299fb1c3313c049aef73f96a710f8f8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -36,7 +36,7 @@
     "jschardet": "1.6.0",
     "keytar": "^4.11.0",
     "minimist": "1.2.0",
-    "native-is-elevated": "^0.2.1",
+    "native-is-elevated": "0.3.0",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
     "node-pty": "0.9.0-beta19",
@@ -154,7 +154,7 @@
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
-    "vscode-windows-registry": "1.0.1",
+    "vscode-windows-registry": "1.0.2",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",
     "windows-process-tree": "0.2.4"

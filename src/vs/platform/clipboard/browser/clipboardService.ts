@@ -10,7 +10,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class BrowserClipboardService implements IClipboardService {
 
-	_serviceBrand: ServiceIdentifier<IClipboardService>;
+	_serviceBrand!: ServiceIdentifier<IClipboardService>;
 
 	private _internalResourcesClipboard: URI[] | undefined;
 

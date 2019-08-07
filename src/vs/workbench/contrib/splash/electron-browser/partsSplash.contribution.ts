@@ -32,8 +32,8 @@ class PartsSplash {
 
 	private readonly _disposables = new DisposableStore();
 
-	private _didChangeTitleBarStyle: boolean;
-	private _lastBaseTheme: string;
+	private _didChangeTitleBarStyle?: boolean;
+	private _lastBaseTheme?: string;
 	private _lastBackground?: string;
 
 	constructor(
