@@ -115,7 +115,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	}
 }
 
-suite('Disk File Service', () => {
+suite('Disk File Service', function () {
 
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 	const testSchema = 'test';
@@ -126,6 +126,12 @@ suite('Disk File Service', () => {
 	let testDir: string;
 
 	const disposables = new DisposableStore();
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/78602
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to
+	// rule out any random disk issue.
+	this.retries(3);
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -614,11 +620,6 @@ suite('Disk File Service', () => {
 	});
 
 	test('move - directory - across providers (unbuffered => buffered)', async function () {
-		if (process.platform === 'linux') {
-			this.skip();
-			return;
-		}
-
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
