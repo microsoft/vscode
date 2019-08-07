@@ -59,8 +59,8 @@ suite('CodeAction', () => {
 		command: {
 			abc: {
 				command: new class implements modes.Command {
-					id: '1';
-					title: 'abc';
+					id!: '1';
+					title!: 'abc';
 				},
 				title: 'Extract to inner function in function "test"'
 			}
@@ -69,7 +69,7 @@ suite('CodeAction', () => {
 			bcd: {
 				diagnostics: <IMarkerData[]>[],
 				edit: new class implements modes.WorkspaceEdit {
-					edits: modes.ResourceTextEdit[];
+					edits!: modes.ResourceTextEdit[];
 				},
 				title: 'abc'
 			}

@@ -395,7 +395,6 @@ export interface TerminalLaunchConfig {
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(config: TerminalLaunchConfig): Promise<{ id: number, name: string }>;
-	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
@@ -414,12 +413,6 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void;
-
-	// Renderer
-	$terminalRendererSetName(terminalId: number, name: string): void;
-	$terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void;
-	$terminalRendererWrite(terminalId: number, text: string): void;
-	$terminalRendererRegisterOnInputListener(terminalId: number): void;
 }
 
 export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
@@ -1163,7 +1156,6 @@ export interface ExtHostTerminalServiceShape {
 	/** @deprecated */
 	$acceptTerminalProcessData(id: number, data: string): void;
 	$acceptTerminalProcessData2(id: number, data: string): void;
-	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
