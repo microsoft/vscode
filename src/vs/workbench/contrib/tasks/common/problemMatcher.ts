@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Strings from 'vs/base/common/strings';
 import * as Assert from 'vs/base/common/assert';
-import { join } from 'vs/base/common/path';
+import { join, normalize } from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
@@ -220,6 +220,7 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
+	fullPath = normalize(fullPath);
 	if (matcher.uriProvider !== undefined) {
 		return matcher.uriProvider(fullPath);
 	} else {

@@ -414,9 +414,10 @@ export class SplitView extends Disposable {
 			throw new Error('Cant modify splitview');
 		}
 
-		const size = this.getViewSize(from);
+		const cachedVisibleSize = this.getViewCachedVisibleSize(from);
+		const sizing = typeof cachedVisibleSize === 'undefined' ? this.getViewSize(from) : Sizing.Invisible(cachedVisibleSize);
 		const view = this.removeView(from);
-		this.addView(view, size, to);
+		this.addView(view, sizing, to);
 	}
 
 	swapViews(from: number, to: number): void {
