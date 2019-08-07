@@ -28,6 +28,7 @@
     "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
+    "@microsoft/applicationinsights-web": "^2.1.1",
     "applicationinsights": "1.0.8",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
