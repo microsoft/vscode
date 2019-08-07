@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.37.0",
-  "distro": "fc3f6c1bc0a7b9880b85e6763559865327718991",
+  "version": "1.38.0",
+  "distro": "f123663d79c57c07e3f70b2d0938f1a58ff4d1da",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -35,8 +35,7 @@
     "iconv-lite": "0.5.0",
     "jschardet": "1.6.0",
     "keytar": "^4.11.0",
-    "minimist": "1.2.0",
-    "native-is-elevated": "^0.2.1",
+    "native-is-elevated": "0.3.0",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
     "node-pty": "0.9.0-beta19",
@@ -47,12 +46,13 @@
     "sudo-prompt": "9.0.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "2.1.7",
+    "vscode-minimist": "^1.2.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.5.5",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "3.15.0-beta71",
-    "xterm-addon-search": "0.2.0-beta2",
+    "xterm": "3.15.0-beta90",
+    "xterm-addon-search": "0.2.0-beta3",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -60,7 +60,6 @@
   "devDependencies": {
     "7zip": "0.0.6",
     "@types/keytar": "^4.4.0",
-    "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",
     "@types/semver": "^5.5.0",
@@ -94,7 +93,7 @@
     "gulp-gunzip": "^1.0.0",
     "gulp-json-editor": "^2.5.0",
     "gulp-plumber": "^1.2.0",
-    "gulp-remote-src": "^0.4.4",
+    "gulp-remote-retry-src": "^0.6.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
@@ -153,7 +152,7 @@
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
-    "vscode-windows-registry": "1.0.1",
+    "vscode-windows-registry": "1.0.2",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",
     "windows-process-tree": "0.2.4"

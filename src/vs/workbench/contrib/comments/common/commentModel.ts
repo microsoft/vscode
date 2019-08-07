@@ -21,6 +21,7 @@ export class CommentNode {
 	comment: Comment;
 	replies: CommentNode[] = [];
 	resource: URI;
+	isRoot: boolean;
 
 	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange) {
 		this.owner = owner;
@@ -28,6 +29,7 @@ export class CommentNode {
 		this.comment = comment;
 		this.resource = resource;
 		this.range = range;
+		this.isRoot = false;
 	}
 
 	hasReply(): boolean {
@@ -54,6 +56,8 @@ export class ResourceWithCommentThreads {
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}
+
+		commentNodes[0].isRoot = true;
 
 		return commentNodes[0];
 	}

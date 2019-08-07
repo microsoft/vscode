@@ -5,10 +5,9 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 
 suite('workspace-namespace', () => {
 
@@ -131,8 +130,7 @@ suite('workspace-namespace', () => {
 					assert.ok(fs.existsSync(path));
 
 					d0.dispose();
-
-					return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt')));
+					fs.unlinkSync(join(vscode.workspace.rootPath || '', './newfile.txt'));
 				});
 			});
 
@@ -520,6 +518,20 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('findFiles - null exclude', async () => {
+		await vscode.workspace.findFiles('**/file.txt').then((res) => {
+			// search.exclude folder is still searched, files.exclude folder is not
+			assert.equal(res.length, 1);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+
+		await vscode.workspace.findFiles('**/file.txt', null).then((res) => {
+			// search.exclude and files.exclude folders are both searched
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+	});
+
 	test('findFiles - exclude', () => {
 		return vscode.workspace.findFiles('**/*.png').then((res) => {
 			assert.equal(res.length, 2);
@@ -688,10 +700,8 @@ suite('workspace-namespace', () => {
 
 	test('WorkspaceEdit: edit and rename parent folder duplicates resource #42641', async function () {
 
-		let dir = join(os.tmpdir(), 'before-' + rndName());
-		if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir);
-		}
+		let dir = vscode.Uri.parse(`${testFs.scheme}:/before-${rndName()}`);
+		await testFs.createDirectory(dir);
 
 		let docUri = await createRandomFile('', dir);
 		let docParent = docUri.with({ path: posix.dirname(docUri.path) });

@@ -27,7 +27,7 @@ export class TestRPCProtocol implements IExtHostContext {
 
 	private _callCountValue: number = 0;
 	private _idle?: Promise<any>;
-	private _completeIdle: Function;
+	private _completeIdle?: Function;
 
 	private readonly _locals: { [id: string]: any; };
 	private readonly _proxies: { [id: string]: any; };

@@ -114,12 +114,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 				const updateType = getUpdateType();
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					/* __GDPR__
-							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-							}
-						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle(updateType));
 					return Promise.resolve(null);

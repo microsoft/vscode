@@ -69,20 +69,16 @@ export class TelemetryService implements ITelemetryService {
 			this._commonProperties.then(values => {
 				const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
 
-				/* __GDPR__
-					"machineIdFallback" : {
-						"usingFallbackGuid" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
-					}
-				*/
-				this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
+				type MachineIdFallbackClassification = {
+					usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+				};
+				this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
 
 				if (config.trueMachineId) {
-					/* __GDPR__
-						"machineIdDisambiguation" : {
-							"correctedMachineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.publicLog('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
+					type MachineIdDisambiguationClassification = {
+						correctedMachineId: { endPoint: 'MacAddressHash', classification: 'EndUserPseudonymizedInformation', purpose: 'FeatureInsight' };
+					};
+					this.publicLog2<{ correctedMachineId: string }, MachineIdDisambiguationClassification>('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
 				}
 			});
 		}

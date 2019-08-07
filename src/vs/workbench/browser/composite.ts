@@ -35,7 +35,7 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
-	private _onDidFocus: Emitter<void>;
+	private _onDidFocus!: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
 			this.registerFocusTrackEvents();
@@ -50,7 +50,7 @@ export abstract class Composite extends Component implements IComposite {
 		}
 	}
 
-	private _onDidBlur: Emitter<void>;
+	private _onDidBlur!: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
 			this.registerFocusTrackEvents();
@@ -68,10 +68,10 @@ export abstract class Composite extends Component implements IComposite {
 		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner: IActionRunner | undefined;
 
 	private visible: boolean;
-	private parent: HTMLElement;
+	private parent!: HTMLElement;
 
 	constructor(
 		id: string,

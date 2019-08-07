@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -23,7 +23,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
-	_serviceBrand: ServiceIdentifier<IExtensionHostProfileService>;
+	_serviceBrand: any;
 
 	private readonly _onDidChangeState: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeState: Event<void> = this._onDidChangeState.event;
@@ -34,7 +34,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private readonly _unresponsiveProfiles = new Map<string, IExtensionHostProfile>();
 	private _profile: IExtensionHostProfile | null;
 	private _profileSession: ProfileSession | null;
-	private _state: ProfileSessionState;
+	private _state: ProfileSessionState = ProfileSessionState.None;
 
 	private profilingStatusBarIndicator: IStatusbarEntryAccessor | undefined;
 	private readonly profilingStatusBarIndicatorLabelUpdater = this._register(new MutableDisposable());

@@ -46,7 +46,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
  */
 export abstract class TextFileService extends Disposable implements ITextFileService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration> = this._onAutoSaveConfigurationChange.event;
@@ -64,9 +64,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	private currentFilesAssociationConfig: { [key: string]: string; };
 	private configuredAutoSaveDelay?: number;
-	private configuredAutoSaveOnFocusChange: boolean;
-	private configuredAutoSaveOnWindowChange: boolean;
-	private configuredHotExit: string;
+	private configuredAutoSaveOnFocusChange: boolean | undefined;
+	private configuredAutoSaveOnWindowChange: boolean | undefined;
+	private configuredHotExit: string | undefined;
 	private autoSaveContext: IContextKey<string>;
 
 	constructor(
@@ -537,7 +537,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+			if (!this.environmentService.args['extension-development-confirm-save']) {
+				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+			}
 		}
 
 		const resourcesToConfirm = this.getDirty(resources);
@@ -1009,8 +1011,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
 			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
-			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
-			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
+			autoSaveFocusChange: !!this.configuredAutoSaveOnFocusChange,
+			autoSaveApplicationChange: !!this.configuredAutoSaveOnWindowChange
 		};
 	}
 

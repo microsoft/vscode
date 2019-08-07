@@ -10,7 +10,7 @@ import * as pty from 'node-pty';
 import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -18,23 +18,23 @@ import { stat } from 'vs/base/node/pfs';
 import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 
-export class TerminalProcess implements ITerminalChildProcess, IDisposable {
-	private _exitCode: number;
+export class TerminalProcess extends Disposable implements ITerminalChildProcess {
+	private _exitCode: number | undefined;
 	private _closeTimeout: any;
 	private _ptyProcess: pty.IPty | undefined;
 	private _currentTitle: string = '';
-	private _processStartupComplete: Promise<void>;
+	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _initialCwd: string;
 
-	private readonly _onProcessData = new Emitter<string>();
+	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessExit = new Emitter<number>();
+	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
-	private readonly _onProcessTitleChanged = new Emitter<string>();
+	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
 	constructor(
@@ -46,6 +46,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		windowsEnableConpty: boolean,
 		@ILogService private readonly _logService: ILogService
 	) {
+		super();
 		let shellName: string;
 		if (os.platform() === 'win32') {
 			shellName = path.basename(shellLaunchConfig.executable || '');
@@ -143,6 +144,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._onProcessExit.dispose();
 		this._onProcessReady.dispose();
 		this._onProcessTitleChanged.dispose();
+		super.dispose();
 	}
 
 	private _setupTitlePolling(ptyProcess: pty.IPty) {
@@ -172,7 +174,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _kill(): void {
 		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
 		// process start.
-		this._processStartupComplete.then(() => {
+		this._processStartupComplete!.then(() => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -186,7 +188,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			} catch (ex) {
 				// Swallow, the pty has already been killed
 			}
-			this._onProcessExit.fire(this._exitCode);
+			this._onProcessExit.fire(this._exitCode || 0);
 			this.dispose();
 		});
 	}

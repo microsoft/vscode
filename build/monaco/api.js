@@ -306,8 +306,8 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     let usageImports = [];
     let usage = [];
     let failed = false;
-    usage.push(`var a;`);
-    usage.push(`var b;`);
+    usage.push(`var a: any;`);
+    usage.push(`var b: any;`);
     const generateUsageImport = (moduleId) => {
         let importName = 'm' + (++usageCounter);
         usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);

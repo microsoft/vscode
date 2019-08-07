@@ -654,14 +654,14 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasSameParent(element: RenderableMatch): boolean {
-		return element && element instanceof Match && element.parent().resource() === this.element.parent().resource();
+		return element && element instanceof Match && element.parent().resource === this.element.parent().resource;
 	}
 
 	private hasToOpenFile(): boolean {
 		const activeEditor = this.editorService.activeEditor;
 		const file = activeEditor ? activeEditor.getResource() : undefined;
 		if (file) {
-			return file.toString() === this.element.parent().resource().toString();
+			return file.toString() === this.element.parent().resource.toString();
 		}
 		return false;
 	}
@@ -674,7 +674,7 @@ function uriToClipboardString(resource: URI): string {
 export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
-	const text = uriToClipboardString(fileMatch.resource());
+	const text = uriToClipboardString(fileMatch.resource);
 	await clipboardService.writeText(text);
 };
 
@@ -712,7 +712,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 		.slice(0, maxMatches)
 		.map(match => matchToString(match, 2));
 	return {
-		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		text: `${uriToClipboardString(fileMatch.resource)}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
 	};
 }

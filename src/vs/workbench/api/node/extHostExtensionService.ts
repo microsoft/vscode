@@ -317,15 +317,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		/* __GDPR__
-			"extensionActivationTimes" : {
-				"${include}": [
-					"${TelemetryActivationEvent}",
-					"${ExtensionActivationTimes}"
-				],
-				"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
 		type ExtensionActivationTimesClassification = {
 			outcome: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
@@ -758,6 +749,20 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return buff;
 	}
 
+	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+		if (!this._initData.remote.isRemote) {
+			return;
+		}
+
+		for (const key in env) {
+			const value = env[key];
+			if (value === null) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	}
 }
 
 function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {

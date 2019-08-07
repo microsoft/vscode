@@ -37,7 +37,7 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
+import { RemoteConnectionState, Deprecated_RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
@@ -49,7 +49,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private windowCommandMenu: IMenu;
 	private hasWindowActions: boolean = false;
 	private remoteAuthority: string | undefined;
-	private disconnected: boolean = true;
+	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -73,10 +73,13 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
+		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
+
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
-			RemoteConnectionState.bindTo(this.contextKeyService).set('initializing');
+			this.connectionState = 'initializing';
+			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
 
 			MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 				group: '6_close',
@@ -86,6 +89,23 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				},
 				order: 3.5
 			});
+
+			const connection = remoteAgentService.getConnection();
+			if (connection) {
+				this._register(connection.onDidStateChange((e) => {
+					switch (e.type) {
+						case PersistentConnectionEventType.ConnectionLost:
+						case PersistentConnectionEventType.ReconnectionPermanentFailure:
+						case PersistentConnectionEventType.ReconnectionRunning:
+						case PersistentConnectionEventType.ReconnectionWait:
+							this.setDisconnected(true);
+							break;
+						case PersistentConnectionEventType.ConnectionGain:
+							this.setDisconnected(false);
+							break;
+					}
+				}));
+			}
 		}
 
 		extensionService.whenInstalledExtensionsRegistered().then(_ => {
@@ -96,29 +116,14 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			this._register(this.windowCommandMenu.onDidChange(e => this.updateWindowActions()));
 			this.updateWindowIndicator();
 		});
-
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			this._register(connection.onDidStateChange((e) => {
-				switch (e.type) {
-					case PersistentConnectionEventType.ConnectionLost:
-					case PersistentConnectionEventType.ReconnectionPermanentFailure:
-					case PersistentConnectionEventType.ReconnectionRunning:
-					case PersistentConnectionEventType.ReconnectionWait:
-						this.setDisconnected(true);
-						break;
-					case PersistentConnectionEventType.ConnectionGain:
-						this.setDisconnected(false);
-						break;
-				}
-			}));
-		}
 	}
 
 	private setDisconnected(isDisconnected: boolean): void {
-		if (this.disconnected !== isDisconnected) {
-			this.disconnected = isDisconnected;
-			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
+		const newState = isDisconnected ? 'disconnected' : 'connected';
+		if (this.connectionState !== newState) {
+			this.connectionState = newState;
+			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? `disconnected/${this.remoteAuthority!}` : this.remoteAuthority!);
 			this.updateWindowIndicator();
 		}
 	}
@@ -127,7 +132,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		const windowActionCommand = (this.remoteAuthority || this.windowCommandMenu.getActions().length) ? WINDOW_ACTIONS_COMMAND_ID : undefined;
 		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
-			if (!this.disconnected) {
+			if (this.connectionState !== 'disconnected') {
 				this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
 			} else {
 				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), windowActionCommand);
@@ -163,7 +168,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private showIndicatorActions(menu: IMenu) {
 
-		const actions = !this.disconnected || !this.remoteAuthority ? menu.getActions() : [];
+		const actions = menu.getActions();
 
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (let actionGroup of actions) {
@@ -275,6 +280,26 @@ class ProgressReporter {
 
 		if (this.lastReport && this._currentProgress) {
 			this._currentProgress.report({ message: this.lastReport });
+		}
+	}
+}
+
+class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.onDidStateChange(async e => {
+				if (e.type === PersistentConnectionEventType.ConnectionGain) {
+					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
+					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
+						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
+					}
+				}
+			});
 		}
 	}
 }
@@ -435,6 +460,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);

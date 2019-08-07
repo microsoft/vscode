@@ -440,7 +440,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
 	private toDispose: IDisposable[];
-	private dropEnabled: boolean;
+	private dropEnabled = false;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,

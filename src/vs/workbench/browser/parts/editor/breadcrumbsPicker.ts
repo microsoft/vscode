@@ -56,11 +56,11 @@ export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
-	protected _arrow: HTMLDivElement;
-	protected _treeContainer: HTMLDivElement;
-	protected _tree: Tree<any, any>;
+	protected _arrow!: HTMLDivElement;
+	protected _treeContainer!: HTMLDivElement;
+	protected _tree!: Tree<any, any>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
-	protected _layoutInfo: ILayoutInfo;
+	protected _layoutInfo!: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<SelectEvent>();
 	readonly onDidPickElement: Event<SelectEvent> = this._onDidPickElement.event;

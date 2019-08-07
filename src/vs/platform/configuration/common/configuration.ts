@@ -5,7 +5,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -124,7 +124,7 @@ export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
-	folders: { [folder: string]: IConfigurationModel };
+	folders: [UriComponents, IConfigurationModel][];
 }
 
 export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {

@@ -68,7 +68,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	public readonly isSimpleWidget: boolean;
 	protected _rawOptions: editorOptions.IEditorOptions;
 	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
-	public editor: editorOptions.InternalEditorOptions;
+	public editor!: editorOptions.InternalEditorOptions;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
 
@@ -267,6 +267,11 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
+		},
+		'editor.scrollOff': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollOff,
+			'description': nls.localize('scrollOff', "Controls the number of context lines above and below the cursor.")
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',
@@ -696,7 +701,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
-			default: { keyword: true },
+			default: { keyword: true, snippet: true },
 			markdownDescription: nls.localize('suggest.filtered', "Controls whether some suggestion types should be filtered from IntelliSense. A list of suggestion types can be found here: https://code.visualstudio.com/docs/editor/intellisense#_types-of-completions."),
 			properties: {
 				method: {
@@ -904,7 +909,7 @@ const editorConfiguration: IConfigurationNode = {
 			'enum': ['none', 'boundary', 'selection', 'all'],
 			'enumDescriptions': [
 				'',
-				nls.localize('renderWhiteSpace.boundary', "Render whitespace characters except for single spaces between words."),
+				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
 				''
 			],

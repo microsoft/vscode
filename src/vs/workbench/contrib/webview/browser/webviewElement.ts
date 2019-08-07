@@ -53,7 +53,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			this._options.extension ? this._options.extension.location : undefined,
-			() => this.content.options.portMappings || [],
+			() => this.content.options.portMapping || [],
 			tunnelService
 		));
 

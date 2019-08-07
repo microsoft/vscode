@@ -37,19 +37,19 @@ interface ILaunchVSCodeArguments {
  */
 export class RawDebugSession {
 
-	private allThreadsContinued: boolean;
-	private _readyForBreakpoints: boolean;
+	private allThreadsContinued = true;
+	private _readyForBreakpoints = false;
 	private _capabilities: DebugProtocol.Capabilities;
 
 	// shutdown
-	private debugAdapterStopped: boolean;
-	private inShutdown: boolean;
-	private terminated: boolean;
-	private firedAdapterExitEvent: boolean;
+	private debugAdapterStopped = false;
+	private inShutdown = false;
+	private terminated = false;
+	private firedAdapterExitEvent = false;
 
 	// telemetry
-	private startTime: number;
-	private didReceiveStoppedEvent: boolean;
+	private startTime = 0;
+	private didReceiveStoppedEvent = false;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -78,13 +78,6 @@ export class RawDebugSession {
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
-		this._readyForBreakpoints = false;
-		this.inShutdown = false;
-		this.debugAdapterStopped = false;
-		this.firedAdapterExitEvent = false;
-		this.didReceiveStoppedEvent = false;
-
-		this.allThreadsContinued = true;
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -587,7 +580,13 @@ export class RawDebugSession {
 					}
 
 				} else {
-					args._.push(a2);
+					const match = /^--(.+)$/.exec(a2);
+					if (match && match.length === 2) {
+						const key = match[1];
+						(<any>args)[key] = true;
+					} else {
+						args._.push(a2);
+					}
 				}
 			}
 		}

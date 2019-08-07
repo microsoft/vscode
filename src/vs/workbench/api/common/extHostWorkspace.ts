@@ -171,11 +171,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	constructor(
 		mainContext: IMainContext,
 		logService: ILogService,
-		requestIdProvider: Counter,
 		data?: IStaticWorkspaceData
 	) {
 		this._logService = logService;
-		this._requestIdProvider = requestIdProvider;
+		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
@@ -408,7 +407,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- search ---
 
-	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+	/**
+	 * Note, null/undefined have different and important meanings for "exclude"
+	 */
+	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
 		let includePattern: string | undefined;

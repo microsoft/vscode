@@ -112,7 +112,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 				searchScope: null,
 				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
 				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
-				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
+				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false),
+				preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -170,13 +171,17 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (e.matchCase) {
 			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
 		}
+		if (e.preserveCase) {
+			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE);
+		}
 	}
 
 	private loadQueryState() {
 		this._state.change({
 			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
 			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
-			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
+			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex),
+			preserveCase: this._storageService.getBoolean('editor.preserveCase', StorageScope.WORKSPACE, this._state.preserveCase)
 		}, false);
 	}
 
@@ -215,6 +220,11 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (!this._state.isRevealed) {
 			this.highlightFindOptions();
 		}
+	}
+
+	public togglePreserveCase(): void {
+		this._state.change({ preserveCase: !this._state.preserveCase }, false);
+		this.highlightFindOptions();
 	}
 
 	public toggleSearchScope(): void {
@@ -364,8 +374,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 export class FindController extends CommonFindController implements IFindController {
 
-	private _widget: FindWidget;
-	private _findOptionsWidget: FindOptionsWidget;
+	private _widget: FindWidget | null;
+	private _findOptionsWidget: FindOptionsWidget | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -377,6 +387,8 @@ export class FindController extends CommonFindController implements IFindControl
 		@optional(IClipboardService) clipboardService: IClipboardService
 	) {
 		super(editor, _contextKeyService, storageService, clipboardService);
+		this._widget = null;
+		this._findOptionsWidget = null;
 	}
 
 	protected _start(opts: IFindStartOptions): void {
@@ -384,7 +396,7 @@ export class FindController extends CommonFindController implements IFindControl
 			this._createFindWidget();
 		}
 
-		if (!this._widget.getPosition() && this._editor.getConfiguration().contribInfo.find.autoFindInSelection) {
+		if (!this._widget!.getPosition() && this._editor.getConfiguration().contribInfo.find.autoFindInSelection) {
 			// not visible yet so we need to set search scope if `editor.find.autoFindInSelection` is `true`
 			opts.updateSearchScope = true;
 		}
@@ -392,9 +404,9 @@ export class FindController extends CommonFindController implements IFindControl
 		super._start(opts);
 
 		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
-			this._widget.focusReplaceInput();
+			this._widget!.focusReplaceInput();
 		} else if (opts.shouldFocus === FindStartFocusAction.FocusFindInput) {
-			this._widget.focusFindInput();
+			this._widget!.focusFindInput();
 		}
 	}
 
@@ -403,9 +415,9 @@ export class FindController extends CommonFindController implements IFindControl
 			this._createFindWidget();
 		}
 		if (this._state.isRevealed) {
-			this._widget.highlightFindOptions();
+			this._widget!.highlightFindOptions();
 		} else {
-			this._findOptionsWidget.highlightFindOptions();
+			this._findOptionsWidget!.highlightFindOptions();
 		}
 	}
 

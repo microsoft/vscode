@@ -13,7 +13,7 @@ export class WordContextKey extends Disposable {
 
 	private readonly _ckAtEnd: IContextKey<boolean>;
 
-	private _enabled: boolean;
+	private _enabled: boolean = false;
 	private _selectionListener?: IDisposable;
 
 	constructor(

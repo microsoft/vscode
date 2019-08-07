@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env } from 'vscode';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType, OutputChannel, LogLevel, env, ProgressOptions, CancellationToken } from 'vscode';
 import { Repository as BaseRepository, Commit, Stash, GitError, Submodule, CommitOptions, ForcePushMode } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable, watch, IFileWatcher } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent, combinedDisposable } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -14,6 +14,7 @@ import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
 import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
+import { IFileWatcher, watch } from './watch';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -519,8 +520,8 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			if (env.logLevel <= LogLevel.Info) {
-				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}'. Ref is most likely packed.`);
+			if (env.logLevel <= LogLevel.Error) {
+				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}', is most likely packed.\n${err.stack || err}`);
 			}
 		}
 	}
@@ -651,19 +652,30 @@ export class Repository implements Disposable {
 		const onWorkspaceRepositoryFileChange = filterEvent(onWorkspaceFileChange, uri => isDescendant(repository.root, uri.fsPath));
 		const onWorkspaceWorkingTreeFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => !/\/\.git($|\/)/.test(uri.path));
 
-		const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
-		this.disposables.push(dotGitFileWatcher);
+		let onDotGitFileChange: Event<Uri>;
+
+		try {
+			const dotGitFileWatcher = new DotGitWatcher(this, outputChannel);
+			onDotGitFileChange = dotGitFileWatcher.event;
+			this.disposables.push(dotGitFileWatcher);
+		} catch (err) {
+			if (env.logLevel <= LogLevel.Error) {
+				outputChannel.appendLine(`Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+			}
+
+			onDotGitFileChange = filterEvent(onWorkspaceRepositoryFileChange, uri => /\/\.git($|\/)/.test(uri.path));
+		}
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
 		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
-		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event);
+		const onFileChange = anyEvent(onWorkspaceWorkingTreeFileChange, onDotGitFileChange);
 		onFileChange(this.onFileChange, this, this.disposables);
 
 		// Relevate repository changes should trigger virtual document change events
-		dotGitFileWatcher.event(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
+		onDotGitFileChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, dotGitFileWatcher.event, outputChannel));
+		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
@@ -713,7 +725,6 @@ export class Repository implements Disposable {
 		this.disposables.push(progressManager);
 
 		this.updateCommitTemplate();
-		this.status();
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
@@ -946,21 +957,9 @@ export class Repository implements Disposable {
 				}
 			});
 
-			const promises: Promise<void>[] = [];
-
-			if (toClean.length > 0) {
-				promises.push(this.repository.clean(toClean));
-			}
-
-			if (toCheckout.length > 0) {
-				promises.push(this.repository.checkout('', toCheckout));
-			}
-
-			if (submodulesToUpdate.length > 0) {
-				promises.push(this.repository.updateSubmodules(submodulesToUpdate));
-			}
-
-			await Promise.all(promises);
+			await this.repository.clean(toClean);
+			await this.repository.checkout('', toCheckout);
+			await this.repository.updateSubmodules(submodulesToUpdate);
 		});
 	}
 
@@ -1136,11 +1135,22 @@ export class Repository implements Disposable {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
+				const supportCancellation = config.get<boolean>('supportCancellation');
 
-				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { tags });
+				const fn = fetchOnPull
+					? async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, undefined, undefined, { tags, cancellationToken })
+					: async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+
+				if (supportCancellation) {
+					const opts: ProgressOptions = {
+						location: ProgressLocation.Notification,
+						title: localize('sync is unpredictable', "Syncing. Cancelling may cause serious damages to the repository"),
+						cancellable: true
+					};
+
+					await window.withProgress(opts, (_, token) => fn(token));
 				} else {
-					await this.repository.pull(rebase, remoteName, pullBranch, { tags });
+					await fn();
 				}
 
 				const remote = this.remotes.find(r => r.name === remoteName);

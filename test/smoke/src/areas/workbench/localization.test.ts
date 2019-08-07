@@ -39,8 +39,8 @@ export function setup() {
 			await app.workbench.debug.openDebugViewlet();
 			await app.workbench.debug.waitForTitle(title => /debug/i.test(title));
 
-			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
+			// await app.workbench.extensions.openExtensionsViewlet();
+			// await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
 		});
 	});
 }

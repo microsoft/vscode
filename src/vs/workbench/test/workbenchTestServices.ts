@@ -474,6 +474,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return true;
 	}
 
+	getDimension(_part: Parts): Dimension {
+		return new Dimension(0, 0);
+	}
+
 	public getContainer(_part: Parts): HTMLElement {
 		return null!;
 	}
@@ -667,7 +671,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	willRestoreEditors = false;
 
-	dimension = { width: 800, height: 600 };
+	contentDimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -1473,7 +1477,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, ..._messages: string[]): Promise<void> {
+	log(_severity: string, _args: string[]): Promise<void> {
 		return Promise.resolve();
 	}
 

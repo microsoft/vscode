@@ -206,7 +206,7 @@ class WindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core.handler(text);
+		xterm._core._coreService.triggerDataEvent(text);
 	}
 
 	async openDevTools(): Promise<void> {

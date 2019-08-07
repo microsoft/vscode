@@ -167,9 +167,11 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-current-web-contents', event => {
-			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
-
-			event.preventDefault();
+			// The driver needs access to web contents
+			if (!this.environmentService.args.driver) {
+				this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+				event.preventDefault();
+			}
 		});
 		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
@@ -695,8 +697,6 @@ export class CodeApplication extends Disposable {
 	private handleRemoteAuthorities(): void {
 		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
 
-		const isBuilt = this.environmentService.isBuilt;
-
 		class ActiveConnection {
 			private readonly _authority: string;
 			private readonly _connection: Promise<ManagementPersistentConnection>;
@@ -706,7 +706,6 @@ export class CodeApplication extends Disposable {
 				this._authority = authority;
 
 				const options: IConnectionOptions = {
-					isBuilt,
 					commit: product.commit,
 					socketFactory: nodeSocketFactory,
 					addressProvider: {

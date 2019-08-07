@@ -163,16 +163,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
-	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private _scrollHeight: number;
+	private _scrollHeight: number = 0;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private scrollableElementWidthDelayer = new Delayer<void>(50);
 	private splicing = false;
 	private dragOverAnimationDisposable: IDisposable | undefined;
 	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
-	private dragOverMouseY: number;
+	private dragOverMouseY: number = 0;
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
@@ -245,7 +244,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
 
-		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
+		this.disposables = [this.rangeMap, this.scrollableElement, this.cache];
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);

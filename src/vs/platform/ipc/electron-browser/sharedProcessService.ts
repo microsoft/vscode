@@ -23,7 +23,7 @@ export interface ISharedProcessService {
 
 export class SharedProcessService implements ISharedProcessService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private withSharedProcessConnection: Promise<Client<string>>;
 

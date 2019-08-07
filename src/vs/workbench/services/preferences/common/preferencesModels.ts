@@ -375,6 +375,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const position = model.getPositionAt(offset);
 				range.endLineNumber = position.lineNumber;
 				range.endColumn = position.column;
+				settingsPropertyIndex = -1;
 			}
 		},
 		onArrayBegin: (offset: number, length: number) => {

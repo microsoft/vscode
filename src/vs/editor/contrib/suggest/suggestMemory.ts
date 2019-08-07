@@ -204,9 +204,9 @@ export class SuggestMemoryService extends Disposable implements ISuggestMemorySe
 	private readonly _storagePrefix = 'suggest/memories';
 
 	private readonly _persistSoon: RunOnceScheduler;
-	private _mode: MemMode;
-	private _shareMem: boolean;
-	private _strategy: Memory;
+	private _mode!: MemMode;
+	private _shareMem!: boolean;
+	private _strategy!: Memory;
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,

@@ -98,17 +98,20 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
-	private editor: editorCommon.IEditor;
+	private editor?: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let model: ITextModel | null = withTypedEditor(this.editor,
-			(editor) => this.findModel(editor, resource),
-			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
-		);
+		let model: ITextModel | null = null;
+		if (this.editor) {
+			model = withTypedEditor(this.editor,
+				(editor) => this.findModel(editor, resource),
+				(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
+			);
+		}
 
 		if (!model) {
 			return Promise.reject(new Error(`Model not found`));
@@ -234,7 +237,9 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _dynamicCommands: { [id: string]: ICommand; };
 
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
+	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
@@ -256,8 +261,10 @@ export class StandaloneCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
+
+			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);
@@ -352,7 +359,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
@@ -464,7 +471,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
-			folders: {}
+			folders: []
 		};
 	}
 }
@@ -473,12 +480,12 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
-	private readonly _onDidChangeConfigurationEmitter = new Emitter();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(private readonly configurationService: SimpleConfigurationService) {
 		this.configurationService.onDidChangeConfiguration((e) => {
-			this._onDidChangeConfigurationEmitter.fire(e);
+			this._onDidChangeConfiguration.fire(e);
 		});
 	}
 
@@ -515,7 +522,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: void;
+	_serviceBrand: void = undefined;
 
 	public isOptedIn = false;
 
@@ -683,7 +690,7 @@ export class SimpleLayoutService implements ILayoutService {
 
 	public onLayout = Event.None;
 
-	private _dimension: IDimension;
+	private _dimension?: IDimension;
 	get dimension(): IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);

@@ -167,8 +167,9 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
 			}
+
 			if (environmentService.configuration.remoteAuthority) {
-				windowSevice.reloadWindow(); // TODO aeschli, workaround
+				windowSevice.reloadWindow(); // TODO@aeschli, workaround
 			} else {
 				extensionService.restartExtensionHost();
 			}

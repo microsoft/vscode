@@ -319,12 +319,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
 					type = 'UNKNOWN';
 				}
-				/* __GDPR__
-					"resolveProxy.stats" : {
-						"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-					}
-				*/
-				this.telemetryService.publicLog('resolveProxy.stats', { type });
+				type ResolveProxyStatsClassification = {
+					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				};
+				this.telemetryService.publicLog2<{ type: String }, ResolveProxyStatsClassification>('resolveProxy.stats', { type });
 			}).then(undefined, onUnexpectedError);
 	}
 }

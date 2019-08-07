@@ -25,7 +25,7 @@ export class PanelDescriptor extends CompositeDescriptor<Panel> {
 }
 
 export class PanelRegistry extends CompositeRegistry<Panel> {
-	private defaultPanelId: string;
+	private defaultPanelId!: string;
 
 	/**
 	 * Registers a panel to the platform.
