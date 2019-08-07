@@ -58,6 +58,8 @@ class ErrorInvalidArgType extends Error {
 
 		msg += `. Received type ${typeof actual}`;
 		super(msg);
+
+		this.code = 'ERR_INVALID_ARG_TYPE';
 	}
 }
 

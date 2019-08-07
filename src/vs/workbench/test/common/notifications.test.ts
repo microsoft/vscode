@@ -103,7 +103,7 @@ suite('Notifications', () => {
 
 		// Error with Action
 		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
-		assert.equal(item6.actions.primary!.length, 1);
+		assert.equal(item6.actions!.primary!.length, 1);
 
 		// Links
 		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and [Link 3](command:without.title) and [Invalid Link4](ftp://link4.com)' })!;
