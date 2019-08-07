@@ -39,14 +39,14 @@ export class ModesHoverController implements IEditorContribution {
 
 	get contentWidget(): ModesContentHoverWidget {
 		if (!this._contentWidget) {
-			this._createHoverWidget();
+			this._createHoverWidgets();
 		}
 		return this._contentWidget!;
 	}
 
 	get glyphWidget(): ModesGlyphHoverWidget {
 		if (!this._glyphWidget) {
-			this._createHoverWidget();
+			this._createHoverWidgets();
 		}
 		return this._glyphWidget!;
 	}
@@ -198,7 +198,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if (!this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
+		if (!this._glyphWidget || !this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
 			return;
 		}
 
@@ -206,7 +206,7 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget.hide();
 	}
 
-	private _createHoverWidget() {
+	private _createHoverWidgets() {
 		this._contentWidget = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
