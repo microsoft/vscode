@@ -13,6 +13,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -22,7 +23,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
@@ -162,21 +162,24 @@ export class ToggleScreencastModeAction extends Action {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
-			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-			const label = keybinding.getLabel();
+			const shortcut = this.keybindingService.softDispatch(event, event.target);
 
-			if (
-				event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
-				|| length > 20
-				|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
-			) {
-				keyboardMarker.innerHTML = '';
-				length = 0;
+			if (shortcut || !this.configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+				if (
+					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+					|| length > 20
+					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+				) {
+					keyboardMarker.innerHTML = '';
+					length = 0;
+				}
+
+				const keybinding = this.keybindingService.resolveKeyboardEvent(event);
+				const label = keybinding.getLabel();
+				const key = $('span.key', {}, label || '');
+				length++;
+				append(keyboardMarker, key);
 			}
-
-			const key = $('span.key', {}, label || '');
-			length++;
-			append(keyboardMarker, key);
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
