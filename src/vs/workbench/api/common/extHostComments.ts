@@ -297,10 +297,10 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	private _localDisposables: types.Disposable[];
 
-	private _isDiposed: boolean;
+	private _isDisposed: boolean;
 
 	public get isDisposed(): boolean {
-		return this._isDiposed;
+		return this._isDisposed;
 	}
 
 	private _commentsMap: Map<vscode.Comment, number> = new Map<vscode.Comment, number>();
@@ -332,7 +332,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		);
 
 		this._localDisposables = [];
-		this._isDiposed = false;
+		this._isDisposed = false;
 
 		this._localDisposables.push(this.onDidUpdateCommentThread(() => {
 			this.eventuallyUpdateCommentThread();
@@ -345,7 +345,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	@debounce(100)
 	eventuallyUpdateCommentThread(): void {
-		if (this._isDiposed) {
+		if (this._isDisposed) {
 			return;
 		}
 
@@ -385,7 +385,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	dispose() {
-		this._isDiposed = true;
+		this._isDisposed = true;
 		this._acceptInputDisposables.dispose();
 		this._localDisposables.forEach(disposable => disposable.dispose());
 		this._proxy.$deleteCommentThread(
