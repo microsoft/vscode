@@ -30,8 +30,11 @@
 	line-height: 100px;
 	text-align: center;
 	font-size: 56px;
-	overflow: hidden;
 	transition: opacity 0.3s ease-out;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	direction: rtl;
 }
 
 .monaco-workbench .screencast-keyboard:empty {
