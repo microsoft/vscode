@@ -292,7 +292,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
 			handler: (accessor, arg) => {
-				this.runTaskCommand(Types.isArray(arg) ? arg[0] : arg);
+				this.runTaskCommand(arg);
 			},
 			description: {
 				description: 'Run Task',
@@ -306,15 +306,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', (accessor, arg) => {
-			this.reRunTaskCommand(Types.isArray(arg) ? arg[0] : arg);
+			this.reRunTaskCommand();
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
-			this.runRestartTaskCommand(Types.isArray(arg) ? arg[0] : arg);
+			this.runRestartTaskCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
-			this.runTerminateCommand(Types.isArray(arg) ? arg[0] : arg);
+			this.runTerminateCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
@@ -1810,7 +1810,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private reRunTaskCommand(arg?: any): void {
+	private reRunTaskCommand(): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
