@@ -47,8 +47,8 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
 		const writer = new class extends Writable {
-			private decodeStream: NodeJS.ReadWriteStream;
-			private decodeStreamPromise: Promise<void>;
+			private decodeStream: NodeJS.ReadWriteStream | undefined;
+			private decodeStreamPromise: Promise<void> | undefined;
 
 			private bufferedChunks: Buffer[] = [];
 			private bytesBuffered = 0;
@@ -122,7 +122,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				// detection. thus, wrap up starting the stream even
 				// without all the data to get things going
 				else {
-					this._startDecodeStream(() => this.decodeStream.end(callback));
+					this._startDecodeStream(() => this.decodeStream!.end(callback));
 				}
 			}
 		};

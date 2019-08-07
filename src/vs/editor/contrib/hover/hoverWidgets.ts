@@ -73,6 +73,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
 		this._showAtRange = null;
+		this._stoleFocus = false;
 	}
 
 	public getId(): string {

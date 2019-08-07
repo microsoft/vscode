@@ -784,7 +784,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		return ` (${kb.getLabel()})`;
 	}
 
-	private _buildFindPart(): HTMLElement {
+	private _buildDomNode(): void {
 		// Find input
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
@@ -908,10 +908,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		findPart.appendChild(this._closeBtn.domNode);
 
-		return findPart;
-	}
-
-	private _buildReplacePart(): HTMLElement {
 		// Replace input
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
@@ -977,16 +973,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		replacePart.appendChild(this._replaceBtn.domNode);
 		replacePart.appendChild(this._replaceAllBtn.domNode);
 
-		return replacePart;
-	}
-
-	private _buildDomNode(): void {
-		// Find part
-		let findPart = this._buildFindPart();
-
-		// Replace part
-		let replacePart = this._buildReplacePart();
-
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
 			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
@@ -1014,10 +1000,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
 
-		this._buildSash();
-	}
-
-	private _buildSash() {
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
 		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
