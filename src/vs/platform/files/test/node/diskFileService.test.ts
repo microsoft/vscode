@@ -613,7 +613,12 @@ suite('Disk File Service', () => {
 		await testMoveFolderAcrossProviders();
 	});
 
-	test('move - directory - across providers (unbuffered => buffered)', async () => {
+	test('move - directory - across providers (unbuffered => buffered)', async function () {
+		if (process.platform === 'linux') {
+			this.skip();
+			return;
+		}
+
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
