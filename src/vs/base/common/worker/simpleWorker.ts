@@ -12,8 +12,7 @@ const INITIALIZE = '$initialize';
 
 export interface IWorker extends IDisposable {
 	getId(): number;
-	postMessage(message: any, transfer?: Transferable[]): void;
-	dispose(): void;
+	postMessage(message: any, transfer: Transferable[]): void;
 }
 
 export interface IWorkerCallback {
@@ -214,7 +213,7 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 		));
 
 		this._protocol = new SimpleWorkerProtocol({
-			sendMessage: (msg: any, transfer?: Transferable[]): void => {
+			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
 				this._worker.postMessage(msg, transfer);
 			},
 			handleMessage: (method: string, args: any[]): Promise<any> => {
