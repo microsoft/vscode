@@ -54,7 +54,7 @@ suite('EnvironmentService', () => {
 	});
 
 	// https://github.com/microsoft/vscode/issues/78440
-	test.only('careful with boolean file names', function () {
+	test('careful with boolean file names', function () {
 		let actual = parseArgs(['-r', 'arg.txt']);
 		assert(actual['reuse-window']);
 		assert.deepEqual(actual._, ['arg.txt']);
