@@ -1361,19 +1361,6 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository);
 	}
 
-	@command('git.commitWithInput', { repository: true })
-	async commitWithInput(repository: Repository): Promise<void> {
-		if (!repository.inputBox.value) {
-			return;
-		}
-
-		const didCommit = await this.smartCommit(repository, async () => repository.inputBox.value);
-
-		if (didCommit) {
-			repository.inputBox.value = await repository.getCommitTemplate();
-		}
-	}
-
 	@command('git.commitStaged', { repository: true })
 	async commitStaged(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false });
