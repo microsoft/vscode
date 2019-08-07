@@ -11,6 +11,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 
+	_serviceBrand: any;
+
 	activeTerminal: vscode.Terminal | undefined;
 	terminals: vscode.Terminal[];
 
