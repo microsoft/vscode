@@ -50,8 +50,8 @@ interface IDomClassList {
 
 const _manualClassList = new class implements IDomClassList {
 
-	private _lastStart: number;
-	private _lastEnd: number;
+	private _lastStart: number = -1;
+	private _lastEnd: number = -1;
 
 	private _findClassName(node: HTMLElement, className: string): void {
 

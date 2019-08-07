@@ -19,7 +19,7 @@ import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvir
 import { URI } from 'vs/base/common/uri';
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
-	private _exitCode: number;
+	private _exitCode: number | undefined;
 	private _closeTimeout: any;
 	private _ptyProcess: pty.IPty | undefined;
 	private _currentTitle: string = '';
@@ -188,7 +188,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			} catch (ex) {
 				// Swallow, the pty has already been killed
 			}
-			this._onProcessExit.fire(this._exitCode);
+			this._onProcessExit.fire(this._exitCode || 0);
 			this.dispose();
 		});
 	}
