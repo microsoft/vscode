@@ -82,7 +82,7 @@
 	background-image: url('operator-dark.svg');
 }
 
-/* type paramter */
+/* type parameter */
 .monaco-workbench .symbol-icon.type-parameter {
 	background-image: url('template-light.svg');
 }
