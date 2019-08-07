@@ -79,6 +79,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private cursorChangedScheduler: RunOnceScheduler | null;
 
 	private readonly localToDispose = this._register(new DisposableStore());
+	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -339,8 +340,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}).then(undefined, onUnexpectedError);
 
 	}
-
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
 		this.mouseDownInfo = null;
