@@ -68,7 +68,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	public readonly isSimpleWidget: boolean;
 	protected _rawOptions: editorOptions.IEditorOptions;
 	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
-	public editor: editorOptions.InternalEditorOptions;
+	public editor!: editorOptions.InternalEditorOptions;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
 
@@ -267,6 +267,11 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
+		},
+		'editor.scrollOff': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollOff,
+			'description': nls.localize('scrollOff', "Controls the number of context lines above and below the cursor.")
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',

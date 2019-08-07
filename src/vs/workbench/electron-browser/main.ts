@@ -54,7 +54,6 @@ import { basename } from 'vs/base/common/resources';
 
 class CodeRendererMain extends Disposable {
 
-	private workbench: Workbench;
 	private readonly environmentService: WorkbenchEnvironmentService;
 
 	constructor(configuration: IWindowConfiguration) {
@@ -116,17 +115,17 @@ class CodeRendererMain extends Disposable {
 		mark('willStartWorkbench');
 
 		// Create Workbench
-		this.workbench = new Workbench(document.body, services.serviceCollection, services.logService);
+		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
 
 		// Workbench Lifecycle
-		this._register(this.workbench.onShutdown(() => this.dispose()));
-		this._register(this.workbench.onWillShutdown(event => event.join(services.storageService.close())));
+		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onWillShutdown(event => event.join(services.storageService.close())));
 
 		// Startup
-		const instantiationService = this.workbench.startup();
+		const instantiationService = workbench.startup();
 
 		// Window
 		this._register(instantiationService.createInstance(ElectronWindow));
@@ -145,7 +144,7 @@ class CodeRendererMain extends Disposable {
 		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
 	}
 
-	private onWindowResize(e: Event, retry: boolean): void {
+	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
 				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
@@ -154,12 +153,12 @@ class CodeRendererMain extends Disposable {
 				// call at the next animation frame once, in the hope that the dimensions are
 				// proper then.
 				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false, workbench));
 				}
 				return;
 			}
 
-			this.workbench.layout();
+			workbench.layout();
 		}
 	}
 

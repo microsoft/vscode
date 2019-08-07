@@ -18,13 +18,13 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
-	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessResolvedShellLaunchConfig = new Emitter<IShellLaunchConfig>();
+	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
 
 	private readonly _onInput = this._register(new Emitter<string>());

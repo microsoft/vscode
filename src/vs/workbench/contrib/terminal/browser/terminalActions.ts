@@ -1168,7 +1168,7 @@ export class ScrollToPreviousCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.scrollToPreviousCommand();
 			instance.focus();
 		}
@@ -1189,7 +1189,7 @@ export class ScrollToNextCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.scrollToNextCommand();
 			instance.focus();
 		}
@@ -1210,7 +1210,7 @@ export class SelectToPreviousCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToPreviousCommand();
 			instance.focus();
 		}
@@ -1231,7 +1231,7 @@ export class SelectToNextCommandAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToNextCommand();
 			instance.focus();
 		}
@@ -1252,7 +1252,7 @@ export class SelectToPreviousLineAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToPreviousLine();
 			instance.focus();
 		}
@@ -1273,7 +1273,7 @@ export class SelectToNextLineAction extends Action {
 
 	public run(): Promise<any> {
 		const instance = this.terminalService.getActiveInstance();
-		if (instance) {
+		if (instance && instance.commandTracker) {
 			instance.commandTracker.selectToNextLine();
 			instance.focus();
 		}

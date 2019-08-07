@@ -36,8 +36,8 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
-	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
+	private needsRefresh = false;
+	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 
 	constructor(
 		options: IViewletViewOptions,

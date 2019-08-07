@@ -31,6 +31,7 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
 	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'arm64', pkgTarget: 'node8-linux-arm64' },
 	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 
@@ -41,6 +42,7 @@ gulp.task('vscode-reh-win32-x64-min', noop);
 gulp.task('vscode-reh-darwin-min', noop);
 gulp.task('vscode-reh-linux-x64-min', noop);
 gulp.task('vscode-reh-linux-armhf-min', noop);
+gulp.task('vscode-reh-linux-arm64-min', noop);
 gulp.task('vscode-reh-linux-alpine-min', noop);
 
 gulp.task('vscode-reh-web-win32-ia32-min', noop);

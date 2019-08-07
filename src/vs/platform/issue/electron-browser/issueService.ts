@@ -10,7 +10,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class IssueService implements IIssueService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private channel: IChannel;
 

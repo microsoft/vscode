@@ -203,7 +203,7 @@ export class SplitView extends Disposable {
 	private proportions: undefined | number[] = undefined;
 	private viewItems: ViewItem[] = [];
 	private sashItems: ISashItem[] = [];
-	private sashDragState: ISashDragState;
+	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 	private proportionalLayout: boolean;
@@ -499,8 +499,8 @@ export class SplitView extends Disposable {
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
-			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState.current, e.altKey)),
-			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState.current, false))
+			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState!.current, e.altKey)),
+			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState!.current, false))
 		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {
@@ -572,8 +572,8 @@ export class SplitView extends Disposable {
 	}
 
 	private onSashChange({ current }: ISashEvent): void {
-		const { index, start, sizes, alt, minDelta, maxDelta, snapBefore, snapAfter } = this.sashDragState;
-		this.sashDragState.current = current;
+		const { index, start, sizes, alt, minDelta, maxDelta, snapBefore, snapAfter } = this.sashDragState!;
+		this.sashDragState!.current = current;
 
 		const delta = current - start;
 		const newDelta = this.resize(index, delta, sizes, undefined, undefined, minDelta, maxDelta, snapBefore, snapAfter);
@@ -596,7 +596,7 @@ export class SplitView extends Disposable {
 
 	private onSashEnd(index: number): void {
 		this._onDidSashChange.fire(index);
-		this.sashDragState.disposable.dispose();
+		this.sashDragState!.disposable.dispose();
 		this.saveProportions();
 	}
 

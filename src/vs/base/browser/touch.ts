@@ -69,7 +69,7 @@ export class Gesture extends Disposable {
 	private static INSTANCE: Gesture;
 	private static HOLD_DELAY = 700;
 
-	private dispatched: boolean;
+	private dispatched = false;
 	private targets: HTMLElement[];
 	private handle: IDisposable | null;
 

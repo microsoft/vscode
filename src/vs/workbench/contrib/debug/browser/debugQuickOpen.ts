@@ -77,7 +77,7 @@ export class DebugQuickOpenHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.launch';
 
-	private autoFocusIndex: number;
+	private autoFocusIndex: number | undefined;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,

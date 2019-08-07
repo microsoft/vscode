@@ -610,7 +610,7 @@ export class GridView implements IDisposable {
 	private styles: IGridViewStyles;
 	private proportionalLayout: boolean;
 
-	private _root: BranchNode;
+	private _root!: BranchNode;
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 

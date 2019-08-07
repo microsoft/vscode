@@ -19,9 +19,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 
 abstract class RepoInfo {
-	readonly base: string;
-	readonly owner: string;
-	readonly repo: string;
+	abstract get base(): string;
+	abstract get owner(): string;
+	abstract get repo(): string;
 
 	static fromExtension(desc: IExtensionDescription): RepoInfo | undefined {
 

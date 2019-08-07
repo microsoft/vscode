@@ -451,8 +451,8 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 	private _matchCount = 0;
 	get matchCount(): number { return this._matchCount; }
 
-	private _pattern: string;
-	private _lowercasePattern: string;
+	private _pattern: string = '';
+	private _lowercasePattern: string = '';
 	private disposables: IDisposable[] = [];
 
 	set pattern(pattern: string) {
@@ -543,7 +543,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _filterOnType: boolean;
 	get filterOnType(): boolean { return this._filterOnType; }
 
-	private _empty: boolean;
+	private _empty: boolean = false;
 	get empty(): boolean { return this._empty; }
 
 	private _onDidChangeEmptyState = new Emitter<boolean>();

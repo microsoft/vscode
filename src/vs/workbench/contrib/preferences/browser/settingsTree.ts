@@ -698,9 +698,12 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	private onDidChangeList(template: ISettingListItemTemplate, e: IListChangeEvent): void {
 		if (template.context) {
-			const newValue: any[] = isArray(template.context.scopeValue)
-				? [...template.context.scopeValue]
-				: [...template.context.value];
+			let newValue: any[] = [];
+			if (isArray(template.context.scopeValue)) {
+				newValue = [...template.context.scopeValue];
+			} else if (isArray(template.context.value)) {
+				newValue = [...template.context.value];
+			}
 
 			if (e.targetIndex !== undefined) {
 				// Delete value

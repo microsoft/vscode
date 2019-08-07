@@ -599,7 +599,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined): Promise<vscode.DebugConfiguration[]> {
+	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined, token: CancellationToken): Promise<vscode.DebugConfiguration[]> {
 		return asPromise(async () => {
 			const provider = this.getConfigProviderByHandle(configProviderHandle);
 			if (!provider) {
@@ -609,7 +609,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				throw new Error('DebugConfigurationProvider has no method provideDebugConfigurations');
 			}
 			const folder = await this.getFolder(folderUri);
-			return provider.provideDebugConfigurations(folder, CancellationToken.None);
+			return provider.provideDebugConfigurations(folder, token);
 		}).then(debugConfigurations => {
 			if (!debugConfigurations) {
 				throw new Error('nothing returned from DebugConfigurationProvider.provideDebugConfigurations');
@@ -618,7 +618,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	public $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration | null | undefined> {
+	public $resolveDebugConfiguration(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration, token: CancellationToken): Promise<vscode.DebugConfiguration | null | undefined> {
 		return asPromise(async () => {
 			const provider = this.getConfigProviderByHandle(configProviderHandle);
 			if (!provider) {
@@ -628,7 +628,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				throw new Error('DebugConfigurationProvider has no method resolveDebugConfiguration');
 			}
 			const folder = await this.getFolder(folderUri);
-			return provider.resolveDebugConfiguration(folder, debugConfiguration, CancellationToken.None);
+			return provider.resolveDebugConfiguration(folder, debugConfiguration, token);
 		});
 	}
 

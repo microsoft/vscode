@@ -1148,6 +1148,12 @@
           "description": "%config.enableSmartCommit%",
           "default": false
         },
+        "git.suggestSmartCommit": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.suggestSmartCommit%",
+          "default": true
+        },
         "git.enableCommitSigning": {
           "type": "boolean",
           "scope": "resource",
@@ -1312,6 +1318,12 @@
           "scope": "resource",
           "default": true,
           "description": "%config.openDiffOnClick%"
+        },
+        "git.supportCancellation": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.supportCancellation%"
         }
       }
     },

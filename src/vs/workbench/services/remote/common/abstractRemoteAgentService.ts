@@ -31,6 +31,7 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 		@IEnvironmentService protected readonly _environmentService: IEnvironmentService
 	) {
 		super();
+		this._environment = null;
 	}
 
 	abstract getConnection(): IRemoteAgentConnection | null;

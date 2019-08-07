@@ -450,6 +450,8 @@ export class CommandCenter {
 			return;
 		}
 
+		url = url.trim().replace(/^git\s+clone\s+/, '');
+
 		const config = workspace.getConfiguration('git');
 		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
 		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
@@ -1256,14 +1258,23 @@ export class CommandCenter {
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
 
+			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+			if (!suggestSmartCommit) {
+				return false;
+			}
+
 			// prompt the user if we want to commit all or not
 			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
 			const always = localize('always', "Always");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+			const never = localize('never', "Never");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
 
 			if (pick === always) {
 				config.update('enableSmartCommit', true, true);
+			} else if (pick === never) {
+				config.update('suggestSmartCommit', false, true);
+				return false;
 			} else if (pick !== yes) {
 				return false; // do not commit on cancel
 			}
@@ -1913,7 +1924,17 @@ export class CommandCenter {
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 
-		if (!HEAD || !HEAD.upstream) {
+		if (!HEAD) {
+			return;
+		} else if (!HEAD.upstream) {
+			const branchName = HEAD.name;
+			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const yes = localize('ok', "OK");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick === yes) {
+				await this.publish(repository);
+			}
 			return;
 		}
 
@@ -1945,8 +1966,16 @@ export class CommandCenter {
 	}
 
 	@command('git.sync', { repository: true })
-	sync(repository: Repository): Promise<void> {
-		return this._sync(repository, false);
+	async sync(repository: Repository): Promise<void> {
+		try {
+			await this._sync(repository, false);
+		} catch (err) {
+			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git._syncAll')
@@ -1963,8 +1992,16 @@ export class CommandCenter {
 	}
 
 	@command('git.syncRebase', { repository: true })
-	syncRebase(repository: Repository): Promise<void> {
-		return this._sync(repository, true);
+	async syncRebase(repository: Repository): Promise<void> {
+		try {
+			await this._sync(repository, true);
+		} catch (err) {
+			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			}
+
+			throw err;
+		}
 	}
 
 	@command('git.publish', { repository: true })

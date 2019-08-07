@@ -20,6 +20,7 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILogService } from 'vs/platform/log/common/log';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -34,7 +35,8 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHistoryService private readonly _historyService: IHistoryService
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@ILogService private readonly _logService: ILogService
 	) {
 	}
 
@@ -84,6 +86,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			process.env.windir,
 			lastActiveWorkspace,
 			this._configurationResolverService,
+			this._logService,
 			platformOverride
 		);
 		const args = getDefaultShellArgs(
@@ -91,6 +94,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			isWorkspaceShellAllowed,
 			lastActiveWorkspace,
 			this._configurationResolverService,
+			this._logService,
 			platformOverride
 		);
 		return Promise.resolve({ shell, args });

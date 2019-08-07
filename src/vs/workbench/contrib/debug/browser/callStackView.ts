@@ -37,15 +37,15 @@ type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndS
 
 export class CallStackView extends ViewletPanel {
 
-	private pauseMessage: HTMLSpanElement;
-	private pauseMessageLabel: HTMLSpanElement;
+	private pauseMessage!: HTMLSpanElement;
+	private pauseMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private needsRefresh: boolean;
-	private ignoreSelectionChangedEvent: boolean;
-	private ignoreFocusStackFrameEvent: boolean;
+	private needsRefresh = false;
+	private ignoreSelectionChangedEvent = false;
+	private ignoreFocusStackFrameEvent = false;
 	private callStackItemType: IContextKey<string>;
-	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
+	private dataSource!: CallStackDataSource;
+	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 	private parentSessionToExpand = new Set<IDebugSession>();
 
@@ -584,7 +584,7 @@ function isDeemphasized(frame: IStackFrame): boolean {
 }
 
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
-	deemphasizedStackFramesToShow: IStackFrame[];
+	deemphasizedStackFramesToShow: IStackFrame[] = [];
 
 	constructor(private debugService: IDebugService) { }
 

@@ -28,7 +28,10 @@ export class TokenizationStateStore {
 	private _invalidLineStartIndex: number;
 
 	constructor() {
-		this._reset(null);
+		this._beginState = [];
+		this._valid = [];
+		this._len = 0;
+		this._invalidLineStartIndex = 0;
 	}
 
 	private _reset(initialState: IState | null): void {

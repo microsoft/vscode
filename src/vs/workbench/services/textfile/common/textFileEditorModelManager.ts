@@ -38,10 +38,41 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
 	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent> = this._onModelOrphanedChanged.event;
 
-	private _onModelsDirtyEvent: Event<TextFileModelChangeEvent[]>;
-	private _onModelsSaveError: Event<TextFileModelChangeEvent[]>;
-	private _onModelsSaved: Event<TextFileModelChangeEvent[]>;
-	private _onModelsReverted: Event<TextFileModelChangeEvent[]>;
+	private _onModelsDirty!: Event<TextFileModelChangeEvent[]>;
+	get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsDirty) {
+			this._onModelsDirty = this.debounce(this.onModelDirty);
+		}
+
+		return this._onModelsDirty;
+	}
+
+	private _onModelsSaveError!: Event<TextFileModelChangeEvent[]>;
+	get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsSaveError) {
+			this._onModelsSaveError = this.debounce(this.onModelSaveError);
+		}
+
+		return this._onModelsSaveError;
+	}
+
+	private _onModelsSaved!: Event<TextFileModelChangeEvent[]>;
+	get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsSaved) {
+			this._onModelsSaved = this.debounce(this.onModelSaved);
+		}
+
+		return this._onModelsSaved;
+	}
+
+	private _onModelsReverted!: Event<TextFileModelChangeEvent[]>;
+	get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsReverted) {
+			this._onModelsReverted = this.debounce(this.onModelReverted);
+		}
+
+		return this._onModelsReverted;
+	}
 
 	private mapResourceToDisposeListener: ResourceMap<IDisposable>;
 	private mapResourceToStateChangeListener: ResourceMap<IDisposable>;
@@ -68,38 +99,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsDirtyEvent) {
-			this._onModelsDirtyEvent = this.debounce(this.onModelDirty);
-		}
-
-		return this._onModelsDirtyEvent;
-	}
-
-	get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsSaveError) {
-			this._onModelsSaveError = this.debounce(this.onModelSaveError);
-		}
-
-		return this._onModelsSaveError;
-	}
-
-	get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsSaved) {
-			this._onModelsSaved = this.debounce(this.onModelSaved);
-		}
-
-		return this._onModelsSaved;
-	}
-
-	get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsReverted) {
-			this._onModelsReverted = this.debounce(this.onModelReverted);
-		}
-
-		return this._onModelsReverted;
 	}
 
 	private debounce(event: Event<TextFileModelChangeEvent>): Event<TextFileModelChangeEvent[]> {
