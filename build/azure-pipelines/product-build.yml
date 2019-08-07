@@ -140,6 +140,7 @@ jobs:
   - template: sync-mooncake.yml
 
 trigger: none
+pr: none
 
 schedules:
 - cron: "0 5 * * Mon-Fri"

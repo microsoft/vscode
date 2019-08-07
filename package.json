@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.38.0",
-  "distro": "f123663d79c57c07e3f70b2d0938f1a58ff4d1da",
+  "distro": "1413fa0e8982b468bc452d742bbd60c36b0cb45e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -35,7 +35,6 @@
     "iconv-lite": "0.5.0",
     "jschardet": "1.6.0",
     "keytar": "^4.11.0",
-    "minimist": "1.2.0",
     "native-is-elevated": "0.3.0",
     "native-keymap": "2.0.0",
     "native-watchdog": "1.0.0",
@@ -47,6 +46,7 @@
     "sudo-prompt": "9.0.0",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "2.1.7",
+    "vscode-minimist": "^1.2.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.5.5",
     "vscode-sqlite3": "4.0.8",
@@ -60,7 +60,6 @@
   "devDependencies": {
     "7zip": "0.0.6",
     "@types/keytar": "^4.4.0",
-    "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",
     "@types/semver": "^5.5.0",

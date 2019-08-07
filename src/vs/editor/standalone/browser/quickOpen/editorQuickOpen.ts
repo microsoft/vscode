@@ -31,9 +31,9 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 	}
 
 	private readonly editor: ICodeEditor;
-	private widget: QuickOpenEditorWidget | null;
-	private rangeHighlightDecorationId: string | null;
-	private lastKnownEditorSelection: Selection | null;
+	private widget: QuickOpenEditorWidget | null = null;
+	private rangeHighlightDecorationId: string | null = null;
+	private lastKnownEditorSelection: Selection | null = null;
 
 	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;

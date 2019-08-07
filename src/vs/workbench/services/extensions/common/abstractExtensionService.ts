@@ -170,12 +170,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
-	public startExtensionHost(): void {
+	protected startExtensionHost(): void {
 		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
-
-	public stopExtensionHost(): void {
-		this._stopExtensionHostProcess();
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
