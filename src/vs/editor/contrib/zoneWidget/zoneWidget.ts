@@ -24,7 +24,7 @@ export interface IOptions {
 	frameWidth?: number;
 	className?: string;
 	isAccessible?: boolean;
-	isResizeable?: boolean;
+	isResizable?: boolean;
 	frameColor?: Color;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
@@ -475,7 +475,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 		this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL }));
 
-		if (!this.options.isResizeable) {
+		if (!this.options.isResizable) {
 			this._resizeSash.hide();
 			this._resizeSash.state = SashState.Disabled;
 		}

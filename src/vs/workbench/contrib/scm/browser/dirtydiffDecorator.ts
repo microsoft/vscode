@@ -182,7 +182,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
-		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
+		super(editor, { isResizable: true, frameWidth: 1, keepEditorSelection: true });
 
 		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getTheme());
