@@ -4,7 +4,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as fs from 'fs';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
