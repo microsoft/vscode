@@ -728,7 +728,9 @@ export class SimpleWindowsService implements IWindowsService {
 		}
 
 		// add connection token
-		newAddress += `${this.workbenchEnvironmentService.configuration.connectionToken ? `tkn=${this.workbenchEnvironmentService.configuration.connectionToken}` : ''}`;
+		if (this.workbenchEnvironmentService.configuration.connectionToken) {
+			newAddress += `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}`;
+		}
 
 		window.open(newAddress);
 

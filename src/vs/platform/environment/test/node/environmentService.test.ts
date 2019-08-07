@@ -52,4 +52,15 @@ suite('EnvironmentService', () => {
 		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: { 'VSCODE_CWD': '/bar' } }), path.resolve('/bar/dir'),
 			'should use VSCODE_CWD as the cwd when --user-data-dir is specified');
 	});
+
+	// https://github.com/microsoft/vscode/issues/78440
+	test('careful with boolean file names', function () {
+		let actual = parseArgs(['-r', 'arg.txt']);
+		assert(actual['reuse-window']);
+		assert.deepEqual(actual._, ['arg.txt']);
+
+		actual = parseArgs(['-r', 'true.txt']);
+		assert(actual['reuse-window']);
+		assert.deepEqual(actual._, ['true.txt']);
+	});
 });

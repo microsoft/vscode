@@ -156,32 +156,43 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.lineHeight = '100px';
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
-		keyboardMarker.style.display = 'none';
+		keyboardMarker.style.overflow = 'hidden';
+		keyboardMarker.style.transitionProperty = 'opacity';
+		keyboardMarker.style.transitionDuration = '0.3s';
+		keyboardMarker.style.transitionTimingFunction = 'ease-out';
+		keyboardMarker.style.opacity = '0';
 
 		const onKeyDown = domEvent(container, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let length = 0;
 
 		const keyboardListener = onKeyDown(e => {
 			keyboardTimeout.dispose();
 
 			const event = new StandardKeyboardEvent(e);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
-			const label = keybinding.getLabel();
+			let label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
-				keyboardMarker.textContent = label;
+			if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || length > 20) {
+				keyboardMarker.textContent = '';
+				length = 0;
 			}
 
-			keyboardMarker.style.display = 'block';
+			if (!this.keybindingService.mightProducePrintableCharacter(event) && label) {
+				label = ` ${label.replace(/\+$/, '')} `;
+			}
+
+			length++;
+			keyboardMarker.textContent! += label;
+			keyboardMarker.style.opacity = '1';
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
-				keyboardMarker.style.display = 'none';
+				length = 0;
+				keyboardMarker.style.opacity = '0';
 			});
 		});
 
