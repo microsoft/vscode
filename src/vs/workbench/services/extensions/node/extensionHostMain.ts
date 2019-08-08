@@ -21,6 +21,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -72,6 +73,7 @@ export class ExtensionHostMain {
 		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
 		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
 		services.set(ILogService, extHostLogService);
+		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 

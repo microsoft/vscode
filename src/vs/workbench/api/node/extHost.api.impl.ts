@@ -39,7 +39,6 @@ import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
 import { ExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
 import { ExtHostSCM } from 'vs/workbench/api/common/extHostSCM';
-import { ExtHostSearch, registerEHSearchProviders } from 'vs/workbench/api/node/extHostSearch';
 import { ExtHostStatusBar } from 'vs/workbench/api/common/extHostStatusBar';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
@@ -69,6 +68,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
+import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -124,7 +124,7 @@ export function createApiFactory(
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, accessor.get(IExtHostDebugService));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
-	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, uriTransformer, extHostLogService));
+	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, accessor.get(IExtHostSearch));
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, accessor.get(IExtHostTask));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
@@ -139,8 +139,6 @@ export function createApiFactory(
 			authority: initData.remote.authority,
 			platform: process.platform
 		});
-
-		registerEHSearchProviders(extHostSearch, extHostLogService);
 
 		const cliServer = new CLIServer(extHostCommands);
 		process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
