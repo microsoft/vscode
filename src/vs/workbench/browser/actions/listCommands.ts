@@ -751,7 +751,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			if (list.getSelection().length > 0) {
 				list.setSelection([]);
-			} else if (list.getFocus().length > 0) {
+			}
+			if (list.getFocus().length > 0) {
 				list.setFocus([]);
 			}
 		}
@@ -763,7 +764,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			if (list.getSelection().length > 0) {
 				list.setSelection([], fakeKeyboardEvent);
-			} else if (list.getFocus().length > 0) {
+			}
+			if (list.getFocus().length > 0) {
 				list.setFocus([], fakeKeyboardEvent);
 			}
 		}
@@ -774,7 +776,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			if (tree.getSelection().length) {
 				tree.clearSelection({ origin: 'keyboard' });
-			} else if (tree.getFocus()) {
+			}
+			if (tree.getFocus()) {
 				tree.clearFocus({ origin: 'keyboard' });
 			}
 		}
