@@ -81,11 +81,14 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 }
 
 export interface IEditorGroupsAccessor {
+
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+
+	readonly onDidVisibilityChange: Event<boolean>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
