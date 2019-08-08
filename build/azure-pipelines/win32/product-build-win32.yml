@@ -2,11 +2,12 @@ steps:
 - powershell: |
     mkdir .build -ea 0
     "$env:BUILD_SOURCEVERSION" | Out-File -Encoding ascii -NoNewLine .build\commit
+    "$env:VSCODE_QUALITY" | Out-File -Encoding ascii -NoNewLine .build\quality
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .build/commit'
+    keyfile: 'build/.cachesalt, .build/commit, .build/quality'
     targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
