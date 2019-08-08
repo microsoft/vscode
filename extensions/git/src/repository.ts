@@ -679,7 +679,7 @@ export class Repository implements Disposable {
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
-		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
+		this.updateInputBox();
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
@@ -728,7 +728,9 @@ export class Repository implements Disposable {
 	}
 
 	updateInputBox() {
-		this._sourceControl.inputBox.placeholder = 'Message ({0} to commit to ' + (this._HEAD ? this._HEAD.name || '' : '') + ')';
+		const headless: Boolean = this.headLabel === '';
+		// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
+		this._sourceControl.inputBox.placeholder = localize(headless ? 'commitMessage' : 'commitMessageWithHeadLabel', "Message ({0} to commit{1})", "{0}", headless ? 'this.headLabel' : ' to ' + this.headLabel);
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
