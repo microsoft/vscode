@@ -1076,33 +1076,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedPanel(): void {
 		if (this.workbenchGrid instanceof Grid) {
-			const curSize = this.workbenchGrid.getViewSize(this.panelPartView);
-			const size = { ...curSize };
-
+			const size = this.workbenchGrid.getViewSize(this.panelPartView);
 			if (!this.isPanelMaximized()) {
-				if (this.state.panel.position === Position.BOTTOM) {
-					size.height = this.panelPartView.maximumHeight;
-					this.state.panel.sizeBeforeMaximize = curSize.height;
-				} else {
-					size.width = this.panelPartView.maximumWidth;
-					this.state.panel.sizeBeforeMaximize = curSize.width;
-				}
-
+				this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
 				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
+				this.setEditorHidden(true);
 			} else {
-				if (this.state.panel.position === Position.BOTTOM) {
-					size.height = this.state.panel.sizeBeforeMaximize;
-				} else {
-					size.width = this.state.panel.sizeBeforeMaximize;
-				}
-
-				// Unhide the editor if needed
-				if (this.state.editor.hidden) {
-					this.setEditorHidden(false);
-				}
+				this.setEditorHidden(false);
+				this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.sizeBeforeMaximize, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.sizeBeforeMaximize : size.height });
 			}
-
-			this.workbenchGrid.resizeView(this.panelPartView, size);
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
 		}
@@ -1114,16 +1096,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (this.workbenchGrid instanceof Grid) {
-			try {
-				// The panel is maximum when the editor is minimum
-				if (this.state.panel.position === Position.BOTTOM) {
-					return this.workbenchGrid.getViewSize(this.editorPartView).height <= this.editorPartView.minimumHeight;
-				} else {
-					return this.workbenchGrid.getViewSize(this.editorPartView).width <= this.editorPartView.minimumWidth;
-				}
-			} catch (e) {
-				return false;
-			}
+			return this.state.editor.hidden;
 		} else {
 			return this.workbenchGrid.isPanelMaximized();
 		}
