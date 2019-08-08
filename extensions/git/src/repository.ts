@@ -910,7 +910,8 @@ export class Repository implements Disposable {
 		if (this.rebaseCommit) {
 			await this.run(Operation.RebaseContinue, async () => {
 				if (opts.all) {
-					await this.repository.add([]);
+					const addOpts = opts.all === 'tracked' ? { update: true } : {};
+					await this.repository.add([], addOpts);
 				}
 
 				await this.repository.rebaseContinue();
@@ -918,9 +919,11 @@ export class Repository implements Disposable {
 		} else {
 			await this.run(Operation.Commit, async () => {
 				if (opts.all) {
-					await this.repository.add([]);
+					const addOpts = opts.all === 'tracked' ? { update: true } : {};
+					await this.repository.add([], addOpts);
 				}
 
+				delete opts.all;
 				await this.repository.commit(message, opts);
 			});
 		}

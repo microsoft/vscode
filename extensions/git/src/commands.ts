@@ -1275,8 +1275,8 @@ export class CommandCenter {
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
-
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+
 			if (!suggestSmartCommit) {
 				return false;
 			}
@@ -1328,6 +1328,10 @@ export class CommandCenter {
 
 		if (!message) {
 			return false;
+		}
+
+		if (opts.all && config.get<'all' | 'tracked'>('smartCommitChanges') === 'tracked') {
+			opts.all = 'tracked';
 		}
 
 		await repository.commit(message, opts);
