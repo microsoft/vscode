@@ -642,7 +642,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 }
 
 export interface CommitOptions {
-	all?: boolean;
+	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
@@ -1081,8 +1081,16 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async add(paths: string[]): Promise<void> {
-		const args = ['add', '-A', '--'];
+	async add(paths: string[], opts?: { update?: boolean }): Promise<void> {
+		const args = ['add'];
+
+		if (opts && opts.update) {
+			args.push('-u');
+		} else {
+			args.push('-A');
+		}
+
+		args.push('--');
 
 		if (paths && paths.length) {
 			args.push.apply(args, paths);

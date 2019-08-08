@@ -1148,6 +1148,20 @@
           "description": "%config.enableSmartCommit%",
           "default": false
         },
+        "git.smartCommitChanges": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked"
+          ],
+          "enumDescriptions": [
+            "%config.smartCommitChanges.all%",
+            "%config.smartCommitChanges.tracked%"
+          ],
+          "scope": "resource",
+          "description": "%config.smartCommitChanges%",
+          "default": "all"
+        },
         "git.suggestSmartCommit": {
           "type": "boolean",
           "scope": "resource",
@@ -1253,12 +1267,6 @@
           "scope": "resource",
           "default": false,
           "description": "%config.alwaysShowStagedChangesResourceGroup%"
-        },
-        "git.onlyTrackedFilesCanBeAutoStaged": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%config.onlyTrackedFilesCanBeAutoStaged%"
         },
         "git.alwaysSignOff": {
           "type": "boolean",
