@@ -298,10 +298,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
-			this.state.sideBar.hidden ? 'nosidebar' : undefined,
-			this.state.panel.hidden ? 'nopanel' : undefined,
-			this.state.statusBar.hidden ? 'nostatusbar' : undefined,
-			this.state.fullscreen ? 'fullscreen' : undefined
+			...this.getLayoutClasses()
 		]);
 
 		addClasses(this.container, ...workbenchClasses);

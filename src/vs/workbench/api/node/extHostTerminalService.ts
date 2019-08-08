@@ -22,7 +22,6 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDeb
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
@@ -692,9 +691,6 @@ class ApiRequest {
 }
 
 class ExtHostPseudoterminal implements ITerminalChildProcess {
-	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }> | IQueuedEvent<ITerminalDimensions | undefined>)[] = [];
-	private _queueDisposables: IDisposable[] | undefined;
-
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = new Emitter<number>();
@@ -706,18 +702,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 
-	constructor(
-		private readonly _pty: vscode.Pseudoterminal
-	) {
-		this._queueDisposables = [];
-		this._queueDisposables.push(this._pty.onDidWrite(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
-		if (this._pty.onDidClose) {
-			this._queueDisposables.push(this._pty.onDidClose(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: 0 })));
-		}
-		if (this._pty.onDidOverrideDimensions) {
-			this._queueDisposables.push(this._pty.onDidOverrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
-		}
-	}
+	constructor(private readonly _pty: vscode.Pseudoterminal) { }
 
 	shutdown(): void {
 		this._pty.close();
@@ -748,12 +733,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
-		// Flush all buffered events
-		this._queuedEvents.forEach(e => (<any>e.emitter.fire)(e.data));
-		this._queuedEvents = [];
-		this._queueDisposables = undefined;
-
-		// Attach the real listeners
+		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
 			this._pty.onDidClose(e => this._onProcessExit.fire(0));
@@ -766,7 +746,3 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 }
 
-interface IQueuedEvent<T> {
-	emitter: Emitter<T>;
-	data: T;
-}
