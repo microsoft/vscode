@@ -13,7 +13,14 @@ import { URI } from 'vs/base/common/uri';
 
 export class ExtHostDownloadService extends Disposable {
 
-	constructor(
+	static register(
+		proxy: MainThreadDownloadServiceShape,
+		commands: ExtHostCommands
+	) {
+		return new ExtHostDownloadService(proxy, commands);
+	}
+
+	private constructor(
 		proxy: MainThreadDownloadServiceShape,
 		commands: ExtHostCommands
 	) {
@@ -24,5 +31,4 @@ export class ExtHostDownloadService extends Disposable {
 			return location;
 		});
 	}
-
 }
