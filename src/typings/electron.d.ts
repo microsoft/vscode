@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.0
+// Type definitions for Electron 6.0.1
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -988,9 +988,10 @@ declare namespace Electron {
 		setAccessibilitySupportEnabled(enabled: boolean): void;
 		/**
 		 * Sets or creates a directory your app's logs which can then be manipulated with
-		 * app.getPath() or app.setPath(pathName, newPath). On macOS, this directory will
-		 * be set by deafault to /Library/Logs/YourAppName, and on Linux and Windows it
-		 * will be placed inside your userData directory.
+		 * app.getPath() or app.setPath(pathName, newPath). Calling app.setAppLogsPath()
+		 * without a path parameter will result in this directory being set to
+		 * /Library/Logs/YourAppName on macOS, and inside the userData directory on Linux
+		 * and Windows.
 		 */
 		setAppLogsPath(path?: string): void;
 		/**
@@ -7253,13 +7254,13 @@ declare namespace Electron {
 		/**
 		 * The listener will be called with listener(details, callback) when a request is
 		 * about to occur. The uploadData is an array of UploadData objects. The callback
-		 * has to be called with an response object.
+		 * has to be called with an response object. Some examples of valid urls:
 		 */
 		onBeforeRequest(listener: ((details: OnBeforeRequestDetails, callback: (response: Response) => void) => void) | (null)): void;
 		/**
 		 * The listener will be called with listener(details, callback) when a request is
 		 * about to occur. The uploadData is an array of UploadData objects. The callback
-		 * has to be called with an response object.
+		 * has to be called with an response object. Some examples of valid urls:
 		 */
 		onBeforeRequest(filter: OnBeforeRequestFilter, listener: ((details: OnBeforeRequestDetails, callback: (response: Response) => void) => void) | (null)): void;
 		/**
@@ -7868,7 +7869,8 @@ declare namespace Electron {
 		 */
 		website?: string;
 		/**
-		 * Path to the app's icon.
+		 * Path to the app's icon. Will be shown as 64x64 pixels while retaining aspect
+		 * ratio.
 		 */
 		iconPath?: string;
 	}
@@ -8932,14 +8934,16 @@ declare namespace Electron {
 		 */
 		click?: (menuItem: MenuItem, browserWindow: BrowserWindow, event: KeyboardEvent) => void;
 		/**
-		 * Can be undo, redo, cut, copy, paste, pasteandmatchstyle, delete, selectall,
-		 * reload, forcereload, toggledevtools, resetzoom, zoomin, zoomout,
+		 * Can be undo, redo, cut, copy, paste, pasteAndMatchStyle, delete, selectAll,
+		 * reload, forceReload, toggleDevTools, resetZoom, zoomIn, zoomOut,
 		 * togglefullscreen, window, minimize, close, help, about, services, hide,
-		 * hideothers, unhide, quit, startspeaking, stopspeaking, close, minimize, zoom,
-		 * front, appMenu, fileMenu, editMenu, viewMenu or windowMenu Define the action of
-		 * the menu item, when specified the click property will be ignored. See .
+		 * hideOthers, unhide, quit, startSpeaking, stopSpeaking, close, minimize, zoom,
+		 * front, appMenu, fileMenu, editMenu, viewMenu, recentDocuments, toggleTabBar,
+		 * selectNextTab, selectPreviousTab, mergeAllWindows, clearRecentDocuments,
+		 * moveTabToNewWindow or windowMenu Define the action of the menu item, when
+		 * specified the click property will be ignored. See .
 		 */
-		role?: ('undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteandmatchstyle' | 'delete' | 'selectall' | 'reload' | 'forcereload' | 'toggledevtools' | 'resetzoom' | 'zoomin' | 'zoomout' | 'togglefullscreen' | 'window' | 'minimize' | 'close' | 'help' | 'about' | 'services' | 'hide' | 'hideothers' | 'unhide' | 'quit' | 'startspeaking' | 'stopspeaking' | 'close' | 'minimize' | 'zoom' | 'front' | 'appMenu' | 'fileMenu' | 'editMenu' | 'viewMenu' | 'windowMenu');
+		role?: ('undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteAndMatchStyle' | 'delete' | 'selectAll' | 'reload' | 'forceReload' | 'toggleDevTools' | 'resetZoom' | 'zoomIn' | 'zoomOut' | 'togglefullscreen' | 'window' | 'minimize' | 'close' | 'help' | 'about' | 'services' | 'hide' | 'hideOthers' | 'unhide' | 'quit' | 'startSpeaking' | 'stopSpeaking' | 'close' | 'minimize' | 'zoom' | 'front' | 'appMenu' | 'fileMenu' | 'editMenu' | 'viewMenu' | 'recentDocuments' | 'toggleTabBar' | 'selectNextTab' | 'selectPreviousTab' | 'mergeAllWindows' | 'clearRecentDocuments' | 'moveTabToNewWindow' | 'windowMenu');
 		/**
 		 * Can be normal, separator, submenu, checkbox or radio.
 		 */
