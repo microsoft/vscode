@@ -1258,7 +1258,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					{
 						type: 'leaf',
 						data: { type: Parts.TITLEBAR_PART },
-						size: titleBarHeight
+						size: titleBarHeight,
+						visible: this.isVisible(Parts.TITLEBAR_PART)
 					},
 					{
 						type: 'branch',
