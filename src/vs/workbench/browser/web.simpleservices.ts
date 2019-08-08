@@ -661,6 +661,8 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
