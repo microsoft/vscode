@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusUpdater, StatusBarController } from './scmActivity';
+import { SCMStatusController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -47,10 +47,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 ));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
@@ -97,6 +94,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
 			default: false
+		},
+		'scm.countBadge': {
+			type: 'string',
+			enum: ['all', 'focused', 'off'],
+			enumDescriptions: [
+				localize('scm.countBadge.all', "Show the sum of all Source Control Providers count badges."),
+				localize('scm.countBadge.focused', "Show the count badge of the focused Source Control Provider."),
+				localize('scm.countBadge.off', "Disable the Source Control count badge.")
+			],
+			description: localize('scm.countBadge', "Controls the Source Control count badge."),
+			default: 'all'
 		}
 	}
 });
