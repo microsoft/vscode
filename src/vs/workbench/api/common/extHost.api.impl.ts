@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, IInitData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -68,6 +68,7 @@ import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -86,11 +87,11 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
  */
 export function createApiFactory(
 	accessor: ServicesAccessor,
-	initData: IInitData,
 	extHostStorage: ExtHostStorage,
 ): IExtensionApiFactory {
 
 	// services
+	const initData = accessor.get(IExtHostInitDataService);
 	const extensionService = accessor.get(IExtHostExtensionService);
 	const extHostWorkspace = accessor.get(IExtHostWorkspace);
 	const extHostConfiguration = accessor.get(IExtHostConfiguration);

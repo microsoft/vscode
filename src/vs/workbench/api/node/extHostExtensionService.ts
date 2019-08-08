@@ -166,7 +166,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 
 		try {
 			// initialize API
-			const extensionApiFactory = this._instaService.invokeFunction(createApiFactory, this._initData, this._storage);
+			const extensionApiFactory = this._instaService.invokeFunction(createApiFactory, this._storage);
 
 			// Register Download command
 			this._instaService.createInstance(ExtHostDownloadService);
