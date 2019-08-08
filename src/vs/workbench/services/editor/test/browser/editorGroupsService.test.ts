@@ -254,28 +254,49 @@ suite('EditorGroupsService', () => {
 		part.dispose();
 	});
 
-	test('groups labels', function () {
+	test('groups index / labels', function () {
 		const part = createPart();
 
 		const rootGroup = part.groups[0];
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
 
-		let labelChangeCounter = 0;
+		let indexChangeCounter = 0;
 		const labelChangeListener = downGroup.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.GROUP_LABEL) {
-				labelChangeCounter++;
+			if (e.kind === GroupChangeKind.GROUP_INDEX) {
+				indexChangeCounter++;
 			}
 		});
 
+		assert.equal(rootGroup.index, 0);
+		assert.equal(rightGroup.index, 1);
+		assert.equal(downGroup.index, 2);
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(rightGroup.label, 'Group 2');
 		assert.equal(downGroup.label, 'Group 3');
 
 		part.removeGroup(rightGroup);
+		assert.equal(rootGroup.index, 0);
+		assert.equal(downGroup.index, 1);
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(downGroup.label, 'Group 2');
-		assert.equal(labelChangeCounter, 1);
+		assert.equal(indexChangeCounter, 1);
+
+		part.moveGroup(downGroup, rootGroup, GroupDirection.UP);
+		assert.equal(downGroup.index, 0);
+		assert.equal(rootGroup.index, 1);
+		assert.equal(downGroup.label, 'Group 1');
+		assert.equal(rootGroup.label, 'Group 2');
+		assert.equal(indexChangeCounter, 2);
+
+		const newFirstGroup = part.addGroup(downGroup, GroupDirection.UP);
+		assert.equal(newFirstGroup.index, 0);
+		assert.equal(downGroup.index, 1);
+		assert.equal(rootGroup.index, 2);
+		assert.equal(newFirstGroup.label, 'Group 1');
+		assert.equal(downGroup.label, 'Group 2');
+		assert.equal(rootGroup.label, 'Group 3');
+		assert.equal(indexChangeCounter, 3);
 
 		labelChangeListener.dispose();
 

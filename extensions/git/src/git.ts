@@ -601,13 +601,13 @@ export function parseGitmodules(raw: string): Submodule[] {
 }
 
 export function parseGitCommit(raw: string): Commit | null {
-	const match = /^([0-9a-f]{40})\n(.*)\n(.*)\n([^]*)$/m.exec(raw.trim());
+	const match = /^([0-9a-f]{40})\n(.*)\n(.*)(\n([^]*))?$/m.exec(raw.trim());
 	if (!match) {
 		return null;
 	}
 
 	const parents = match[3] ? match[3].split(' ') : [];
-	return { hash: match[1], message: match[4], parents, authorEmail: match[2] };
+	return { hash: match[1], message: match[5], parents, authorEmail: match[2] };
 }
 
 interface LsTreeElement {
@@ -642,7 +642,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 }
 
 export interface CommitOptions {
-	all?: boolean;
+	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
@@ -1081,8 +1081,16 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async add(paths: string[]): Promise<void> {
-		const args = ['add', '-A', '--'];
+	async add(paths: string[], opts?: { update?: boolean }): Promise<void> {
+		const args = ['add'];
+
+		if (opts && opts.update) {
+			args.push('-u');
+		} else {
+			args.push('-A');
+		}
+
+		args.push('--');
 
 		if (paths && paths.length) {
 			args.push.apply(args, paths);
@@ -1680,13 +1688,16 @@ export class Repository {
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
-		} else if (/^@/.test(name)) {
-			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
-			const symbolicFullName = symbolicFullNameResult.stdout.trim();
-			name = symbolicFullName || name;
 		}
 
-		const result = await this.run(['rev-parse', name]);
+		let result = await this.run(['rev-parse', name]);
+
+		if (!result.stdout && /^@/.test(name)) {
+			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
+			name = symbolicFullNameResult.stdout.trim();
+
+			result = await this.run(['rev-parse', name]);
+		}
 
 		if (!result.stdout) {
 			return Promise.reject<Branch>(new Error('No such branch'));
@@ -1743,7 +1754,7 @@ export class Repository {
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
-			return raw.replace(/^\s*#.*$\n?/gm, '').trim();
+			return raw.replace(/\n?#.*/g, '');
 
 		} catch (err) {
 			return '';

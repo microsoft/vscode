@@ -578,7 +578,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, resource: URI | object, editorContext: IEditorCommandsContext) => {
+	handler: (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		let saveAllArg: any;

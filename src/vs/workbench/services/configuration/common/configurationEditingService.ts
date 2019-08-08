@@ -133,7 +133,7 @@ export class ConfigurationEditingService {
 	public _serviceBrand: any;
 
 	private queue: Queue<void>;
-	private remoteSettingsResource: URI | null;
+	private remoteSettingsResource: URI | null = null;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,

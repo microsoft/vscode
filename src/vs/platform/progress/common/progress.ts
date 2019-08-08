@@ -120,7 +120,7 @@ export interface IOperation {
 export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;
 	private readonly currentOperationDisposables = this._register(new DisposableStore());
-	private currentProgressRunner: IProgressRunner;
+	private currentProgressRunner: IProgressRunner | undefined;
 	private currentProgressTimeout: any;
 
 	constructor(

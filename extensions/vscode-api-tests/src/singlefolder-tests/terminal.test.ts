@@ -274,52 +274,52 @@ suite('window namespace tests', () => {
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
-			test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
-					equal(terminal, term);
-					reg1.dispose();
-				});
-				const pty: Pseudoterminal = {
-					onDidWrite: new EventEmitter<string>().event,
-					open: (dimensions) => {
-						equal(dimensions, undefined);
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
-						// Show a terminal and wait a brief period before dispose, this will cause
-						// the panel to init it's dimenisons and be provided to following terminals.
-						// The following test depends on this.
-						terminal.show();
-						setTimeout(() => terminal.dispose(), 200);
-					},
-					close: () => {}
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
-			});
-
-			test('should provide dimensions on start as the terminal has been shown', (done) => {
-				const reg1 = window.onDidOpenTerminal(term => {
-					equal(terminal, term);
-					reg1.dispose();
-				});
-				const pty: Pseudoterminal = {
-					onDidWrite: new EventEmitter<string>().event,
-					open: (dimensions) => {
-						// This test depends on Terminal.show being called some time before such
-						// that the panel dimensions are initialized and cached.
-						ok(dimensions!.columns > 0);
-						ok(dimensions!.rows > 0);
-						const reg3 = window.onDidCloseTerminal(() => {
-							reg3.dispose();
-							done();
-						});
-						terminal.dispose();
-					},
-					close: () => {}
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
-			});
+			// The below tests depend on global UI state and each other
+			// test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
+			// 	const reg1 = window.onDidOpenTerminal(term => {
+			// 		equal(terminal, term);
+			// 		reg1.dispose();
+			// 	});
+			// 	const pty: Pseudoterminal = {
+			// 		onDidWrite: new EventEmitter<string>().event,
+			// 		open: (dimensions) => {
+			// 			equal(dimensions, undefined);
+			// 			const reg3 = window.onDidCloseTerminal(() => {
+			// 				reg3.dispose();
+			// 				done();
+			// 			});
+			// 			// Show a terminal and wait a brief period before dispose, this will cause
+			// 			// the panel to init it's dimenisons and be provided to following terminals.
+			// 			// The following test depends on this.
+			// 			terminal.show();
+			// 			setTimeout(() => terminal.dispose(), 200);
+			// 		},
+			// 		close: () => {}
+			// 	};
+			// 	const terminal = window.createTerminal({ name: 'foo', pty });
+			// });
+			// test('should provide dimensions on start as the terminal has been shown', (done) => {
+			// 	const reg1 = window.onDidOpenTerminal(term => {
+			// 		equal(terminal, term);
+			// 		reg1.dispose();
+			// 	});
+			// 	const pty: Pseudoterminal = {
+			// 		onDidWrite: new EventEmitter<string>().event,
+			// 		open: (dimensions) => {
+			// 			// This test depends on Terminal.show being called some time before such
+			// 			// that the panel dimensions are initialized and cached.
+			// 			ok(dimensions!.columns > 0);
+			// 			ok(dimensions!.rows > 0);
+			// 			const reg3 = window.onDidCloseTerminal(() => {
+			// 				reg3.dispose();
+			// 				done();
+			// 			});
+			// 			terminal.dispose();
+			// 		},
+			// 		close: () => {}
+			// 	};
+			// 	const terminal = window.createTerminal({ name: 'foo', pty });
+			// });
 
 			test('should respect dimension overrides', (done) => {
 				const reg1 = window.onDidOpenTerminal(term => {
@@ -337,14 +337,15 @@ suite('window namespace tests', () => {
 						});
 						terminal.dispose();
 					});
-					overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
 				});
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => {},
+					open: () => {
+						overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
+					},
 					close: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });

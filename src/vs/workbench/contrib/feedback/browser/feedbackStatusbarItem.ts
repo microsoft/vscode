@@ -47,8 +47,8 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 }
 
 export class FeedbackStatusbarConribution extends Disposable implements IWorkbenchContribution {
-	private dropdown: FeedbackDropdown;
-	private entry: IStatusbarEntryAccessor;
+	private dropdown: FeedbackDropdown | undefined;
+	private entry: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@IStatusbarService statusbarService: IStatusbarService,
@@ -72,15 +72,17 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, statusContainr.getElementsByClassName('octicon').item(0), {
 					contextViewProvider: this.contextViewService,
 					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
-					onFeedbackVisibilityChange: visible => this.entry.update(this.getStatusEntry(visible))
+					onFeedbackVisibilityChange: visible => this.entry!.update(this.getStatusEntry(visible))
 				}));
 			}
 		}
 
-		if (!this.dropdown.isVisible()) {
-			this.dropdown.show();
-		} else {
-			this.dropdown.hide();
+		if (this.dropdown) {
+			if (!this.dropdown.isVisible()) {
+				this.dropdown.show();
+			} else {
+				this.dropdown.hide();
+			}
 		}
 	}
 
