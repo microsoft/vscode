@@ -268,10 +268,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
-		'editor.scrollOff': {
+		'editor.cursorSurroundingLines': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.viewInfo.scrollOff,
-			'description': nls.localize('scrollOff', "Controls the number of context lines above and below the cursor.")
+			'default': EDITOR_DEFAULTS.viewInfo.cursorSurroundingLines,
+			'description': nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.")
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',

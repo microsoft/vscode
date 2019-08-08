@@ -95,7 +95,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-		this._scrollOff = conf.editor.viewInfo.scrollOff;
+		this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
 		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 
@@ -152,7 +152,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 		if (e.viewInfo) {
 			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-			this._scrollOff = conf.editor.viewInfo.scrollOff;
+			this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
 		}
 		if (e.canUseLayerHinting) {
 			this._canUseLayerHinting = conf.editor.canUseLayerHinting;
