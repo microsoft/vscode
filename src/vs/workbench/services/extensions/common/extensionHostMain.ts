@@ -10,7 +10,6 @@ import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -22,7 +21,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
