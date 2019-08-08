@@ -31,9 +31,24 @@ export interface INotificationProperties {
 	silent?: boolean;
 
 	/**
-	 * Add a "never show again" action. If user selects the action, the notification will not appear again.
+	 * Adds an action to never show the notification again. The choice will be persisted
+	 * such as future requests will not cause the notification to show again.
 	 */
-	neverShowAgainOptions?: INeverShowAgainOptions;
+	neverShowAgain?: INeverShowAgainOptions;
+}
+
+export interface INeverShowAgainOptions {
+
+	/**
+	 * The id is used to persist the selection of not showing the notification again.
+	 */
+	id: string;
+
+	/**
+	 * By default the action will show up as primary action. Setting this to true will
+	 * make it a secondary action instead.
+	 */
+	isSecondary?: boolean;
 }
 
 export interface INotification extends INotificationProperties {
@@ -176,23 +191,6 @@ export interface IPromptOptions extends INotificationProperties {
 	 * any of the provided choices.
 	 */
 	onCancel?: () => void;
-}
-
-
-export interface INeverShowAgainOptions {
-	/**
-	* Sending prompt id automatically adds a "never show again" action to the prompt.
-	* If user picks this option, future calls to 'prompt' with the same prompt id will be ignored.
-	* The id is used to persist the selection to storage
-	*/
-	id: string;
-
-	/**
-	 *
-	 * Primary: The never show again action will show up as a button on the notificaion.
-	 * Secondary The never show again action will show up under the gear icon.
-	 */
-	isSecondary?: boolean;
 }
 
 export interface IStatusMessageOptions {

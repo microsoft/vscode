@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -11,7 +12,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import * as nls from 'vs/nls';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -58,58 +58,77 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	notify(notification: INotification): INotificationHandle {
+		const toDispose = new DisposableStore();
 
+		// Handle neverShowAgain option accordingly
 		let handle: INotificationHandle;
-		if (notification.neverShowAgainOptions) {
-			const id = notification.neverShowAgainOptions.id;
-			if (!!this.storageService.get(id, StorageScope.GLOBAL)) {
+		if (notification.neverShowAgain) {
+
+			// If the user already picked to not show the notification
+			// again, we return with a no-op notification here
+			const id = notification.neverShowAgain.id;
+			if (this.storageService.getBoolean(id, StorageScope.GLOBAL)) {
 				return new NoOpNotification();
 			}
 
-			const neverShowAction = new Action(
-				'workbench.dialog.choice.neverShowAgain',
+			const neverShowAgainAction = toDispose.add(new Action(
+				'workbench.notification.neverShowAgain',
 				nls.localize('neverShowAgain', "Don't Show Again"),
 				undefined, true, () => {
-					handle.close();
-					this.storageService.store(id, true, StorageScope.GLOBAL);
-					return Promise.resolve();
-				});
 
-			notification.actions = notification.actions || {};
-			if (notification.neverShowAgainOptions.isSecondary) {
-				notification.actions.secondary = notification.actions.secondary || [];
-				notification.actions.secondary = [...notification.actions.secondary, neverShowAction];
+					// Close notification
+					handle.close();
+
+					// Remember choice
+					this.storageService.store(id, true, StorageScope.GLOBAL);
+
+					return Promise.resolve();
+				}));
+
+			// Insert as primary or secondary action
+			const actions = notification.actions || { primary: [], secondary: [] };
+			if (!notification.neverShowAgain.isSecondary) {
+				actions.primary = [neverShowAgainAction, ...(actions.primary || [])]; // action comes first
+			} else {
+				actions.secondary = [...(actions.secondary || []), neverShowAgainAction]; // actions comes last
 			}
-			else {
-				notification.actions.primary = notification.actions.primary || [];
-				notification.actions.primary = [neverShowAction, ...notification.actions.primary];
-			}
+
+			notification.actions = actions;
 		}
 
+		// Show notification
 		handle = this.model.addNotification(notification);
+
+		// Cleanup when notification gets disposed
+		Event.once(handle.onDidClose)(() => toDispose.dispose());
+
 		return handle;
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		const toDispose = new DisposableStore();
 
+		// Handle neverShowAgain option accordingly
+		if (options && options.neverShowAgain) {
 
-		if (options && options.neverShowAgainOptions) {
-			const id = options.neverShowAgainOptions.id;
-			if (!!this.storageService.get(id, StorageScope.GLOBAL)) {
+			// If the user already picked to not show the notification
+			// again, we return with a no-op notification here
+			const id = options.neverShowAgain.id;
+			if (this.storageService.getBoolean(id, StorageScope.GLOBAL)) {
 				return new NoOpNotification();
 			}
 
 			const neverShowAgainChoice = {
 				label: nls.localize('neverShowAgain', "Don't Show Again"),
 				run: () => this.storageService.store(id, true, StorageScope.GLOBAL),
-				isSecondary: options.neverShowAgainOptions.isSecondary
+				isSecondary: options.neverShowAgain.isSecondary
 			};
-			if (options.neverShowAgainOptions.isSecondary) {
-				choices = [...choices, neverShowAgainChoice];
-			}
-			else {
-				choices = [neverShowAgainChoice, ...choices];
+
+			// Insert as primary or secondary action
+			if (!options.neverShowAgain.isSecondary) {
+				choices = [neverShowAgainChoice, ...choices]; // action comes first
+			} else {
+				choices = [...choices, neverShowAgainChoice]; // actions comes last
 			}
 		}
 
