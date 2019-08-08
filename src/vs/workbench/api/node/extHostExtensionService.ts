@@ -11,13 +11,13 @@ import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
 import { ExtHostExtensionServiceShape, IInitData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
-import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -38,6 +38,7 @@ import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadSer
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -115,7 +116,6 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 		this._extHostContext = extHostContext;
 		this._initData = initData;
 
-		this._instaService = instaService;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
 		this._extHostLogService = extHostLogService;
@@ -131,6 +131,10 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 		this._registry = new ExtensionDescriptionRegistry(this._initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
 		this._storagePath = storagePath;
+
+		this._instaService = instaService.createChild(new ServiceCollection(
+			[IExtHostStorage, this._storage]
+		));
 
 		const hostExtensions = new Set<string>();
 		this._initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
@@ -165,8 +169,8 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	private async _initialize(): Promise<void> {
 
 		try {
-			// initialize API
-			const extensionApiFactory = this._instaService.invokeFunction(createApiFactory, this._storage);
+			// initialize API and register actors
+			const extensionApiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
 
 			// Register Download command
 			this._instaService.createInstance(ExtHostDownloadService);

@@ -40,7 +40,7 @@ import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
 import { ExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
 import { ExtHostSCM } from 'vs/workbench/api/common/extHostSCM';
 import { ExtHostStatusBar } from 'vs/workbench/api/common/extHostStatusBar';
-import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
@@ -85,10 +85,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(
-	accessor: ServicesAccessor,
-	extHostStorage: ExtHostStorage,
-): IExtensionApiFactory {
+export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): IExtensionApiFactory {
 
 	// services
 	const initData = accessor.get(IExtHostInitDataService);
@@ -97,6 +94,7 @@ export function createApiFactory(
 	const extHostConfiguration = accessor.get(IExtHostConfiguration);
 	const uriTransformer = accessor.get(IURITransformerService);
 	const rpcProtocol = accessor.get(IExtHostRpcService);
+	const extHostStorage = accessor.get(IExtHostStorage);
 	const extHostLogService = <ExtHostLogService>accessor.get(ILogService);
 
 	// register addressable instances

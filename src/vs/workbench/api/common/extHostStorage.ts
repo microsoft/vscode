@@ -6,6 +6,7 @@
 import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol';
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IStorageChangeEvent {
 	shared: boolean;
@@ -14,6 +15,8 @@ export interface IStorageChangeEvent {
 }
 
 export class ExtHostStorage implements ExtHostStorageShape {
+
+	readonly _serviceBrand: any;
 
 	private _proxy: MainThreadStorageShape;
 
@@ -36,3 +39,6 @@ export class ExtHostStorage implements ExtHostStorageShape {
 		this._onDidChangeStorage.fire({ shared, key, value });
 	}
 }
+
+export interface IExtHostStorage extends ExtHostStorage { }
+export const IExtHostStorage = createDecorator<IExtHostStorage>('IExtHostStorage');
