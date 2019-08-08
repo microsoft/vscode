@@ -1172,9 +1172,19 @@
           "description": "%config.decorations.enabled%"
         },
         "git.promptToSaveFilesBeforeCommit": {
-          "type": "boolean",
+          "type": "string",
+          "enum": [
+            "always",
+            "staged",
+            "never"
+          ],
+          "enumDescriptions": [
+            "%config.promptToSaveFilesBeforeCommit.always%",
+            "%config.promptToSaveFilesBeforeCommit.staged%",
+            "%config.promptToSaveFilesBeforeCommit.never%"
+          ],
           "scope": "resource",
-          "default": true,
+          "default": "always",
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
         "git.postCommitCommand": {
