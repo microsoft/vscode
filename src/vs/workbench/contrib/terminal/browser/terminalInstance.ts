@@ -1130,6 +1130,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		// HACK: Force initialText to be non-falsy for reused terminals such that the
+		// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
+		// in Windows 10 1903 so we only want to use it when something is definitely written to the
+		// terminal.
+		shell.initialText = ' ';
+
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
