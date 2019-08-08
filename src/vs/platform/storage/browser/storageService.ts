@@ -28,10 +28,17 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private globalStorage: IStorage;
 	private workspaceStorage: IStorage;
 
+	private globalStorageDatabase: FileStorageDatabase;
+	private workspaceStorageDatabase: FileStorageDatabase;
+
 	private globalStorageFile: URI;
 	private workspaceStorageFile: URI;
 
 	private initializePromise: Promise<void>;
+
+	get hasPendingUpdate(): boolean {
+		return this.globalStorageDatabase.hasPendingUpdate || this.workspaceStorageDatabase.hasPendingUpdate;
+	}
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -76,12 +83,14 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		// Workspace Storage
 		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
-		this.workspaceStorage = new Storage(this._register(new FileStorageDatabase(this.workspaceStorageFile, this.fileService)));
+		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, this.fileService));
+		this.workspaceStorage = new Storage(this.workspaceStorageDatabase);
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
 
 		// Global Storage
 		this.globalStorageFile = joinPath(stateRoot, 'global.json');
-		this.globalStorage = new Storage(this._register(new FileStorageDatabase(this.globalStorageFile, this.fileService)));
+		this.globalStorageDatabase = this._register(new FileStorageDatabase(this.globalStorageFile, this.fileService));
+		this.globalStorage = new Storage(this.globalStorageDatabase);
 		this._register(this.globalStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL })));
 
 		// Init both
@@ -134,5 +143,9 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+
+		// Close DBs
+		this.globalStorage.close();
+		this.workspaceStorage.close();
 	}
 }

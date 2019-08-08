@@ -220,6 +220,11 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 	private pendingUpdate: Promise<void> = Promise.resolve();
 
+	private _hasPendingUpdate = false;
+	get hasPendingUpdate(): boolean {
+		return this._hasPendingUpdate;
+	}
+
 	constructor(
 		private readonly file: URI,
 		private readonly fileService: IFileService
@@ -260,7 +265,13 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 		await this.pendingUpdate;
 
-		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items)))).then();
+		this._hasPendingUpdate = true;
+
+		this.pendingUpdate = this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items))))
+			.then(() => undefined)
+			.finally(() => {
+				this._hasPendingUpdate = false;
+			});
 
 		return this.pendingUpdate;
 	}

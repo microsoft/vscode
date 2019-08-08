@@ -724,6 +724,10 @@ export class Repository implements Disposable {
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
 
+		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
+		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
+		this.setCountBadge();
+
 		this.updateCommitTemplate();
 	}
 
@@ -1495,15 +1499,7 @@ export class Repository implements Disposable {
 		this.workingTreeGroup.resourceStates = workingTree;
 
 		// set count badge
-		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
-		let count = merge.length + index.length + workingTree.length;
-
-		switch (countBadge) {
-			case 'off': count = 0; break;
-			case 'tracked': count = count - workingTree.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
-		}
-
-		this._sourceControl.count = count;
+		this.setCountBadge();
 
 		// Disable `Discard All Changes` for "fresh" repositories
 		// https://github.com/Microsoft/vscode/issues/43066
@@ -1515,6 +1511,18 @@ export class Repository implements Disposable {
 		}
 
 		this._onDidChangeStatus.fire();
+	}
+
+	private setCountBadge(): void {
+		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
+		let count = this.mergeGroup.resourceStates.length + this.indexGroup.resourceStates.length + this.workingTreeGroup.resourceStates.length;
+
+		switch (countBadge) {
+			case 'off': count = 0; break;
+			case 'tracked': count = count - this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
+		}
+
+		this._sourceControl.count = count;
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {
