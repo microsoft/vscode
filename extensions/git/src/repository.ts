@@ -680,7 +680,7 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
-		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
+		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
@@ -723,6 +723,10 @@ export class Repository implements Disposable {
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
+
+		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
+		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
+		this.setCountBadge();
 
 		this.updateCommitTemplate();
 	}
@@ -906,7 +910,8 @@ export class Repository implements Disposable {
 		if (this.rebaseCommit) {
 			await this.run(Operation.RebaseContinue, async () => {
 				if (opts.all) {
-					await this.repository.add([]);
+					const addOpts = opts.all === 'tracked' ? { update: true } : {};
+					await this.repository.add([], addOpts);
 				}
 
 				await this.repository.rebaseContinue();
@@ -914,9 +919,11 @@ export class Repository implements Disposable {
 		} else {
 			await this.run(Operation.Commit, async () => {
 				if (opts.all) {
-					await this.repository.add([]);
+					const addOpts = opts.all === 'tracked' ? { update: true } : {};
+					await this.repository.add([], addOpts);
 				}
 
+				delete opts.all;
 				await this.repository.commit(message, opts);
 			});
 		}
@@ -1495,15 +1502,7 @@ export class Repository implements Disposable {
 		this.workingTreeGroup.resourceStates = workingTree;
 
 		// set count badge
-		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
-		let count = merge.length + index.length + workingTree.length;
-
-		switch (countBadge) {
-			case 'off': count = 0; break;
-			case 'tracked': count = count - workingTree.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
-		}
-
-		this._sourceControl.count = count;
+		this.setCountBadge();
 
 		// Disable `Discard All Changes` for "fresh" repositories
 		// https://github.com/Microsoft/vscode/issues/43066
@@ -1515,6 +1514,18 @@ export class Repository implements Disposable {
 		}
 
 		this._onDidChangeStatus.fire();
+	}
+
+	private setCountBadge(): void {
+		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
+		let count = this.mergeGroup.resourceStates.length + this.indexGroup.resourceStates.length + this.workingTreeGroup.resourceStates.length;
+
+		switch (countBadge) {
+			case 'off': count = 0; break;
+			case 'tracked': count = count - this.workingTreeGroup.resourceStates.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
+		}
+
+		this._sourceControl.count = count;
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {

@@ -1098,7 +1098,6 @@ export class InternalEditorOptions {
 	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
-	readonly scrollOff: number;
 	readonly readOnly: boolean;
 	/**
 	 * @internal
@@ -1191,7 +1190,6 @@ export class InternalEditorOptions {
 			&& this.pixelRatio === other.pixelRatio
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
-			&& this.scrollOff === other.scrollOff
 			&& this.readOnly === other.readOnly
 			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
@@ -1224,7 +1222,6 @@ export class InternalEditorOptions {
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
-			scrollOff: (this.scrollOff !== newOpts.scrollOff),
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
@@ -1630,7 +1627,6 @@ export interface IConfigurationChangedEvent {
 	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
-	readonly scrollOff: boolean;
 	readonly readOnly: boolean;
 	readonly accessibilitySupport: boolean;
 	readonly multiCursorModifier: boolean;
@@ -2204,7 +2200,7 @@ export class InternalEditorOptionsFactory {
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
-				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
+				fontLigatures: opts.viewInfo.fontLigatures,
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
 				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,

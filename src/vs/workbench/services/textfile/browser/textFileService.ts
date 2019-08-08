@@ -46,6 +46,7 @@ export class BrowserTextFileService extends TextFileService {
 			}
 
 			if (!hasBackup) {
+				console.warn('Unload prevented: pending backups');
 				return true; // dirty without backup: veto
 			}
 		}

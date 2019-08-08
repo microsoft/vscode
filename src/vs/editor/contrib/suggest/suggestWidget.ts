@@ -440,7 +440,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private readonly suggestWidgetVisible: IContextKey<boolean>;
 	private readonly suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 
-	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
 	private readonly toDispose = new DisposableStore();
 
@@ -1157,7 +1156,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.list.dispose();
 		this.toDispose.dispose();
 		this.loadingTimeout.dispose();
-		this.editorBlurTimeout.dispose();
 		this.showTimeout.dispose();
 	}
 }

@@ -1148,6 +1148,20 @@
           "description": "%config.enableSmartCommit%",
           "default": false
         },
+        "git.smartCommitChanges": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked"
+          ],
+          "enumDescriptions": [
+            "%config.smartCommitChanges.all%",
+            "%config.smartCommitChanges.tracked%"
+          ],
+          "scope": "resource",
+          "description": "%config.smartCommitChanges%",
+          "default": "all"
+        },
         "git.suggestSmartCommit": {
           "type": "boolean",
           "scope": "resource",
@@ -1171,10 +1185,26 @@
           "default": true,
           "description": "%config.decorations.enabled%"
         },
-        "git.promptToSaveFilesBeforeCommit": {
+        "git.enableStatusBarSync": {
           "type": "boolean",
-          "scope": "resource",
           "default": true,
+          "description": "%config.enableStatusBarSync%",
+          "scope": "resource"
+        },
+        "git.promptToSaveFilesBeforeCommit": {
+          "type": "string",
+          "enum": [
+            "always",
+            "staged",
+            "never"
+          ],
+          "enumDescriptions": [
+            "%config.promptToSaveFilesBeforeCommit.always%",
+            "%config.promptToSaveFilesBeforeCommit.staged%",
+            "%config.promptToSaveFilesBeforeCommit.never%"
+          ],
+          "scope": "resource",
+          "default": "always",
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
         "git.postCommitCommand": {

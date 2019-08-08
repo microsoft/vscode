@@ -62,9 +62,9 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	totalBytesRead: number = 0;
 
-	private invalidStatSize: boolean;
+	private invalidStatSize: boolean = false;
 
-	private _testCapabilities: FileSystemProviderCapabilities;
+	private _testCapabilities!: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {
 			this._testCapabilities =
