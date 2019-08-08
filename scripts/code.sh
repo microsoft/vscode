@@ -53,6 +53,7 @@ function code() {
 
 	# Launch Code
 	exec "$CODE" . "$@"
+	echo"Happy Coding"
 }
 
 function code-wsl()
