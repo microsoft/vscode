@@ -1233,12 +1233,23 @@ export class CommandCenter {
 		opts?: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
+		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
-		if (promptToSaveFilesBeforeCommit) {
-			const documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath))
-				.filter(d => repository.indexGroup.resourceStates.some(s => s.resourceUri.path === d.uri.fsPath));
+		// migration
+		if (promptToSaveFilesBeforeCommit as any === true) {
+			promptToSaveFilesBeforeCommit = 'always';
+		} else if (promptToSaveFilesBeforeCommit as any === false) {
+			promptToSaveFilesBeforeCommit = 'never';
+		}
+
+		if (promptToSaveFilesBeforeCommit !== 'never') {
+			let documents = workspace.textDocuments
+				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+
+			if (promptToSaveFilesBeforeCommit === 'staged') {
+				documents = documents
+					.filter(d => repository.indexGroup.resourceStates.some(s => s.resourceUri.path === d.uri.fsPath));
+			}
 
 			if (documents.length > 0) {
 				const message = documents.length === 1
