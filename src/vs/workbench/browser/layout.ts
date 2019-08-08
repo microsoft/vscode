@@ -45,7 +45,6 @@ enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
-
 }
 
 enum Storage {
@@ -934,6 +933,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.state.editor.hidden = hidden;
+
+		// Adjust CSS
+		if (hidden) {
+			addClass(this.container, 'noeditorarea');
+		} else {
+			removeClass(this.container, 'noeditorarea');
+		}
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
