@@ -58,4 +58,19 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 		return Promise.resolve(r);
 	}
+
+	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+		if (!this._initData.remote.isRemote) {
+			return;
+		}
+
+		for (const key in env) {
+			const value = env[key];
+			if (value === null) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	}
 }
