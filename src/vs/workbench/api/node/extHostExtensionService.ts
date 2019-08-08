@@ -27,10 +27,8 @@ import * as errors from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -40,6 +38,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -90,7 +89,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	private readonly _readyToRunExtensions: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
-	private readonly _storagePath: ExtensionStoragePaths;
+	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
 	private readonly _extensionApiFactory: IExtensionApiFactory;
@@ -110,7 +109,8 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
 		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
 		@ILogService extHostLogService: ExtHostLogService,
-		@IExtHostInitDataService initData: IExtHostInitDataService
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IExtensionStoragePaths storagePath: IExtensionStoragePaths
 	) {
 		this._hostUtils = hostUtils;
 		this._extHostContext = extHostContext;
@@ -131,7 +131,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(this._initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
-		this._storagePath = new ExtensionStoragePaths(withNullAsUndefined(this._initData.workspace), this._initData.environment);
+		this._storagePath = storagePath;
 
 		const hostExtensions = new Set<string>();
 		this._initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));

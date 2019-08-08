@@ -19,6 +19,8 @@ import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
+import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 
 // register singleton services
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
@@ -31,3 +33,5 @@ registerSingleton(IExtHostTerminalService, ExtHostTerminalService);
 registerSingleton(IExtHostTask, ExtHostTask);
 registerSingleton(IExtHostDebugService, ExtHostDebugService);
 registerSingleton(IExtHostSearch, ExtHostSearch);
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
+
