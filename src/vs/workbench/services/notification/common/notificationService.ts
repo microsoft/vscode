@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import * as nls from 'vs/nls';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -19,6 +21,10 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	get model(): INotificationsModel {
 		return this._model;
+	}
+
+	constructor(@IStorageService private readonly storageService: IStorageService) {
+		super();
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -52,11 +58,79 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	notify(notification: INotification): INotificationHandle {
-		return this.model.addNotification(notification);
+		const toDispose = new DisposableStore();
+
+		// Handle neverShowAgain option accordingly
+		let handle: INotificationHandle;
+		if (notification.neverShowAgain) {
+
+			// If the user already picked to not show the notification
+			// again, we return with a no-op notification here
+			const id = notification.neverShowAgain.id;
+			if (this.storageService.getBoolean(id, StorageScope.GLOBAL)) {
+				return new NoOpNotification();
+			}
+
+			const neverShowAgainAction = toDispose.add(new Action(
+				'workbench.notification.neverShowAgain',
+				nls.localize('neverShowAgain', "Don't Show Again"),
+				undefined, true, () => {
+
+					// Close notification
+					handle.close();
+
+					// Remember choice
+					this.storageService.store(id, true, StorageScope.GLOBAL);
+
+					return Promise.resolve();
+				}));
+
+			// Insert as primary or secondary action
+			const actions = notification.actions || { primary: [], secondary: [] };
+			if (!notification.neverShowAgain.isSecondary) {
+				actions.primary = [neverShowAgainAction, ...(actions.primary || [])]; // action comes first
+			} else {
+				actions.secondary = [...(actions.secondary || []), neverShowAgainAction]; // actions comes last
+			}
+
+			notification.actions = actions;
+		}
+
+		// Show notification
+		handle = this.model.addNotification(notification);
+
+		// Cleanup when notification gets disposed
+		Event.once(handle.onDidClose)(() => toDispose.dispose());
+
+		return handle;
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		const toDispose = new DisposableStore();
+
+		// Handle neverShowAgain option accordingly
+		if (options && options.neverShowAgain) {
+
+			// If the user already picked to not show the notification
+			// again, we return with a no-op notification here
+			const id = options.neverShowAgain.id;
+			if (this.storageService.getBoolean(id, StorageScope.GLOBAL)) {
+				return new NoOpNotification();
+			}
+
+			const neverShowAgainChoice = {
+				label: nls.localize('neverShowAgain', "Don't Show Again"),
+				run: () => this.storageService.store(id, true, StorageScope.GLOBAL),
+				isSecondary: options.neverShowAgain.isSecondary
+			};
+
+			// Insert as primary or secondary action
+			if (!options.neverShowAgain.isSecondary) {
+				choices = [neverShowAgainChoice, ...choices]; // action comes first
+			} else {
+				choices = [...choices, neverShowAgainChoice]; // actions comes last
+			}
+		}
 
 		let choiceClicked = false;
 		let handle: INotificationHandle;

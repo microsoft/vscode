@@ -601,13 +601,13 @@ export function parseGitmodules(raw: string): Submodule[] {
 }
 
 export function parseGitCommit(raw: string): Commit | null {
-	const match = /^([0-9a-f]{40})\n(.*)\n(.*)\n([^]*)$/m.exec(raw.trim());
+	const match = /^([0-9a-f]{40})\n(.*)\n(.*)(\n([^]*))?$/m.exec(raw.trim());
 	if (!match) {
 		return null;
 	}
 
 	const parents = match[3] ? match[3].split(' ') : [];
-	return { hash: match[1], message: match[4], parents, authorEmail: match[2] };
+	return { hash: match[1], message: match[5], parents, authorEmail: match[2] };
 }
 
 interface LsTreeElement {

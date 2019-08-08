@@ -14,7 +14,7 @@ const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 
 // optionally allow to pass in explicit base/maps to upload
-const [base, maps] = process.argv.slice(2);
+const [, , base, maps] = process.argv;
 
 const fetch = function (base, maps = `${base}/**/*.map`) {
 	return vfs.src(maps, { base })
