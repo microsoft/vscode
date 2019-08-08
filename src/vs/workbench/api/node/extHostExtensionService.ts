@@ -38,6 +38,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
+import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -74,6 +76,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	private readonly _hostUtils: IHostUtils;
 	private readonly _initData: IInitData;
 	private readonly _extHostContext: IMainContext;
+	private readonly _instaService: IInstantiationService;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
 	private readonly _extHostLogService: ExtHostLogService;
@@ -113,6 +116,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 		this._extHostContext = extHostContext;
 		this._initData = initData;
 
+		this._instaService = instaService;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
 		this._extHostLogService = extHostLogService;
@@ -155,12 +159,9 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 		services.set(IExtHostExtensionService, this);
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		this._extensionApiFactory = instaService.invokeFunction(createApiFactory,
+		this._extensionApiFactory = this._instaService.invokeFunction(createApiFactory,
 			this._initData,
 			this._extHostContext,
-			this._extHostWorkspace,
-			this._extHostConfiguration,
-			this._extHostLogService,
 			this._storage,
 			uriTransformer
 		);
@@ -177,7 +178,18 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	}
 
 	private async _initialize(): Promise<void> {
+
 		try {
+			// Register Download command
+			this._instaService.createInstance(ExtHostDownloadService);
+
+			// Register CLI Server for ipc
+			if (this._initData.remote.isRemote && this._initData.remote.authority) {
+				const cliServer = this._instaService.createInstance(CLIServer);
+				process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
+			}
+
+			// Module loading tricks
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
