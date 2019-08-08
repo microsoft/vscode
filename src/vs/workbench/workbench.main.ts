@@ -272,7 +272,7 @@ import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
-import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
+import 'vs/workbench/contrib/relauncher/common/relauncher.contribution';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/task.contribution';

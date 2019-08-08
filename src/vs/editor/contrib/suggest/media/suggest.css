@@ -110,7 +110,9 @@
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close-light.svg');
-	float: right;
+	position: absolute;
+	top: 0px;
+	right: 0px;
 	margin-right: 5px;
 }
 
@@ -251,7 +253,7 @@
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	word-break: break-all;
-	margin: 0;
+	margin: 0px 24px 0 0;
 	padding: 4px 0 12px 5px;
 }
 

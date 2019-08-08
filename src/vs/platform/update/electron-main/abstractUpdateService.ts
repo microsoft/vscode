@@ -81,8 +81,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		if (updateMode === 'start') {
+			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+
+			// Check for updates only once after 30 seconds
+			setTimeout(() => this.checkForUpdates(null), 30 * 1000);
+		} else {
+			// Start checking for updates after 30 seconds
+			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		}
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
