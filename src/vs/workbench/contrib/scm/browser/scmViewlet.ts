@@ -797,7 +797,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
 		this.inputBox.setEnabled(this.isBodyVisible());
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox);
@@ -896,11 +896,8 @@ export class RepositoryPanel extends ViewletPanel {
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.list.layout(listHeight, width);
-
-			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 		} else {
 			addClass(this.inputBoxContainer, 'hidden');
-			removeClass(this.inputBoxContainer, 'scroll');
 
 			this.listContainer.style.height = `${height}px`;
 			this.list.layout(height, width);

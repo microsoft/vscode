@@ -468,6 +468,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Option Changes
 		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+
+		// Visibility
+		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
 	}
 
 	private onDidEditorPin(editor: EditorInput): void {
@@ -591,8 +594,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Title control Switch between showing tabs <=> not showing tabs
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
-			this.createTitleAreaControl();
 
+			// Recreate and layout control
+			this.createTitleAreaControl();
+			this.layoutTitleAreaControl();
+
+			// Ensure to show active editor if any
 			if (this._group.activeEditor) {
 				this.titleAreaControl.openEditor(this._group.activeEditor);
 			}
@@ -633,6 +640,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
+	}
+
+	private onDidVisibilityChange(visible: boolean): void {
+
+		// Forward to editor control
+		this.editorControl.setVisible(visible);
 	}
 
 	//#endregion
@@ -1440,8 +1453,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.editorContainer.style.height = `calc(100% - ${this.titleAreaControl.getPreferredHeight()}px)`;
 
 		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this.dimension.width, this.titleAreaControl.getPreferredHeight()));
+		this.layoutTitleAreaControl();
 		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - this.titleAreaControl.getPreferredHeight()));
+	}
+
+	private layoutTitleAreaControl(): void {
+		this.titleAreaControl.layout(new Dimension(this.dimension.width, this.titleAreaControl.getPreferredHeight()));
 	}
 
 	relayout(): void {
@@ -1463,7 +1480,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();
-		// this.editorControl = null;
 
 		super.dispose();
 	}
