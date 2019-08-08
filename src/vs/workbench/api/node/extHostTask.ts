@@ -32,6 +32,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { Schemas } from 'vs/base/common/network';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO | undefined {
@@ -376,6 +378,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
@@ -391,6 +394,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
 		this._providedCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
 		this._activeCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
+
+		if (initData.remote.isRemote && initData.remote.authority) {
+			this.registerTaskSystem(Schemas.vscodeRemote, {
+				scheme: Schemas.vscodeRemote,
+				authority: initData.remote.authority,
+				platform: process.platform
+			});
+		}
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {

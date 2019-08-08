@@ -59,7 +59,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { values } from 'vs/base/common/collections';
-import { Schemas } from 'vs/base/common/network';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
@@ -134,12 +133,6 @@ export function createApiFactory(
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
 
 	if (initData.remote.isRemote && initData.remote.authority) {
-		extHostTask.registerTaskSystem(Schemas.vscodeRemote, {
-			scheme: Schemas.vscodeRemote,
-			authority: initData.remote.authority,
-			platform: process.platform
-		});
-
 		const cliServer = new CLIServer(extHostCommands);
 		process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
 	}
