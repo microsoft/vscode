@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IInitData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -57,7 +57,6 @@ import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/collections';
-import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -67,6 +66,8 @@ import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -86,15 +87,15 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 export function createApiFactory(
 	accessor: ServicesAccessor,
 	initData: IInitData,
-	rpcProtocol: IMainContext,
 	extHostStorage: ExtHostStorage,
-	uriTransformer: IURITransformer | null
 ): IExtensionApiFactory {
 
 	// services
 	const extensionService = accessor.get(IExtHostExtensionService);
 	const extHostWorkspace = accessor.get(IExtHostWorkspace);
 	const extHostConfiguration = accessor.get(IExtHostConfiguration);
+	const uriTransformer = accessor.get(IURITransformerService);
+	const rpcProtocol = accessor.get(IExtHostRpcService);
 	const extHostLogService = <ExtHostLogService>accessor.get(ILogService);
 
 	// register addressable instances

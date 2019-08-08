@@ -9,17 +9,22 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IExtHostRpcService = createDecorator<IExtHostRpcService>('IExtHostRpcService');
 
-export interface IExtHostRpcService {
+export interface IExtHostRpcService extends IMainContext {
 	_serviceBrand: any;
-	getProxy<T>(identifier: ProxyIdentifier<T>): T;
 }
 
 export class ExtHostRpcService implements IExtHostRpcService {
 	readonly _serviceBrand: any;
 
-	constructor(private readonly _mainContext: IMainContext) { }
+	getProxy: <T>(identifier: ProxyIdentifier<T>) => T;
+	set: <T, R extends T> (identifier: ProxyIdentifier<T>, instance: R) => R;
+	assertRegistered: (identifiers: ProxyIdentifier<any>[]) => void;
 
-	getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		return this._mainContext.getProxy(identifier);
+	constructor(mainContext: IMainContext) {
+		this.getProxy = mainContext.getProxy.bind(mainContext);
+		this.set = mainContext.set.bind(mainContext);
+		this.assertRegistered = mainContext.assertRegistered.bind(mainContext);
+
 	}
+
 }

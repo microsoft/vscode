@@ -11,9 +11,9 @@ import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { createApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
-import { ExtHostExtensionServiceShape, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostExtensionServiceShape, IInitData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
@@ -30,15 +30,14 @@ import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
-import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
+import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -50,7 +49,10 @@ interface INewTestRunner {
 	run(): Promise<void>;
 }
 
+export const IHostUtils = createDecorator<IHostUtils>('IHostUtils');
+
 export interface IHostUtils {
+	_serviceBrand: undefined;
 	exit(code?: number): void;
 	exists(path: string): Promise<boolean>;
 	realpath(path: string): Promise<string>;
@@ -74,7 +76,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 
 	private readonly _hostUtils: IHostUtils;
 	private readonly _initData: IInitData;
-	private readonly _extHostContext: IMainContext;
+	private readonly _extHostContext: IExtHostRpcService;
 	private readonly _instaService: IInstantiationService;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
@@ -92,7 +94,6 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
-	private readonly _extensionApiFactory: IExtensionApiFactory;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
 
@@ -101,11 +102,9 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	private readonly _disposables: DisposableStore;
 
 	constructor(
-		hostUtils: IHostUtils,
-		uriTransformer: IURITransformer | null,
-		extHostContext: IMainContext,
-		services: ServiceCollection,
 		@IInstantiationService instaService: IInstantiationService,
+		@IHostUtils hostUtils: IHostUtils,
+		@IExtHostRpcService extHostContext: IExtHostRpcService,
 		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
 		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
 		@ILogService extHostLogService: ExtHostLogService,
@@ -152,26 +151,12 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 			}
 		});
 		this._extensionPathIndex = null;
-
-		// todo@joh this is a hack!
-		// the problem is that this service doesn't create the insta-service
-		// but downlevel things it creates depend on this service...
-		services.set(IExtHostExtensionService, this);
-
-		// initialize API first (i.e. do not release barrier until the API is initialized)
-		this._extensionApiFactory = this._instaService.invokeFunction(createApiFactory,
-			this._initData,
-			this._extHostContext,
-			this._storage,
-			uriTransformer
-		);
-
 		this._resolvers = Object.create(null);
-
 		this._started = false;
+	}
 
+	public initialize(): void {
 		this._initialize();
-
 		if (this._initData.autoStart) {
 			this._startExtensionHost();
 		}
@@ -180,6 +165,9 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 	private async _initialize(): Promise<void> {
 
 		try {
+			// initialize API
+			const extensionApiFactory = this._instaService.invokeFunction(createApiFactory, this._initData, this._storage);
+
 			// Register Download command
 			this._instaService.createInstance(ExtHostDownloadService);
 
@@ -192,7 +180,7 @@ export class ExtHostExtensionService implements IExtHostExtensionService, ExtHos
 			// Module loading tricks
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
 			const extensionPaths = await this.getExtensionPathIndex();
-			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
+			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(extensionApiFactory, extensionPaths, this._registry, configProvider));
 			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._initData.environment));
 			if (this._initData.remote.isRemote) {
 				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(

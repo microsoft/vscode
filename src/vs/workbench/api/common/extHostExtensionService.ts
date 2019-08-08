@@ -7,16 +7,20 @@ import { ExtHostExtensionServiceShape } from 'vs/workbench/api/common/extHost.pr
 import { ExtensionActivationReason, IExtensionAPI } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
 
 export interface IExtHostExtensionService extends ExtHostExtensionServiceShape {
 	_serviceBrand: any;
+	initialize(): void;
 	isActivated(extensionId: ExtensionIdentifier): boolean;
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
+	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
+	getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 }

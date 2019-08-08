@@ -313,6 +313,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
+		_serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return exists(path); }
 		realpath(path: string) { return realpath(path); }
