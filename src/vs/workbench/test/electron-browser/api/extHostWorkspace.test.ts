@@ -294,8 +294,8 @@ suite('ExtHostWorkspace', function () {
 
 		const protocol: IMainContext = {
 			getProxy: () => { return undefined!; },
-			set: undefined!,
-			assertRegistered: undefined!
+			set: () => { return undefined!; },
+			assertRegistered: () => { }
 		};
 
 		const ws = createExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
