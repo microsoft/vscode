@@ -35,6 +35,7 @@ import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { coalesce } from 'vs/base/common/arrays';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -62,6 +63,14 @@ enum Storage {
 	GRID_LAYOUT = 'workbench.grid.layout',
 	GRID_WIDTH = 'workbench.grid.width',
 	GRID_HEIGHT = 'workbench.grid.height'
+}
+
+enum Classes {
+	SIDEBAR_HIDDEN = 'nosidebar',
+	EDITOR_HIDDEN = 'noeditorarea',
+	PANEL_HIDDEN = 'nopanel',
+	STATUSBAR_HIDDEN = 'nostatusbar',
+	FULLSCREEN = 'fullscreen'
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -251,9 +260,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply as CSS class
 		if (this.state.fullscreen) {
-			addClass(this.container, 'fullscreen');
+			addClass(this.container, Classes.FULLSCREEN);
 		} else {
-			removeClass(this.container, 'fullscreen');
+			removeClass(this.container, Classes.FULLSCREEN);
 
 			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
 				this.toggleZenMode();
@@ -702,9 +711,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'nostatusbar');
+			addClass(this.container, Classes.STATUSBAR_HIDDEN);
 		} else {
-			removeClass(this.container, 'nostatusbar');
+			removeClass(this.container, Classes.STATUSBAR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -936,9 +945,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'noeditorarea');
+			addClass(this.container, Classes.EDITOR_HIDDEN);
 		} else {
-			removeClass(this.container, 'noeditorarea');
+			removeClass(this.container, Classes.EDITOR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -950,14 +959,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	getLayoutClasses(): string[] {
+		return coalesce([
+			this.state.sideBar.hidden ? Classes.SIDEBAR_HIDDEN : undefined,
+			this.state.editor.hidden ? Classes.EDITOR_HIDDEN : undefined,
+			this.state.panel.hidden ? Classes.PANEL_HIDDEN : undefined,
+			this.state.statusBar.hidden ? Classes.STATUSBAR_HIDDEN : undefined,
+			this.state.fullscreen ? Classes.FULLSCREEN : undefined
+		]);
+	}
+
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.sideBar.hidden = hidden;
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'nosidebar');
+			addClass(this.container, Classes.SIDEBAR_HIDDEN);
 		} else {
-			removeClass(this.container, 'nosidebar');
+			removeClass(this.container, Classes.SIDEBAR_HIDDEN);
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -1010,9 +1029,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'nopanel');
+			addClass(this.container, Classes.PANEL_HIDDEN);
 		} else {
-			removeClass(this.container, 'nopanel');
+			removeClass(this.container, Classes.PANEL_HIDDEN);
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
