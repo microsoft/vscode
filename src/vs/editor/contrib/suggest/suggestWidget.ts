@@ -1015,7 +1015,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return null;
 		}
 		const tmp = Math.max(leftDetailWidth, rightDetailWidth, this.listWidth);
-		return Math.min(tmp, editorWidth * 0.66);
+		return Math.min(tmp, Math.round(editorWidth * 0.66));
 	}
 
 	private getCursorX(): number | null {
