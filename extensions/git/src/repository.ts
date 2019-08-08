@@ -679,11 +679,14 @@ export class Repository implements Disposable {
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
-		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
+
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
+
+		this.updateInputBoxPlaceholder();
+		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "MERGE CHANGES"));
 		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "STAGED CHANGES"));
@@ -1647,6 +1650,21 @@ export class Repository implements Disposable {
 		}
 
 		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
+	}
+
+	private updateInputBoxPlaceholder(): void {
+		const HEAD = this.HEAD;
+
+		if (HEAD) {
+			const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+			const tagName = tag && tag.name;
+			const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+
+			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
+			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", "{0}", head);
+		} else {
+			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
+		}
 	}
 
 	dispose(): void {
