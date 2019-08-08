@@ -1185,10 +1185,11 @@
           "default": true,
           "description": "%config.decorations.enabled%"
         },
-        "git.statusBarSync.enabled": {
+        "git.enableStatusBarSync": {
           "type": "boolean",
           "default": true,
-          "description": "%config.statusBarSync.enabled%"
+          "description": "%config.enableStatusBarSync%",
+          "scope": "resource"
         },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "string",

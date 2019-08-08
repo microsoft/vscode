@@ -39,7 +39,7 @@ class CheckoutStatusBar {
 }
 
 interface SyncStatusBarState {
-	isEnabled: boolean;
+	enabled: boolean;
 	isSyncRunning: boolean;
 	hasRemotes: boolean;
 	HEAD: Branch | undefined;
@@ -48,7 +48,7 @@ interface SyncStatusBarState {
 class SyncStatusBar {
 
 	private static StartState: SyncStatusBarState = {
-		isEnabled: true,
+		enabled: true,
 		isSyncRunning: false,
 		hasRemotes: false,
 		HEAD: undefined
@@ -69,20 +69,17 @@ class SyncStatusBar {
 		repository.onDidRunGitStatus(this.onModelChange, this, this.disposables);
 		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
 
-		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.statusBarSync.enabled'));
+		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
 		onEnablementChange(this.updateEnablement, this, this.disposables);
 
 		this._onDidChange.fire();
 	}
 
 	private updateEnablement(): void {
-		const isEnabled = workspace.getConfiguration('git').get('statusBarSync.enabled');
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const enabled = config.get<boolean>('enableStatusBarSync', true);
 
-		if (isEnabled) {
-			this.state = { ... this.state, isEnabled: true };
-		} else {
-			this.state = { ... this.state, isEnabled: false };
-		}
+		this.state = { ... this.state, enabled };
 	}
 
 	private onOperationsChange(): void {
@@ -102,7 +99,7 @@ class SyncStatusBar {
 	}
 
 	get command(): Command | undefined {
-		if (!this.state.isEnabled || !this.state.hasRemotes) {
+		if (!this.state.enabled || !this.state.hasRemotes) {
 			return undefined;
 		}
 
