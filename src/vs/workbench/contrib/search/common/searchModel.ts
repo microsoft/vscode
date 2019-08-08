@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,11 +22,12 @@ import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { memoize } from 'vs/base/common/decorators';
 
 export class Match {
 
@@ -74,6 +75,7 @@ export class Match {
 		return this._range;
 	}
 
+	@memoize
 	preview(): { before: string; inside: string; after: string; } {
 		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
@@ -155,6 +157,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
+		},
+		minimap: {
+			color: themeColorFromId(minimapFindMatch),
+			position: MinimapPosition.Inline
 		}
 	});
 
@@ -164,6 +170,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
+		},
+		minimap: {
+			color: themeColorFromId(minimapFindMatch),
+			position: MinimapPosition.Inline
 		}
 	});
 
@@ -713,10 +723,18 @@ export class SearchResult extends Disposable {
 		this.disposeMatches();
 	}
 
-	remove(matches: FileMatch | FileMatch[]): void {
+	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[]): void {
 		if (!Array.isArray(matches)) {
 			matches = [matches];
 		}
+
+		matches.forEach(m => {
+			if (m instanceof FolderMatch) {
+				m.clear();
+			}
+		});
+
+		matches = matches.filter(m => m instanceof FileMatch);
 
 		const { byFolder, other } = this.groupFilesByFolder(matches);
 		byFolder.forEach(matches => {
@@ -730,10 +748,6 @@ export class SearchResult extends Disposable {
 		if (other.length) {
 			this.getFolderMatch(other[0].resource).remove(<FileMatch[]>other);
 		}
-	}
-
-	removeFolder(match: FolderMatch): void {
-		match.clear();
 	}
 
 	replace(match: FileMatch): Promise<any> {

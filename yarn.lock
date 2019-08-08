@@ -9574,10 +9574,10 @@ vscode-proxy-agent@0.4.0:
     https-proxy-agent "2.2.1"
     socks-proxy-agent "4.0.1"
 
-vscode-ripgrep@^1.5.5:
-  version "1.5.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.5.tgz#24c0e9cb356cf889c98e15ecb58f9cf654a1d961"
-  integrity sha512-OrPrAmcun4+uZAuNcQvE6CCPskh+5AsjANod/Q3zRcJcGNxgoOSGlQN9RPtatkUNmkN8Nn8mZBnS1jMylu/dKg==
+vscode-ripgrep@^1.5.6:
+  version "1.5.6"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.6.tgz#93bf5c99ca5f8248950a305e224f6ca153c30af4"
+  integrity sha512-WRIM9XpUj6dsfdAmuI3ANbmT1ysPUVsYy/2uCLDHJa9kbiB4T7uGvFnnc0Rgx2qQnyRAwL7PeWaFgUljPPxf2g==
 
 vscode-sqlite3@4.0.8:
   version "4.0.8"

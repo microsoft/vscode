@@ -469,7 +469,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 
 		// make sure things are rendered
-		dom.addClass(this.container, 'results-loaded');
+		dom.addClass(this.container!, 'results-loaded');
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
 		this._splitView.layout(this._dim.width);
