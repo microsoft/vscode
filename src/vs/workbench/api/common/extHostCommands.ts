@@ -8,7 +8,7 @@ import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, ICommandDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
@@ -19,6 +19,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 interface CommandHandler {
 	callback: Function;
@@ -32,6 +34,8 @@ export interface ArgumentProcessor {
 
 export class ExtHostCommands implements ExtHostCommandsShape {
 
+	readonly _serviceBrand: any;
+
 	private readonly _onDidExecuteCommand: Emitter<vscode.CommandExecutionEvent>;
 	readonly onDidExecuteCommand: Event<vscode.CommandExecutionEvent>;
 
@@ -42,10 +46,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	constructor(
-		mainContext: IMainContext,
-		logService: ILogService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService logService: ILogService
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._onDidExecuteCommand = new Emitter<vscode.CommandExecutionEvent>({
 			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
 			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
@@ -282,3 +286,6 @@ export class CommandsConverter {
 	}
 
 }
+
+export interface IExtHostCommands extends ExtHostCommands { }
+export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');

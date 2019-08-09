@@ -10,18 +10,20 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class BaseExtHostTerminal {
 	public _id: number | undefined;
@@ -195,7 +197,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	}
 }
 
-export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
+export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostTerminalServiceShape {
+
+	readonly _serviceBrand: any;
+
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal | undefined;
 	private _terminals: ExtHostTerminal[] = [];
@@ -222,13 +227,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
-		mainContext: IMainContext,
-		private _extHostConfiguration: ExtHostConfiguration,
-		private _extHostWorkspace: ExtHostWorkspace,
-		private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private _logService: ILogService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostConfiguration private _extHostConfiguration: ExtHostConfiguration,
+		@IExtHostWorkspace private _extHostWorkspace: ExtHostWorkspace,
+		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		@ILogService private _logService: ILogService
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
