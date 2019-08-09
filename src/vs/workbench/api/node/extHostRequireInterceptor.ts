@@ -12,7 +12,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { endsWith } from 'vs/base/common/strings';
-import { IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 
 
 interface LoadFunction {

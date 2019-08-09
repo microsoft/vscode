@@ -880,6 +880,22 @@ export class ResetGroupSizesAction extends Action {
 	}
 }
 
+export class ToggleGroupSizesAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleEditorWidths';
+	static readonly LABEL = nls.localize('toggleEditorWidths', "Toggle Editor Group Sizes");
+
+	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		this.editorGroupService.arrangeGroups(GroupsArrangement.TOGGLE);
+
+		return Promise.resolve(false);
+	}
+}
+
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';

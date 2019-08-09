@@ -5,7 +5,7 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -14,14 +14,15 @@ import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net'
 import product from 'vs/platform/product/node/product';
 import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
+import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
-import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import 'vs/workbench/api/node/extHost.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
@@ -312,6 +313,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
+		_serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return exists(path); }
 		realpath(path: string) { return realpath(path); }

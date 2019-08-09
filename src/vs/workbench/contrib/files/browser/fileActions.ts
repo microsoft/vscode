@@ -1059,3 +1059,19 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 		}
 	}
 };
+
+export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
+	const listService = accessor.get(IListService);
+	const editorService = accessor.get(IEditorService);
+
+	if (listService.lastFocusedList) {
+		const explorerContext = getContext(listService.lastFocusedList);
+		if (explorerContext.stat) {
+			const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+			await editorService.openEditors(stats.filter(s => !s.isDirectory).map(s => ({
+				resource: s.resource,
+				options: { preserveFocus: true }
+			})));
+		}
+	}
+};

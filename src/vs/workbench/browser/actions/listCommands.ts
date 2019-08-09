@@ -749,11 +749,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
 
-			if (list.getSelection().length > 0) {
-				list.setSelection([]);
-			} else if (list.getFocus().length > 0) {
-				list.setFocus([]);
-			}
+			list.setSelection([]);
+			list.setFocus([]);
 		}
 
 		// ObjectTree
@@ -761,22 +758,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const list = focused;
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 
-			if (list.getSelection().length > 0) {
-				list.setSelection([], fakeKeyboardEvent);
-			} else if (list.getFocus().length > 0) {
-				list.setFocus([], fakeKeyboardEvent);
-			}
+			list.setSelection([], fakeKeyboardEvent);
+			list.setFocus([], fakeKeyboardEvent);
 		}
 
 		// Tree
 		else if (focused) {
 			const tree = focused;
 
-			if (tree.getSelection().length) {
-				tree.clearSelection({ origin: 'keyboard' });
-			} else if (tree.getFocus()) {
-				tree.clearFocus({ origin: 'keyboard' });
-			}
+			tree.clearSelection({ origin: 'keyboard' });
+			tree.clearFocus({ origin: 'keyboard' });
 		}
 	}
 });

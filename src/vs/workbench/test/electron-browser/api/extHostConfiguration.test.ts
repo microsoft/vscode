@@ -15,6 +15,7 @@ import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/
 import { ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assign } from 'vs/base/common/objects';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 suite('ExtHostConfiguration', function () {
 
@@ -26,11 +27,15 @@ suite('ExtHostConfiguration', function () {
 		}
 	}
 
+	function createExtHostWorkspace(): ExtHostWorkspace {
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new NullLogService());
+	}
+
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService()), createConfigurationData(contents));
+		return new ExtHostConfigProvider(shape, createExtHostWorkspace(), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -263,7 +268,7 @@ suite('ExtHostConfiguration', function () {
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService()),
+			createExtHostWorkspace(),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -303,7 +308,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		}, ['editor.wordWrap']);
 		folders.push([workspaceUri, workspace]);
-		const extHostWorkspace = new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService());
+		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
@@ -378,7 +383,7 @@ suite('ExtHostConfiguration', function () {
 		}, ['editor.wordWrap'])]);
 		folders.push([thirdRoot, new ConfigurationModel({}, [])]);
 
-		const extHostWorkspace = new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService());
+		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
@@ -588,7 +593,7 @@ suite('ExtHostConfiguration', function () {
 	test('configuration change event', (done) => {
 
 		const workspaceFolder = aWorkspaceFolder(URI.file('folder1'), 0);
-		const extHostWorkspace = new ExtHostWorkspace(new TestRPCProtocol(), new NullLogService());
+		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
 			'id': 'foo',
 			'folders': [workspaceFolder],

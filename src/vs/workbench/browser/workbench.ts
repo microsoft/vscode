@@ -25,7 +25,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
@@ -46,6 +46,9 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 
 export class Workbench extends Layout {
+
+	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
+	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
 	readonly onShutdown: Event<void> = this._onShutdown.event;
@@ -225,6 +228,7 @@ export class Workbench extends Layout {
 	): void {
 
 		// Lifecycle
+		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
 		this._register(lifecycleService.onShutdown(() => {
 			this._onShutdown.fire();
@@ -294,10 +298,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
-			this.state.sideBar.hidden ? 'nosidebar' : undefined,
-			this.state.panel.hidden ? 'nopanel' : undefined,
-			this.state.statusBar.hidden ? 'nostatusbar' : undefined,
-			this.state.fullscreen ? 'fullscreen' : undefined
+			...this.getLayoutClasses()
 		]);
 
 		addClasses(this.container, ...workbenchClasses);

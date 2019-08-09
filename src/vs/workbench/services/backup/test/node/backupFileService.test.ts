@@ -27,6 +27,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const appSettingsHome = path.join(userdataDir, 'User');
@@ -477,6 +478,28 @@ suite('BackupFileService', () => {
 			};
 
 			await testResolveBackup(fooBarFile, contents, meta, null);
+		});
+
+		test('should throw an error when restoring invalid backup', async () => {
+			const contents = 'test\nand more stuff';
+
+			await service.backupResource(fooBarFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1);
+
+			const backup = await service.loadBackupResource(fooBarFile);
+			if (!backup) {
+				throw new Error('Unexpected missing backup');
+			}
+
+			await service.fileService.writeFile(backup, VSBuffer.fromString(''));
+
+			let err: Error;
+			try {
+				await service.resolveBackupContent<IBackupTestMetaData>(backup);
+			} catch (error) {
+				err = error;
+			}
+
+			assert.ok(err!);
 		});
 
 		async function testResolveBackup(resource: URI, contents: string, meta?: IBackupTestMetaData, expectedMeta?: IBackupTestMetaData | null) {

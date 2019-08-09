@@ -395,12 +395,14 @@ export interface TerminalLaunchConfig {
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(config: TerminalLaunchConfig): Promise<{ id: number, name: string }>;
-	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
+	/** @deprecated */
 	$registerOnDataListener(terminalId: number): void;
+	$startSendingDataEvents(): void;
+	$stopSendingDataEvents(): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
@@ -411,12 +413,6 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 	$sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void;
 	$sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void;
-
-	// Renderer
-	$terminalRendererSetName(terminalId: number, name: string): void;
-	$terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void;
-	$terminalRendererWrite(terminalId: number, text: string): void;
-	$terminalRendererRegisterOnInputListener(terminalId: number): void;
 }
 
 export interface TransferQuickPickItems extends quickInput.IQuickPickItem {
@@ -819,9 +815,6 @@ export interface ExtHostTreeViewsShape {
 	$setVisible(treeViewId: string, visible: boolean): void;
 }
 
-export interface ExtHostDownloadServiceShape {
-}
-
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
@@ -1157,8 +1150,9 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
+	/** @deprecated */
 	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptTerminalRendererInput(id: number, data: string): void;
+	$acceptTerminalProcessData2(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
@@ -1357,7 +1351,6 @@ export const ExtHostContext = {
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
-	ExtHostDownloadService: createExtId<ExtHostDownloadServiceShape>('ExtHostDownloadService'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),

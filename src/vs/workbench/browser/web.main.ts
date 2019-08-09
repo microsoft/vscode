@@ -73,11 +73,17 @@ class CodeRendererMain extends Disposable {
 		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
 		// Workbench Lifecycle
-		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onBeforeShutdown(event => {
+			if (services.storageService.hasPendingUpdate) {
+				console.warn('Unload prevented: pending storage update');
+				event.veto(true); // prevent data loss from pending storage update
+			}
+		}));
 		this._register(workbench.onWillShutdown(() => {
 			services.storageService.close();
 			this.saveBaseTheme();
 		}));
+		this._register(workbench.onShutdown(() => this.dispose()));
 
 		// Startup
 		workbench.startup();

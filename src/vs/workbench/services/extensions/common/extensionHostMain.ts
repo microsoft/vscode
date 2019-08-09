@@ -10,14 +10,18 @@ import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ExtHostExtensionService, IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -39,7 +43,7 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
-	private readonly _extensionService: ExtHostExtensionService;
+	private readonly _extensionService: IExtHostExtensionService;
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -64,22 +68,22 @@ export class ExtensionHostMain {
 		const extHostLogService = new ExtHostLogService(logServiceFn(initData), initData.logsLocation.fsPath);
 		this._disposables.add(extHostLogService);
 
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, extHostLogService, withNullAsUndefined(initData.workspace));
+		// bootstrap services
+		const services = new ServiceCollection(...getSingletonServiceDescriptors());
+		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
+		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
+		services.set(ILogService, extHostLogService);
+		services.set(IURITransformerService, new URITransformerService(uriTransformer));
+		services.set(IHostUtils, hostUtils);
+
+		const instaService: IInstantiationService = new InstantiationService(services, true);
 
 		extHostLogService.info('extension host started');
 		extHostLogService.trace('initData', initData);
 
-		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
-		this._extensionService = new ExtHostExtensionService(
-			hostUtils,
-			initData,
-			rpcProtocol,
-			extHostWorkspace,
-			extHostConfiguraiton,
-			initData.environment,
-			extHostLogService,
-			uriTransformer
-		);
+		// todo@joh -> not soo nice...
+		this._extensionService = instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService));
+		this._extensionService.initialize();
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
