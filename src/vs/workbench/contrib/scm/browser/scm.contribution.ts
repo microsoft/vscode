@@ -70,7 +70,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		'scm.alwaysShowProviders': {
 			type: 'boolean',
-			description: localize('alwaysShowProviders', "Controls whether to always show the Source Control Provider section."),
+			description: localize('alwaysShowProviders', "Controls whether to show the Source Control Provider section even when there's only one Provider registered."),
 			default: false
 		},
 		'scm.providers.visible': {
