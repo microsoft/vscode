@@ -146,7 +146,7 @@ suite('Files - Increment file name smart', () => {
 
 	test('Increment folder name without any version', function () {
 		const name = 'test';
-		const result = incrementFileName(name, true);
+		const result = incrementFileName(name, true, 'smart');
 		assert.strictEqual(result, 'test.1');
 	});
 
