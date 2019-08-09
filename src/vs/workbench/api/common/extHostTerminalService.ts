@@ -26,7 +26,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
 	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
-	getDefaultShell(configProvider: ExtHostConfigProvider): string;
+	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');

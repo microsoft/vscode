@@ -349,7 +349,7 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 			}).then(async needNewTerminal => {
 
 				const configProvider = await this._configurationService.getConfigProvider();
-				const shell = this._terminalService.getDefaultShell(configProvider);
+				const shell = this._terminalService.getDefaultShell(true, configProvider);
 
 				if (needNewTerminal || !this._integratedTerminalInstance) {
 					const options: vscode.TerminalOptions = {
