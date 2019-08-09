@@ -302,7 +302,7 @@ export class ExplorerView extends ViewletPanel {
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true,
-				additionalScrollHeight: 2 * ExplorerDelegate.ITEM_HEIGHT
+				additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
 			});
 		this._register(this.tree);
 
