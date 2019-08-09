@@ -12,7 +12,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { dirExists, mkdirp } from 'vs/base/node/pfs';
 import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 

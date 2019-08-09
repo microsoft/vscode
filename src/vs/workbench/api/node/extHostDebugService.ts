@@ -36,7 +36,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 
 export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugServiceShape {

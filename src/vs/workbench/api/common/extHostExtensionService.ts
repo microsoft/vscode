@@ -31,7 +31,7 @@ import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/re
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface ITestRunner {

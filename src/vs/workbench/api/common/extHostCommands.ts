@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 interface CommandHandler {
 	callback: Function;

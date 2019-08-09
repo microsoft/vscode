@@ -7,7 +7,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyId
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { isThenable } from 'vs/base/common/async';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {

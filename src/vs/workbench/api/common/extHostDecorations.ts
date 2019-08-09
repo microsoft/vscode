@@ -11,7 +11,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { asArray } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;

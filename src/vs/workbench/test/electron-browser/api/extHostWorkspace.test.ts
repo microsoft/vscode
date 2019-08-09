@@ -16,7 +16,7 @@ import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TestRPCProtocol } from './testRPCProtocol';
-import { ExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {

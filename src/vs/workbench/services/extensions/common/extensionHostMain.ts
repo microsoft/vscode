@@ -19,7 +19,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 

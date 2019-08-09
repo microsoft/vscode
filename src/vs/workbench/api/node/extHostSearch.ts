@@ -16,7 +16,7 @@ import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUt
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 

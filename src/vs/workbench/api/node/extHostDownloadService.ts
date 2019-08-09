@@ -10,7 +10,7 @@ import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostDownloadService extends Disposable {
 

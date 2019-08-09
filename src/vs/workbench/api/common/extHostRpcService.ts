@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IExtHostRpcService = createDecorator<IExtHostRpcService>('IExtHostRpcService');
 
-export interface IExtHostRpcService extends IMainContext {
+export interface IExtHostRpcService extends IRPCProtocol {
 	_serviceBrand: any;
 }
 
 export class ExtHostRpcService implements IExtHostRpcService {
 	readonly _serviceBrand: any;
 
-	getProxy: <T>(identifier: ProxyIdentifier<T>) => T;
-	set: <T, R extends T> (identifier: ProxyIdentifier<T>, instance: R) => R;
-	assertRegistered: (identifiers: ProxyIdentifier<any>[]) => void;
+	readonly getProxy: <T>(identifier: ProxyIdentifier<T>) => T;
+	readonly set: <T, R extends T> (identifier: ProxyIdentifier<T>, instance: R) => R;
+	readonly assertRegistered: (identifiers: ProxyIdentifier<any>[]) => void;
 
-	constructor(mainContext: IMainContext) {
-		this.getProxy = mainContext.getProxy.bind(mainContext);
-		this.set = mainContext.set.bind(mainContext);
-		this.assertRegistered = mainContext.assertRegistered.bind(mainContext);
+	constructor(rpcProtocol: IRPCProtocol) {
+		this.getProxy = rpcProtocol.getProxy.bind(rpcProtocol);
+		this.set = rpcProtocol.set.bind(rpcProtocol);
+		this.assertRegistered = rpcProtocol.assertRegistered.bind(rpcProtocol);
 
 	}
 

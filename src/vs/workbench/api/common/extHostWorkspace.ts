@@ -27,7 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;

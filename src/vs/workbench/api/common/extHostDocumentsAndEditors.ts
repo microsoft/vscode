@@ -13,7 +13,7 @@ import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 

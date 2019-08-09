@@ -31,7 +31,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Schemas } from 'vs/base/common/network';
 

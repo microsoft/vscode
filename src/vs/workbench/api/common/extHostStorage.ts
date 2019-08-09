@@ -5,7 +5,7 @@
 
 import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol';
 import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/rpcService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IStorageChangeEvent {
