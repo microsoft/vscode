@@ -94,6 +94,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActiveGroupChange: Event<IEditorGroupView> = this._onDidActiveGroupChange.event;
 
+	private readonly _onDidGroupIndexChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidGroupIndexChange: Event<IEditorGroupView> = this._onDidGroupIndexChange.event;
+
 	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup: Event<IEditorGroupView> = this._onDidActivateGroup.event;
 
@@ -512,8 +515,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Track editor change
 		groupDisposables.add(groupView.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				this.updateContainer();
+			switch (e.kind) {
+				case GroupChangeKind.EDITOR_ACTIVE:
+					this.updateContainer();
+					break;
+				case GroupChangeKind.GROUP_INDEX:
+					this._onDidGroupIndexChange.fire(groupView);
+					break;
 			}
 		}));
 

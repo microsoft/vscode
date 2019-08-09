@@ -261,6 +261,11 @@ suite('EditorGroupsService', () => {
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
 
+		let groupIndexChangedCounter = 0;
+		const groupIndexChangedListener = part.onDidGroupIndexChange(() => {
+			groupIndexChangedCounter++;
+		});
+
 		let indexChangeCounter = 0;
 		const labelChangeListener = downGroup.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_INDEX) {
@@ -281,6 +286,7 @@ suite('EditorGroupsService', () => {
 		assert.equal(rootGroup.label, 'Group 1');
 		assert.equal(downGroup.label, 'Group 2');
 		assert.equal(indexChangeCounter, 1);
+		assert.equal(groupIndexChangedCounter, 1);
 
 		part.moveGroup(downGroup, rootGroup, GroupDirection.UP);
 		assert.equal(downGroup.index, 0);
@@ -288,6 +294,7 @@ suite('EditorGroupsService', () => {
 		assert.equal(downGroup.label, 'Group 1');
 		assert.equal(rootGroup.label, 'Group 2');
 		assert.equal(indexChangeCounter, 2);
+		assert.equal(groupIndexChangedCounter, 3);
 
 		const newFirstGroup = part.addGroup(downGroup, GroupDirection.UP);
 		assert.equal(newFirstGroup.index, 0);
@@ -297,8 +304,10 @@ suite('EditorGroupsService', () => {
 		assert.equal(downGroup.label, 'Group 2');
 		assert.equal(rootGroup.label, 'Group 3');
 		assert.equal(indexChangeCounter, 3);
+		assert.equal(groupIndexChangedCounter, 6);
 
 		labelChangeListener.dispose();
+		groupIndexChangedListener.dispose();
 
 		part.dispose();
 	});
