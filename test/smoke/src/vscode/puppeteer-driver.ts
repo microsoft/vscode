@@ -11,6 +11,7 @@ const height = 800;
 const vscodeToPuppeteerKey = {
 	cmd: 'Meta',
 	ctrl: 'Control',
+	shift: 'Shift',
 	enter: 'Enter',
 	escape: 'Escape',
 	right: 'ArrowRight',

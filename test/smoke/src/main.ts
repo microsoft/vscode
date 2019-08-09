@@ -279,9 +279,19 @@ describe('Running Code', () => {
 	}
 
 	if (opts.web) {
+		// setupDataLossTests();
 		setupDataExplorerTests();
-		setupDataPreferencesTests();
+		// setupDataPreferencesTests();
+		setupDataSearchTests();
+		setupDataCSSTests();
+		// setupDataEditorTests();
+		// setupDataDebugTests();
+		// setupDataGitTests();
+		// setupDataStatusbarTests();
+		// setupDataExtensionTests();
 		setupTerminalTests();
+		// setupDataMultirootTests();
+		// setupDataLocalizationTests();
 		return;
 	}
 
