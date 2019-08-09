@@ -49,7 +49,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
-	private static readonly ITEM_HEIGHT = 22;
+	static readonly ITEM_HEIGHT = 22;
 
 	getHeight(element: ExplorerItem): number {
 		return ExplorerDelegate.ITEM_HEIGHT;

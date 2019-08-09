@@ -57,6 +57,7 @@ export interface IListViewOptions<T> {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly ariaProvider?: IAriaProvider<T>;
+	readonly additionalScrollHeight?: number;
 }
 
 const DefaultOptions = {
@@ -175,6 +176,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
+	private additionalScrollHeight: number;
 	private ariaProvider: IAriaProvider<T>;
 	private scrollWidth: number | undefined;
 	private canUseTranslate3d: boolean | undefined = undefined;
@@ -227,6 +229,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
 		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
+
+		this.additionalScrollHeight = typeof options.additionalScrollHeight === 'undefined' ? 0 : options.additionalScrollHeight;
 
 		this.ariaProvider = options.ariaProvider || { getSetSize: (e, i, length) => length, getPosInSet: (_, index) => index + 1 };
 
@@ -688,7 +692,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	get scrollHeight(): number {
-		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0);
+		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0) + this.additionalScrollHeight;
 	}
 
 	// Events
