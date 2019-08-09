@@ -369,6 +369,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	protected options: IMenuItemOptions;
 	protected item: HTMLElement;
 
+	private runOnceToEnableMouseUp: RunOnceScheduler;
 	private label: HTMLElement;
 	private check: HTMLElement;
 	private mnemonic: string;
@@ -394,6 +395,20 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				}
 			}
 		}
+
+		// Add mouse up listener later to avoid accidental clicks
+		this.runOnceToEnableMouseUp = new RunOnceScheduler(() => {
+			if (!this.element) {
+				return;
+			}
+
+			this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+				EventHelper.stop(e, true);
+				this.onClick(e);
+			}));
+		}, 50);
+
+		this._register(this.runOnceToEnableMouseUp);
 	}
 
 	render(container: HTMLElement): void {
@@ -425,10 +440,8 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			append(this.item, $('span.keybinding')).textContent = this.options.keybinding;
 		}
 
-		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
-			EventHelper.stop(e, true);
-			this.onClick(e);
-		}));
+		// Adds mouse up listener to actually run the action
+		this.runOnceToEnableMouseUp.schedule();
 
 		this.updateClass();
 		this.updateLabel();
