@@ -320,6 +320,38 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusParent',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		if (!focused || focused instanceof List || focused instanceof PagedList) {
+			return;
+		}
+
+		if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			const focusedElements = tree.getFocus();
+			if (focusedElements.length === 0) {
+				return;
+			}
+			const focus = focusedElements[0];
+			const parent = tree.getParentElement(focus);
+			if (parent) {
+				const fakeKeyboardEvent = new KeyboardEvent('keydown');
+				tree.setFocus([parent], fakeKeyboardEvent);
+				tree.reveal(parent);
+			}
+		} else {
+			const tree = focused;
+			tree.focusParent({ origin: 'keyboard' });
+		}
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expand',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -805,36 +837,6 @@ CommandsRegistry.registerCommand({
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const tree = focused;
 			tree.updateOptions({ filterOnType: !tree.filterOnType });
-		}
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusParent',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
-	primary: KeyCode.Shift | KeyCode.LeftArrow,
-	handler: (accessor) => {
-		const focused = accessor.get(IListService).lastFocusedList;
-		// Tree only
-		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
-			if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-				const tree = focused;
-				const focusedElements = tree.getFocus();
-				if (focusedElements.length === 0) {
-					return;
-				}
-				const focus = focusedElements[0];
-				const parent = tree.getParentElement(focus);
-				if (parent) {
-					const fakeKeyboardEvent = new KeyboardEvent('keydown');
-					tree.setFocus([parent], fakeKeyboardEvent);
-					tree.reveal(parent);
-				}
-			} else {
-				const tree = focused;
-				tree.focusParent({ origin: 'keyboard' });
-			}
 		}
 	}
 });
