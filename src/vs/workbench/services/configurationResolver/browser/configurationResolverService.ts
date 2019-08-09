@@ -250,7 +250,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						inputOptions.value = info.default;
 					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
-						return resolvedInput ? resolvedInput : undefined;
+						return resolvedInput;
 					});
 				}
 
