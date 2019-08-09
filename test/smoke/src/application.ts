@@ -66,7 +66,6 @@ export class Application {
 
 	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
-		// TODO: web doesn't show explorer?
 		await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
@@ -139,7 +138,6 @@ export class Application {
 		}
 
 		await this.code.waitForWindowIds(ids => ids.length > 0);
-		// TODO: Remove on web?
 		await this.code.waitForElement('.monaco-workbench');
 
 		if (this.remote) {
