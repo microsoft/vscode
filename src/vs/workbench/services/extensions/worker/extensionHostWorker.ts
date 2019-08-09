@@ -9,9 +9,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { IHostUtils } from 'vs/workbench/services/extensions/worker/extHostExtensionService';
-import { ExtensionHostMain } from 'vs/workbench/services/extensions/worker/extensionHostMain';
+import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import 'vs/workbench/services/extensions/worker/extHost.services';
 
 // worker-self
 declare namespace self {
@@ -24,10 +25,11 @@ self.close = () => console.trace('An extension called terminate and this was pre
 let onTerminate = nativeClose;
 
 const hostUtil = new class implements IHostUtils {
-	exit(code?: number | undefined): void {
+	_serviceBrand: any;
+	exit(_code?: number | undefined): void {
 		nativeClose();
 	}
-	async exists(path: string): Promise<boolean> {
+	async exists(_path: string): Promise<boolean> {
 		return true;
 	}
 	async realpath(path: string): Promise<string> {

@@ -385,7 +385,8 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
+				const scope = typeof global === 'object' ? global : self; //todo@joh not so nice
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
