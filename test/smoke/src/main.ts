@@ -133,7 +133,7 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!fs.existsSync(electronPath || '')) {
+if (!opts.web && !fs.existsSync(electronPath || '')) {
 	fail(`Can't find Code at ${electronPath}.`);
 }
 
