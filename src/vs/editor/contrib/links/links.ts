@@ -302,7 +302,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			const messageOrError =
 				err instanceof Error
 					? (<Error>err).message
-					: typeof err === "string"
+					: typeof err === 'string'
 					? err
 					: err
 					? err.toString()
