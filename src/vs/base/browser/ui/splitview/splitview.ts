@@ -462,6 +462,7 @@ export class SplitView extends Disposable {
 
 		this.distributeEmptySpace(index);
 		this.layoutViews();
+		this.saveProportions();
 	}
 
 	getViewCachedVisibleSize(index: number): number | undefined {
