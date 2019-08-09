@@ -353,11 +353,11 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.UNTRACKED:
 			case Status.INDEX_ADDED:
 				return this.getURI(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
+			case Status.UNTRACKED:
 				return this.getURI(resource.resourceUri, '~');
 
 			case Status.DELETED_BY_THEM:
