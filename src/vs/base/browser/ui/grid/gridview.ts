@@ -348,6 +348,7 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.setViewVisible(index, visible);
+		this._onDidChange.fire(undefined);
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
