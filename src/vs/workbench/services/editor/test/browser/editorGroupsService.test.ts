@@ -388,7 +388,7 @@ suite('EditorGroupsService', () => {
 	test('editor basics', async function () {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		await part.whenRestored;
 
@@ -437,7 +437,7 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.isActive(inputInactive), false);
 		assert.equal(group.isOpened(input), true);
 		assert.equal(group.isOpened(inputInactive), true);
-		assert.equal(group.isEmpty(), false);
+		assert.equal(group.isEmpty, false);
 		assert.equal(group.count, 2);
 		assert.equal(editorWillOpenCounter, 2);
 		assert.equal(editorDidOpenCounter, 2);
@@ -486,7 +486,7 @@ suite('EditorGroupsService', () => {
 	test('openEditors / closeEditors', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input = new TestEditorInput(URI.file('foo/bar'));
 		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
@@ -497,14 +497,14 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.getEditor(1), inputInactive);
 
 		await group.closeEditors([input, inputInactive]);
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 		part.dispose();
 	});
 
 	test('closeEditors (except one)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input1 = new TestEditorInput(URI.file('foo/bar1'));
 		const input2 = new TestEditorInput(URI.file('foo/bar2'));
@@ -525,7 +525,7 @@ suite('EditorGroupsService', () => {
 	test('closeEditors (saved only)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input1 = new TestEditorInput(URI.file('foo/bar1'));
 		const input2 = new TestEditorInput(URI.file('foo/bar2'));
@@ -545,7 +545,7 @@ suite('EditorGroupsService', () => {
 	test('closeEditors (direction: right)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input1 = new TestEditorInput(URI.file('foo/bar1'));
 		const input2 = new TestEditorInput(URI.file('foo/bar2'));
@@ -567,7 +567,7 @@ suite('EditorGroupsService', () => {
 	test('closeEditors (direction: left)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input1 = new TestEditorInput(URI.file('foo/bar1'));
 		const input2 = new TestEditorInput(URI.file('foo/bar2'));
@@ -589,7 +589,7 @@ suite('EditorGroupsService', () => {
 	test('closeAllEditors', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input = new TestEditorInput(URI.file('foo/bar'));
 		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
@@ -600,14 +600,14 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.getEditor(1), inputInactive);
 
 		await group.closeAllEditors();
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 		part.dispose();
 	});
 
 	test('moveEditor (same group)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input = new TestEditorInput(URI.file('foo/bar'));
 		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));
@@ -635,7 +635,7 @@ suite('EditorGroupsService', () => {
 	test('moveEditor (across groups)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 
@@ -657,7 +657,7 @@ suite('EditorGroupsService', () => {
 	test('copyEditor (across groups)', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 
@@ -680,7 +680,7 @@ suite('EditorGroupsService', () => {
 	test('replaceEditors', async () => {
 		const part = createPart();
 		const group = part.activeGroup;
-		assert.equal(group.isEmpty(), true);
+		assert.equal(group.isEmpty, true);
 
 		const input = new TestEditorInput(URI.file('foo/bar'));
 		const inputInactive = new TestEditorInput(URI.file('foo/bar/inactive'));

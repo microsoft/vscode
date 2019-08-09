@@ -59,7 +59,13 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN
+	EVEN,
+
+	/**
+	 * Will behave like MINIMIZE_OTHERS if the active
+	 * group is not already maximized and EVEN otherwise
+	 */
+	TOGGLE
 }
 
 export interface GroupLayoutArgument {
