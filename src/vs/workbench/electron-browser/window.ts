@@ -372,13 +372,15 @@ export class ElectronWindow extends Disposable {
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
 		let group: ICommandAction[] = [];
-		const ignoreActions = this.configurationService.getValue<string[]>('keyboard.touchbar.ignoreActions') || [];
+		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignoreActions') || [];
 		for (const action of actions) {
+
 			// Command
 			if (action instanceof MenuItemAction) {
-				if (ignoreActions.indexOf(action.item.id) >= 0) {
-					continue;
+				if (ignoredItems.indexOf(action.item.id) >= 0) {
+					continue; // ignored
 				}
+
 				group.push(action.item);
 			}
 
