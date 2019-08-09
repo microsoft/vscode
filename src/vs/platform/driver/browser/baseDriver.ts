@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getTopLeftOffset } from 'vs/base/browser/dom';
-import { Terminal } from 'xterm';
 import { coalesce } from 'vs/base/common/arrays';
 import { IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
 
@@ -129,7 +128,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Terminal not found: ${selector}`);
 		}
 
-		const xterm: Terminal = (element as any).xterm;
+		const xterm = (element as any).xterm;
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
@@ -151,7 +150,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		const xterm: Terminal = (element as any).xterm;
+		const xterm = (element as any).xterm;
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
