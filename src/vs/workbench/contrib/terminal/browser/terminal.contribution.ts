@@ -71,6 +71,21 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	type: 'object',
 	properties: {
+		'terminal.integrated.automationShell.linux': {
+			markdownDescription: nls.localize('terminal.integrated.automationShell.linux', "A path that when set will override {0} and ignore {1} and {2} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`', '`env`'),
+			type: ['string', 'null'],
+			default: null
+		},
+		'terminal.integrated.automationShell.osx': {
+			markdownDescription: nls.localize('terminal.integrated.automationShell.osx', "A path that when set will override {0} and ignore {1} and {2} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`', '`env`'),
+			type: ['string', 'null'],
+			default: null
+		},
+		'terminal.integrated.automationShell.windows': {
+			markdownDescription: nls.localize('terminal.integrated.automationShell.windows', "A path that when set will override {0} and ignore {1} and {2} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`', '`env`'),
+			type: ['string', 'null'],
+			default: null
+		},
 		'terminal.integrated.shellArgs.linux': {
 			markdownDescription: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',

@@ -10,19 +10,20 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class BaseExtHostTerminal {
 	public _id: number | undefined;
@@ -196,7 +197,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	}
 }
 
-export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
+export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostTerminalServiceShape {
+
+	readonly _serviceBrand: any;
+
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal | undefined;
 	private _terminals: ExtHostTerminal[] = [];
@@ -223,13 +227,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
-		mainContext: IMainContext,
-		private _extHostConfiguration: ExtHostConfiguration,
-		private _extHostWorkspace: ExtHostWorkspace,
-		private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private _logService: ILogService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostConfiguration private _extHostConfiguration: ExtHostConfiguration,
+		@IExtHostWorkspace private _extHostWorkspace: ExtHostWorkspace,
+		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		@ILogService private _logService: ILogService
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
@@ -270,7 +274,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._setupExtHostProcessListeners(id, p);
 	}
 
-	public getDefaultShell(configProvider: ExtHostConfigProvider): string {
+	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -285,11 +289,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			process.env.windir,
 			this._lastActiveWorkspace,
 			this._variableResolver,
-			this._logService
+			this._logService,
+			useAutomationShell
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string {
+	private _getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -297,7 +302,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._lastActiveWorkspace, this._variableResolver, this._logService);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, this._lastActiveWorkspace, this._variableResolver, this._logService);
 	}
 
 	public async $acceptActiveTerminalChanged(id: number | null): Promise<void> {
@@ -457,8 +462,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
-			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
+			shellLaunchConfig.executable = this.getDefaultShell(false, configProvider);
+			shellLaunchConfig.args = this._getDefaultShellArgs(false, configProvider);
 		} else {
 			if (this._variableResolver) {
 				shellLaunchConfig.executable = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.executable);
@@ -599,11 +604,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
+	public async $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return Promise.resolve({
-			shell: this.getDefaultShell(configProvider),
-			args: this._getDefaultShellArgs(configProvider)
+			shell: this.getDefaultShell(useAutomationShell, configProvider),
+			args: this._getDefaultShellArgs(useAutomationShell, configProvider)
 		});
 	}
 
@@ -687,9 +692,6 @@ class ApiRequest {
 }
 
 class ExtHostPseudoterminal implements ITerminalChildProcess {
-	private _queuedEvents: (IQueuedEvent<string> | IQueuedEvent<number> | IQueuedEvent<{ pid: number, cwd: string }> | IQueuedEvent<ITerminalDimensions | undefined>)[] = [];
-	private _queueDisposables: IDisposable[] | undefined;
-
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = new Emitter<number>();
@@ -701,18 +703,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensions | undefined>();
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 
-	constructor(
-		private readonly _pty: vscode.Pseudoterminal
-	) {
-		this._queueDisposables = [];
-		this._queueDisposables.push(this._pty.onDidWrite(e => this._queuedEvents.push({ emitter: this._onProcessData, data: e })));
-		if (this._pty.onDidClose) {
-			this._queueDisposables.push(this._pty.onDidClose(e => this._queuedEvents.push({ emitter: this._onProcessExit, data: 0 })));
-		}
-		if (this._pty.onDidOverrideDimensions) {
-			this._queueDisposables.push(this._pty.onDidOverrideDimensions(e => this._queuedEvents.push({ emitter: this._onProcessOverrideDimensions, data: e ? { cols: e.columns, rows: e.rows } : undefined })));
-		}
-	}
+	constructor(private readonly _pty: vscode.Pseudoterminal) { }
 
 	shutdown(): void {
 		this._pty.close();
@@ -743,12 +734,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	startSendingEvents(initialDimensions: ITerminalDimensionsDto | undefined): void {
-		// Flush all buffered events
-		this._queuedEvents.forEach(e => (<any>e.emitter.fire)(e.data));
-		this._queuedEvents = [];
-		this._queueDisposables = undefined;
-
-		// Attach the real listeners
+		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
 			this._pty.onDidClose(e => this._onProcessExit.fire(0));
@@ -761,7 +747,3 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 }
 
-interface IQueuedEvent<T> {
-	emitter: Emitter<T>;
-	data: T;
-}

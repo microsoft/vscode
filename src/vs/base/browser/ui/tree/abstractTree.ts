@@ -897,6 +897,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
+	readonly additionalScrollHeight?: number;
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {

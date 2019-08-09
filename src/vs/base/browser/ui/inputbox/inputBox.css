@@ -58,7 +58,12 @@
 
 .monaco-inputbox > .wrapper > textarea.input {
 	display: block;
-	overflow: hidden;
+	-ms-overflow-style: none; /* IE 10+ */
+	overflow: -moz-scrollbars-none; /* Firefox */
+}
+
+.monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+	display: none;
 }
 
 .monaco-inputbox > .wrapper > .mirror {

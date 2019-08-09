@@ -66,7 +66,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			cols,
 			rows,
 			experimentalUseConpty: useConpty,
-			conptyInheritCursor: true
+			// This option will force conpty to not redraw the whole viewport on launch
+			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
 
 		const cwdVerification = stat(cwd).then(async stat => {

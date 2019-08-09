@@ -30,7 +30,7 @@ export interface ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 
-	getDefaultShellAndArgs(platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
+	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 

@@ -32,11 +32,13 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority: string;
+	remoteAuthority?: string;
+	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;

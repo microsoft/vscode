@@ -360,17 +360,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 				this.pendingLoadConfig = undefined;
 			}
-
-			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
-			if (this._win && !this._win.isVisible()) {
-				if (this.windowState.mode === WindowMode.Maximized) {
-					this._win.maximize();
-				}
-
-				if (!this._win.isVisible()) { // maximize also makes visible
-					this._win.show();
-				}
-			}
 		});
 
 		// Window Focus

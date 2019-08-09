@@ -2650,10 +2650,10 @@ declare namespace monaco.editor {
 		 */
 		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 		/**
-		 * Controls the number of context lines above and below the cursor.
+		 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
 		 * Defaults to 0.
 		*/
-		scrollOff?: number;
+		cursorSurroundingLines?: number;
 		/**
 		 * Render last line number when the file ends with a newline.
 		 * Defaults to true.
@@ -3302,7 +3302,7 @@ declare namespace monaco.editor {
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
-		readonly scrollOff: number;
+		readonly cursorSurroundingLines: number;
 		readonly renderFinalNewline: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
@@ -3378,7 +3378,6 @@ declare namespace monaco.editor {
 		readonly pixelRatio: number;
 		readonly editorClassName: string;
 		readonly lineHeight: number;
-		readonly scrollOff: number;
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly multiCursorMergeOverlapping: boolean;
@@ -3520,7 +3519,6 @@ declare namespace monaco.editor {
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
-		readonly scrollOff: boolean;
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
 		readonly multiCursorModifier: boolean;

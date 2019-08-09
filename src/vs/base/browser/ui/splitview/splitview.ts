@@ -125,7 +125,10 @@ abstract class ViewItem {
 		dom.addClass(container, 'visible');
 	}
 
-	abstract layout(): void;
+	layout(): void {
+		this.container.scrollTop = 0;
+		this.container.scrollLeft = 0;
+	}
 
 	layoutView(orientation: Orientation): void {
 		this.view.layout(this.size, orientation);
@@ -140,6 +143,7 @@ abstract class ViewItem {
 class VerticalViewItem extends ViewItem {
 
 	layout(): void {
+		super.layout();
 		this.container.style.height = `${this.size}px`;
 		this.layoutView(Orientation.VERTICAL);
 	}
@@ -148,6 +152,7 @@ class VerticalViewItem extends ViewItem {
 class HorizontalViewItem extends ViewItem {
 
 	layout(): void {
+		super.layout();
 		this.container.style.width = `${this.size}px`;
 		this.layoutView(Orientation.HORIZONTAL);
 	}
@@ -414,9 +419,10 @@ export class SplitView extends Disposable {
 			throw new Error('Cant modify splitview');
 		}
 
-		const size = this.getViewSize(from);
+		const cachedVisibleSize = this.getViewCachedVisibleSize(from);
+		const sizing = typeof cachedVisibleSize === 'undefined' ? this.getViewSize(from) : Sizing.Invisible(cachedVisibleSize);
 		const view = this.removeView(from);
-		this.addView(view, size, to);
+		this.addView(view, sizing, to);
 	}
 
 	swapViews(from: number, to: number): void {
@@ -456,6 +462,7 @@ export class SplitView extends Disposable {
 
 		this.distributeEmptySpace(index);
 		this.layoutViews();
+		this.saveProportions();
 	}
 
 	getViewCachedVisibleSize(index: number): number | undefined {

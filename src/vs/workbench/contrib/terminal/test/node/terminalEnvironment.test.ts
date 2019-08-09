@@ -9,7 +9,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 
-suite('Workbench - TerminalEnvironment', () => {
+suite.only('Workbench - TerminalEnvironment', () => {
 	test('addTerminalEnvironmentKeys', () => {
 		const env: { [key: string]: any } = { FOO: 'bar' };
 		const locale = 'en-au';
@@ -126,6 +126,50 @@ suite('Workbench - TerminalEnvironment', () => {
 
 		test('should ignore custom cwd when told to ignore', () => {
 			assertPathsMatch(terminalEnvironment.getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, undefined, Uri.file('/bar'), '/foo'), '/bar');
+		});
+	});
+
+	suite('getDefaultShell', () => {
+		test('should change Sysnative to System32 in non-WoW64 systems', () => {
+			const shell = terminalEnvironment.getDefaultShell(key => {
+				return ({
+					'terminal.integrated.shell.windows': { user: 'C:\\Windows\\Sysnative\\cmd.exe', value: undefined, default: undefined }
+				} as any)[key];
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, false, platform.Platform.Windows);
+			assert.equal(shell, 'C:\\Windows\\System32\\cmd.exe');
+		});
+
+		test('should not change Sysnative to System32 in WoW64 systems', () => {
+			const shell = terminalEnvironment.getDefaultShell(key => {
+				return ({
+					'terminal.integrated.shell.windows': { user: 'C:\\Windows\\Sysnative\\cmd.exe', value: undefined, default: undefined }
+				} as any)[key];
+			}, false, 'DEFAULT', true, 'C:\\Windows', undefined, undefined, {} as any, false, platform.Platform.Windows);
+			assert.equal(shell, 'C:\\Windows\\Sysnative\\cmd.exe');
+		});
+
+		test('should use automationShell when specified', () => {
+			const shell1 = terminalEnvironment.getDefaultShell(key => {
+				return ({
+					'terminal.integrated.shell.windows': { user: 'shell', value: undefined, default: undefined },
+					'terminal.integrated.automationShell.windows': { user: undefined, value: undefined, default: undefined }
+				} as any)[key];
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, false, platform.Platform.Windows);
+			assert.equal(shell1, 'shell', 'automationShell was false');
+			const shell2 = terminalEnvironment.getDefaultShell(key => {
+				return ({
+					'terminal.integrated.shell.windows': { user: 'shell', value: undefined, default: undefined },
+					'terminal.integrated.automationShell.windows': { user: undefined, value: undefined, default: undefined }
+				} as any)[key];
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, true, platform.Platform.Windows);
+			assert.equal(shell2, 'shell', 'automationShell was true');
+			const shell3 = terminalEnvironment.getDefaultShell(key => {
+				return ({
+					'terminal.integrated.shell.windows': { user: 'shell', value: undefined, default: undefined },
+					'terminal.integrated.automationShell.windows': { user: 'automationShell', value: undefined, default: undefined }
+				} as any)[key];
+			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, undefined, {} as any, true, platform.Platform.Windows);
+			assert.equal(shell3, 'automationShell', 'automationShell was true and specified in settings');
 		});
 	});
 });

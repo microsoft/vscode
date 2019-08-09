@@ -7,13 +7,17 @@ import * as assert from 'vs/base/common/assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
+
+	readonly _serviceBrand: any;
 
 	private _disposables: Disposable[] = [];
 
@@ -33,7 +37,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		private readonly _mainContext: IMainContext,
+		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
 	) { }
 
 	dispose() {
@@ -64,7 +68,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				assert.ok(!this._documents.has(resource.toString()), `document '${resource} already exists!'`);
 
 				const documentData = new ExtHostDocumentData(
-					this._mainContext.getProxy(MainContext.MainThreadDocuments),
+					this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
 					resource,
 					data.lines,
 					data.EOL,
@@ -95,7 +99,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 				const documentData = this._documents.get(resource.toString())!;
 				const editor = new ExtHostTextEditor(
-					this._mainContext.getProxy(MainContext.MainThreadTextEditors),
+					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.Selection.to),
@@ -159,3 +163,6 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		return result;
 	}
 }
+
+export interface IExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditors { }
+export const IExtHostDocumentsAndEditors = createDecorator<IExtHostDocumentsAndEditors>('IExtHostDocumentsAndEditors');

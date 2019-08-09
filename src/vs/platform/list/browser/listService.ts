@@ -890,6 +890,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 	const openOnSingleClick = useSingleClickToOpen(configurationService);
 	const [workbenchListOptions, disposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+	const additionalScrollHeight = options.additionalScrollHeight;
 
 	return {
 		getAutomaticKeyboardNavigation,
@@ -906,7 +907,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling,
 			openOnSingleClick,
-			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
+			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
+			additionalScrollHeight
 		} as TOptions
 	};
 }

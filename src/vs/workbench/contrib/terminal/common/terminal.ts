@@ -76,6 +76,11 @@ export interface ITerminalConfiguration {
 		osx: string | null;
 		windows: string | null;
 	};
+	automationShell: {
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
+	};
 	shellArgs: {
 		linux: string[];
 		osx: string[];
@@ -754,7 +759,8 @@ export interface IAvailableShellsRequest {
 }
 
 export interface IDefaultShellAndArgsRequest {
-	(shell: string, args: string[] | string | undefined): void;
+	useAutomationShell: boolean;
+	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
 export enum LinuxDistro {

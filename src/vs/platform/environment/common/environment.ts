@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
@@ -98,7 +98,8 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 export const BACKUPS = 'Backups';
 
 export interface IEnvironmentService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	args: ParsedArgs;
 
