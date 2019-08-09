@@ -115,7 +115,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconLabel = new IconLabel(main, { supportHighlights: true });
+		data.iconLabel = new IconLabel(main, { supportHighlights: true, supportOcticons: true });
 		data.disposables.add(data.iconLabel);
 
 		data.typeLabel = append(main, $('span.type-label'));

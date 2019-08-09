@@ -141,7 +141,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const elementDisposable = Disposable.None;
-		const label = this.labels.create(container, { supportHighlights: true, donotSupportOcticons: true });
+		const label = this.labels.create(container, { supportHighlights: true });
 
 		return { elementDisposable, label, container };
 	}
