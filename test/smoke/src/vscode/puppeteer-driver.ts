@@ -183,12 +183,12 @@ export function launch(_args): void {
 	// TODO: Move puppeteer launch here
 }
 
-export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }> {
+export function connect(headless: boolean, outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
 		const browser = await puppeteer.launch({
 			// Run in Edge dev on macOS
 			// executablePath: '/Applications/Microsoft\ Edge\ Dev.app/Contents/MacOS/Microsoft\ Edge\ Dev',
-			headless: false,
+			headless,
 			slowMo: 80,
 			args: [`--window-size=${width},${height}`]
 		});

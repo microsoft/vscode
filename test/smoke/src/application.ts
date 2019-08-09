@@ -125,7 +125,8 @@ export class Application {
 			log: this.options.log,
 			extraArgs,
 			remote: this.options.remote,
-			web: this.options.web
+			web: this.options.web,
+			headless: this.options.headless
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);

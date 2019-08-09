@@ -101,6 +101,8 @@ export interface SpawnOptions {
 	remote?: boolean;
 	/** Run in the web */
 	web?: boolean;
+	/** Run in headless mode (only applies when web is true) */
+	headless?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -172,7 +174,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.web) {
 		launch(args);
-		connectDriver = connectPuppeteerDriver;
+		connectDriver = connectPuppeteerDriver.bind(connectPuppeteerDriver, !!options.headless);
 	} else {
 		const spawnOptions: cp.SpawnOptions = { env };
 		child = cp.spawn(electronPath, args, spawnOptions);
@@ -180,7 +182,6 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		child.once('exit', () => instances.delete(child!));
 		connectDriver = connectElectronDriver;
 	}
-
 	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 

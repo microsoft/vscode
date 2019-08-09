@@ -52,7 +52,8 @@ const opts = minimist(args, {
 	boolean: [
 		'verbose',
 		'remote',
-		'web'
+		'web',
+		'headless'
 	],
 	default: {
 		verbose: false
@@ -214,7 +215,8 @@ function createOptions(): ApplicationOptions {
 		log,
 		screenshotsPath,
 		remote: opts.remote,
-		web: opts.web
+		web: opts.web,
+		headless: opts.headless
 	};
 }
 
