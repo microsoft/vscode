@@ -346,15 +346,36 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			return; // we have not been created yet
 		}
 
-		// Even all group sizes
-		if (arrangement === GroupsArrangement.EVEN) {
-			this.gridWidget.distributeViewSizes();
+		switch (arrangement) {
+			case GroupsArrangement.EVEN:
+				this.gridWidget.distributeViewSizes();
+				break;
+			case GroupsArrangement.MINIMIZE_OTHERS:
+				this.gridWidget.maximizeViewSize(this.activeGroup);
+				break;
+			case GroupsArrangement.TOGGLE:
+				if (this.isGroupMaximized(this.activeGroup)) {
+					this.arrangeGroups(GroupsArrangement.EVEN);
+				} else {
+					this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+				}
+
+				break;
+		}
+	}
+
+	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
+		for (const group of this.groups) {
+			if (group === targetGroup) {
+				continue; // ignore target group
+			}
+
+			if (!group.isMinimized) {
+				return false; // target cannot be maximized if one group is not minimized
+			}
 		}
 
-		// Maximize the current active group
-		else {
-			this.gridWidget.maximizeViewSize(this.activeGroup);
-		}
+		return true;
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
@@ -604,7 +625,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Remove empty group
-		if (groupView.isEmpty()) {
+		if (groupView.isEmpty) {
 			return this.doRemoveEmptyGroup(groupView);
 		}
 
@@ -722,7 +743,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		});
 
 		// Remove source if the view is now empty and not already removed
-		if (sourceView.isEmpty() && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
+		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
 			this.removeGroup(sourceView);
 		}
 
@@ -925,7 +946,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private isEmpty(): boolean {
-		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
+		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
 	}
 
 	layout(width: number, height: number): void {
@@ -957,7 +978,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				mostRecentActiveGroups: this.mostRecentActiveGroups
 			};
 
-			if (this.isEmpty()) {
+			if (this.isEmpty) {
 				delete this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 			} else {
 				this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;

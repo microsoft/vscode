@@ -409,7 +409,7 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
-		if (!this.groupView.isEmpty() && this.accessor.partOptions.showTabs) {
+		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
 			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
 		}
 
